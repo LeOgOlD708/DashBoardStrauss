@@ -1183,9 +1183,8 @@ async function loadYahooData() {
 // Yahoo Finance called from browser (works fine, no server-side block)
 async function fetchYahooVix(ticker) {
   const encoded = encodeURIComponent(ticker);
-  const range   = ticker.startsWith('^') ? '6mo' : '1y';
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=${range}&includePrePost=false`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1y`;
+  const res = await fetch(url);
   if (!res.ok) return null;
   const d = await res.json();
   const result = d.chart?.result?.[0];
