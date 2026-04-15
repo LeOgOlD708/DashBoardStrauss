@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Macro Trading Dashboard v3.0 — Angel Lopez (Strauss)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07070e;--surface:#0d0d1a;--surface2:#131320;--surface3:#191926;
+  --gold:#c9a84c;--gold2:#e8c97a;--gold3:#f5e4b0;
+  --text:#eae6de;--text2:#9a9288;--text3:#524e4a;
+  --green:#4ade80;--red:#f87171;--amber:#fbbf24;--blue:#60a5fa;
+  --purple:#a78bfa;--teal:#2dd4bf;
+  --border:#181826;--border2:#22223a;
+  --p1bg:#0a2218;--p1t:#4ade80;
+  --p2bg:#0a1830;--p2t:#60a5fa;
+  --p3bg:#2a1808;--p3t:#f59e0b;
+  --p4bg:#2a0808;--p4t:#f87171;
+  --r:8px;--r2:12px;
+}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:300;min-height:100vh;line-height:1.5}
+.mono{font-family:'IBM Plex Mono',monospace}
+.serif{font-family:'Playfair Display',serif}
+
+/* ── NAV ── */
+nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:200}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;letter-spacing:-0.02em}
+.brand-name span{color:var(--gold);font-style:italic}
+.nav-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--bg);background:var(--gold);padding:3px 7px;letter-spacing:0.1em}
+.nav-right{display:flex;align-items:center;gap:16px}
+.live-dot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.1em}
+.live-dot .dot{width:5px;height:5px;border-radius:50%;background:var(--text3)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+.clock-display{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)}
+.phase-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:var(--amber);letter-spacing:.08em}
+
+/* ── TABS ── */
+.tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 20px;overflow-x:auto;gap:0}
+.tabs::-webkit-scrollbar{height:0}
+.tab{padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;user-select:none}
+.tab:hover{color:var(--text2)}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab-new{position:relative}
+.tab-new::after{content:'NEW';position:absolute;top:6px;right:2px;font-size:7px;color:var(--teal);letter-spacing:.05em}
+
+/* ── LAYOUT ── */
+.main{padding:16px 20px 60px;max-width:1440px;margin:0 auto}
+.page{display:none}
+.page.active{display:block}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g21{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.g12{display:grid;grid-template-columns:1fr 2fr;gap:10px}
+.g32{display:grid;grid-template-columns:3fr 2fr;gap:10px}
+@media(max-width:1000px){.g4,.g3{grid-template-columns:1fr 1fr}.g21,.g12,.g32{grid-template-columns:1fr}}
+@media(max-width:600px){.g4,.g3,.g2{grid-template-columns:1fr}}
+
+/* ── CARDS ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:14px;position:relative;overflow:hidden}
+.card-sm{padding:10px}
+.card-accent{position:absolute;top:0;left:0;right:0;height:2px}
+.gold-a .card-accent{background:var(--gold)}
+.green-a .card-accent{background:var(--p1t)}
+.amber-a .card-accent{background:var(--amber)}
+.red-a .card-accent{background:var(--red)}
+.blue-a .card-accent{background:var(--blue)}
+.teal-a .card-accent{background:var(--teal)}
+.purple-a .card-accent{background:var(--purple)}
+
+.lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:6px}
+.val{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:500;line-height:1}
+.val-sm{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:500}
+.chg{font-family:'IBM Plex Mono',monospace;font-size:10px;margin-top:3px}
+.up{color:var(--green)}.down{color:var(--red)}.neu{color:var(--amber)}
+
+/* ── SECTION HEADERS ── */
+.sh{display:flex;align-items:center;gap:8px;margin:16px 0 10px}
+.sh:first-child{margin-top:4px}
+.sh-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);padding:2px 7px;border:1px solid rgba(201,168,76,.3);background:rgba(201,168,76,.05)}
+.sh-title{font-family:'Playfair Display',serif;font-size:16px;font-weight:700}
+.sh-line{flex:1;height:1px;background:var(--border)}
+
+/* ── PHASE CARDS ── */
+.pc{border-radius:var(--r2);padding:16px;border:1px solid;position:relative;overflow:hidden}
+.pc1{background:var(--p1bg);border-color:rgba(74,222,128,.15)}
+.pc2{background:var(--p2bg);border-color:rgba(96,165,250,.15)}
+.pc3{background:var(--p3bg);border-color:rgba(251,191,36,.15)}
+.pc4{background:var(--p4bg);border-color:rgba(248,113,113,.15)}
+.pc-ghost{position:absolute;right:12px;bottom:4px;font-family:'Playfair Display',serif;font-size:56px;font-weight:900;opacity:.1;line-height:1}
+
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.06em;padding:2px 7px;border-radius:3px;font-weight:500}
+.b-up{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.b-neu{background:rgba(251,191,36,.08);color:var(--amber);border:1px solid rgba(251,191,36,.2)}
+.b-dn{background:rgba(248,113,113,.08);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+.b-alt{background:rgba(167,139,250,.08);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+.b-teal{background:rgba(45,212,191,.08);color:var(--teal);border:1px solid rgba(45,212,191,.2)}
+.b-gold{background:rgba(201,168,76,.08);color:var(--gold);border:1px solid rgba(201,168,76,.2)}
+
+/* ── INDICATOR BARS ── */
+.ind-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)}
+.ind-row:last-child{border-bottom:none}
+.ind-name{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text2);width:140px;flex-shrink:0}
+.ind-track{flex:1;height:3px;background:var(--border2);border-radius:2px;overflow:hidden}
+.ind-fill{height:100%;border-radius:2px}
+.ind-val{font-family:'IBM Plex Mono',monospace;font-size:9px;min-width:72px;text-align:right}
+.ind-sig{font-size:8px;padding:2px 5px;border-radius:2px;font-family:'IBM Plex Mono',monospace;flex-shrink:0}
+.is-g{background:rgba(74,222,128,.12);color:var(--green)}
+.is-a{background:rgba(251,191,36,.1);color:var(--amber)}
+.is-r{background:rgba(248,113,113,.1);color:var(--red)}
+
+/* ── TABLES ── */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:6px 8px;text-align:left;border-bottom:1px solid var(--border2)}
+.tbl td{padding:7px 8px;border-bottom:1px solid var(--border);font-size:11px}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--surface2)}
+.ticker{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500}
+
+/* ── HEATMAP ── */
+.heatmap{display:grid;gap:3px}
+.hm-cell{border-radius:5px;padding:8px 6px;cursor:pointer;transition:transform .15s;position:relative;overflow:hidden}
+.hm-cell:hover{transform:scale(1.03);z-index:10}
+.hm-ticker{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;line-height:1}
+.hm-name{font-size:9px;opacity:.7;margin-top:1px;line-height:1.2}
+.hm-pct{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;margin-top:4px}
+
+/* ── VIX / VOL GAUGES ── */
+.vol-gauge{display:flex;flex-direction:column;align-items:center;padding:8px 0}
+.vol-number{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:500;line-height:1}
+.vol-label{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.12em;margin-top:2px}
+.vol-bar{width:100%;height:5px;border-radius:3px;margin:10px 0 4px;position:relative}
+.vol-handle{position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;background:var(--text);border:2px solid var(--bg)}
+.zone-labels{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)}
+
+/* ── NEWS CARDS ── */
+.news-item{padding:10px 0;border-bottom:1px solid var(--border)}
+.news-item:last-child{border-bottom:none}
+.news-source{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.08em;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.news-src-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.news-title{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px;cursor:pointer}
+.news-title:hover{color:var(--gold)}
+.news-time{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)}
+.news-impact{font-size:8px;padding:1px 5px;border-radius:2px;font-family:'IBM Plex Mono',monospace}
+.ni-high{background:rgba(248,113,113,.1);color:var(--red)}
+.ni-med{background:rgba(251,191,36,.08);color:var(--amber)}
+.ni-low{background:rgba(74,222,128,.08);color:var(--green)}
+
+/* ── FLOW BLOCKS ── */
+.flow-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.flow-row:last-child{border-bottom:none}
+.flow-label{font-size:11px;color:var(--text2)}
+.flow-val{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500}
+.flow-bar-wrap{width:80px;height:3px;background:var(--border2);border-radius:2px;overflow:hidden;margin:0 8px}
+.flow-fill{height:100%;border-radius:2px}
+
+/* ── MONTOYA SIGNAL ── */
+.signal-block{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.signal-title{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--teal);margin-bottom:6px;text-transform:uppercase}
+.signal-text{font-size:11px;color:var(--text2);line-height:1.6}
+.signal-text strong{color:var(--text);font-weight:500}
+
+/* ── TRIGGER WATCH ── */
+.trigger-item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.trigger-item:last-child{border-bottom:none}
+.trigger-icon{width:28px;height:28px;border-radius:5px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:13px}
+.t-red{background:rgba(248,113,113,.12)}
+.t-amber{background:rgba(251,191,36,.1)}
+.t-green{background:rgba(74,222,128,.1)}
+.trigger-content{}
+.trigger-name{font-size:11px;font-weight:500;color:var(--text);margin-bottom:2px}
+.trigger-desc{font-size:10px;color:var(--text2);line-height:1.5}
+.trigger-impact{font-family:'IBM Plex Mono',monospace;font-size:8px;margin-top:3px}
+
+/* ── CHART ── */
+.ch-wrap{position:relative;width:100%}
+.ch200{height:200px}
+.ch220{height:220px}
+.ch260{height:260px}
+.ch180{height:180px}
+.ch160{height:160px}
+
+/* ── CHART ── */
+.cw{position:relative;width:100%}
+
+
+
+.no-data-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.08em;pointer-events:none}
+.ch-wrap{position:relative}
+
+/* ── PHASE 2 ADDITIONS ── */
+.loading-pulse{animation:lpulse 1.5s infinite}
+@keyframes lpulse{0%,100%{opacity:1}50%{opacity:.35}}
+.live-badge{font-family:'IBM Plex Mono',monospace;font-size:7px;padding:1px 5px;border-radius:2px;background:rgba(45,212,191,.12);color:var(--teal);border:1px solid rgba(45,212,191,.25);margin-left:6px;vertical-align:middle}
+.update-ts{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)}
+/* Settings overlay */
+#settings-overlay{position:fixed;inset:0;background:rgba(7,7,14,.92);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+#settings-overlay.hidden{display:none}
+.settings-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:28px 32px;width:440px;max-width:95vw}
+.settings-title{font-family:'Playfair Display',serif;font-size:20px;font-weight:900;margin-bottom:4px}
+.settings-sub{font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:20px}
+.settings-label{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:5px;display:block}
+.settings-input{width:100%;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:9px 12px;border-radius:var(--r);outline:none;margin-bottom:4px}
+.settings-input:focus{border-color:var(--gold)}
+.settings-hint{font-size:10px;color:var(--text3);margin-bottom:18px}
+.settings-hint a{color:var(--gold);text-decoration:none}
+.btn-primary{background:var(--gold);color:var(--bg);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;padding:9px 20px;border:none;cursor:pointer;border-radius:var(--r);font-weight:500;width:100%;margin-bottom:8px}
+.btn-primary:hover{background:var(--gold2)}
+.btn-skip{background:transparent;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:6px;border:none;cursor:pointer;width:100%;text-align:center}
+.btn-skip:hover{color:var(--text2)}
+.settings-err{font-size:10px;color:var(--red);margin-top:6px;font-family:'IBM Plex Mono',monospace;display:none}
+/* Refresh bar */
+#refresh-bar{position:fixed;bottom:0;left:0;right:0;height:2px;background:var(--border);z-index:500}
+#refresh-fill{height:100%;background:var(--gold);width:0%;transition:width 1s linear}
+/* Data status strip */
+#data-strip{background:var(--surface);border-bottom:1px solid var(--border);padding:4px 20px;display:flex;align-items:center;gap:12px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)}
+#data-strip.hidden{display:none}
+.ds-item{display:flex;align-items:center;gap:4px}
+.ds-dot{width:4px;height:4px;border-radius:50%}
+/* Error toast */
+#err-toast{position:fixed;top:70px;right:20px;background:var(--surface);border:1px solid rgba(248,113,113,.3);border-radius:var(--r);padding:10px 14px;font-size:10px;color:var(--text2);z-index:1000;max-width:320px;display:none}
+
+/* scrollbar */
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2)}
+
+/* overlay badge */
+.source-badge{position:absolute;top:8px;right:8px;font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.08em;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="brand">
+    <div class="brand-name">Macro Trading <span>Academy</span></div>
+    <div class="nav-pill">v3.0</div>
+  </div>
+  <div class="nav-right">
+    <div class="phase-badge" id="phase-badge">FASE 3 → F4</div>
+    <div class="live-dot"><div class="dot"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
+    <div class="clock-display" id="clock">—</div>
+  </div>
+</nav>
+
+<!-- TABS -->
+
+<!-- DATA STATUS STRIP -->
+<div id="data-strip" class="hidden">
+  <span class="ds-item"><div class="ds-dot" id="ds-fred" style="background:var(--amber)"></div>FRED</span>
+  <span class="ds-item"><div class="ds-dot" id="ds-yf" style="background:var(--amber)"></div>Yahoo Finance</span>
+  <span class="ds-item"><div class="ds-dot" id="ds-rss" style="background:var(--amber)"></div>RSS News</span>
+  <span style="margin-left:auto" id="last-update" style="color:var(--text3)">Sin conexión</span>
+  <button onclick="manualRefresh()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 8px;cursor:pointer;border-radius:3px">↻ Actualizar</button>
+  <button onclick="openSettings()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 8px;cursor:pointer;border-radius:3px">⚙ API Key</button>
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div id="settings-overlay">
+  <div class="settings-box">
+    <div class="settings-title">Macro Trading <span style="color:var(--gold);font-style:italic">Academy</span></div>
+    <div class="settings-sub">Para activar datos en vivo necesitas una API key gratuita de FRED. Los datos de Yahoo Finance y noticias funcionan sin API key.</div>
+    <div style="background:rgba(45,212,191,.07);border:1px solid rgba(45,212,191,.2);border-radius:6px;padding:10px 12px;margin-bottom:16px;font-size:10px;color:var(--teal);line-height:1.6">
+      <strong style="font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;display:block;margin-bottom:4px">COMO USAR CORRECTAMENTE</strong>
+      Descarga el archivo .html desde el chat y abrelo con doble click en Chrome o Firefox. Las APIs funcionan abriendo el archivo directamente en Chrome o Firefox. Si hay error, verifica tu conexión a internet.
+    </div>
+    <label class="settings-label">FRED API Key</label>
+    <input type="text" id="fred-key-input" class="settings-input" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+    <div class="settings-hint">Obtener gratis en <a href="https://fred.stlouisfed.org/docs/api/api_key.html" target="_blank">fred.stlouisfed.org</a> (tarda ~2 minutos)</div>
+    <button class="btn-primary" onclick="saveApiKey()">Activar datos en vivo</button>
+    <button class="btn-skip" onclick="skipApiKey()">Continuar solo con precios y noticias (sin FRED)</button>
+    <div class="settings-err" id="settings-err">API key inválida. Verifica que tenga 32 caracteres.</div>
+  </div>
+</div>
+
+<!-- ERROR TOAST -->
+<div id="err-toast"></div>
+
+<!-- REFRESH BAR -->
+<div id="refresh-bar"><div id="refresh-fill"></div></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="go('diag',this)">01 · Diagnóstico</div>
+  <div class="tab" onclick="go('ind',this)">02 · Indicadores</div>
+  <div class="tab" onclick="go('act',this)">03 · Activos</div>
+  <div class="tab" onclick="go('dxy',this)">04 · DXY & China</div>
+  <div class="tab" onclick="go('tesis',this)">05 · Tesis</div>
+  <div class="tab" onclick="go('check',this)">06 · Checklist</div>
+  <div class="tab tab-new" onclick="go('vol',this)">07 · Volatilidad</div>
+  <div class="tab tab-new" onclick="go('news',this)">08 · Noticias</div>
+</div>
+
+<div class="main">
+
+<!-- ══════════════════════════════════════════════════
+     01 · DIAGNÓSTICO
+══════════════════════════════════════════════════ -->
+<div id="tab-diag" class="page active">
+
+  <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Estado del Ciclo Global</div><div class="sh-line"></div><div class="mono" style="font-size:9px;color:var(--text3)">Abril 2026</div></div>
+
+  <div class="g3" style="margin-bottom:12px">
+    <div class="pc pc3">
+      <div class="pc-ghost" style="color:var(--p3t)">3</div>
+      <div class="lbl" style="color:var(--p3t)">Ciclo Howell</div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p3t);margin-bottom:6px">Fase 3 — Squeeze</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.6">Reservas Fed < $3.1T · SOFR spikes frecuentes · TGA $1.1T · MOVE 118</div>
+      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-alt">⚠ → Fase 4</span><span class="badge b-dn">Liquidez ↓</span></div>
+    </div>
+    <div class="pc pc3" style="border-color:rgba(251,191,36,.2)">
+      <div class="pc-ghost" style="color:var(--amber)">L</div>
+      <div class="lbl" style="color:var(--amber)">Ciclo Fidelity</div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--amber);margin-bottom:6px">Late Cycle</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.6">Empleo sólido cediendo · Inflación sticky · Márgenes bajo presión</div>
+      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-neu">Late Cycle</span><span class="badge b-alt">Pre-recesión</span></div>
+    </div>
+    <div class="pc pc4">
+      <div class="pc-ghost" style="color:var(--p4t)">!</div>
+      <div class="lbl" style="color:var(--p4t)">Ciclo Inflación</div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p4t);margin-bottom:6px">Alta + Shock Petróleo</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.6">CPI 2.4% + WTI $104 (bloqueo Hormuz) · Fed paralizada · Stagflación</div>
+      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-dn">Sin margen Fed</span><span class="badge b-dn">Petróleo ↑</span></div>
+    </div>
+  </div>
+
+  <div class="g21">
+    <div class="card gold-a"><div class="card-accent"></div>
+      <div class="lbl">Posición en el Ciclo de 65 Meses</div>
+      <div class="ch-wrap ch260"><canvas id="cycleChart" role="img" aria-label="Ciclo de liquidez 65 meses">Onda sinusoidal del ciclo.</canvas></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card">
+        <div class="lbl">Mes actual</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0 8px"><div class="val neu">42</div><div class="mono" style="font-size:10px;color:var(--text3)">/ 65</div></div>
+        <div style="width:100%;height:4px;background:var(--border2);border-radius:2px;overflow:hidden"><div style="width:64%;height:100%;background:linear-gradient(90deg,var(--p1t),var(--p2t),var(--p3t));border-radius:2px"></div></div>
+        <div class="mono" style="font-size:8px;color:var(--text3);display:flex;justify-content:space-between;margin-top:4px"><span>Oct 2022</span><span>Ahora</span><span>~2027</span></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Diagnóstico cruzado</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Howell</span><span class="badge b-alt" style="font-size:8px">F3→F4</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Fidelity</span><span class="badge b-neu" style="font-size:8px">Late</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">DXY ~99</span><span class="badge b-up" style="font-size:8px">↓ positivo</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">China PBOC</span><span class="badge b-up" style="font-size:8px">Fase 1</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">VIX/VVIX</span><span class="badge b-alt" style="font-size:8px">Divergencia</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">WTI</span><span class="badge b-dn" style="font-size:8px">$104 → inflación</span></div>
+        </div>
+      </div>
+      <div class="card" style="background:rgba(201,168,76,.04);border-color:rgba(201,168,76,.15)">
+        <div class="lbl" style="color:var(--gold)">Veredicto</div>
+        <div style="font-size:11px;color:var(--text2);line-height:1.6;margin-top:4px"><strong style="color:var(--text)">Defensivo.</strong> Oro · Commodities · Value defensivo · Cash. Muro de deuda + petróleo = bomba de presión.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g2" style="margin-top:10px">
+    <div class="card" style="border-color:rgba(74,222,128,.12)">
+      <div class="lbl" style="color:var(--green)">Activos Favorecidos</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + China</div></div>
+          <span class="badge b-up">↑↑ FUERTE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">XLE · XLB · GSG</div><div style="font-size:9px;color:var(--text3)">Commodities / Energía — late + China</div></div>
+          <span class="badge b-up">↑ FAVORABLE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">XLV · XLP · XLU</div><div style="font-size:9px;color:var(--text3)">Defensivos — demanda inelástica</div></div>
+          <span class="badge b-up">↑ REFUGIO</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">Cash USD · SHY</div><div style="font-size:9px;color:var(--text3)">Preservación capital</div></div>
+          <span class="badge b-neu">= PARKING</span>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="border-color:rgba(248,113,113,.12)">
+      <div class="lbl" style="color:var(--red)">Activos Bajo Presión</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">QQQ · XLK</div><div style="font-size:9px;color:var(--text3)">Tech — liquidez ↓ + tasa alta</div></div>
+          <span class="badge b-dn">↓ PRESIÓN</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">BTC · Crypto</div><div style="font-size:9px;color:var(--text3)">Máxima sensibilidad a liquidez</div></div>
+          <span class="badge b-dn">↓ -50% ATH</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">IWM · Small Caps</div><div style="font-size:9px;color:var(--text3)">Apalancadas — crédito apretándose</div></div>
+          <span class="badge b-dn">↓ VULNERABLE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
+          <span class="badge b-dn">↓ EVITAR</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     02 · INDICADORES
+══════════════════════════════════════════════════ -->
+<div id="tab-ind" class="page">
+  <div class="sh"><div class="sh-tag">Indicadores</div><div class="sh-title">Los 4 Termómetros de Howell</div><div class="sh-line"></div></div>
+  <div class="g2" style="margin-bottom:10px">
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl">① Reservas Bancarias Fed</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-res-val">—</div><div class="mono" id="m-res-chg" style="font-size:10px">—</div></div>
+      <div class="ch-wrap ch180"><canvas id="resChart" role="img" aria-label="Reservas Fed">Reservas históricas.</canvas></div>
+      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--surface2);border-radius:5px">
+        <div style="font-size:10px;color:var(--text2)">Umbral abundancia <span class="mono" style="color:var(--amber)">$3.3T</span> · Peligro <span class="mono" style="color:var(--red)">$3.0T</span></div>
+        <span class="badge b-neu">⚠ Alerta</span>
+      </div>
+      <div class="source-badge">FRED: WRBWFRBL</div>
+    </div>
+    <div class="card red-a"><div class="card-accent"></div>
+      <div class="lbl">② Spread SOFR / Fed Funds</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-sofr-val">—</div><div class="mono" style="font-size:10px;color:var(--text3)">SOFR > FFR</div></div>
+      <div class="ch-wrap ch180"><canvas id="sofrChart" role="img" aria-label="Spread SOFR">SOFR histórico.</canvas></div>
+      <div style="margin-top:8px;padding:6px 8px;background:var(--surface2);border-radius:5px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:10px;color:var(--text2)">85% de spikes de 2025 ocurrieron H2. Frecuencia crítica.</div>
+        <span class="badge b-dn">Spikes</span>
+      </div>
+      <div class="source-badge">FRED: SOFR</div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl">③ MOVE Index — Volatilidad Treasuries</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono up" style="font-size:10px">↑ +12</div></div>
+      <div class="ch-wrap ch180"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
+      <div style="margin-top:8px;display:flex;gap:5px">
+        <div style="flex:1;padding:4px 6px;background:rgba(74,222,128,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--green)">Verde</div><div class="mono" style="font-size:10px;color:var(--green)">< 100</div></div>
+        <div style="flex:1;padding:4px 6px;background:rgba(251,191,36,.08);border-radius:4px;text-align:center;border:1px solid rgba(251,191,36,.2)"><div class="mono" style="font-size:7px;color:var(--amber)">Actual</div><div class="mono" style="font-size:10px;color:var(--amber)">100-140</div></div>
+        <div style="flex:1;padding:4px 6px;background:rgba(248,113,113,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--red)">Crisis</div><div class="mono" style="font-size:10px;color:var(--red)">> 140</div></div>
+      </div>
+      <div class="source-badge">ICE BofA MOVE</div>
+    </div>
+    <div class="card red-a"><div class="card-accent"></div>
+      <div class="lbl">④ TGA — Cuenta General del Tesoro</div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" style="font-size:10px;color:var(--red)">Drenaje activo</div></div>
+      <div class="ch-wrap ch180"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
+      <div style="margin-top:8px;padding:6px 8px;background:rgba(248,113,113,.06);border-radius:5px;font-size:10px;color:var(--text2)">TGA > $1T = QT adicional silencioso de $250B equivalente</div>
+      <div class="source-badge">FRED: WTREGEN</div>
+    </div>
+  </div>
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Semáforo</div><div class="sh-title">Resumen Integrado</div><div class="sh-line"></div></div>
+  <div class="card gold-a"><div class="card-accent"></div>
+    <div class="lbl">Estado de todos los indicadores</div>
+    <div style="margin-top:8px">
+      <div class="ind-row"><div class="ind-name">Reservas Fed</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-res-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig is-g">NEUTRAL+</div></div>
+      <div class="ind-row"><div class="ind-name">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+    </div>
+    <div style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
+      <strong style="color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">3/5 INDICADORES EN ALERTA/PELIGRO</strong><br>Confirma Fase 3 con transición hacia Fase 4. Factor positivo único: DXY cayendo desde 109 aporta liquidez global vía commodities y EM.
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     03 · ACTIVOS
+══════════════════════════════════════════════════ -->
+<div id="tab-act" class="page">
+  <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
+
+  <!-- HEATMAP -->
+  <div class="card gold-a" style="margin-bottom:10px"><div class="card-accent"></div>
+    <div class="lbl">Heatmap Sectorial — Rendimiento YTD 2026 · Estilo Finviz</div>
+    <div id="heatmap" style="margin-top:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px"></div>
+    <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#166534"></div>+15%+</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#15803d"></div>+5 a 15%</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#374151"></div>0 a +5%</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#7f1d1d"></div>-5 a 0%</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#450a0a"></div>-15%+</div>
+      <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)">Fuente: Finviz (demo)</div>
+    </div>
+  </div>
+
+  <!-- TABLE + CHART -->
+  <div class="g21">
+    <div class="card"><div class="card-accent gold-a" style="position:relative;height:2px;background:var(--gold);border-radius:2px 2px 0 0;margin:-14px -14px 12px"></div>
+      <div class="lbl">Tabla de ETFs — Señales por Fase del Ciclo</div>
+      <div style="overflow-x:auto;margin-top:6px">
+        <table class="tbl">
+          <thead><tr><th>ETF</th><th>Precio</th><th>1M</th><th>YTD</th><th>Fase Actual</th><th>Señal</th></tr></thead>
+          <tbody id="etfTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card green-a"><div class="card-accent"></div>
+        <div class="lbl">Rendimiento YTD Comparado</div>
+        <div class="ch-wrap ch220"><canvas id="assetsChart" role="img" aria-label="Rendimiento ETFs YTD">ETF performance chart.</canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     04 · DXY & CHINA
+══════════════════════════════════════════════════ -->
+<div id="tab-dxy" class="page">
+  <div class="sh"><div class="sh-tag">DXY & China</div><div class="sh-title">Válvula Maestra y Motor Desincronizado</div><div class="sh-line"></div></div>
+  <div class="g2" style="margin-bottom:10px">
+    <div class="card green-a"><div class="card-accent"></div>
+      <div class="lbl">DXY — Índice del Dólar</div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0"><div class="val up" id="m-dxy-val">—</div><div class="mono up" style="font-size:10px">—</div></div>
+      <div class="ch-wrap ch180"><canvas id="dxyChart" role="img" aria-label="DXY histórico">DXY chart.</canvas></div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
+        <div class="flow-row"><span class="flow-label">Impacto liquidez global</span><span class="flow-val up">—</span></div>
+        <div class="flow-row"><span class="flow-label">Beta S&P500 vs DXY</span><span class="flow-val" style="color:var(--text3)">-1.35x</span></div>
+        <div class="flow-row"><span class="flow-label">Driver de la caída</span><span class="flow-val neu">Tariffs / geopolítica</span></div>
+      </div>
+    </div>
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl">PBOC — China · Fase 1 del Ciclo</div>
+      <div class="g2" style="gap:6px;margin:8px 0">
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Inyecciones</div><div class="val-sm up">—</div><div style="font-size:9px;color:var(--text3)">~$1T USD</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Oro en CNY</div><div class="val-sm">—</div><div style="font-size:9px;color:var(--text3)">Máx. histórico</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">PMI China</div><div class="val-sm" id="m-pmi-val">—</div><div style="font-size:9px;color:var(--text3)">Contracción leve</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Reservas oro</div><div class="val-sm" id="m-pboc-gold-val">—</div><div style="font-size:9px;color:var(--text3)">11 meses seguidos</div></div>
+      </div>
+      <div class="ch-wrap ch160"><canvas id="chinaChart" role="img" aria-label="Oro en CNY">CNY gold chart.</canvas></div>
+      <div style="margin-top:8px;padding:8px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.12);border-radius:5px;font-size:10px;color:var(--text2)">
+        <strong style="color:var(--amber)">China NO compensa la Fed.</strong> La liquidez va a la economía real china. Solo impacta vía commodities, EM y precio del oro.
+      </div>
+    </div>
+  </div>
+  <div class="card teal-a"><div class="card-accent"></div>
+    <div class="lbl">Canales de Transmisión — Liquidez China → Mercados Globales</div>
+    <div class="g3" style="margin-top:10px">
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;border:1px solid rgba(74,222,128,.12)"><div class="mono" style="font-size:8px;color:var(--green);margin-bottom:5px">CANAL 1 — COMMODITIES</div><div style="font-size:10px;color:var(--text2);line-height:1.5">Demanda industrial china → precios globales de materias primas → <strong style="color:var(--green)">XLB · GSG · CPER</strong></div><div style="margin-top:6px"><span class="badge b-up" style="font-size:8px">✓ Activo</span></div></div>
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;border:1px solid rgba(251,191,36,.12)"><div class="mono" style="font-size:8px;color:var(--amber);margin-bottom:5px">CANAL 2 — ORO (principal)</div><div style="font-size:10px;color:var(--text2);line-height:1.5">PBOC acumula oro como colateral. Shanghai fija el precio marginal → <strong style="color:var(--amber)">GLD · GDX · IAU</strong></div><div style="margin-top:6px"><span class="badge b-gold" style="font-size:8px">✓ Muy activo</span></div></div>
+      <div style="padding:10px;background:var(--surface2);border-radius:8px;border:1px solid rgba(96,165,250,.12)"><div class="mono" style="font-size:8px;color:var(--blue);margin-bottom:5px">CANAL 3 — EMERGENTES</div><div style="font-size:10px;color:var(--text2);line-height:1.5">Exportadores a China mejoran balanzas → divisas EM se aprecian → <strong style="color:var(--blue)">EEM · EWZ · ECH</strong></div><div style="margin-top:6px"><span class="badge b-neu" style="font-size:8px">~ Moderado</span></div></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     05 · TESIS
+══════════════════════════════════════════════════ -->
+<div id="tab-tesis" class="page">
+  <div class="sh"><div class="sh-tag">Tesis</div><div class="sh-title">Contexto Macro — 3 Horizontes</div><div class="sh-line"></div></div>
+  <div class="g3" style="margin-bottom:12px">
+    <div class="card red-a"><div class="card-accent"></div>
+      <div class="lbl" style="color:var(--red)">Corto Plazo — 1-4 semanas</div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px">Crisis Hormuz domina</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">Petróleo $100-104 · Fed paralizada · Mercado solo descuenta inflación — NO el shock de crecimiento que viene. <strong style="color:var(--text)">Ese es el próximo zapato.</strong></div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px">
+        <div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:2px">VIGILAR</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Apertura / cierre Hormuz</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• CPI próximo dato</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Reservas Fed jueves</div>
+      </div>
+    </div>
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl" style="color:var(--amber)">Medio Plazo — 1-3 meses</div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px">La bomba de presión</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">Muro de deuda 2026-2028 + Fed paralizada = refinanciamiento sin soporte. <strong style="color:var(--text)">Cada pump de Trump acumula más presión, no la alivia.</strong></div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px">
+        <div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:2px">RIESGOS</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Muro deuda $40T venciendo</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Desarme basis trade</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Default HY relevante</div>
+      </div>
+    </div>
+    <div class="card green-a"><div class="card-accent"></div>
+      <div class="lbl" style="color:var(--green)">Largo Plazo — 6-18 meses</div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px">El reset y próximo ciclo</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">Fed hará QE forzado. Inflación monetaria permanente. <strong style="color:var(--text)">El próximo ciclo alcista de Howell inicia ~2027.</strong> Oro y Bitcoin serán los activos del nuevo ciclo.</div>
+      <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px">
+        <div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:2px">POSICIONAMIENTO</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Acumular oro en caídas</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• BTC: próximo ciclo F1</div>
+        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Vigilar próximo QE Fed</div>
+      </div>
+    </div>
+  </div>
+  <div class="sh"><div class="sh-tag">Trigger Watch</div><div class="sh-title">Eventos que Cambiarían el Diagnóstico</div><div class="sh-line"></div></div>
+  <div class="card gold-a"><div class="card-accent"></div>
+    <div id="triggers"></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     06 · CHECKLIST
+══════════════════════════════════════════════════ -->
+<div id="tab-check" class="page">
+  <div class="sh"><div class="sh-tag">Checklist</div><div class="sh-title">7 Pasos de Diagnóstico Semanal</div><div class="sh-line"></div></div>
+  <div class="g21">
+    <div class="card gold-a"><div class="card-accent"></div>
+      <div class="lbl">Completar antes de cualquier posición</div>
+      <div id="checklistItems" style="margin-top:8px"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="card" style="border-color:rgba(201,168,76,.2)">
+        <div class="lbl" style="color:var(--gold)">Estado esta semana</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px" id="weekStatus"></div>
+        <div style="margin-top:8px;padding:7px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px">
+          <div class="mono" style="font-size:8px;color:var(--red);letter-spacing:.1em">POSTURA GENERAL</div>
+          <div style="font-size:13px;font-weight:500;color:var(--text);margin-top:2px">DEFENSIVO</div>
+          <div style="font-size:9px;color:var(--text2)">Preservar capital. Activos reales y cash.</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl">Próximos eventos clave</div>
+        <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">Reservas Fed</span><span class="mono" style="font-size:9px;color:var(--text3)">Jue 17 abr</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">CPI USA</span><span class="mono" style="font-size:9px;color:var(--text3)">Mar 15 abr</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">Reunión Fed</span><span class="mono" style="font-size:9px;color:var(--amber)">May 7, 2026</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="font-size:10px;color:var(--text2)">PMI China</span><span class="mono" style="font-size:9px;color:var(--text3)">30 abr</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     07 · VOLATILIDAD & FLUJOS (NEW — JJ. Montoya)
+══════════════════════════════════════════════════ -->
+<div id="tab-vol" class="page">
+  <div class="sh">
+    <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Volatilidad</div>
+    <div class="sh-title">Flujos · Opciones · Gamma · CTAs</div>
+    <div class="sh-line"></div>
+    <div class="badge b-teal">JJ. Montoya</div>
+  </div>
+
+  <!-- VIX ROW -->
+  <div class="g4" style="margin-bottom:10px">
+    <div class="card teal-a"><div class="card-accent"></div>
+      <div class="lbl">VIX</div>
+      <div class="vol-gauge">
+        <div class="vol-number" id="m-vix-val">—</div>
+        <div class="vol-label">Índice del miedo</div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:36%"></div></div>
+        <div class="zone-labels"><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span></div>
+      </div>
+      <div style="margin-top:6px;text-align:center"><span class="badge b-neu">Moderado</span></div>
+    </div>
+    <div class="card purple-a"><div class="card-accent"></div>
+      <div class="lbl">VVIX</div>
+      <div class="vol-gauge">
+        <div class="vol-number" style="color:var(--purple)">—</div>
+        <div class="vol-label">Vol de la vol — institucional</div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--purple))"><div class="vol-handle" style="left:65%"></div></div>
+        <div class="zone-labels"><span>80</span><span>95</span><span>110</span><span>130</span><span>150</span></div>
+      </div>
+      <div style="margin-top:6px;text-align:center"><span class="badge b-alt">Cautela inst.</span></div>
+    </div>
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl">VIX3M</div>
+      <div class="vol-gauge">
+        <div class="vol-number" id="m-vix3m-val">—</div>
+        <div class="vol-label">Volatilidad 3 meses</div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:44%"></div></div>
+        <div class="zone-labels"><span>12</span><span>18</span><span>24</span><span>32</span><span>45</span></div>
+      </div>
+      <div style="margin-top:6px;text-align:center"><span class="badge b-neu">Curva invertida</span></div>
+    </div>
+    <div class="card red-a"><div class="card-accent"></div>
+      <div class="lbl">SKEW — Put/Call Ratio</div>
+      <div class="vol-gauge">
+        <div class="vol-number" id="m-skew-val">—</div>
+        <div class="vol-label">Demanda de protección</div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:72%"></div></div>
+        <div class="zone-labels"><span>110</span><span>125</span><span>135</span><span>150</span><span>165</span></div>
+      </div>
+      <div style="margin-top:6px;text-align:center"><span class="badge b-dn">Alta cobertura</span></div>
+    </div>
+  </div>
+
+  <!-- VIX CHART + DIVERGENCE -->
+  <div class="g21" style="margin-bottom:10px">
+    <div class="card teal-a"><div class="card-accent"></div>
+      <div class="lbl">VIX vs VVIX — Búsqueda de Divergencias</div>
+      <div style="padding:7px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.15);border-radius:5px;margin-bottom:8px">
+        <div class="mono" style="font-size:8px;color:var(--red);letter-spacing:.1em">SEÑAL ACTIVA — DIVERGENCIA DETECTADA</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:3px">VIX cayendo → aparente calma · VVIX subiendo → institucionales comprando protección de cola. Señal de cautela sofisticada.</div>
+      </div>
+      <div class="ch-wrap ch200"><canvas id="vixChart" role="img" aria-label="VIX histórico">VIX chart.</canvas></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card purple-a"><div class="card-accent"></div>
+        <div class="lbl">Señal JJ. Montoya — Hoy</div>
+        <div class="signal-block">
+          <div class="signal-title">Estructura de volatilidad</div>
+          <div class="signal-text">VVIX al alza mientras VIX cae = <strong>institucionales posicionando protección de cola</strong> antes de que el VIX reaccione. Señal de cautela avanzada.</div>
+        </div>
+        <div class="signal-block">
+          <div class="signal-title">Gamma exposure S&P</div>
+          <div class="signal-text">Dealers con <strong>gamma negativa</strong> bajo 4,780. Si SPX rompe ese nivel, los dealers se ven obligados a vender. Riesgo de cascada.</div>
+        </div>
+        <div style="font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:4px">Fuente: jjmontoya.substack.com · Demo</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FLUJOS INSTITUCIONALES -->
+  <div class="sh"><div class="sh-tag">Flujos</div><div class="sh-title">Posicionamiento Institucional</div><div class="sh-line"></div></div>
+  <div class="g3">
+    <div class="card"><div class="card-accent amber-a" style="position:relative;height:2px;background:var(--amber)"></div>
+      <div class="lbl">CTAs — Trend Following</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+        <div class="flow-row"><span class="flow-label">Posición S&P</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
+        <div class="flow-row"><span class="flow-label">Flujo proyectado</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val down" style="font-size:11px">—</span></div>
+        <div class="flow-row"><span class="flow-label">Sesgo semana</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val down" style="font-size:11px">Venta</span></div>
+      </div>
+      <div style="margin-top:8px;padding:6px;background:rgba(248,113,113,.06);border-radius:4px;font-size:9px;color:var(--text2)">Si vol diaria > 1% durante 3 días seguidos → venta automática de $18B adicionales.</div>
+    </div>
+    <div class="card">
+      <div class="lbl">Vol Control Funds</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+        <div class="flow-row"><span class="flow-label">Vol realizada 1M</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
+        <div class="flow-row"><span class="flow-label">Umbral de ajuste</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
+        <div class="flow-row"><span class="flow-label">Exposición equity</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">Neutral</span></div>
+      </div>
+      <div style="margin-top:8px;padding:6px;background:rgba(251,191,36,.06);border-radius:4px;font-size:9px;color:var(--text2)">Cerca del umbral. Si cruza, los fondos reducen exposición automáticamente.</div>
+    </div>
+    <div class="card">
+      <div class="lbl">Gamma Dealers</div>
+      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
+        <div class="flow-row"><span class="flow-label">Gamma total</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val down" style="font-size:11px">—</span></div>
+        <div class="flow-row"><span class="flow-label">Put wall (soporte)</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
+        <div class="flow-row"><span class="flow-label">Call wall (resist.)</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val up" style="font-size:11px">—</span></div>
+      </div>
+      <div style="margin-top:8px;padding:6px;background:rgba(248,113,113,.06);border-radius:4px;font-size:9px;color:var(--text2)">Gamma negativa → dealers amplifican movimientos. Break de 4,700 = caída acelerada.</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     08 · NOTICIAS (NEW — MarketWatch + Geopolítica)
+══════════════════════════════════════════════════ -->
+<div id="tab-news" class="page">
+  <div class="sh">
+    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Noticias</div>
+    <div class="sh-title">Feed en Tiempo Real — Catalizadores de Timing</div>
+    <div class="sh-line"></div>
+    <div class="badge b-teal">MarketWatch RSS</div>
+  </div>
+
+  <div class="g32">
+    <!-- NEWS FEED -->
+    <div>
+      <!-- BREAKING -->
+      <div class="card red-a" style="margin-bottom:10px"><div class="card-accent"></div>
+        <div class="lbl" style="color:var(--red)">Breaking — Alto Impacto Macro</div>
+        <div id="newsFeed"></div>
+        <div style="margin-top:10px;padding:6px 8px;background:var(--surface2);border-radius:4px;font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace">
+          Fase 2 — API: MarketWatch RSS · Filtrado por palabras clave: Fed, oil, inflation, liquidity, Iran, repo, Treasury
+        </div>
+      </div>
+
+      <!-- GEOPOLITICS -->
+      <div class="card amber-a"><div class="card-accent"></div>
+        <div class="lbl" style="color:var(--amber)">Radar Geopolítico — Factores de Timing</div>
+        <div id="geoFeed"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <!-- SOURCES -->
+      <div class="card teal-a"><div class="card-accent"></div>
+        <div class="lbl">Stack de Fuentes Activas</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--teal)">MarketWatch RSS</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Noticias macro · Breaking · Actualiz. 15min</div>
+            <div style="margin-top:4px"><span class="badge b-teal" style="font-size:7px">Auto · Fase 2</span></div>
+          </div>
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--purple)">JJ. Montoya Substack</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Opciones · Gamma · CTAs · Morning Note</div>
+            <div style="margin-top:4px"><span class="badge b-alt" style="font-size:7px">RSS · Fase 2</span></div>
+          </div>
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--gold)">The Markets Eye</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Síntesis macro Howell en español</div>
+            <div style="margin-top:4px"><span class="badge b-gold" style="font-size:7px">RSS · Fase 2</span></div>
+          </div>
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--amber)">Capital Wars (Howell)</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Actualización semanal del ciclo GLI</div>
+            <div style="margin-top:4px"><span class="badge b-neu" style="font-size:7px">RSS · Fase 2</span></div>
+          </div>
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--blue)">FRED API</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Reservas · SOFR · TGA · DXY · CPI</div>
+            <div style="margin-top:4px"><span class="badge b-teal" style="font-size:7px">API Live · Fase 2</span></div>
+          </div>
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--green)">Yahoo Finance</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Precios ETFs · 15min delay</div>
+            <div style="margin-top:4px"><span class="badge b-teal" style="font-size:7px">yfinance · Fase 2</span></div>
+          </div>
+          <div style="padding:7px 8px;background:var(--surface2);border-radius:5px">
+            <div class="mono" style="font-size:9px;color:var(--text2)">Finviz (librería)</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:1px">Heatmap · Screener · Datos sectores</div>
+            <div style="margin-top:4px"><span class="badge b-teal" style="font-size:7px">scraping · Fase 2</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KEYWORD FILTER -->
+      <div class="card">
+        <div class="lbl">Filtro de Palabras Clave</div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">
+          <span class="badge b-dn" style="font-size:8px">Fed</span>
+          <span class="badge b-dn" style="font-size:8px">inflation</span>
+          <span class="badge b-dn" style="font-size:8px">Iran</span>
+          <span class="badge b-dn" style="font-size:8px">Hormuz</span>
+          <span class="badge b-alt" style="font-size:8px">oil</span>
+          <span class="badge b-alt" style="font-size:8px">repo</span>
+          <span class="badge b-alt" style="font-size:8px">Treasury</span>
+          <span class="badge b-neu" style="font-size:8px">PBOC</span>
+          <span class="badge b-neu" style="font-size:8px">gold</span>
+          <span class="badge b-up" style="font-size:8px">liquidity</span>
+          <span class="badge b-up" style="font-size:8px">DXY</span>
+        </div>
+        <div style="margin-top:8px;font-size:9px;color:var(--text3)">En Fase 2 estos keywords filtrarán los RSS feeds automáticamente y asignarán nivel de impacto.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<footer style="border-top:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center">
+  <span class="mono" style="font-size:8px;color:var(--text3)">Macro Trading Academy · Dashboard v2.0 · Fase 1 — Design</span><span class="mono" style="font-size:8px;color:var(--text3);margin-left:12px;padding-left:12px;border-left:1px solid var(--border2)">© Angel Lopez (Strauss)</span>
+  <span class="mono" style="font-size:8px;color:var(--text3)">Fase 2 → APIs en vivo: FRED · Yahoo · MarketWatch · JJ.Montoya</span>
+</footer>
+
+<script>
+// ── Clock ──
+(function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent=
+    n.toLocaleDateString('es-MX',{weekday:'short',month:'short',day:'numeric'})+
+    ' · '+n.toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})+' CDT';
+  setTimeout(tick,1000);
+})();
+
+// ── Tab nav ──
+function go(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  el.classList.add('active');
+}
+
+// ── Chart defaults ──
+Chart.defaults.color='#524e4a';
+Chart.defaults.borderColor='#181826';
+Chart.defaults.font.family="'IBM Plex Mono',monospace";
+Chart.defaults.font.size=9;
+
+const gold='#c9a84c',green='#4ade80',red='#f87171',amber='#fbbf24',blue='#60a5fa',teal='#2dd4bf',purple='#a78bfa';
+const surf2='#131320',border='#181826';
+const mo=['May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar','Abr'];
+
+function mini(id,labels,data,color,fill=false){
+  return new Chart(document.getElementById(id),{
+    type:'line',
+    data:{labels,datasets:[{data,borderColor:color,
+      backgroundColor:fill?color.replace('#','rgba(').replace(/(.{2})(.{2})(.{2})/,
+        (_,r,g,b)=>`rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},0.1)`):'transparent',
+      borderWidth:1.5,pointRadius:0,tension:0.35,fill}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
+      scales:{x:{grid:{display:false},ticks:{maxTicksLimit:6}},y:{grid:{color:border}}}}
+  });
+}
+
+// ── Cycle chart ──
+const cyLabels=[],cyData=[],cyBg=[];
+for(let i=0;i<65;i++){
+  cyLabels.push(i+1);
+  const v=Math.sin((i/64)*2*Math.PI-Math.PI/2)*50+50;
+  cyData.push(+v.toFixed(1));
+  cyBg.push(i<16?'rgba(74,222,128,.12)':i<33?'rgba(96,165,250,.12)':i<49?'rgba(251,191,36,.12)':'rgba(248,113,113,.12)');
+}
+const cyPts=Array(65).fill(0).map((_,i)=>[15,32,48,64].includes(i)?5:0);
+const pColors=cyLabels.map((_,i)=>i<16?green:i<33?blue:i<49?amber:red);
+new Chart(document.getElementById('cycleChart'),{
+  type:'line',
+  data:{labels:cyLabels,datasets:[
+    {data:cyData,borderColor:gold,backgroundColor:'rgba(201,168,76,.04)',borderWidth:2,pointRadius:0,tension:0.4,fill:true},
+    {data:cyData,backgroundColor:pColors,borderColor:'transparent',pointRadius:cyPts,showLine:false,type:'scatter'}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>`Mes ${c[0].label}`,label:c=>`Índice: ${c.parsed.y.toFixed(0)}`}}},
+    scales:{
+      x:{grid:{color:border},ticks:{maxTicksLimit:13,callback:v=>v%10===0?v:''}},
+      y:{min:0,max:100,grid:{color:border},ticks:{stepSize:25}}
+    }}
+});
+
+mini('resChart',mo,Array(12).fill(null),'amber',false);
+mini('sofrChart',mo,Array(12).fill(null),'red',false);
+mini('moveChart',mo,Array(12).fill(null),'amber',false);
+mini('tgaChart',mo,Array(12).fill(null),'red',false);
+mini('dxyChart',mo,Array(12).fill(null),'green',false);
+mini('chinaChart',mo,Array(12).fill(null),'amber',false);
+
+// ── VIX chart ──
+new Chart(document.getElementById('vixChart'),{
+  type:'line',
+  data:{labels:mo,datasets:[
+    {label:'VIX',data:Array(12).fill(null),borderColor:teal,borderWidth:1.5,pointRadius:0,tension:0.3},
+    {label:'VVIX',data:Array(12).fill(null),borderColor:purple,borderWidth:1.5,pointRadius:0,tension:0.3,borderDash:[3,3]}
+  ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:true,labels:{color:'#524e4a',font:{size:9},boxWidth:12}}},
+    scales:{x:{grid:{display:false}},y:{grid:{color:border}}}}
+});
+
+// ── Assets chart ──
+new Chart(document.getElementById('assetsChart'),{
+  type:'bar',
+  data:{
+    labels:['GDX','GLD','XLE','XLV','XLP','XLU','SPY','XLF','QQQ','TLT','IWM'],
+    datasets:[{data:Array(11).fill(0),
+      backgroundColor:'rgba(82,78,74,.3)',
+      borderColor:'transparent',borderWidth:0}]
+  },
+  options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.parsed.x>0?'+':''}${c.parsed.x.toFixed(1)}%`}}},
+    scales:{x:{grid:{color:border},ticks:{callback:v=>`${v>0?'+':''}${v}%`}},y:{grid:{display:false},ticks:{font:{size:9}}}}}
+});
+
+// ── ETF Table ──
+// ETF table populated by live data only
+const tbody=document.getElementById('etfTable');
+const etfSkeletons=[
+  ['GLD','Oro'],['GDX','Mineras Oro'],['XLE','Energía'],
+  ['XLV','Salud'],['XLP','Consumo Básico'],['XLU','Utilities'],
+  ['SPY','S&P 500'],['QQQ','Nasdaq 100'],['TLT','Bonos 20Y'],
+  ['XLF','Financieros'],['IWM','Small Caps'],['XLB','Materiales'],
+];
+etfSkeletons.forEach(([ticker,name])=>{
+  tbody.innerHTML+=`<tr>
+    <td><div class="ticker">${ticker}</div><div style="font-size:9px;color:var(--text3)">${name}</div></td>
+    <td class="mono" style="font-size:10px;color:var(--text3)">—</td>
+    <td class="mono" style="font-size:10px;color:var(--text3)">—</td>
+    <td class="mono" style="font-size:10px;color:var(--text3)">—</td>
+    <td style="font-size:9px;color:var(--text3)">—</td>
+    <td><span class="badge b-neu" style="font-size:8px;opacity:.4">Sin datos</span></td>
+  </tr>`;
+});
+
+// ── Heatmap ──
+// Heatmap populated by live Yahoo Finance data only
+const hm=document.getElementById('heatmap');
+const hmTickers=[
+  ['GDX','Mineras Oro'],['GLD','Oro'],['XLE','Energía'],
+  ['XLB','Materiales'],['XLV','Salud'],['XLP','Staples'],
+  ['XLU','Utilities'],['EEM','Emergentes'],['SPY','S&P 500'],
+  ['XLF','Financieros'],['QQQ','Nasdaq'],['IWM','Small Caps'],
+  ['TLT','Bonos 20Y'],['XLC','Comunic.'],['XLI','Industriales'],
+];
+hmTickers.forEach(([t,n])=>{
+  hm.innerHTML+=`<div class="hm-cell" style="background:var(--surface2);border:1px solid var(--border)">
+    <div class="hm-ticker" style="color:var(--text2)">${t}</div>
+    <div class="hm-name" style="color:var(--text3)">${n}</div>
+    <div class="hm-pct" style="color:var(--text3)">—</div>
+  </div>`;
+});
+
+// ── Triggers ──
+const triggers=[
+  {icon:'🛢️',cls:'t-red',name:'Hormuz se normaliza → petróleo < $80',desc:'Inflación cede. Fed puede recortar tasas. Liquidez global se expande.',impact:'IMPACTO: MUY ALTO — cambiaría diagnóstico a positivo',ic:'up'},
+  {icon:'💰',cls:'t-red',name:'Reservas Fed < $2.9T',desc:'Estrés sistémico de repo. Aceleración hacia Fase 4.',impact:'IMPACTO: CRÍTICO — Fase 4 inminente',ic:'dn'},
+  {icon:'⚡',cls:'t-red',name:'Default relevante en HY / Private Credit',desc:'Rompe cadena de colateral. Correlaciones van a 1.',impact:'IMPACTO: SISTÉMICO — activar máxima defensiva',ic:'dn'},
+  {icon:'📊',cls:'t-amber',name:'Fed anuncia pausa en QT o QE emergencia',desc:'Giro de ciclo. Bonos largos y tech son los primeros en reaccionar.',impact:'IMPACTO: ALTO — inicio potencial de nuevo ciclo',ic:'up'},
+  {icon:'🇨🇳',cls:'t-amber',name:'PBOC pausa compras de oro',desc:'Presión bajista sobre GLD. Reduce el soporte del canal 2 chino.',impact:'IMPACTO: MODERADO — revisar posiciones en GLD',ic:'neu'},
+  {icon:'🗳️',cls:'t-green',name:'Acuerdo paz Irán-USA + apertura Hormuz',desc:'Petróleo a $70-75. Fed queda libre para actuar.',impact:'IMPACTO: ALTO — cambio de narrativa inmediato',ic:'up'},
+];
+const td=document.getElementById('triggers');
+triggers.forEach(({icon,cls,name,desc,impact,ic})=>{
+  td.innerHTML+=`<div class="trigger-item">
+    <div class="trigger-icon ${cls}">${icon}</div>
+    <div class="trigger-content">
+      <div class="trigger-name">${name}</div>
+      <div class="trigger-desc">${desc}</div>
+      <div class="trigger-impact"><span class="badge b-${ic==='up'?'up':ic==='dn'?'dn':'neu'}" style="font-size:7px">${impact}</span></div>
+    </div>
+  </div>`;
+});
+
+// ── Checklist ──
+const steps=[
+  {n:1,done:true,title:'¿En qué fase está el ciclo de Howell?',desc:'Reservas Fed · Spread SOFR/FFR · MOVE Index · TGA',result:'Fase 3 → F4 · 3/4 indicadores en alerta/peligro'},
+  {n:2,done:true,title:'¿Confirma el DXY el diagnóstico?',desc:'DXY semanal: ¿tendencia alcista, bajista o lateral?',result:'DXY ~99 · caída desde 109 · positivo para liquidez global'},
+  {n:3,done:true,title:'¿En qué fase está el ciclo de Fidelity?',desc:'ISM · Curva de rendimientos · Nóminas · Spreads crédito',result:'Late Cycle → pre-recesión · Howell tiene prioridad'},
+  {n:4,done:true,title:'¿Dónde está el ciclo de inflación?',desc:'CPI/PCE · Precio petróleo · Breakevens 5Y',result:'CPI 2.4% + shock petróleo $104 · Fed paralizada'},
+  {n:5,done:true,title:'¿Qué está haciendo el PBOC?',desc:'Oro en CNY · Reservas PBOC · PMI China',result:'PBOC activo · Oro CNY máximos · Soporte oro y commodities'},
+  {n:6,done:false,title:'¿Hay señales de volatilidad institucional?',desc:'VIX vs VVIX · Gamma · CTAs · Vol Control',result:'VVIX > VIX = cautela institucional · Gamma negativa < 4,780'},
+  {n:7,done:false,title:'¿Cuál es el posicionamiento correcto?',desc:'Seleccionar activos por fase · Dirección · Sizing',result:'GLD ↑ · XLE ↑ · Cash = parking · QQQ ↓ · Crypto ↓'},
+];
+const cl=document.getElementById('checklistItems');
+steps.forEach(({n,done,title,desc,result})=>{
+  cl.innerHTML+=`<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+    <div style="width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;border:1px solid;${done?'background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.25);color:var(--green)':'background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.2);color:var(--gold)'}">${done?'✓':n}</div>
+    <div style="flex:1">
+      <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:2px">${title}</div>
+      <div style="font-size:9px;color:var(--text3)">${desc}</div>
+      ${result?`<div style="display:inline-flex;margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 6px;border-radius:2px;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.15);color:var(--gold)">${result}</div>`:''}
+    </div>
+  </div>`;
+});
+
+// Week status
+const ws=[
+  ['Fase Howell','F3→F4','b-alt'],['Fase Fidelity','Late','b-neu'],
+  ['Inflación','Shock','b-dn'],['DXY','~99 ↓','b-up'],
+  ['PBOC','Activo','b-up'],['VIX/VVIX','Div.','b-alt'],
+];
+const wsd=document.getElementById('weekStatus');
+ws.forEach(([l,v,b])=>{
+  wsd.innerHTML+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 6px;background:var(--surface2);border-radius:3px">
+    <span style="font-size:10px;color:var(--text2)">${l}</span>
+    <span class="badge ${b}" style="font-size:8px">${v}</span>
+  </div>`;
+});
+
+// ── News items demo ──
+// News populated by live RSS only
+const nf=document.getElementById('newsFeed');
+nf.innerHTML='<div style="padding:16px 0;font-size:11px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Esperando datos en vivo...</div>';
+
+// Geo feed updated manually or via future news integration
+const gf=document.getElementById('geoFeed');
+gf.innerHTML='<div style="padding:16px 0;font-size:11px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Sin datos — requiere conexión RSS</div>';
+</script>
+<div style="position:fixed;bottom:14px;left:20px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(90,80,74,0.5);letter-spacing:.08em;pointer-events:none;z-index:999">Angel Lopez (Strauss)</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  MACRO DASHBOARD v2.1 — FASE 2 DATA LAYER
+//  Angel Lopez (Strauss) · Macro Trading Academy
+// ══════════════════════════════════════════════════════════
+
+const FRED = 'https://api.stlouisfed.org/fred/series/observations';
+const YF   = 'https://query1.finance.yahoo.com/v8/finance/chart';
+const CORS = 'https://api.allorigins.win/get?url=';
+
+const SERIES = {
+  reserves : 'WRBWFRBL',   // Bank reserves weekly (billions)
+  tga      : 'WTREGEN',    // Treasury General Account weekly (billions)
+  sofr     : 'SOFR',       // SOFR daily (%)
+  fedfunds : 'FEDFUNDS',   // Fed Funds monthly (%)
+  dxy      : 'DTWEXBGS',   // Broad dollar index daily
+  cpi      : 'CPIAUCSL',   // CPI monthly (index)
+  breakeven: 'T5YIE',      // 5yr breakeven daily (%)
+  hySpread : 'BAMLH0A0HYM2', // HY spread daily (%)
+  fedBal   : 'WALCL',      // Fed balance sheet weekly (billions)
+};
+
+const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','SPY','QQQ','TLT','XLF','IWM','XLB'];
+const ETF_NAMES   = {
+  GLD:'Oro',GDX:'Mineras Oro',XLE:'Energía',XLV:'Salud',
+  XLP:'Consumo Básico',XLU:'Utilities',SPY:'S&P 500',
+  QQQ:'Nasdaq 100',TLT:'Bonos 20Y',XLF:'Financieros',
+  IWM:'Small Caps',XLB:'Materiales'
+};
+
+// ── State ──
+let state = {
+  apiKey: '',
+  skipFred: false,
+  data: {},
+  charts: {},
+  lastUpdate: null,
+  refreshTimer: null,
+  refreshInterval: 30 * 60 * 1000, // 30 min
+};
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = sessionStorage.getItem('fredKey');
+  const skipped = sessionStorage.getItem('skipFred');
+  if (saved) {
+    state.apiKey = saved;
+    closeSettings();
+    bootData();
+  } else if (skipped) {
+    state.skipFred = true;
+    closeSettings();
+    bootData();
+  }
+  // else: settings overlay stays visible
+});
+
+// ── Settings management ──
+function saveApiKey() {
+  const key = document.getElementById('fred-key-input').value.trim().replace(/\s/g,'');
+  const errEl = document.getElementById('settings-err');
+  if (!key) {
+    errEl.textContent = 'Ingresa tu API key de FRED.';
+    errEl.style.display = 'block'; return;
+  }
+  if (key.length < 8) {
+    errEl.textContent = 'La key parece muy corta. Debe tener 32 caracteres.';
+    errEl.style.display = 'block'; return;
+  }
+  errEl.style.display = 'none';
+  sessionStorage.setItem('fredKey', key);
+  state.apiKey = key;
+  closeSettings();
+  bootData();
+}
+
+function skipApiKey() {
+  sessionStorage.setItem('skipFred', '1');
+  state.skipFred = true;
+  closeSettings();
+  bootData();
+}
+
+function closeSettings() {
+  document.getElementById('settings-overlay').classList.add('hidden');
+  document.getElementById('data-strip').classList.remove('hidden');
+}
+
+function openSettings() {
+  document.getElementById('settings-overlay').classList.remove('hidden');
+}
+
+// ── Main boot sequence ──
+async function bootData() {
+  setNavStatus('Cargando...', '#fbbf24');
+  showLoadingPulse();
+
+  const promises = [
+    fetchYahooAll(),
+    fetchRSSNews(),
+  ];
+  if (state.apiKey) promises.push(fetchAllFred());
+
+  await Promise.allSettled(promises);
+  
+  updateDiagnostic();
+  updateLastUpdate();
+  setNavStatus('EN VIVO', '#2dd4bf');
+  scheduleRefresh();
+}
+
+// ── Manual refresh ──
+function manualRefresh() {
+  if (state.refreshTimer) clearTimeout(state.refreshTimer);
+  bootData();
+}
+
+// ── Refresh timer ──
+function scheduleRefresh() {
+  const fill = document.getElementById('refresh-fill');
+  if (!fill) return;
+  fill.style.width = '0%';
+  let pct = 0;
+  const step = () => {
+    pct += (1 / (state.refreshInterval / 1000)) * 100;
+    if (pct >= 100) { manualRefresh(); return; }
+    fill.style.width = pct + '%';
+    state.refreshTimer = setTimeout(step, 1000);
+  };
+  state.refreshTimer = setTimeout(step, 1000);
+}
+
+// ── Loading state ──
+function showLoadingPulse() {
+  ['m-res-val','m-sofr-val','m-move-val','m-tga-val','m-dxy-val','m-vix-val'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.add('loading-pulse');
+  });
+}
+
+function hideLoadingPulse() {
+  document.querySelectorAll('.loading-pulse').forEach(el => el.classList.remove('loading-pulse'));
+}
+
+function setNavStatus(text, color) {
+  const el = document.getElementById('nav-status');
+  if (el) { el.textContent = text; el.style.color = color; }
+  const dot = document.querySelector('.live-dot .dot');
+  if (dot) dot.style.background = color;
+}
+
+function updateLastUpdate() {
+  state.lastUpdate = new Date();
+  const el = document.getElementById('last-update');
+  if (el) el.textContent = 'Act. ' + state.lastUpdate.toLocaleTimeString('es-MX', {hour:'2-digit',minute:'2-digit'});
+}
+
+// ──────────────────────────────────────────────
+//  FRED API
+// ──────────────────────────────────────────────
+async function fredFetch(seriesId, limit = 14) {
+  const apiUrl = `${FRED}?series_id=${seriesId}&limit=${limit}&sort_order=desc&file_type=json&api_key=${state.apiKey}`;
+  // Use CORS proxy to allow requests from local file:// and any origin
+  const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(apiUrl)}`;
+  const res = await fetch(proxyUrl);
+  if (!res.ok) throw new Error(`FRED proxy ${seriesId}: ${res.status}`);
+  const wrapper = await res.json();
+  if (!wrapper.contents) throw new Error(`FRED ${seriesId}: respuesta vacía del proxy`);
+  const d = JSON.parse(wrapper.contents);
+  if (d.error_code) throw new Error(`FRED key inválida: ${d.error_message || d.error_code}`);
+  return (d.observations || [])
+    .filter(o => o.value !== '.')
+    .map(o => ({ date: o.date, value: parseFloat(o.value) }));
+}
+
+async function fetchAllFred() {
+  setDs('ds-fred', '#fbbf24');
+  try {
+    const [reserves, tga, sofr, fedfunds, dxy, cpi, breakeven, hySpread] = await Promise.all([
+      fredFetch(SERIES.reserves, 14),
+      fredFetch(SERIES.tga, 14),
+      fredFetch(SERIES.sofr, 14),
+      fredFetch(SERIES.fedfunds, 3),
+      fredFetch(SERIES.dxy, 14),
+      fredFetch(SERIES.cpi, 3),
+      fredFetch(SERIES.breakeven, 5),
+      fredFetch(SERIES.hySpread, 14),
+    ]);
+
+    state.data.reserves  = reserves;
+    state.data.tga       = tga;
+    state.data.sofr      = sofr;
+    state.data.fedfunds  = fedfunds;
+    state.data.dxy       = dxy;
+    state.data.cpi       = cpi;
+    state.data.breakeven = breakeven;
+    state.data.hySpread  = hySpread;
+
+    updateFredUI();
+    setDs('ds-fred', '#4ade80');
+  } catch(e) {
+    console.warn('FRED error:', e);
+    setDs('ds-fred', '#f87171');
+    const msg = e.message.includes('400') ? 'API key invalida — regenerala en fred.stlouisfed.org' :
+                e.message.includes('429') ? 'Limite de requests alcanzado — espera 1 minuto' :
+                e.message.includes('inválida') ? e.message : e.message.includes('Failed') ? 'Error de red — verifica tu conexión a internet' :
+                'Error FRED: ' + e.message;
+    showToast(msg);
+    document.getElementById('last-update').textContent = 'Error FRED';
+  }
+}
+
+function updateFredUI() {
+  const { reserves, tga, sofr, fedfunds, dxy, cpi, breakeven, hySpread } = state.data;
+
+  // ── Reserves ──
+  if (reserves?.length) {
+    const latest = reserves[0].value;        // billions
+    const prev   = reserves[1]?.value || latest;
+    const diff   = (latest - prev).toFixed(1);
+    const sign   = diff >= 0 ? '+' : '';
+    setEl('m-res-val', `$${(latest/1000).toFixed(2)}T`);
+    setEl('m-res-chg', `${sign}${diff}B`);
+    setEl('s-res-val', `$${(latest/1000).toFixed(2)}T`);
+    // Signal
+    const zone = latest > 3300 ? {cls:'is-g',txt:'VERDE',cl:'up'} :
+                 latest > 3000 ? {cls:'is-a',txt:'ALERTA',cl:'neu'} :
+                                 {cls:'is-r',txt:'PELIGRO',cl:'down'};
+    styleEl('m-res-val', zone.cl);
+    updateSemaphoreRow('s-res-sig', zone.cls, zone.txt, latest, 2500, 4000);
+    // Chart
+    const vals = [...reserves].reverse().map(o=>o.value/1000);
+    const lbls = [...reserves].reverse().map(o=>o.date.slice(5,10));
+    updateMiniChart('resChart', lbls, vals, '#fbbf24', true);
+  }
+
+  // ── TGA ──
+  if (tga?.length) {
+    const latest = tga[0].value; // billions
+    setEl('m-tga-val', `$${(latest/1000).toFixed(2)}T`);
+    setEl('s-tga-val', `$${(latest/1000).toFixed(2)}T`);
+    const zone = latest < 500 ? 'up' : latest < 800 ? 'neu' : 'down';
+    styleEl('m-tga-val', zone);
+    const vals = [...tga].reverse().map(o=>o.value/1000);
+    const lbls = [...tga].reverse().map(o=>o.date.slice(5,10));
+    updateMiniChart('tgaChart', lbls, vals, '#f87171', true);
+  }
+
+  // ── SOFR / FFR spread ──
+  if (sofr?.length && fedfunds?.length) {
+    const latestSofr = sofr[0].value;
+    const latestFfr  = fedfunds[0].value;
+    const spread     = (latestSofr - latestFfr).toFixed(2);
+    const sign       = spread >= 0 ? '+' : '';
+    setEl('m-sofr-val', `${sign}${spread} bps`);
+    setEl('s-sofr-val', `${sign}${spread} bps`);
+    const zone = Math.abs(spread) < 5 ? 'up' : Math.abs(spread) < 15 ? 'neu' : 'down';
+    styleEl('m-sofr-val', zone);
+    const sofrVals = [...sofr].reverse().map(o=>o.value);
+    const sofrLbls = [...sofr].reverse().map(o=>o.date.slice(5,10));
+    updateMiniChart('sofrChart', sofrLbls, sofrVals, '#f87171', false);
+  }
+
+  // ── DXY ──
+  if (dxy?.length) {
+    const latest = dxy[0].value.toFixed(1);
+    setEl('m-dxy-val', latest);
+    setEl('s-dxy-val', latest);
+    const zone = latest < 95 ? 'up' : latest < 105 ? 'neu' : 'down';
+    styleEl('m-dxy-val', zone);
+    const vals = [...dxy].reverse().map(o=>o.value);
+    const lbls = [...dxy].reverse().map(o=>o.date.slice(5,10));
+    updateMiniChart('dxyChart', lbls, vals, '#4ade80', false);
+    // Also update DXY tab main value
+    const dxyMain = document.getElementById('m-dxy-val');
+    if (dxyMain) dxyMain.textContent = latest;
+  }
+
+  // ── HY Spreads → MOVE proxy line ──
+  if (hySpread?.length) {
+    const latest = hySpread[0].value.toFixed(2);
+    const vals = [...hySpread].reverse().map(o=>o.value);
+    const lbls = [...hySpread].reverse().map(o=>o.date.slice(5,10));
+    // Update MOVE chart with HY spread as proxy context
+  }
+
+  // ── CPI display ──
+  if (cpi?.length) {
+    const latest = cpi[0].value;
+    const prev   = cpi[1]?.value;
+    if (prev) {
+      const yoy = (((latest/prev)**12 - 1)*100).toFixed(1);
+      // Store for diagnostic
+      state.data.cpiYoY = parseFloat(yoy);
+    }
+  }
+
+  // ── Breakeven ──
+  if (breakeven?.length) {
+    state.data.breakeven5y = breakeven[0].value.toFixed(2);
+  }
+
+  hideLoadingPulse();
+  addLiveBadges();
+}
+
+// ──────────────────────────────────────────────
+//  YAHOO FINANCE
+// ──────────────────────────────────────────────
+async function fetchYahooAll() {
+  setDs('ds-yf', '#fbbf24');
+  try {
+    const results = await Promise.allSettled(
+      ETF_TICKERS.map(t => fetchYahooTicker(t))
+    );
+    const prices = {};
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value) {
+        prices[ETF_TICKERS[i]] = r.value;
+      }
+    });
+    state.data.prices = prices;
+    updateETFTable(prices);
+    updateHeatmap(prices);
+    updateAssetsChart(prices);
+    setDs('ds-yf', '#4ade80');
+  } catch(e) {
+    console.warn('YF error:', e);
+    setDs('ds-yf', '#f87171');
+  }
+}
+
+async function fetchYahooTicker(ticker) {
+  // Try direct first (works in deployed/served context), fallback to proxy
+  const directUrl = `${YF}/${ticker}?interval=1d&range=1y&includePrePost=false`;
+  const proxyUrl  = `https://api.allorigins.win/get?url=${encodeURIComponent(directUrl)}`;
+  let d;
+  try {
+    const res = await fetch(directUrl, {signal: AbortSignal.timeout(5000)});
+    if (!res.ok) throw new Error('direct failed');
+    d = await res.json();
+  } catch {
+    const res2 = await fetch(proxyUrl);
+    const w = await res2.json();
+    d = JSON.parse(w.contents);
+  }
+  const result = d.chart?.result?.[0];
+  if (!result) return null;
+  const closes = result.indicators.quote[0].close;
+  const timestamps = result.timestamp;
+  const validPairs = timestamps
+    .map((t, i) => ({ t, v: closes[i] }))
+    .filter(p => p.v != null);
+  if (!validPairs.length) return null;
+  const latest   = validPairs[validPairs.length - 1].v;
+  const prev     = validPairs[validPairs.length - 2]?.v || latest;
+  const yearAgo  = validPairs[0].v;
+  const monthAgo = validPairs[Math.max(0, validPairs.length - 22)]?.v || yearAgo;
+  const hist12   = validPairs.slice(-252).map(p=>p.v);
+  const lbls12   = validPairs.slice(-252).map(p=>new Date(p.t*1000).toLocaleDateString('es-MX',{month:'short',day:'numeric'}));
+  return {
+    price: latest,
+    chg1d: ((latest/prev - 1)*100).toFixed(2),
+    chg1m: ((latest/monthAgo - 1)*100).toFixed(1),
+    ytd:   ((latest/yearAgo - 1)*100).toFixed(1),
+    hist:  hist12,
+    lbls:  lbls12,
+  };
+}
+
+function updateETFTable(prices) {
+  const tbody = document.getElementById('etfTable');
+  if (!tbody) return;
+  
+  const phaseMap = {
+    GLD:{ph:'F3 ↑',sig:'b-up',sl:'↑↑ FUERTE'}, GDX:{ph:'F3 ↑↑',sig:'b-up',sl:'↑↑ MUY FAV.'},
+    XLE:{ph:'F3 ↑',sig:'b-up',sl:'↑ FAVORABLE'}, XLV:{ph:'F3 neutro',sig:'b-neu',sl:'= NEUTRAL+'},
+    XLP:{ph:'F4 prep.',sig:'b-neu',sl:'= REFUGIO'}, XLU:{ph:'F4 prep.',sig:'b-neu',sl:'= REFUGIO'},
+    SPY:{ph:'F3 ↓',sig:'b-dn',sl:'↓ PRESIÓN'}, QQQ:{ph:'F3 ↓↓',sig:'b-dn',sl:'↓ EVITAR'},
+    TLT:{ph:'Esperar',sig:'b-alt',sl:'⚠ POST-FED'}, XLF:{ph:'F3 ↓',sig:'b-dn',sl:'↓ PRESIÓN'},
+    IWM:{ph:'F3/F4 ↓↓',sig:'b-dn',sl:'↓ VULNERABLE'}, XLB:{ph:'F3 ↑',sig:'b-up',sl:'↑ FAVORABLE'},
+  };
+
+  tbody.innerHTML = '';
+  ETF_TICKERS.forEach(ticker => {
+    const p  = prices[ticker];
+    const pm = phaseMap[ticker] || {ph:'—',sig:'b-neu',sl:'—'};
+    const name = ETF_NAMES[ticker] || ticker;
+    if (!p) {
+      tbody.innerHTML += `<tr><td><div class="ticker">${ticker}</div><div style="font-size:9px;color:var(--text3)">${name}</div></td>
+        <td colspan="4" class="mono" style="font-size:9px;color:var(--text3)">Cargando...</td>
+        <td><span class="badge ${pm.sig}" style="font-size:8px">${pm.sl}</span></td></tr>`;
+      return;
+    }
+    const priceStr = p.price < 10 ? p.price.toFixed(3) : p.price < 1000 ? p.price.toFixed(2) : p.price.toFixed(0);
+    const m1c  = parseFloat(p.chg1m) >= 0 ? 'up' : 'down';
+    const ytdc = parseFloat(p.ytd)  >= 0 ? 'up' : 'down';
+    const m1s  = parseFloat(p.chg1m) >= 0 ? '+' : '';
+    const ytds = parseFloat(p.ytd)  >= 0 ? '+' : '';
+    tbody.innerHTML += `<tr>
+      <td><div class="ticker">${ticker}<span class="live-badge">LIVE</span></div><div style="font-size:9px;color:var(--text3)">${name}</div></td>
+      <td class="mono" style="font-size:10px">$${priceStr}</td>
+      <td class="mono ${m1c}" style="font-size:10px">${m1s}${p.chg1m}%</td>
+      <td class="mono ${ytdc}" style="font-size:10px">${ytds}${p.ytd}%</td>
+      <td style="font-size:9px;color:var(--text3)">${pm.ph}</td>
+      <td><span class="badge ${pm.sig}" style="font-size:8px">${pm.sl}</span></td>
+    </tr>`;
+  });
+}
+
+function updateHeatmap(prices) {
+  const hm = document.getElementById('heatmap');
+  if (!hm) return;
+  const hmColor = v => v > 15 ? '#166534' : v > 5 ? '#15803d' : v > 0 ? '#374151' : v > -5 ? '#7f1d1d' : '#450a0a';
+  const hmText  = v => v > 5  ? '#86efac' : v > 0 ? '#d1d5db' : '#fca5a5';
+  
+  const items = ETF_TICKERS.map(t => ({
+    t, n: ETF_NAMES[t] || t,
+    v: prices[t] ? parseFloat(prices[t].ytd) : 0,
+    pct: prices[t] ? (parseFloat(prices[t].ytd) >= 0 ? '+' : '') + prices[t].ytd : '—'
+  })).sort((a,b) => b.v - a.v);
+
+  hm.innerHTML = '';
+  items.forEach(({t,n,v,pct}) => {
+    hm.innerHTML += `<div class="hm-cell" style="background:${hmColor(v)}">
+      <div class="hm-ticker" style="color:${hmText(v)}">${t}</div>
+      <div class="hm-name" style="color:${hmText(v)}">${n}</div>
+      <div class="hm-pct" style="color:${hmText(v)}">${pct}%</div>
+    </div>`;
+  });
+}
+
+function updateAssetsChart(prices) {
+  const chart = state.charts['assetsChart'];
+  if (!chart) return;
+  const data = ETF_TICKERS
+    .filter(t => prices[t])
+    .map(t => ({ t, v: parseFloat(prices[t].ytd) }))
+    .sort((a,b) => b.v - a.v);
+  chart.data.labels = data.map(d => d.t);
+  chart.data.datasets[0].data = data.map(d => d.v);
+  chart.data.datasets[0].backgroundColor = data.map(d =>
+    d.v > 10 ? 'rgba(74,222,128,.7)' : d.v > 0 ? 'rgba(251,191,36,.6)' : 'rgba(248,113,113,.65)'
+  );
+  chart.update();
+}
+
+// ──────────────────────────────────────────────
+//  RSS NEWS
+// ──────────────────────────────────────────────
+const RSS_FEEDS = [
+  { url: 'https://feeds.content.dowjones.io/public/rss/mw_marketpulse', name: 'MarketWatch', color: '#60a5fa' },
+  { url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories',  name: 'MarketWatch', color: '#60a5fa' },
+];
+
+const MACRO_KEYWORDS = ['fed','inflation','oil','iran','hormuz','repo','treasury','liquidity',
+  'pboc','gold','dxy','rate','gdp','recession','yields','bonds','tariff','trump',
+  'powell','jerome','crude','energy','spread','default','credit'];
+
+async function fetchRSSNews() {
+  setDs('ds-rss', '#fbbf24');
+  try {
+    const allItems = [];
+    await Promise.allSettled(
+      RSS_FEEDS.map(async feed => {
+        const encoded = encodeURIComponent(feed.url);
+        const r = await fetch(`${CORS}${encoded}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        const xml = new DOMParser().parseFromString(d.contents, 'text/xml');
+        const items = [...xml.querySelectorAll('item')];
+        items.slice(0,10).forEach(item => {
+          const title = item.querySelector('title')?.textContent || '';
+          const link  = item.querySelector('link')?.textContent || '#';
+          const pub   = item.querySelector('pubDate')?.textContent || '';
+          const desc  = item.querySelector('description')?.textContent || '';
+          const text  = (title + ' ' + desc).toLowerCase();
+          const isMacro = MACRO_KEYWORDS.some(kw => text.includes(kw));
+          if (isMacro) {
+            const age = pub ? timeAgo(new Date(pub)) : '—';
+            const impact = getImpact(text);
+            allItems.push({ title, link, age, impact, src: feed.name, color: feed.color });
+          }
+        });
+      })
+    );
+    
+    // Sort by impact
+    const sorted = allItems.sort((a,b) => {
+      const order = {high:0,med:1,low:2};
+      return order[a.impact] - order[b.impact];
+    });
+
+    renderNews(sorted);
+    setDs('ds-rss', '#4ade80');
+  } catch(e) {
+    console.warn('RSS error:', e);
+    setDs('ds-rss', '#f87171');
+  }
+}
+
+function getImpact(text) {
+  const highKw = ['fed','rate hike','rate cut','iran','hormuz','oil shock','repo crisis','default','emergency'];
+  const medKw  = ['inflation','treasury','oil','gold','pboc','recession','yield','tariff'];
+  if (highKw.some(k => text.includes(k))) return 'high';
+  if (medKw.some(k => text.includes(k)))  return 'med';
+  return 'low';
+}
+
+function renderNews(items) {
+  const nf = document.getElementById('newsFeed');
+  if (!nf) return;
+  if (!items.length) {
+    nf.innerHTML = '<div style="padding:12px;font-size:10px;color:var(--text3)">No se encontraron noticias macro. Reintentando...</div>';
+    return;
+  }
+  nf.innerHTML = '';
+  items.slice(0, 8).forEach(({title,link,age,impact,src,color}) => {
+    const ic = impact === 'high' ? 'ni-high' : impact === 'med' ? 'ni-med' : 'ni-low';
+    const il = impact === 'high' ? 'Alto' : impact === 'med' ? 'Medio' : 'Bajo';
+    nf.innerHTML += `<div class="news-item">
+      <div class="news-source">
+        <div class="news-src-dot" style="background:${color}"></div>
+        ${src} <span class="news-impact ${ic}">${il}</span>
+      </div>
+      <div class="news-title" onclick="window.open('${link}','_blank')">${title}</div>
+      <div class="news-time">${age}</div>
+    </div>`;
+  });
+}
+
+function timeAgo(date) {
+  const diff = (Date.now() - date.getTime()) / 1000;
+  if (diff < 60)   return 'hace un momento';
+  if (diff < 3600) return `hace ${Math.floor(diff/60)} min`;
+  if (diff < 86400)return `hace ${Math.floor(diff/3600)}h`;
+  return date.toLocaleDateString('es-MX',{month:'short',day:'numeric'});
+}
+
+// ──────────────────────────────────────────────
+//  DIAGNOSTIC ENGINE
+// ──────────────────────────────────────────────
+function updateDiagnostic() {
+  const { reserves, tga, sofr, fedfunds, dxy } = state.data;
+  let alerts = 0;
+  let dangers = 0;
+
+  if (reserves?.[0]) {
+    const r = reserves[0].value;
+    if (r < 3000) dangers++;
+    else if (r < 3300) alerts++;
+  }
+  if (tga?.[0]?.value > 1000) dangers++;
+  if (sofr?.[0] && fedfunds?.[0]) {
+    const spread = sofr[0].value - fedfunds[0].value;
+    if (Math.abs(spread) > 15) dangers++;
+    else if (Math.abs(spread) > 5) alerts++;
+  }
+  if (dxy?.[0]) {
+    const d = dxy[0].value;
+    if (d > 110) alerts++;
+  }
+
+  const phase = (dangers >= 2 || alerts >= 3)
+    ? { txt: 'FASE 4 — Inminente', bg: 'rgba(248,113,113,.1)', cl: '#f87171' }
+    : (dangers >= 1 || alerts >= 2)
+    ? { txt: 'FASE 3 → F4',        bg: 'rgba(251,191,36,.1)',  cl: '#fbbf24' }
+    : { txt: 'FASE 3 — Squeeze',   bg: 'rgba(251,191,36,.1)',  cl: '#fbbf24' };
+
+  const pb = document.getElementById('phase-badge');
+  if (pb) {
+    pb.textContent = phase.txt;
+    pb.style.background = phase.bg;
+    pb.style.color = phase.cl;
+    pb.style.borderColor = phase.cl.replace('1)', '0.3)');
+  }
+}
+
+// ──────────────────────────────────────────────
+//  CHART UPDATER
+// ──────────────────────────────────────────────
+function updateMiniChart(id, labels, data, color, fill) {
+  const chart = state.charts[id];
+  if (!chart) return;
+  chart.data.labels = labels;
+  chart.data.datasets[0].data = data;
+  chart.data.datasets[0].borderColor = color;
+  if (fill) {
+    const rgb = hexToRgb(color);
+    chart.data.datasets[0].backgroundColor = rgb ? `rgba(${rgb},0.1)` : 'transparent';
+  }
+  chart.update();
+}
+
+function hexToRgb(hex) {
+  const r = /^#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})$/i.exec(hex);
+  return r ? `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}` : null;
+}
+
+// ──────────────────────────────────────────────
+//  DOM HELPERS
+// ──────────────────────────────────────────────
+function setEl(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function styleEl(id, cls) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('up','down','neu');
+  el.classList.add(cls);
+}
+
+function setDs(id, color) {
+  const el = document.getElementById(id);
+  if (el) el.style.background = color;
+}
+
+function updateSemaphoreRow(sigId, cls, txt, val, min, max) {
+  const el = document.getElementById(sigId);
+  if (!el) return;
+  el.className = 'ind-sig ' + cls;
+  el.textContent = txt;
+  const pct = Math.min(100, Math.max(0, ((val - min) / (max - min)) * 100));
+  const fill = el.closest('.ind-row')?.querySelector('.ind-fill');
+  if (fill) fill.style.width = pct + '%';
+}
+
+function addLiveBadges() {
+  // Add LIVE badges to section headers
+  document.querySelectorAll('.lbl').forEach(el => {
+    if (!el.querySelector('.live-badge') && !el.closest('#tab-vol')) {
+      const badge = document.createElement('span');
+      badge.className = 'live-badge';
+      badge.textContent = 'LIVE';
+      el.appendChild(badge);
+    }
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('err-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 5000);
+}
+
+// ──────────────────────────────────────────────
+//  CHART REGISTRY — intercept Chart creation
+// ──────────────────────────────────────────────
+const OrigChart = window.Chart;
+const _chartCreate = OrigChart.prototype.constructor;
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Wait for existing charts to be created, then register them
+  setTimeout(() => {
+    OrigChart.helpers.each(OrigChart.instances, (chart) => {
+      const id = chart.canvas?.id;
+      if (id) state.charts[id] = chart;
+    });
+  }, 500);
+});
+
+// Override the mini() function result registration
+const origMini = window.mini;
+window.miniAndRegister = function(id, ...args) {
+  const c = origMini ? origMini(id, ...args) : null;
+  if (c) state.charts[id] = c;
+  return c;
+};
+</script>
+
+
+<!-- Chart registry patch -->
+<script>
+setTimeout(()=>{
+  if(window.Chart && Chart.instances){
+    Object.values(Chart.instances).forEach(c=>{
+      if(c.canvas?.id) state.charts[c.canvas.id]=c;
+    });
+  }
+},800);
+</script>
+</body>
+</html>
