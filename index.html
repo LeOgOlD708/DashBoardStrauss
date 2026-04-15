@@ -1149,18 +1149,23 @@ async function loadFredData() {
   }
 }
 
-// ── Prices: Yahoo Finance directo desde browser (sin API key, sin servidor) ──
+// ── Prices: Yahoo Finance vía servidor con crumb auth ──
 const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX'];
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
   try {
-    const results = await Promise.allSettled(ALL_YF_TICKERS.map(fetchYahooVix));
-    const prices  = {};
-    ALL_YF_TICKERS.forEach((t, i) => {
-      if (results[i].status === 'fulfilled' && results[i].value) {
-        prices[t] = results[i].value;
-      }
+    const tickers = ALL_YF_TICKERS.map(encodeURIComponent).join(',');
+    const res = await fetch(`/api/yahoo?tickers=${tickers}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+
+    if (raw.error) throw new Error(raw.error);
+
+    const prices = {};
+    ALL_YF_TICKERS.forEach(t => {
+      const d = raw[t];
+      if (d && !d.error) prices[t] = d;
     });
 
     const ok = Object.keys(prices).filter(t => !t.startsWith('^')).length;
@@ -1178,33 +1183,6 @@ async function loadYahooData() {
     showToast('Yahoo Finance: ' + e.message);
     throw e;
   }
-}
-
-// Yahoo Finance called from browser (works fine, no server-side block)
-async function fetchYahooVix(ticker) {
-  const encoded = encodeURIComponent(ticker);
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=1y`;
-  const res = await fetch(url);
-  if (!res.ok) return null;
-  const d = await res.json();
-  const result = d.chart?.result?.[0];
-  if (!result) return null;
-  const closes = result.indicators.quote[0].close;
-  const times  = result.timestamp;
-  const valid  = times.map((t,i) => ({t, v: closes[i]})).filter(p => p.v != null);
-  if (!valid.length) return null;
-  const latest = valid[valid.length-1].v;
-  const prev   = valid[valid.length-2]?.v || latest;
-  const yearAgo  = valid[0].v;
-  const monthAgo = valid[Math.max(0, valid.length - 22)]?.v || yearAgo;
-  return {
-    price: parseFloat(latest.toFixed(2)),
-    chg1d: parseFloat(((latest/prev-1)*100).toFixed(2)),
-    chg1m: parseFloat(((latest/monthAgo-1)*100).toFixed(1)),
-    ytd:   parseFloat(((latest/yearAgo-1)*100).toFixed(1)),
-    hist:  valid.slice(-52).map(p => parseFloat(p.v.toFixed(2))),
-    dates: valid.slice(-52).map(p => new Date(p.t*1000).toISOString().slice(0,10)),
-  };
 }
 
 // ── News ──
