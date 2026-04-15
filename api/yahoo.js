@@ -1,135 +1,62 @@
 // api/yahoo.js — Vercel Serverless Function
-// Yahoo Finance v8 chart API con crumb authentication
+// Datos de precios via Stooq.com (libre, sin API key, sin bloqueo de IP)
 
-const UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ' +
-  'AppleWebKit/537.36 (KHTML, like Gecko) ' +
-  'Chrome/124.0.0.0 Safari/537.36';
-
-// Module-level cache (reutilizado entre invocaciones calientes de Lambda)
-let _crumb  = null;
-let _cookie = null;
-let _expiry = 0;
-
-// ── Extrae Set-Cookie headers de una Response ──
-function extractCookies(response) {
-  if (typeof response.headers.getSetCookie === 'function') {
-    // Node.js 18+ native fetch
-    return response.headers.getSetCookie()
-      .map(h => h.split(';')[0].trim())
-      .filter(Boolean)
-      .join('; ');
-  }
-  // Fallback: concatenated single header
-  const raw = response.headers.get('set-cookie') || '';
-  return raw
-    .split(',')
-    .map(h => h.trim().split(';')[0].trim())
-    .filter(Boolean)
-    .join('; ');
+// Convierte símbolo Yahoo Finance → símbolo Stooq
+function toStooq(ticker) {
+  if (ticker.startsWith('^')) return ticker.toLowerCase(); // ^VIX → ^vix
+  return ticker.toLowerCase() + '.us';                     // GLD  → gld.us
 }
 
-// ── Obtiene crumb de Yahoo Finance ──
-async function fetchCrumb() {
-  if (_crumb && Date.now() < _expiry) {
-    return { crumb: _crumb, cookie: _cookie };
-  }
+async function fetchTicker(ticker) {
+  // Rango: 1 año hacia atrás desde hoy
+  const from = new Date();
+  from.setFullYear(from.getFullYear() - 1);
+  const d1 = from.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
 
-  const baseHeaders = {
-    'User-Agent': UA,
-    'Accept-Language': 'en-US,en;q=0.9',
-  };
+  const symbol = toStooq(ticker);
+  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d&d1=${d1}`;
 
-  // Intento 1 — crumb directo sin cookie (funciona desde algunas IPs)
-  try {
-    const r = await fetch('https://query2.finance.yahoo.com/v1/test/getcrumb', {
-      headers: { ...baseHeaders, 'Accept': 'text/plain' },
-    });
-    if (r.ok) {
-      const text = (await r.text()).trim();
-      if (text && !text.startsWith('<') && text.length >= 3) {
-        _crumb = text; _cookie = ''; _expiry = Date.now() + 50 * 60 * 1000;
-        return { crumb: _crumb, cookie: _cookie };
-      }
-    }
-  } catch (_) { /* continúa */ }
-
-  // Intento 2 — obtener cookie de finance.yahoo.com, luego crumb
-  const r1 = await fetch('https://finance.yahoo.com/', {
-    headers: {
-      ...baseHeaders,
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    },
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'Mozilla/5.0' },
   });
 
-  const cookieStr = extractCookies(r1);
-  if (!cookieStr) {
-    throw new Error('finance.yahoo.com no devolvió cookies (posible bloqueo de IP)');
-  }
-
-  const r2 = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
-    headers: {
-      ...baseHeaders,
-      'Accept': 'text/plain',
-      'Cookie': cookieStr,
-    },
-  });
-
-  if (!r2.ok) throw new Error(`getcrumb devolvió HTTP ${r2.status}`);
-  const crumb = (await r2.text()).trim();
-  if (!crumb || crumb.startsWith('<') || crumb.length < 3) {
-    throw new Error('Yahoo devolvió HTML en lugar del crumb (sesión inválida)');
-  }
-
-  _crumb = crumb; _cookie = cookieStr; _expiry = Date.now() + 50 * 60 * 1000;
-  return { crumb: _crumb, cookie: _cookie };
-}
-
-// ── Obtiene datos OHLCV de un ticker ──
-async function fetchTicker(ticker, crumb, cookie) {
-  const encoded = encodeURIComponent(ticker);
-  const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}` +
-    `?interval=1d&range=1y&crumb=${encodeURIComponent(crumb)}`;
-
-  const headers = {
-    'User-Agent': UA,
-    'Accept': 'application/json',
-  };
-  if (cookie) headers['Cookie'] = cookie;
-
-  const res = await fetch(url, { headers });
   if (!res.ok) return { error: `HTTP ${res.status}` };
 
-  const d = await res.json();
-  const result = d.chart?.result?.[0];
-  if (!result) return { error: d.chart?.error?.description || 'Sin datos' };
+  const text = await res.text();
+  const lines = text.trim().split('\n');
 
-  const closes     = result.indicators.quote[0].close;
-  const timestamps = result.timestamp;
+  // Primera línea es el header: Date,Open,High,Low,Close,Volume
+  if (lines.length < 2 || !lines[0].toLowerCase().includes('close')) {
+    return { error: 'Respuesta inesperada de Stooq' };
+  }
 
-  const valid = timestamps
-    .map((t, i) => ({ t, v: closes[i] }))
-    .filter(p => p.v != null && !isNaN(p.v));
+  // Parsear filas: ordenar por fecha ascendente (oldest first)
+  const rows = lines
+    .slice(1)
+    .map(l => {
+      const parts = l.split(',');
+      return { date: parts[0], close: parseFloat(parts[4]) };
+    })
+    .filter(r => r.date && !isNaN(r.close) && r.close > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 
-  if (!valid.length) return { error: 'Serie vacía' };
+  if (rows.length < 2) return { error: 'Sin datos suficientes' };
 
-  const latest   = valid[valid.length - 1].v;
-  const prev     = valid[valid.length - 2]?.v || latest;
-  const yearAgo  = valid[0].v;
-  const monthAgo = valid[Math.max(0, valid.length - 22)]?.v || yearAgo;
+  const latest   = rows[rows.length - 1].close;
+  const prev     = rows[rows.length - 2].close;
+  const yearAgo  = rows[0].close;
+  const monthAgo = rows[Math.max(0, rows.length - 22)].close;
 
   return {
     price:  parseFloat(latest.toFixed(2)),
     chg1d:  parseFloat(((latest / prev     - 1) * 100).toFixed(2)),
     chg1m:  parseFloat(((latest / monthAgo - 1) * 100).toFixed(1)),
     ytd:    parseFloat(((latest / yearAgo  - 1) * 100).toFixed(1)),
-    hist:   valid.slice(-52).map(p => parseFloat(p.v.toFixed(2))),
-    dates:  valid.slice(-52).map(p => new Date(p.t * 1000).toISOString().slice(0, 10)),
+    hist:   rows.slice(-52).map(r => parseFloat(r.close.toFixed(2))),
+    dates:  rows.slice(-52).map(r => r.date),
   };
 }
 
-// ── Handler principal ──
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -138,33 +65,21 @@ module.exports = async (req, res) => {
   const { tickers } = req.query;
   if (!tickers) return res.status(400).json({ error: 'Falta ?tickers=' });
 
-  const tickerList = tickers.split(',')
+  const tickerList = tickers
+    .split(',')
     .map(t => decodeURIComponent(t.trim()))
     .filter(Boolean);
-
-  let crumb, cookie;
-  try {
-    ({ crumb, cookie } = await fetchCrumb());
-  } catch (e) {
-    return res.status(502).json({
-      error: `Crumb Yahoo Finance: ${e.message}`,
-    });
-  }
 
   const results = {};
   await Promise.all(
     tickerList.map(async (ticker) => {
       try {
-        results[ticker] = await fetchTicker(ticker, crumb, cookie);
+        results[ticker] = await fetchTicker(ticker);
       } catch (e) {
         results[ticker] = { error: e.message };
       }
     })
   );
-
-  // Si el crumb fue rechazado (todos 401), invalidar cache para próxima llamada
-  const all401 = Object.values(results).every(v => v.error?.includes('401'));
-  if (all401) { _crumb = null; _cookie = null; _expiry = 0; }
 
   res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=300');
   return res.status(200).json(results);
