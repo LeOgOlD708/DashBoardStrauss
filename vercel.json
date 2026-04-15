@@ -1,7 +1,0 @@
-{
-  "functions": {
-    "api/fred.js":  { "runtime": "nodejs18.x" },
-    "api/yahoo.js": { "runtime": "nodejs18.x" },
-    "api/news.js":  { "runtime": "nodejs18.x" }
-  }
-}
