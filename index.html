@@ -624,30 +624,24 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="margin-top:6px;text-align:center"><span class="badge b-neu">Moderado</span></div>
     </div>
     <div class="card purple-a"><div class="card-accent"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div class="lbl" style="margin-bottom:0">VVIX</div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--purple);background:rgba(167,139,250,.08);padding:2px 5px;border-radius:2px;border:1px solid rgba(167,139,250,.2)">MANUAL</span>
-      </div>
+      <div class="lbl">VVIX</div>
       <div class="vol-gauge">
-        <div class="vol-number" id="m-vvix-val" style="color:var(--purple);font-size:16px">—</div>
+        <div class="vol-number" id="m-vvix-val" style="color:var(--purple)">—</div>
         <div class="vol-label">Vol de la vol — institucional</div>
-        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--purple))"><div class="vol-handle" style="left:50%;opacity:.3"></div></div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--purple))"><div id="vvix-handle" class="vol-handle" style="left:50%"></div></div>
         <div class="zone-labels"><span>80</span><span>95</span><span>110</span><span>130</span><span>150</span></div>
       </div>
-      <div style="margin-top:6px;font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-align:center">Ver en <a href="https://finance.yahoo.com/quote/%5EVVIX" target="_blank" style="color:var(--purple);text-decoration:none">Yahoo Finance ^VVIX</a></div>
+      <div style="margin-top:6px;text-align:center" id="vvix-badge"><span class="badge b-neu">Cargando...</span></div>
     </div>
     <div class="card amber-a"><div class="card-accent"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div class="lbl" style="margin-bottom:0">VIX3M</div>
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--amber);background:rgba(251,191,36,.08);padding:2px 5px;border-radius:2px;border:1px solid rgba(251,191,36,.2)">MANUAL</span>
-      </div>
+      <div class="lbl">VIX3M</div>
       <div class="vol-gauge">
-        <div class="vol-number" id="m-vix3m-val" style="font-size:16px">—</div>
+        <div class="vol-number" id="m-vix3m-val">—</div>
         <div class="vol-label">Volatilidad 3 meses</div>
-        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:50%;opacity:.3"></div></div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div id="vix3m-handle" class="vol-handle" style="left:50%"></div></div>
         <div class="zone-labels"><span>12</span><span>18</span><span>24</span><span>32</span><span>45</span></div>
       </div>
-      <div style="margin-top:6px;font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-align:center">Ver en <a href="https://finance.yahoo.com/quote/%5EVIX3M" target="_blank" style="color:var(--amber);text-decoration:none">Yahoo Finance ^VIX3M</a></div>
+      <div style="margin-top:6px;text-align:center" id="vix3m-badge"><span class="badge b-neu">Cargando...</span></div>
     </div>
     <div class="card red-a"><div class="card-accent"></div>
       <div class="lbl">SKEW — Put/Call Ratio</div>
@@ -1139,9 +1133,8 @@ async function loadFredData() {
   }
 }
 
-// ── Prices: Stooq.com vía proxy Vercel (sin CORS, sin API key) ──
-// ^VVIX y ^VIX3M no están en Stooq — se muestran como lectura manual.
-const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX'];
+// ── Prices: Yahoo Finance v8 vía proxy Vercel ──
+const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M'];
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
@@ -1358,38 +1351,63 @@ function updateVolatility(prices) {
   const vix3m = prices['^VIX3M'];
 
   if (vix) {
-    setElById('m-vix-val',   vix.price.toFixed(1));
-    // Update VIX gauge handle position (range 10-50)
-    const pct = Math.min(90, Math.max(5, ((vix.price - 10) / 40) * 100));
-    const handle = document.querySelector('.vol-handle');
-    if (handle) handle.style.left = pct + '%';
-    // Update VIX chart
+    setElById('m-vix-val', vix.price.toFixed(1));
+    const vixPct = Math.min(90, Math.max(5, ((vix.price - 10) / 40) * 100));
+    const vixHandle = document.getElementById('vix')?.querySelector('.vol-handle')
+      || document.querySelector('.card.teal-a .vol-handle');
+    if (vixHandle) vixHandle.style.left = vixPct + '%';
+    const vixBadge = document.querySelector('.card.teal-a [style*="text-align:center"]');
+    if (vixBadge) {
+      const cl = vix.price < 20 ? 'b-up' : vix.price < 30 ? 'b-neu' : 'b-dn';
+      const lb = vix.price < 20 ? 'Calma' : vix.price < 30 ? 'Moderado' : 'Elevado';
+      vixBadge.innerHTML = `<span class="badge ${cl}">${lb}</span>`;
+    }
+
     const chart = state.charts['vixChart'];
     if (chart && vix.hist.length > 0) {
       chart.data.labels = vix.dates;
       chart.data.datasets[0].data = vix.hist;
-      if (vvix?.hist) {
-        chart.data.datasets[1].data = vvix.hist;
-      }
+      if (vvix?.hist) chart.data.datasets[1].data = vvix.hist;
       chart.update('none');
     }
-    // Divergence detection
+
     if (vvix) {
-      const vixTrend   = vix.chg1m;
-      const vvixTrend  = vvix.chg1m;
-      const divergence = vvixTrend > 5 && vixTrend < 0;
+      const divergence = vvix.chg1m > 5 && vix.chg1m < 0;
       const divEl = document.getElementById('vix-divergence-text');
       if (divEl) {
-        if (divergence) {
-          divEl.innerHTML = `VVIX al alza (+${vvix.chg1m}%) mientras VIX cae (${vix.chg1m}%) = <strong>institucionales posicionando protección de cola</strong> antes de que el VIX reaccione. Señal de cautela avanzada.`;
-        } else {
-          divEl.innerHTML = `VIX ${vix.chg1m >= 0 ? '+' : ''}${vix.chg1m}% · VVIX ${vvix.chg1m >= 0 ? '+' : ''}${vvix.chg1m}% (1 mes) — sin divergencia activa.`;
-        }
+        divEl.innerHTML = divergence
+          ? `VVIX al alza (+${vvix.chg1m}%) mientras VIX cae (${vix.chg1m}%) = <strong>institucionales posicionando protección de cola</strong> antes de que el VIX reaccione. Señal de cautela avanzada.`
+          : `VIX ${vix.chg1m >= 0 ? '+' : ''}${vix.chg1m}% · VVIX ${vvix.chg1m >= 0 ? '+' : ''}${vvix.chg1m}% (1 mes) — sin divergencia activa.`;
       }
     }
   }
-  if (vvix) setElById('m-vvix-val', vvix.price.toFixed(0));
-  if (vix3m) setElById('m-vix3m-val', vix3m.price.toFixed(1));
+
+  if (vvix) {
+    setElById('m-vvix-val', vvix.price.toFixed(0));
+    const pct = Math.min(90, Math.max(5, ((vvix.price - 80) / 70) * 100));
+    const h = document.getElementById('vvix-handle');
+    if (h) h.style.left = pct + '%';
+    const b = document.getElementById('vvix-badge');
+    if (b) {
+      const cl = vvix.price < 95 ? 'b-up' : vvix.price < 120 ? 'b-neu' : 'b-dn';
+      const lb = vvix.price < 95 ? 'Bajo' : vvix.price < 120 ? 'Cautela inst.' : 'Estrés alto';
+      b.innerHTML = `<span class="badge ${cl}">${lb}</span>`;
+    }
+  }
+
+  if (vix3m) {
+    setElById('m-vix3m-val', vix3m.price.toFixed(1));
+    const pct = Math.min(90, Math.max(5, ((vix3m.price - 12) / 33) * 100));
+    const h = document.getElementById('vix3m-handle');
+    if (h) h.style.left = pct + '%';
+    const b = document.getElementById('vix3m-badge');
+    if (b) {
+      const spread = vix ? vix3m.price - vix.price : 0;
+      const cl = spread > 2 ? 'b-up' : spread < -1 ? 'b-dn' : 'b-neu';
+      const lb = spread > 2 ? 'Curva normal' : spread < -1 ? 'Curva invertida' : 'Plana';
+      b.innerHTML = `<span class="badge ${cl}">${lb} (${spread >= 0 ? '+' : ''}${spread.toFixed(1)})</span>`;
+    }
+  }
 }
 
 function setElById(id, val) {
