@@ -624,24 +624,30 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="margin-top:6px;text-align:center"><span class="badge b-neu">Moderado</span></div>
     </div>
     <div class="card purple-a"><div class="card-accent"></div>
-      <div class="lbl">VVIX</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="lbl" style="margin-bottom:0">VVIX</div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--purple);background:rgba(167,139,250,.08);padding:2px 5px;border-radius:2px;border:1px solid rgba(167,139,250,.2)">MANUAL</span>
+      </div>
       <div class="vol-gauge">
-        <div class="vol-number" style="color:var(--purple)">—</div>
+        <div class="vol-number" id="m-vvix-val" style="color:var(--purple);font-size:16px">—</div>
         <div class="vol-label">Vol de la vol — institucional</div>
-        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--purple))"><div class="vol-handle" style="left:65%"></div></div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--purple))"><div class="vol-handle" style="left:50%;opacity:.3"></div></div>
         <div class="zone-labels"><span>80</span><span>95</span><span>110</span><span>130</span><span>150</span></div>
       </div>
-      <div style="margin-top:6px;text-align:center"><span class="badge b-alt">Cautela inst.</span></div>
+      <div style="margin-top:6px;font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-align:center">Ver en <a href="https://finance.yahoo.com/quote/%5EVVIX" target="_blank" style="color:var(--purple);text-decoration:none">Yahoo Finance ^VVIX</a></div>
     </div>
     <div class="card amber-a"><div class="card-accent"></div>
-      <div class="lbl">VIX3M</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div class="lbl" style="margin-bottom:0">VIX3M</div>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--amber);background:rgba(251,191,36,.08);padding:2px 5px;border-radius:2px;border:1px solid rgba(251,191,36,.2)">MANUAL</span>
+      </div>
       <div class="vol-gauge">
-        <div class="vol-number" id="m-vix3m-val">—</div>
+        <div class="vol-number" id="m-vix3m-val" style="font-size:16px">—</div>
         <div class="vol-label">Volatilidad 3 meses</div>
-        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:44%"></div></div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:50%;opacity:.3"></div></div>
         <div class="zone-labels"><span>12</span><span>18</span><span>24</span><span>32</span><span>45</span></div>
       </div>
-      <div style="margin-top:6px;text-align:center"><span class="badge b-neu">Curva invertida</span></div>
+      <div style="margin-top:6px;font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;text-align:center">Ver en <a href="https://finance.yahoo.com/quote/%5EVIX3M" target="_blank" style="color:var(--amber);text-decoration:none">Yahoo Finance ^VIX3M</a></div>
     </div>
     <div class="card red-a"><div class="card-accent"></div>
       <div class="lbl">SKEW — Put/Call Ratio</div>
@@ -1133,61 +1139,28 @@ async function loadFredData() {
   }
 }
 
-// ── Prices: Yahoo Finance directo desde el browser (sin proxy, sin CORS) ──
-const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M'];
-
-async function fetchYahooTicker(ticker) {
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const json = await res.json();
-
-  if (json?.chart?.error) throw new Error(json.chart.error.description || 'Error Yahoo');
-  const result = json?.chart?.result?.[0];
-  if (!result) throw new Error('Sin datos');
-
-  const meta      = result.meta;
-  const price     = meta.regularMarketPrice;
-  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
-
-  const timestamps = result.timestamp || [];
-  const closes     = result.indicators?.quote?.[0]?.close || [];
-
-  const rows = timestamps
-    .map((ts, i) => ({ date: new Date(ts * 1000).toISOString().slice(0, 10), close: closes[i] }))
-    .filter(r => r.close != null && !isNaN(r.close) && r.close > 0);
-
-  if (rows.length < 2) throw new Error('Datos insuficientes');
-
-  const yearAgo  = rows[0].close;
-  const monthAgo = rows[Math.max(0, rows.length - 22)].close;
-  const hist52   = rows.slice(-52);
-
-  return {
-    price: parseFloat(price.toFixed(2)),
-    chg1d: parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
-    chg1m: parseFloat(((price / monthAgo  - 1) * 100).toFixed(1)),
-    ytd:   parseFloat(((price / yearAgo   - 1) * 100).toFixed(1)),
-    hist:  hist52.map(r => parseFloat(r.close.toFixed(2))),
-    dates: hist52.map(r => r.date),
-  };
-}
+// ── Prices: Stooq.com vía proxy Vercel (sin CORS, sin API key) ──
+// ^VVIX y ^VIX3M no están en Stooq — se muestran como lectura manual.
+const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX'];
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
   try {
-    const settled = await Promise.allSettled(
-      ALL_YF_TICKERS.map(t => fetchYahooTicker(t).then(d => ({ ticker: t, data: d })))
-    );
+    const tickers = ALL_YF_TICKERS.map(encodeURIComponent).join(',');
+    const res = await fetch(`/api/yahoo?tickers=${tickers}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+
+    if (raw.error) throw new Error(raw.error);
 
     const prices = {};
-    settled.forEach(r => {
-      if (r.status === 'fulfilled') prices[r.value.ticker] = r.value.data;
-      else console.warn('YF ticker error:', r.reason?.message);
+    ALL_YF_TICKERS.forEach(t => {
+      const d = raw[t];
+      if (d && !d.error) prices[t] = d;
     });
 
     const ok = Object.keys(prices).filter(t => !t.startsWith('^')).length;
-    if (ok === 0) throw new Error('Yahoo Finance no respondió. Intenta recargar.');
+    if (ok === 0) throw new Error('Stooq no respondió. Intenta recargar.');
 
     state.data.prices = prices;
     updateETFTable(prices);
@@ -1198,7 +1171,7 @@ async function loadYahooData() {
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
   } catch(e) {
     setDs('ds-yf', '#f87171');
-    showToast('Yahoo Finance: ' + e.message);
+    showToast('Precios: ' + e.message);
     throw e;
   }
 }
