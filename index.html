@@ -402,7 +402,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="g2">
     <div class="card amber-a"><div class="card-accent"></div>
       <div class="lbl">③ MOVE Index — Volatilidad Treasuries</div>
-      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono" style="font-size:10px;color:var(--text3)">TradingView: MOVE</div></div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono" id="m-move-chg" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch180"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
       <div style="margin-top:8px;display:flex;gap:5px">
         <div style="flex:1;padding:4px 6px;background:rgba(74,222,128,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--green)">Verde</div><div class="mono" style="font-size:10px;color:var(--green)">< 100</div></div>
@@ -486,10 +486,10 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="g2" style="margin-bottom:10px">
     <div class="card green-a"><div class="card-accent"></div>
       <div class="lbl">DXY — Índice del Dólar</div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0"><div class="val up" id="m-dxy-val">—</div><div class="mono up" style="font-size:10px">—</div></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0"><div class="val up" id="m-dxy-val">—</div><div class="mono" id="m-dxy-chg" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch180"><canvas id="dxyChart" role="img" aria-label="DXY histórico">DXY chart.</canvas></div>
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
-        <div class="flow-row"><span class="flow-label">Impacto liquidez global</span><span class="flow-val up">—</span></div>
+        <div class="flow-row"><span class="flow-label">Impacto liquidez global</span><span class="flow-val" id="m-dxy-impact">—</span></div>
         <div class="flow-row"><span class="flow-label">Beta S&P500 vs DXY</span><span class="flow-val" style="color:var(--text3)">-1.35x</span></div>
         <div class="flow-row"><span class="flow-label">Driver de la caída</span><span class="flow-val neu">Tariffs / geopolítica</span></div>
       </div>
@@ -497,10 +497,10 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
     <div class="card amber-a"><div class="card-accent"></div>
       <div class="lbl">PBOC — China · Fase 1 del Ciclo</div>
       <div class="g2" style="gap:6px;margin:8px 0">
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Inyecciones</div><div class="val-sm up">—</div><div style="font-size:9px;color:var(--text3)">~$1T USD</div></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Oro en CNY</div><div class="val-sm">—</div><div style="font-size:9px;color:var(--text3)">Máx. histórico</div></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">PMI China</div><div class="val-sm" id="m-pmi-val">—</div><div style="font-size:9px;color:var(--text3)">Contracción leve</div></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Reservas oro</div><div class="val-sm" id="m-pboc-gold-val">—</div><div style="font-size:9px;color:var(--text3)">11 meses seguidos</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Inyecciones</div><div class="val-sm" style="font-size:13px;color:var(--text3)">~$1T USD</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Oro en CNY</div><div class="val-sm" id="m-gold-cny-val">—</div><div style="font-size:9px;color:var(--text3)">GLD × USD/CNY</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">PMI China</div><div class="val-sm" id="m-pmi-val" style="font-size:13px;color:var(--text3)">—</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Reservas oro</div><div class="val-sm" id="m-pboc-gold-val" style="font-size:13px;color:var(--text3)">—</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
       </div>
       <div class="ch-wrap ch160"><canvas id="chinaChart" role="img" aria-label="Oro en CNY">CNY gold chart.</canvas></div>
       <div style="margin-top:8px;padding:8px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.12);border-radius:5px;font-size:10px;color:var(--text2)">
@@ -644,14 +644,14 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="margin-top:6px;text-align:center" id="vix3m-badge"><span class="badge b-neu">Cargando...</span></div>
     </div>
     <div class="card red-a"><div class="card-accent"></div>
-      <div class="lbl">SKEW — Put/Call Ratio</div>
+      <div class="lbl">CBOE SKEW — Cola de riesgo</div>
       <div class="vol-gauge">
         <div class="vol-number" id="m-skew-val">—</div>
-        <div class="vol-label">Demanda de protección</div>
-        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:72%"></div></div>
+        <div class="vol-label">Demanda de protección de cola</div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div id="skew-handle" class="vol-handle" style="left:50%"></div></div>
         <div class="zone-labels"><span>110</span><span>125</span><span>135</span><span>150</span><span>165</span></div>
       </div>
-      <div style="margin-top:6px;text-align:center"><span class="badge b-dn">Alta cobertura</span></div>
+      <div style="margin-top:6px;text-align:center" id="skew-badge"><span class="badge b-neu">Cargando...</span></div>
     </div>
   </div>
 
@@ -1134,7 +1134,7 @@ async function loadFredData() {
 }
 
 // ── Prices: Yahoo Finance v8 vía proxy Vercel ──
-const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M'];
+const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M', '^MOVE', '^SKEW', 'CNY=X'];
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
@@ -1161,6 +1161,7 @@ async function loadYahooData() {
     updateAssetsChart(prices);
     updateChinaFromYahoo(prices);
     updateVolatility(prices);
+    updateMoveSkew(prices);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
   } catch(e) {
     setDs('ds-yf', '#f87171');
@@ -1261,12 +1262,18 @@ function updateFredUI() {
   }
 
   if (dxy?.length) {
-    const latest  = dxy[0].value.toFixed(1);
-    const display = String(latest);
-    setEl('m-dxy-val', display);
-    setEl('s-dxy-val', display);
-    const c = latest < 95 ? 'up' : latest < 105 ? 'neu' : 'down';
+    const latest = dxy[0].value;
+    const prev   = dxy[1]?.value || latest;
+    const chg    = (latest - prev).toFixed(2);
+    const sign   = chg >= 0 ? '+' : '';
+    setEl('m-dxy-val', latest.toFixed(1));
+    setEl('s-dxy-val', latest.toFixed(1));
+    setEl('m-dxy-chg', `${sign}${chg}`);
+    const c = latest < 100 ? 'up' : latest < 106 ? 'neu' : 'down';
     styleEl('m-dxy-val', c);
+    const impacto = latest < 100 ? 'Positivo — expansivo' : latest < 106 ? 'Neutro' : 'Negativo — contractivo';
+    const impEl = document.getElementById('m-dxy-impact');
+    if (impEl) { impEl.textContent = impacto; impEl.className = 'flow-val ' + c; }
     updateMiniChart('dxyChart', dxy, '#4ade80', false);
   }
 }
@@ -1448,25 +1455,77 @@ function timeAgo(date) {
   return date.toLocaleDateString('es-MX', { month: 'short', day: 'numeric' });
 }
 
-// ── China Panel update (called after Yahoo loads) ──
+// ── China Panel update ──
 function updateChinaFromYahoo(prices) {
-  // Gold price (USD) from Yahoo: GLD proxy
   const gld = prices['GLD'];
+  const cny = prices['CNY=X']; // 1 USD = N CNY
+
   if (gld) {
-    // Gold in CNY approx: multiply by ~7.25 (USD/CNY rate)
-    const goldCny = Math.round(gld.price * 7.25 * 10); // GLD = 1/10 oz, approx
-    const goldCnyEl = document.getElementById('m-pmi-val');
-    // Update oro en CNY display
-    const cnyEls = document.querySelectorAll('.val-sm');
-    cnyEls.forEach(el => {
-      if (el.textContent === '—' && el.closest('.card')) {
-        const lbl = el.previousElementSibling;
-        if (lbl && lbl.textContent === 'Oro en CNY') {
-          el.textContent = '¥' + goldCny.toLocaleString();
-          el.className = 'val-sm up';
-        }
-      }
-    });
+    const rate = cny?.price || 7.25;
+    // GLD ≈ 1/10 oz gold → gold oz in USD = GLD × 10
+    const goldCnyPerOz = Math.round(gld.price * 10 * rate);
+    const el = document.getElementById('m-gold-cny-val');
+    if (el) { el.textContent = '¥' + goldCnyPerOz.toLocaleString(); el.className = 'val-sm up'; }
+
+    // Populate chinaChart with GLD history as proxy for gold price trend
+    const chart = state.charts['chinaChart'];
+    if (chart && gld.hist?.length) {
+      chart.data.labels   = gld.dates;
+      chart.data.datasets[0].data = gld.hist;
+      chart.data.datasets[0].borderColor = '#c9a84c';
+      chart.update('none');
+    }
+  }
+}
+
+// ── MOVE + SKEW update ──
+function updateMoveSkew(prices) {
+  const move = prices['^MOVE'];
+  const skew = prices['^SKEW'];
+
+  if (move) {
+    const v    = move.price;
+    const sign = move.chg1d >= 0 ? '+' : '';
+    setEl('m-move-val', v.toFixed(0));
+    setEl('s-move-val', v.toFixed(0));
+    setEl('m-move-chg', `${sign}${move.chg1d.toFixed(1)}%`);
+    const c = v < 100 ? 'up' : v < 140 ? 'neu' : 'down';
+    styleEl('m-move-val', c);
+
+    // Highlight correct range band
+    const bands = document.querySelectorAll('#moveChart')
+      ?.item(0)?.closest('.card')?.querySelectorAll('[style*="border-radius:4px"]');
+    if (bands?.length === 3) {
+      bands.forEach(b => b.style.borderWidth = '');
+      if (v < 100)      { bands[0].style.border = '1px solid rgba(74,222,128,.5)'; }
+      else if (v < 140) { bands[1].style.border = '1px solid rgba(251,191,36,.5)'; }
+      else              { bands[2].style.border = '1px solid rgba(248,113,113,.5)'; }
+    }
+
+    // Update sig in indicator bar
+    const sig = document.getElementById('s-move-val')
+      ?.closest('.ind-row')?.querySelector('.ind-sig');
+    if (sig) {
+      sig.className = 'ind-sig ' + (v < 100 ? 'is-g' : v < 140 ? 'is-a' : 'is-r');
+      sig.textContent = v < 100 ? 'VERDE' : v < 140 ? 'ALERTA' : 'CRISIS';
+    }
+
+    const moveSeries = move.hist.map((val, i) => ({ date: move.dates[i], value: val }));
+    updateMiniChart('moveChart', moveSeries, '#fbbf24', false);
+  }
+
+  if (skew) {
+    const v = skew.price;
+    setElById('m-skew-val', v.toFixed(0));
+    const pct = Math.min(90, Math.max(5, ((v - 110) / 55) * 100));
+    const h = document.getElementById('skew-handle');
+    if (h) h.style.left = pct + '%';
+    const b = document.getElementById('skew-badge');
+    if (b) {
+      const cl = v < 125 ? 'b-up' : v < 145 ? 'b-neu' : 'b-dn';
+      const lb = v < 125 ? 'Riesgo cola bajo' : v < 145 ? 'Cobertura moderada' : 'Alta cobertura';
+      b.innerHTML = `<span class="badge ${cl}">${lb}</span>`;
+    }
   }
 }
 
