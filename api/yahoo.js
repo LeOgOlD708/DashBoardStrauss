@@ -1,49 +1,55 @@
-// api/yahoo.js — Stooq.com proxy (libre, sin API key, sin bloqueo IP desde Vercel)
-// Soporta ETFs (.us) y ^VIX. VVIX y VIX3M no disponibles en Stooq.
+// api/yahoo.js — Yahoo Finance v8 chart API (server-side proxy)
+// Requiere headers de browser para evitar bloqueo de Yahoo
 
-function toStooq(ticker) {
-  if (ticker.startsWith('^')) return ticker.toLowerCase(); // ^VIX → ^vix
-  return ticker.toLowerCase() + '.us';                     // GLD  → gld.us
-}
+const YF_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart';
+
+const YF_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': 'https://finance.yahoo.com',
+  'Origin': 'https://finance.yahoo.com',
+};
 
 async function fetchTicker(ticker) {
-  const from = new Date();
-  from.setFullYear(from.getFullYear() - 1);
-  const d1 = from.toISOString().slice(0, 10).replace(/-/g, '');
+  const url = `${YF_BASE}/${encodeURIComponent(ticker)}?interval=1d&range=1y`;
+  const res = await fetch(url, { headers: YF_HEADERS });
 
-  const symbol = toStooq(ticker);
-  const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(symbol)}&i=d&d1=${d1}`;
-
-  const res = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
   if (!res.ok) return { error: `HTTP ${res.status}` };
 
-  const text  = await res.text();
-  const lines = text.trim().split('\n');
+  const json = await res.json();
+  if (json?.chart?.error) return { error: json.chart.error.description || 'Error Yahoo' };
 
-  if (lines.length < 2 || !lines[0].toLowerCase().includes('close')) {
-    return { error: 'Respuesta inesperada de Stooq' };
-  }
+  const result = json?.chart?.result?.[0];
+  if (!result) return { error: 'Sin datos' };
 
-  const rows = lines
-    .slice(1)
-    .map(l => { const p = l.split(','); return { date: p[0], close: parseFloat(p[4]) }; })
-    .filter(r => r.date && !isNaN(r.close) && r.close > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const meta      = result.meta;
+  const price     = meta.regularMarketPrice;
+  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
 
-  if (rows.length < 2) return { error: 'Sin datos suficientes' };
+  const timestamps = result.timestamp || [];
+  const closes     = result.indicators?.quote?.[0]?.close || [];
 
-  const latest   = rows[rows.length - 1].close;
-  const prev     = rows[rows.length - 2].close;
+  const rows = timestamps
+    .map((ts, i) => ({
+      date:  new Date(ts * 1000).toISOString().slice(0, 10),
+      close: closes[i],
+    }))
+    .filter(r => r.close != null && !isNaN(r.close) && r.close > 0);
+
+  if (rows.length < 2) return { error: 'Datos insuficientes' };
+
   const yearAgo  = rows[0].close;
   const monthAgo = rows[Math.max(0, rows.length - 22)].close;
+  const hist52   = rows.slice(-52);
 
   return {
-    price: parseFloat(latest.toFixed(2)),
-    chg1d: parseFloat(((latest / prev     - 1) * 100).toFixed(2)),
-    chg1m: parseFloat(((latest / monthAgo - 1) * 100).toFixed(1)),
-    ytd:   parseFloat(((latest / yearAgo  - 1) * 100).toFixed(1)),
-    hist:  rows.slice(-52).map(r => parseFloat(r.close.toFixed(2))),
-    dates: rows.slice(-52).map(r => r.date),
+    price: parseFloat(price.toFixed(2)),
+    chg1d: parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
+    chg1m: parseFloat(((price / monthAgo  - 1) * 100).toFixed(1)),
+    ytd:   parseFloat(((price / yearAgo   - 1) * 100).toFixed(1)),
+    hist:  hist52.map(r => parseFloat(r.close.toFixed(2))),
+    dates: hist52.map(r => r.date),
   };
 }
 
@@ -60,8 +66,7 @@ module.exports = async (req, res) => {
 
   await Promise.all(
     tickerList.map(async (ticker) => {
-      try { results[ticker] = await fetchTicker(ticker); }
-      catch (e) { results[ticker] = { error: e.message }; }
+      results[ticker] = await fetchTicker(ticker);
     })
   );
 
