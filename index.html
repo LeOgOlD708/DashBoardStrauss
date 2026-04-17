@@ -820,8 +820,8 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 </div><!-- /main -->
 
 <footer style="border-top:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center">
-  <span class="mono" style="font-size:8px;color:var(--text3)">Macro Trading Academy · Dashboard v2.0 · Fase 1 — Design</span><span class="mono" style="font-size:8px;color:var(--text3);margin-left:12px;padding-left:12px;border-left:1px solid var(--border2)">© Angel Lopez (Strauss)</span>
-  <span class="mono" style="font-size:8px;color:var(--text3)">Fase 2 → APIs en vivo: FRED · Yahoo · MarketWatch · JJ.Montoya</span>
+  <span class="mono" style="font-size:8px;color:var(--text3)">Macro Trading Academy · Dashboard v3.0</span><span class="mono" style="font-size:8px;color:var(--text3);margin-left:12px;padding-left:12px;border-left:1px solid var(--border2)">© Angel Lopez (Strauss)</span>
+  <span class="mono" style="font-size:8px;color:var(--text3)">FRED · Yahoo Finance · MarketWatch RSS · Auto-refresh 30min</span>
 </footer>
 
 <script>
@@ -1154,7 +1154,7 @@ async function loadYahooData() {
     });
 
     const ok = Object.keys(prices).filter(t => !t.startsWith('^')).length;
-    if (ok === 0) throw new Error('Stooq no respondió. Intenta recargar.');
+    if (ok === 0) throw new Error('Sin datos ETF. Intenta recargar.');
 
     state.data.prices = prices;
     updateETFTable(prices);
@@ -1229,7 +1229,8 @@ function updateFredUI() {
     // FRED WRBWFRBL in millions: 3,300,000M = $3.3T, 3,000,000M = $3.0T
     const c = latest > 3300000 ? 'up' : latest > 3000000 ? 'neu' : 'down';
     styleEl('m-res-val', c);
-    setEl('m-res-chg', `${sign}${diff}B`);
+    const diffB = (latest - prev) / 1000;
+    setEl('m-res-chg', `${diffB >= 0 ? '+' : ''}${diffB.toFixed(1)}B`);
     updateBar('s-res', latest, 2500000, 4000000, c);
     updateSig('s-res-sig', latest > 3300000 ? 'is-g' : latest > 3000000 ? 'is-a' : 'is-r',
               latest > 3300000 ? 'VERDE' : latest > 3000000 ? 'ALERTA' : 'PELIGRO');
@@ -1244,9 +1245,9 @@ function updateFredUI() {
     // FRED WTREGEN in millions: 500,000M = $500B, 800,000M = $800B
     const c = latest < 500000 ? 'up' : latest < 800000 ? 'neu' : 'down';
     styleEl('m-tga-val', c);
-    updateBar('s-tga', latest, 0, 1500, c === 'up' ? 'down' : c === 'down' ? 'up' : 'neu');
-    updateSig('s-tga-sig', latest < 500 ? 'is-g' : latest < 800 ? 'is-a' : 'is-r',
-              latest < 500 ? 'VERDE' : latest < 800 ? 'ALERTA' : 'PELIGRO');
+    updateBar('s-tga', latest, 0, 1500000, c === 'up' ? 'down' : c === 'down' ? 'up' : 'neu');
+    updateSig('s-tga-sig', latest < 500000 ? 'is-g' : latest < 800000 ? 'is-a' : 'is-r',
+              latest < 500000 ? 'VERDE' : latest < 800000 ? 'ALERTA' : 'PELIGRO');
     updateMiniChart('tgaChart', tga, '#f87171', true);
   }
 
