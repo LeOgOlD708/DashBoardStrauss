@@ -1184,6 +1184,9 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 </footer>
 
 <script>
+// ── Global state — must be defined BEFORE any chart creation ──
+const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, firstLoad: true };
+
 // ── Clock ──
 (function tick(){
   const n=new Date();
@@ -1421,9 +1424,6 @@ const ETF_META = {
 };
 
 const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,DTWEXBGS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
-
-// ── State ──
-const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, firstLoad: true };
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
