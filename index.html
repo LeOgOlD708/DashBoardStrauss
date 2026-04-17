@@ -312,10 +312,10 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
         <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Howell</span><span class="badge b-alt" style="font-size:8px">F3→F4</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Fidelity</span><span class="badge b-neu" style="font-size:8px">Late</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">DXY ~99</span><span class="badge b-up" style="font-size:8px">↓ positivo</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-dxy-label" style="font-size:10px;color:var(--text2)">DXY —</span><span id="diag-dxy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">China PBOC</span><span class="badge b-up" style="font-size:8px">Fase 1</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">VIX/VVIX</span><span class="badge b-alt" style="font-size:8px">Divergencia</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">WTI</span><span class="badge b-dn" style="font-size:8px">$104 → inflación</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">VIX/VVIX</span><span id="diag-vix-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-wti-label" style="font-size:10px;color:var(--text2)">WTI —</span><span id="diag-wti-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
         </div>
       </div>
       <div class="card" style="background:rgba(201,168,76,.04);border-color:rgba(201,168,76,.15)">
@@ -423,15 +423,15 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="card gold-a"><div class="card-accent"></div>
     <div class="lbl">Estado de todos los indicadores</div>
     <div style="margin-top:8px">
-      <div class="ind-row"><div class="ind-name">Reservas Fed</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-res-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig is-g">NEUTRAL+</div></div>
-      <div class="ind-row"><div class="ind-name">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">Reservas Fed</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-res-val">—</div><div class="ind-sig" id="s-res-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" id="s-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" id="s-move-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" id="s-tga-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
     </div>
-    <div style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
-      <strong style="color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">3/5 INDICADORES EN ALERTA/PELIGRO</strong><br>Confirma Fase 3 con transición hacia Fase 4. Factor positivo único: DXY cayendo desde 109 aporta liquidez global vía commodities y EM.
+    <div id="semaforoSummary" style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
+      <strong style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">Cargando...</strong>
     </div>
   </div>
 </div>
@@ -499,8 +499,8 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div class="g2" style="gap:6px;margin:8px 0">
         <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Inyecciones</div><div class="val-sm" style="font-size:13px;color:var(--text3)">~$1T USD</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
         <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Oro en CNY</div><div class="val-sm" id="m-gold-cny-val">—</div><div style="font-size:9px;color:var(--text3)">GLD × USD/CNY</div></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">PMI China</div><div class="val-sm" id="m-pmi-val" style="font-size:13px;color:var(--text3)">—</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Reservas oro</div><div class="val-sm" id="m-pboc-gold-val" style="font-size:13px;color:var(--text3)">—</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">PMI China</div><div class="val-sm" id="m-pmi-val" style="font-size:13px;color:var(--text3)">—</div><a href="https://tradingeconomics.com/china/manufacturing-pmi" target="_blank" style="font-size:7px;color:var(--gold);font-family:'IBM Plex Mono',monospace;text-decoration:none;display:block;margin-top:3px">Ver fuente →</a></div>
+        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Reservas oro</div><div class="val-sm" id="m-pboc-gold-val" style="font-size:13px;color:var(--text3)">—</div><a href="https://www.gold.org/goldhub/data/gold-reserves-by-country" target="_blank" style="font-size:7px;color:var(--gold);font-family:'IBM Plex Mono',monospace;text-decoration:none;display:block;margin-top:3px">Ver fuente →</a></div>
       </div>
       <div class="ch-wrap ch160"><canvas id="chinaChart" role="img" aria-label="Oro en CNY">CNY gold chart.</canvas></div>
       <div style="margin-top:8px;padding:8px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.12);border-radius:5px;font-size:10px;color:var(--text2)">
@@ -1052,7 +1052,7 @@ const ETF_META = {
   XLB:{n:'Materiales',   ph:'F3 ↑',  sig:'b-up', sl:'↑ FAVORABLE'},
 };
 
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,DTWEXBGS,CPIAUCSL,T5YIE,BAMLH0A0HYM2';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,DTWEXBGS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
 
 // ── State ──
 const state = { data: {}, charts: {}, lastUpdate: null, refreshTimer: null };
@@ -1123,6 +1123,7 @@ async function loadFredData() {
     state.data.cpi       = Array.isArray(d.CPIAUCSL)  ? d.CPIAUCSL  : null;
     state.data.breakeven = Array.isArray(d.T5YIE)     ? d.T5YIE     : null;
     state.data.hySpread  = Array.isArray(d.BAMLH0A0HYM2) ? d.BAMLH0A0HYM2 : null;
+    state.data.wti       = Array.isArray(d.DCOILWTICO) ? d.DCOILWTICO : null;
 
     updateFredUI();
     setDs('ds-fred', '#4ade80');
@@ -1258,6 +1259,9 @@ function updateFredUI() {
     const abs = Math.abs(parseFloat(spread));
     const c   = abs < 5 ? 'up' : abs < 15 ? 'neu' : 'down';
     styleEl('m-sofr-val', c);
+    updateBar('s-sofr', abs, 0, 30, c);
+    updateSig('s-sofr-sig', abs < 5 ? 'is-g' : abs < 15 ? 'is-a' : 'is-r',
+              abs < 5 ? 'VERDE' : abs < 15 ? 'ALERTA' : 'SPIKES');
     updateMiniChart('sofrChart', sofr, '#f87171', false);
   }
 
@@ -1274,7 +1278,26 @@ function updateFredUI() {
     const impacto = latest < 100 ? 'Positivo — expansivo' : latest < 106 ? 'Neutro' : 'Negativo — contractivo';
     const impEl = document.getElementById('m-dxy-impact');
     if (impEl) { impEl.textContent = impacto; impEl.className = 'flow-val ' + c; }
+    updateBar('s-dxy', latest, 85, 120, c);
+    updateSig('s-dxy-sig', c === 'up' ? 'is-g' : c === 'neu' ? 'is-a' : 'is-r',
+              c === 'up' ? 'VERDE' : c === 'neu' ? 'NEUTRAL' : 'ALTO');
     updateMiniChart('dxyChart', dxy, '#4ade80', false);
+  }
+
+  const { wti } = state.data;
+  if (wti?.length) {
+    const wtiVal = wti[0].value;
+    const wtiSign = wtiVal >= 0 ? '' : '';
+    const wtiLbl = document.getElementById('diag-wti-label');
+    const wtiBdg = document.getElementById('diag-wti-badge');
+    if (wtiLbl) wtiLbl.textContent = `WTI $${wtiVal.toFixed(0)}`;
+    if (wtiBdg) {
+      const cl = wtiVal < 75 ? 'b-up' : wtiVal < 90 ? 'b-neu' : 'b-dn';
+      const lb = wtiVal < 75 ? '↓ deflactorio' : wtiVal < 90 ? '~ neutral' : '↑ inflacionario';
+      wtiBdg.className = `badge ${cl}`;
+      wtiBdg.style.fontSize = '8px';
+      wtiBdg.textContent = lb;
+    }
   }
 }
 
@@ -1378,6 +1401,12 @@ function updateVolatility(prices) {
       chart.update('none');
     }
 
+    // Semáforo bar/sig for VIX
+    setElById('s-vix-val', vix.price.toFixed(1));
+    updateBar('s-vix', vix.price, 10, 50, vix.price < 20 ? 'up' : vix.price < 30 ? 'neu' : 'down');
+    updateSig('s-vix-sig', vix.price < 20 ? 'is-g' : vix.price < 30 ? 'is-a' : 'is-r',
+              vix.price < 20 ? 'CALMA' : vix.price < 30 ? 'ALERTA' : 'CRISIS');
+
     if (vvix) {
       const divergence = vvix.chg1m > 5 && vix.chg1m < 0;
       const divEl = document.getElementById('vix-divergence-text');
@@ -1425,9 +1454,11 @@ function setElById(id, val) {
 // ── News ──
 function renderNews(items) {
   const nf = document.getElementById('newsFeed');
+  const gf = document.getElementById('geoFeed');
   if (!nf) return;
   if (!items?.length) {
     nf.innerHTML = '<div style="padding:14px 0;font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Sin noticias macro en este momento.</div>';
+    if (gf) gf.innerHTML = '<div style="padding:14px 0;font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Sin eventos de alto impacto.</div>';
     return;
   }
   nf.innerHTML = '';
@@ -1444,6 +1475,27 @@ function renderNews(items) {
       <div class="news-time">${age}</div>
     </div>`;
   });
+
+  // Populate geoFeed with high-impact items only
+  if (gf) {
+    const high = items.filter(i => i.impact === 'high');
+    if (!high.length) {
+      gf.innerHTML = '<div style="padding:14px 0;font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Sin eventos de alto impacto en este momento.</div>';
+    } else {
+      gf.innerHTML = '';
+      high.forEach(({ title, link, pubDate, source }) => {
+        const age = pubDate ? timeAgo(new Date(pubDate)) : '—';
+        gf.innerHTML += `<div class="news-item">
+          <div class="news-source">
+            <div class="news-src-dot" style="background:#f87171"></div>
+            ${source} <span class="news-impact ni-high">Alto</span>
+          </div>
+          <div class="news-title" onclick="window.open('${link}','_blank')">${title}</div>
+          <div class="news-time">${age}</div>
+        </div>`;
+      });
+    }
+  }
 }
 
 function timeAgo(date) {
@@ -1503,12 +1555,9 @@ function updateMoveSkew(prices) {
     }
 
     // Update sig in indicator bar
-    const sig = document.getElementById('s-move-val')
-      ?.closest('.ind-row')?.querySelector('.ind-sig');
-    if (sig) {
-      sig.className = 'ind-sig ' + (v < 100 ? 'is-g' : v < 140 ? 'is-a' : 'is-r');
-      sig.textContent = v < 100 ? 'VERDE' : v < 140 ? 'ALERTA' : 'CRISIS';
-    }
+    updateBar('s-move', v, 50, 200, v < 100 ? 'up' : v < 140 ? 'neu' : 'down');
+    updateSig('s-move-sig', v < 100 ? 'is-g' : v < 140 ? 'is-a' : 'is-r',
+              v < 100 ? 'VERDE' : v < 140 ? 'ALERTA' : 'CRISIS');
 
     const moveSeries = move.hist.map((val, i) => ({ date: move.dates[i], value: val }));
     updateMiniChart('moveChart', moveSeries, '#fbbf24', false);
@@ -1558,6 +1607,47 @@ function updateDiagnostic() {
     pb.style.background = phase.bg;
     pb.style.borderColor = phase.cl.replace('1)', '.3)');
   }
+
+  // Actualizar diagnóstico cruzado con datos vivos
+  if (dxy?.[0]) {
+    const dxyVal = dxy[0].value;
+    const dxyLbl = document.getElementById('diag-dxy-label');
+    const dxyBdg = document.getElementById('diag-dxy-badge');
+    if (dxyLbl) dxyLbl.textContent = `DXY ${dxyVal.toFixed(1)}`;
+    if (dxyBdg) {
+      const cl = dxyVal < 100 ? 'b-up' : dxyVal < 106 ? 'b-neu' : 'b-dn';
+      const lb = dxyVal < 100 ? '↓ positivo' : dxyVal < 106 ? '→ neutral' : '↑ contractivo';
+      dxyBdg.className = `badge ${cl}`; dxyBdg.style.fontSize = '8px'; dxyBdg.textContent = lb;
+    }
+  }
+
+  // VIX/VVIX divergencia
+  const prices = state.data.prices;
+  if (prices) {
+    const vix = prices['^VIX'], vvix = prices['^VVIX'];
+    const divBdg = document.getElementById('diag-vix-badge');
+    if (divBdg && vix && vvix) {
+      const div = vvix.chg1m > 5 && vix.chg1m < 0;
+      divBdg.className = div ? 'badge b-alt' : 'badge b-up';
+      divBdg.style.fontSize = '8px';
+      divBdg.textContent = div ? 'Divergencia' : `VIX ${vix.price.toFixed(1)}`;
+    }
+  }
+
+  updateSemaforoText(score);
+}
+
+function updateSemaforoText(score) {
+  const el = document.getElementById('semaforoSummary');
+  if (!el) return;
+  const alerts = score;
+  const cl = alerts >= 5 ? '#f87171' : alerts >= 3 ? '#fbbf24' : '#4ade80';
+  const label = alerts >= 5 ? 'FASE 4 INMINENTE' : alerts >= 3 ? 'ALERTA — FASE 3→4' : 'ESTABLE';
+  const { dxy, wti } = state.data;
+  const dxyNote = dxy?.[0]?.value < 100 ? 'DXY < 100 aporta liquidez global.' : '';
+  const wtiNote = wti?.[0]?.value > 90 ? `WTI $${wti[0].value.toFixed(0)} presiona inflación.` : '';
+  el.innerHTML = `<strong style="color:${cl};font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">${alerts}/6 INDICADORES EN ALERTA · ${label}</strong><br><span style="color:var(--text2)">${dxyNote} ${wtiNote}</span>`;
+  el.style.borderColor = cl.replace(')', ',.25)').replace('rgb', 'rgba');
 }
 
 // ── Mini Chart Updater ──
