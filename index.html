@@ -354,15 +354,15 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + China</div></div>
-          <span class="badge b-up">↑↑ FUERTE</span>
+          <span id="fav-gold-badge" class="badge b-up">↑↑ FUERTE</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">XLE · XLB · GSG</div><div style="font-size:9px;color:var(--text3)">Commodities / Energía — late + China</div></div>
-          <span class="badge b-up">↑ FAVORABLE</span>
+          <span id="fav-comm-badge" class="badge b-up">↑ FAVORABLE</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">XLV · XLP · XLU</div><div style="font-size:9px;color:var(--text3)">Defensivos — demanda inelástica</div></div>
-          <span class="badge b-up">↑ REFUGIO</span>
+          <span id="fav-def-badge" class="badge b-up">↑ REFUGIO</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">Cash USD · SHY</div><div style="font-size:9px;color:var(--text3)">Preservación capital</div></div>
@@ -375,7 +375,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">QQQ · XLK</div><div style="font-size:9px;color:var(--text3)">Tech — liquidez ↓ + tasa alta</div></div>
-          <span class="badge b-dn">↓ PRESIÓN</span>
+          <span id="pre-qqq-badge" class="badge b-dn">↓ PRESIÓN</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">BTC · Crypto</div><div style="font-size:9px;color:var(--text3)">Máxima sensibilidad a liquidez</div></div>
@@ -383,7 +383,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">IWM · Small Caps</div><div style="font-size:9px;color:var(--text3)">Apalancadas — crédito apretándose</div></div>
-          <span class="badge b-dn">↓ VULNERABLE</span>
+          <span id="pre-iwm-badge" class="badge b-dn">↓ VULNERABLE</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
@@ -1192,6 +1192,7 @@ async function loadYahooData() {
     updateChinaFromYahoo(prices);
     updateVolatility(prices);
     updateMoveSkew(prices);
+    updateFavoredAssets(prices);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
     setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
@@ -1270,9 +1271,10 @@ function updateFredUI() {
 
   if (tga?.length) {
     const latest  = tga[0].value;
+    const tgaPrev = tga[1]?.value || latest;
     const display = formatM(latest);
-    setElF('m-tga-val', display, latest <= prev ? 'up' : 'dn'); // TGA bajo = bueno
-    setElF('s-tga-val', display, latest <= prev ? 'up' : 'dn');
+    setElF('m-tga-val', display, latest <= tgaPrev ? 'up' : 'dn'); // TGA bajo = bueno
+    setElF('s-tga-val', display, latest <= tgaPrev ? 'up' : 'dn');
     // FRED WTREGEN in millions: 500,000M = $500B, 800,000M = $800B
     const c = latest < 500000 ? 'up' : latest < 800000 ? 'neu' : 'down';
     styleEl('m-tga-val', c);
@@ -1718,6 +1720,41 @@ function updateMiniChart(id, series, color, fill) {
     chart.data.datasets[0].fill = true;
   }
   chart.update('none');
+}
+
+// ── Activos Favorecidos / Bajo Presión — live desde Yahoo YTD ──
+function updateFavoredAssets(prices) {
+  // badge(ytd, isGoodWhenUp) → [cssClass, label]
+  function badge(ytd, isGoodWhenUp) {
+    if (ytd == null) return null;
+    if (isGoodWhenUp) {
+      if (ytd > 10)  return ['b-up', '↑↑ FUERTE'];
+      if (ytd > 2)   return ['b-up', '↑ FAVORABLE'];
+      if (ytd > -2)  return ['b-neu', '→ NEUTRAL'];
+      return              ['b-dn',  '↓ DÉBIL'];
+    } else {
+      // isGoodWhenDown = true (pressure assets — we want them DOWN to confirm thesis)
+      if (ytd < -10) return ['b-dn', '↓↓ CAÍDA'];
+      if (ytd < -2)  return ['b-dn', '↓ PRESIÓN'];
+      if (ytd < 2)   return ['b-neu', '→ LATERAL'];
+      return              ['b-up', '↑ REBOTE'];
+    }
+  }
+  function applyBadge(id, ytd, isGoodWhenUp) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const r = badge(ytd, isGoodWhenUp);
+    if (!r) return;
+    el.className = 'badge ' + r[0];
+    el.textContent = r[1];
+  }
+  // Favorecidos (isGoodWhenUp = true): use avg YTD of representative ticker
+  applyBadge('fav-gold-badge', prices['GLD']?.ytd,  true);
+  applyBadge('fav-comm-badge', prices['XLE']?.ytd,  true);
+  applyBadge('fav-def-badge',  prices['XLV']?.ytd,  true);
+  // Bajo presión (isGoodWhenUp = false for press assets)
+  applyBadge('pre-qqq-badge',  prices['QQQ']?.ytd,  false);
+  applyBadge('pre-iwm-badge',  prices['IWM']?.ytd,  false);
 }
 
 // ── Flash on value change ──
