@@ -216,6 +216,29 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 
 /* overlay badge */
 .source-badge{position:absolute;top:8px;right:8px;font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.08em;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border)}
+
+/* ── Flash on value change ── */
+@keyframes flashUp{0%,100%{background:transparent}25%{background:rgba(74,222,128,.22)}}
+@keyframes flashDn{0%,100%{background:transparent}25%{background:rgba(248,113,113,.22)}}
+.flash-up{animation:flashUp .75s ease-out;border-radius:3px}
+.flash-dn{animation:flashDn .75s ease-out;border-radius:3px}
+
+/* ── Tab fade-in ── */
+@keyframes tabIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+.page.active{animation:tabIn .18s ease-out}
+
+/* ── Live dot ping ── */
+@keyframes ping{75%,100%{transform:scale(2.2);opacity:0}}
+.dot-ping{position:relative}
+.dot-ping::after{content:'';position:absolute;inset:0;border-radius:50%;background:inherit;animation:ping 1.6s ease-out infinite;pointer-events:none}
+
+/* ── Tooltips en semáforo ── */
+.ind-name[data-tip]{cursor:help;position:relative}
+.ind-name[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:0;background:#0d0d1a;border:1px solid #22223a;color:#9a9288;font-family:'IBM Plex Sans',sans-serif;font-weight:300;font-size:9px;padding:7px 10px;border-radius:5px;white-space:normal;width:220px;line-height:1.5;pointer-events:none;opacity:0;transition:opacity .15s;z-index:300;box-shadow:0 6px 18px rgba(0,0,0,.6)}
+.ind-name[data-tip]:hover::after{opacity:1}
+
+/* ── Sparkline canvas in ETF table ── */
+.sp-canvas{display:block;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -228,7 +251,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   </div>
   <div class="nav-right">
     <div class="phase-badge" id="phase-badge">FASE 3 → F4</div>
-    <div class="live-dot"><div class="dot"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
+    <div class="live-dot"><div class="dot" id="live-dot-el"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
     <div class="clock-display" id="clock">—</div>
   </div>
 </nav>
@@ -237,9 +260,9 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 
 <!-- DATA STATUS STRIP -->
 <div id="data-strip" class="hidden">
-  <span class="ds-item"><div class="ds-dot" id="ds-fred" style="background:var(--amber)"></div>FRED</span>
-  <span class="ds-item"><div class="ds-dot" id="ds-yf" style="background:var(--amber)"></div>Yahoo Finance</span>
-  <span class="ds-item"><div class="ds-dot" id="ds-rss" style="background:var(--amber)"></div>RSS News</span>
+  <span class="ds-item"><div class="ds-dot" id="ds-fred" style="background:var(--amber)"></div>FRED <span id="ds-fred-ts" style="color:var(--text3)">—</span></span>
+  <span class="ds-item"><div class="ds-dot" id="ds-yf" style="background:var(--amber)"></div>Yahoo <span id="ds-yf-ts" style="color:var(--text3)">—</span></span>
+  <span class="ds-item"><div class="ds-dot" id="ds-rss" style="background:var(--amber)"></div>RSS <span id="ds-rss-ts" style="color:var(--text3)">—</span></span>
   <span style="margin-left:auto" id="last-update" style="color:var(--text3)">Sin conexión</span>
   <button onclick="manualRefresh()" style="background:transparent;border:1px solid var(--border2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 8px;cursor:pointer;border-radius:3px">↻ Actualizar</button>
 </div>
@@ -423,12 +446,12 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="card gold-a"><div class="card-accent"></div>
     <div class="lbl">Estado de todos los indicadores</div>
     <div style="margin-top:8px">
-      <div class="ind-row"><div class="ind-name">Reservas Fed</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-res-val">—</div><div class="ind-sig" id="s-res-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" id="s-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" id="s-move-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" id="s-tga-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Reservas bancarias en la Fed. Umbral de abundancia $3.3T · peligro $3.0T. Caer debajo activa estrés de repo y transición a Fase 4.">Reservas Fed</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-res-val">—</div><div class="ind-sig" id="s-res-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Spread SOFR menos Fed Funds Rate. Spikes > 15 bps señalan tensión en mercado interbancario y estrés de colateral en repo.">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" id="s-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita de bonos del Tesoro USA (ICE BofA). Verde &lt; 100 · Alerta 100–140 · Crisis &gt; 140. Correlaciona con estrés sistémico.">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" id="s-move-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Cuenta General del Tesoro en la Fed. TGA &gt; $1T drena reservas bancarias — equivalente a QT adicional silencioso de ~$250B.">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" id="s-tga-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Índice del dólar (FRED: DTWEXBGS). &lt; 100 = expansivo para liquidez global. &gt; 106 = contractivo. Válvula maestra de liquidez según Howell.">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita S&amp;P 500. &lt; 20 = calma. 20–30 = cautela. &gt; 30 = estrés. Ver también VVIX (tab 07) para señales institucionales tempranas.">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
     </div>
     <div id="semaforoSummary" style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
       <strong style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">Cargando...</strong>
@@ -463,7 +486,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div class="lbl">Tabla de ETFs — Señales por Fase del Ciclo</div>
       <div style="overflow-x:auto;margin-top:6px">
         <table class="tbl">
-          <thead><tr><th>ETF</th><th>Precio</th><th>1M</th><th>YTD</th><th>Fase Actual</th><th>Señal</th></tr></thead>
+          <thead><tr><th>ETF</th><th>Precio</th><th>1D</th><th>1M</th><th>YTD</th><th>52W</th><th>Fase Actual</th><th>Señal</th></tr></thead>
           <tbody id="etfTable"></tbody>
         </table>
       </div>
@@ -1055,7 +1078,7 @@ const ETF_META = {
 const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,DTWEXBGS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
 
 // ── State ──
-const state = { data: {}, charts: {}, lastUpdate: null, refreshTimer: null };
+const state = { data: {}, charts: {}, lastUpdate: null, refreshTimer: null, firstLoad: true };
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -1100,6 +1123,11 @@ async function bootData() {
   updateLastUpdate();
   hideLoadingState();
   setNavStatus('EN VIVO', '#2dd4bf');
+  document.getElementById('data-strip')?.classList.remove('hidden');
+  if (state.firstLoad) {
+    setTimeout(() => showToast('Tip: teclas 1–8 para navegar entre tabs'), 1800);
+    state.firstLoad = false;
+  }
   scheduleRefresh();
 }
 
@@ -1127,6 +1155,7 @@ async function loadFredData() {
 
     updateFredUI();
     setDs('ds-fred', '#4ade80');
+    setEl('ds-fred-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
     setDs('ds-fred', '#f87171');
     showToast('Error FRED: ' + e.message);
@@ -1164,6 +1193,7 @@ async function loadYahooData() {
     updateVolatility(prices);
     updateMoveSkew(prices);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
+    setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
     setDs('ds-yf', '#f87171');
     showToast('Precios: ' + e.message);
@@ -1180,6 +1210,7 @@ async function loadNewsData() {
     const items = await res.json();
     renderNews(items);
     setDs('ds-rss', '#4ade80');
+    setEl('ds-rss-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
     setDs('ds-rss', '#f87171');
     throw e;
@@ -1224,8 +1255,8 @@ function updateFredUI() {
     const diff   = (latest - prev).toFixed(0);
     const sign   = diff >= 0 ? '+' : '';
     const display = formatM(latest);
-    setEl('m-res-val', display);
-    setEl('s-res-val', display);
+    setElF('m-res-val', display, latest >= prev ? 'up' : 'dn');
+    setElF('s-res-val', display, latest >= prev ? 'up' : 'dn');
     // FRED WRBWFRBL in millions: 3,300,000M = $3.3T, 3,000,000M = $3.0T
     const c = latest > 3300000 ? 'up' : latest > 3000000 ? 'neu' : 'down';
     styleEl('m-res-val', c);
@@ -1240,8 +1271,8 @@ function updateFredUI() {
   if (tga?.length) {
     const latest  = tga[0].value;
     const display = formatM(latest);
-    setEl('m-tga-val', display);
-    setEl('s-tga-val', display);
+    setElF('m-tga-val', display, latest <= prev ? 'up' : 'dn'); // TGA bajo = bueno
+    setElF('s-tga-val', display, latest <= prev ? 'up' : 'dn');
     // FRED WTREGEN in millions: 500,000M = $500B, 800,000M = $800B
     const c = latest < 500000 ? 'up' : latest < 800000 ? 'neu' : 'down';
     styleEl('m-tga-val', c);
@@ -1255,8 +1286,8 @@ function updateFredUI() {
     const spread  = (sofr[0].value - fedfunds[0].value).toFixed(2);
     const sign    = spread >= 0 ? '+' : '';
     const display = `${sign}${spread} bps`;
-    setEl('m-sofr-val', display);
-    setEl('s-sofr-val', display);
+    setElF('m-sofr-val', display, 'dn'); // SOFR spread subiendo = malo
+    setElF('s-sofr-val', display, 'dn');
     const abs = Math.abs(parseFloat(spread));
     const c   = abs < 5 ? 'up' : abs < 15 ? 'neu' : 'down';
     styleEl('m-sofr-val', c);
@@ -1271,8 +1302,9 @@ function updateFredUI() {
     const prev   = dxy[1]?.value || latest;
     const chg    = (latest - prev).toFixed(2);
     const sign   = chg >= 0 ? '+' : '';
-    setEl('m-dxy-val', latest.toFixed(1));
-    setEl('s-dxy-val', latest.toFixed(1));
+    setElF('m-dxy-val', latest.toFixed(1));
+    setElF('s-dxy-val', latest.toFixed(1));
+    countUp('m-dxy-val', latest, v => v.toFixed(1));
     setEl('m-dxy-chg', `${sign}${chg}`);
     const c = latest < 100 ? 'up' : latest < 106 ? 'neu' : 'down';
     styleEl('m-dxy-val', c);
@@ -1316,24 +1348,38 @@ function updateETFTable(prices) {
         <td class="mono" style="color:var(--text3);font-size:10px">—</td>
         <td class="mono" style="color:var(--text3);font-size:10px">—</td>
         <td class="mono" style="color:var(--text3);font-size:10px">—</td>
+        <td class="mono" style="color:var(--text3);font-size:10px">—</td>
+        <td></td>
         <td style="font-size:9px;color:var(--text3)">—</td>
         <td><span class="badge ${m.sig}" style="font-size:8px">${m.sl}</span></td>
       </tr>`;
       return;
     }
-    const ps  = p.price < 10 ? p.price.toFixed(3) : p.price.toFixed(2);
-    const m1c = p.chg1m >= 0 ? 'up' : 'down';
-    const yc  = p.ytd   >= 0 ? 'up' : 'down';
-    const ms  = p.chg1m >= 0 ? '+' : '';
-    const ys  = p.ytd   >= 0 ? '+' : '';
+    const ps   = p.price < 10 ? p.price.toFixed(3) : p.price.toFixed(2);
+    const d1c  = p.chg1d >= 0 ? 'up' : 'down';
+    const m1c  = p.chg1m >= 0 ? 'up' : 'down';
+    const yc   = p.ytd   >= 0 ? 'up' : 'down';
+    const fcs  = p.chg1d >= 0 ? 'flash-up' : 'flash-dn';
+    const d1s  = p.chg1d >= 0 ? '+' : '';
+    const ms   = p.chg1m >= 0 ? '+' : '';
+    const ys   = p.ytd   >= 0 ? '+' : '';
     tbody.innerHTML += `<tr>
       <td><div class="ticker">${ticker}<span class="live-badge">LIVE</span></div><div style="font-size:9px;color:var(--text3)">${m.n}</div></td>
-      <td class="mono" style="font-size:10px">$${ps}</td>
+      <td class="mono ${fcs}" style="font-size:10px">$${ps}</td>
+      <td class="mono ${d1c}" style="font-size:10px">${d1s}${p.chg1d}%</td>
       <td class="mono ${m1c}" style="font-size:10px">${ms}${p.chg1m}%</td>
       <td class="mono ${yc}" style="font-size:10px">${ys}${p.ytd}%</td>
+      <td class="sp-cell"><canvas id="spark-${ticker}" class="sp-canvas" width="64" height="22"></canvas></td>
       <td style="font-size:9px;color:var(--text3)">${m.ph}</td>
       <td><span class="badge ${m.sig}" style="font-size:8px">${m.sl}</span></td>
     </tr>`;
+  });
+  // Draw sparklines after table is in DOM
+  ETF_TICKERS.forEach(t => {
+    const p = prices[t];
+    if (!p?.hist?.length) return;
+    const c = document.getElementById(`spark-${t}`);
+    if (c) drawSparkline(c, p.hist);
   });
 }
 
@@ -1382,7 +1428,8 @@ function updateVolatility(prices) {
   const vix3m = prices['^VIX3M'];
 
   if (vix) {
-    setElById('m-vix-val', vix.price.toFixed(1));
+    setElF('m-vix-val', vix.price.toFixed(1), vix.chg1d >= 0 ? 'dn' : 'up'); // VIX up = malo
+    countUp('m-vix-val', vix.price, v => v.toFixed(1));
     const vixPct = Math.min(90, Math.max(5, ((vix.price - 10) / 40) * 100));
     const vixHandle = document.getElementById('vix')?.querySelector('.vol-handle')
       || document.querySelector('.card.teal-a .vol-handle');
@@ -1420,6 +1467,7 @@ function updateVolatility(prices) {
   }
 
   if (vvix) {
+    countUp('m-vvix-val', vvix.price, v => v.toFixed(0));
     setElById('m-vvix-val', vvix.price.toFixed(0));
     const pct = Math.min(90, Math.max(5, ((vvix.price - 80) / 70) * 100));
     const h = document.getElementById('vvix-handle');
@@ -1433,6 +1481,7 @@ function updateVolatility(prices) {
   }
 
   if (vix3m) {
+    countUp('m-vix3m-val', vix3m.price, v => v.toFixed(1));
     setElById('m-vix3m-val', vix3m.price.toFixed(1));
     const pct = Math.min(90, Math.max(5, ((vix3m.price - 12) / 33) * 100));
     const h = document.getElementById('vix3m-handle');
@@ -1539,8 +1588,9 @@ function updateMoveSkew(prices) {
   if (move) {
     const v    = move.price;
     const sign = move.chg1d >= 0 ? '+' : '';
-    setEl('m-move-val', v.toFixed(0));
-    setEl('s-move-val', v.toFixed(0));
+    countUp('m-move-val', v, x => x.toFixed(0));
+    setElF('m-move-val', v.toFixed(0), move.chg1d >= 0 ? 'dn' : 'up'); // MOVE up = malo
+    setElF('s-move-val', v.toFixed(0));
     setEl('m-move-chg', `${sign}${move.chg1d.toFixed(1)}%`);
     const c = v < 100 ? 'up' : v < 140 ? 'neu' : 'down';
     styleEl('m-move-val', c);
@@ -1566,6 +1616,7 @@ function updateMoveSkew(prices) {
 
   if (skew) {
     const v = skew.price;
+    countUp('m-skew-val', v, x => x.toFixed(0));
     setElById('m-skew-val', v.toFixed(0));
     const pct = Math.min(90, Math.max(5, ((v - 110) / 55) * 100));
     const h = document.getElementById('skew-handle');
@@ -1669,6 +1720,76 @@ function updateMiniChart(id, series, color, fill) {
   chart.update('none');
 }
 
+// ── Flash on value change ──
+function flashEl(id, dir) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('flash-up', 'flash-dn');
+  void el.offsetWidth;
+  el.classList.add(dir === 'dn' ? 'flash-dn' : 'flash-up');
+  setTimeout(() => el.classList.remove('flash-up', 'flash-dn'), 750);
+}
+
+function setElF(id, val, dir) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const old = el.textContent;
+  el.textContent = val;
+  if (state.firstLoad || !old || old === '—' || old === '...' || old === 'Cargando...' || old === val) return;
+  if (!dir) {
+    const n = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+    const o = parseFloat(String(old).replace(/[^0-9.-]/g, ''));
+    dir = (!isNaN(n) && !isNaN(o)) ? (n >= o ? 'up' : 'dn') : 'up';
+  }
+  flashEl(id, dir);
+}
+
+// ── CountUp on first load ──
+function countUp(id, target, fmt, dur=800) {
+  const el = document.getElementById(id);
+  if (!el || !state.firstLoad) return;
+  const t0 = performance.now();
+  const run = now => {
+    const p = Math.min((now - t0) / dur, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(target * ease);
+    if (p < 1) requestAnimationFrame(run);
+    else el.textContent = fmt(target);
+  };
+  requestAnimationFrame(run);
+}
+
+// ── Sparkline (pure Canvas, no Chart.js) ──
+function drawSparkline(canvas, data) {
+  if (!canvas || !data?.length) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+  const up = data[data.length - 1] >= data[0];
+  ctx.strokeStyle = up ? '#4ade80' : '#f87171';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = (i / (data.length - 1)) * (w - 2) + 1;
+    const y = h - ((v - min) / range) * (h - 3) - 1.5;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+}
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey) return;
+  const tabs = ['diag','ind','act','dxy','tesis','check','vol','news'];
+  const i = parseInt(e.key) - 1;
+  if (i >= 0 && i < tabs.length) {
+    const tabEls = document.querySelectorAll('.tab');
+    if (tabEls[i]) go(tabs[i], tabEls[i]);
+  }
+});
+
 // ── Loading State ──
 function showLoadingState() {
   ['m-res-val','m-sofr-val','m-move-val','m-tga-val','m-dxy-val'].forEach(id => {
@@ -1684,7 +1805,11 @@ function hideLoadingState() {
 function setEl(id, text)    { const e = document.getElementById(id); if (e) e.textContent = text; }
 function styleEl(id, cls)   { const e = document.getElementById(id); if (!e) return; e.classList.remove('up','down','neu'); e.classList.add(cls); }
 function setDs(id, color)   { const e = document.getElementById(id); if (e) e.style.background = color; }
-function setNavStatus(t,c)  { const e = document.getElementById('nav-status'); if(e){e.textContent=t;e.style.color=c;} const d=document.querySelector('.live-dot .dot'); if(d)d.style.background=c; }
+function setNavStatus(t,c)  {
+  const e = document.getElementById('nav-status'); if(e){e.textContent=t;e.style.color=c;}
+  const d = document.getElementById('live-dot-el');
+  if(d){ d.style.background=c; if(t==='EN VIVO') d.classList.add('dot-ping'); else d.classList.remove('dot-ping'); }
+}
 function setLastUpdate(t)   { const e = document.getElementById('last-update'); if(e) e.textContent=t; }
 function updateLastUpdate() { setLastUpdate('Act. ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})); }
 
