@@ -6,6 +6,7 @@
 <title>Macro Trading Dashboard v3.0 — Angel Lopez (Strauss)</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://s3.tradingview.com/tv.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -239,6 +240,11 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 
 /* ── Sparkline canvas in ETF table ── */
 .sp-canvas{display:block;vertical-align:middle}
+
+/* ── TradingView ticker buttons ── */
+.tv-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;cursor:pointer;border-radius:3px;letter-spacing:.06em;transition:all .15s}
+.tv-btn:hover{border-color:var(--blue);color:var(--blue)}
+.tv-btn-active{background:rgba(96,165,250,.12);border-color:var(--blue);color:var(--blue)}
 </style>
 </head>
 <body>
@@ -283,6 +289,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="tab" onclick="go('check',this)">06 · Checklist</div>
   <div class="tab tab-new" onclick="go('vol',this)">07 · Volatilidad</div>
   <div class="tab tab-new" onclick="go('news',this)">08 · Noticias</div>
+  <div class="tab tab-new" onclick="go('tecnico',this)">09 · Técnico</div>
 </div>
 
 <div class="main">
@@ -840,6 +847,149 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════
+     09 · TÉCNICO — Swing & Day Trading
+══════════════════════════════════════════════════ -->
+<div id="tab-tecnico" class="page">
+  <div class="sh">
+    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Técnico</div>
+    <div class="sh-title">Análisis Técnico · Swing & Day Trading</div>
+    <div class="sh-line"></div>
+    <div class="badge b-teal" style="font-size:8px">TradingView</div>
+  </div>
+
+  <!-- Ticker selector -->
+  <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2)">
+    <div class="lbl" style="width:100%;margin-bottom:4px">Instrumento · Clic para cambiar</div>
+    <div id="tv-ticker-btns" style="display:flex;flex-wrap:wrap;gap:4px">
+      <button class="tv-btn tv-btn-active" data-tv="AMEX:GLD" data-yf="GLD" onclick="selectTVTicker(this)">GLD</button>
+      <button class="tv-btn" data-tv="AMEX:GDX" data-yf="GDX" onclick="selectTVTicker(this)">GDX</button>
+      <button class="tv-btn" data-tv="AMEX:SPY" data-yf="SPY" onclick="selectTVTicker(this)">SPY</button>
+      <button class="tv-btn" data-tv="NASDAQ:QQQ" data-yf="QQQ" onclick="selectTVTicker(this)">QQQ</button>
+      <button class="tv-btn" data-tv="NASDAQ:TLT" data-yf="TLT" onclick="selectTVTicker(this)">TLT</button>
+      <button class="tv-btn" data-tv="AMEX:XLE" data-yf="XLE" onclick="selectTVTicker(this)">XLE</button>
+      <button class="tv-btn" data-tv="AMEX:XLV" data-yf="XLV" onclick="selectTVTicker(this)">XLV</button>
+      <button class="tv-btn" data-tv="AMEX:IWM" data-yf="IWM" onclick="selectTVTicker(this)">IWM</button>
+      <button class="tv-btn" data-tv="CME_MINI:ES1!" data-yf="SPY" onclick="selectTVTicker(this)">MES</button>
+      <button class="tv-btn" data-tv="CME_MINI:NQ1!" data-yf="QQQ" onclick="selectTVTicker(this)">MNQ</button>
+      <button class="tv-btn" data-tv="COMEX:GC1!" data-yf="GLD" onclick="selectTVTicker(this)">MGC</button>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+      <button class="tv-btn" id="tv-int-d" onclick="setTVInterval('D',this)" style="background:rgba(201,168,76,.15);color:var(--gold);border-color:rgba(201,168,76,.3)">1D</button>
+      <button class="tv-btn" id="tv-int-w" onclick="setTVInterval('W',this)">1W</button>
+      <button class="tv-btn" id="tv-int-60" onclick="setTVInterval('60',this)">1H</button>
+    </div>
+  </div>
+
+  <!-- Main chart + signals -->
+  <div class="g21" style="margin-bottom:10px">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div id="tv-main-chart" style="height:440px"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <!-- Live signal card -->
+      <div class="card blue-a" id="tv-signal-card"><div class="card-accent"></div>
+        <div class="lbl" id="tv-sig-ticker">GLD · Señales</div>
+        <div style="margin-top:8px">
+          <!-- 52W range -->
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+              <span class="mono" style="font-size:8px;color:var(--text3)">POSICIÓN 52W</span>
+              <span class="mono" style="font-size:9px" id="tv-sig-52w-pct">—%</span>
+            </div>
+            <div style="height:5px;background:var(--border2);border-radius:3px;overflow:visible;position:relative">
+              <div id="tv-sig-52w-bar" style="height:100%;background:var(--blue);border-radius:3px;width:50%;transition:width .4s"></div>
+              <div id="tv-sig-52w-handle" style="position:absolute;top:-3px;width:10px;height:10px;background:var(--text);border-radius:50%;left:50%;transform:translateX(-50%);transition:left .4s;border:2px solid var(--bg)"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:2px">
+              <span class="mono" style="font-size:7px;color:var(--text3)" id="tv-sig-52low">—</span>
+              <span class="mono" style="font-size:7px;color:var(--text3)" id="tv-sig-52high">—</span>
+            </div>
+          </div>
+          <!-- Trend -->
+          <div class="flow-row">
+            <span class="flow-label">Tendencia (SMA20w)</span>
+            <span id="tv-sig-trend" class="badge b-neu">—</span>
+          </div>
+          <div class="flow-row">
+            <span class="flow-label">Momentum 1M</span>
+            <span id="tv-sig-mom" class="badge b-neu">—</span>
+          </div>
+          <div class="flow-row">
+            <span class="flow-label">Performance YTD</span>
+            <span id="tv-sig-ytd" class="mono" style="font-size:11px">—</span>
+          </div>
+          <div class="flow-row">
+            <span class="flow-label">Dist. máx 52W</span>
+            <span id="tv-sig-fromhigh" class="mono" style="font-size:11px;color:var(--text2)">—</span>
+          </div>
+          <div class="flow-row">
+            <span class="flow-label">ATR 10w (est.)</span>
+            <span id="tv-sig-atr" class="mono" style="font-size:11px;color:var(--text2)">—</span>
+          </div>
+        </div>
+      </div>
+      <!-- Key levels -->
+      <div class="card">
+        <div class="lbl">Niveles Clave</div>
+        <div style="margin-top:6px" id="tv-levels">
+          <div class="flow-row"><span class="flow-label" style="color:var(--red)">R2 (máx 52W)</span><span id="tv-r2" class="mono" style="font-size:11px">—</span></div>
+          <div class="flow-row"><span class="flow-label" style="color:var(--amber)">R1 (máx 3M)</span><span id="tv-r1" class="mono" style="font-size:11px">—</span></div>
+          <div class="flow-row"><span class="flow-label">Precio actual</span><span id="tv-price" class="mono" style="font-size:11px;color:var(--gold)">—</span></div>
+          <div class="flow-row"><span class="flow-label" style="color:var(--green)">S1 (SMA20w)</span><span id="tv-s1" class="mono" style="font-size:11px">—</span></div>
+          <div class="flow-row"><span class="flow-label" style="color:var(--green)">S2 (mín 52W)</span><span id="tv-s2" class="mono" style="font-size:11px">—</span></div>
+        </div>
+      </div>
+      <!-- Phase setup -->
+      <div class="card" style="background:rgba(201,168,76,.04);border-color:rgba(201,168,76,.15)">
+        <div class="lbl" style="color:var(--gold)">Setup Fase 3/4</div>
+        <div id="tv-setup-text" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:4px">Cargando señales...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mini charts -->
+  <div class="sh"><div class="sh-tag">Micro Futuros & Referencia</div><div class="sh-title">Charts de Referencia</div><div class="sh-line"></div></div>
+  <div class="g4">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:8px 10px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--gold)">GOLD · GC1!</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol":"COMEX:GC1!","width":"100%","height":180,"locale":"es","dateRange":"3M","colorTheme":"dark","isTransparent":true,"autosize":false,"largeChartUrl":"","noTimeScale":false,"chartOnly":true,"trendLineColor":"#c9a84c","underLineColor":"rgba(201,168,76,0.12)","underLineBottomColor":"rgba(201,168,76,0)"}
+        </script>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:8px 10px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--blue)">S&P 500 · ES1!</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol":"CME_MINI:ES1!","width":"100%","height":180,"locale":"es","dateRange":"3M","colorTheme":"dark","isTransparent":true,"autosize":false,"largeChartUrl":"","noTimeScale":false,"chartOnly":true,"trendLineColor":"#60a5fa","underLineColor":"rgba(96,165,250,0.12)","underLineBottomColor":"rgba(96,165,250,0)"}
+        </script>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:8px 10px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--purple)">NASDAQ · NQ1!</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol":"CME_MINI:NQ1!","width":"100%","height":180,"locale":"es","dateRange":"3M","colorTheme":"dark","isTransparent":true,"autosize":false,"largeChartUrl":"","noTimeScale":false,"chartOnly":true,"trendLineColor":"#a78bfa","underLineColor":"rgba(167,139,250,0.12)","underLineBottomColor":"rgba(167,139,250,0)"}
+        </script>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:8px 10px 0;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--green)">VIX · CBOE</div>
+      <div class="tradingview-widget-container">
+        <div class="tradingview-widget-container__widget"></div>
+        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+        {"symbol":"CBOE:VIX","width":"100%","height":180,"locale":"es","dateRange":"3M","colorTheme":"dark","isTransparent":true,"autosize":false,"largeChartUrl":"","noTimeScale":false,"chartOnly":true,"trendLineColor":"#4ade80","underLineColor":"rgba(74,222,128,0.12)","underLineBottomColor":"rgba(74,222,128,0)"}
+        </script>
+      </div>
+    </div>
+  </div>
+</div>
+
 </div><!-- /main -->
 
 <footer style="border-top:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center">
@@ -863,6 +1013,7 @@ function go(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   el.classList.add('active');
+  if (id === 'tecnico') initTechTab();
 }
 
 // ── Chart defaults ──
@@ -1193,6 +1344,7 @@ async function loadYahooData() {
     updateVolatility(prices);
     updateMoveSkew(prices);
     updateFavoredAssets(prices);
+    if (tvState?.initialized) updateTechSignals(tvState.yfTicker);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
     setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
@@ -1819,7 +1971,7 @@ function drawSparkline(canvas, data) {
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey) return;
-  const tabs = ['diag','ind','act','dxy','tesis','check','vol','news'];
+  const tabs = ['diag','ind','act','dxy','tesis','check','vol','news','tecnico'];
   const i = parseInt(e.key) - 1;
   if (i >= 0 && i < tabs.length) {
     const tabEls = document.querySelectorAll('.tab');
@@ -1883,6 +2035,139 @@ function registerCharts() {
   }
 }
 setTimeout(registerCharts, 300);
+
+// ── TradingView Advanced Chart ──
+const tvState = { widget: null, symbol: 'AMEX:GLD', interval: 'D', yfTicker: 'GLD', initialized: false };
+
+function initTechTab() {
+  if (tvState.initialized) return;
+  tvState.initialized = true;
+  setTimeout(createTVChart, 200);
+}
+
+function createTVChart() {
+  const container = document.getElementById('tv-main-chart');
+  if (!container) return;
+  if (typeof TradingView === 'undefined') { setTimeout(createTVChart, 500); return; }
+  container.innerHTML = '';
+  tvState.widget = new TradingView.widget({
+    container_id: 'tv-main-chart',
+    width: '100%',
+    height: 440,
+    symbol: tvState.symbol,
+    interval: tvState.interval,
+    timezone: 'America/Mexico_City',
+    theme: 'dark',
+    style: '1',
+    locale: 'es',
+    toolbar_bg: '#07070e',
+    enable_publishing: false,
+    hide_side_toolbar: false,
+    allow_symbol_change: true,
+    withdateranges: true,
+    studies: ['RSI@tv-basicstudies', 'MACD@tv-basicstudies'],
+    overrides: {
+      'paneProperties.background': '#07070e',
+      'paneProperties.backgroundType': 'solid',
+      'scalesProperties.textColor': '#524e4a',
+      'mainSeriesProperties.candleStyle.upColor': '#4ade80',
+      'mainSeriesProperties.candleStyle.downColor': '#f87171',
+      'mainSeriesProperties.candleStyle.wickUpColor': '#4ade80',
+      'mainSeriesProperties.candleStyle.wickDownColor': '#f87171',
+      'mainSeriesProperties.candleStyle.borderUpColor': '#4ade80',
+      'mainSeriesProperties.candleStyle.borderDownColor': '#f87171',
+    },
+  });
+  updateTechSignals(tvState.yfTicker);
+}
+
+function selectTVTicker(btn) {
+  document.querySelectorAll('.tv-btn[data-tv]').forEach(b => b.classList.remove('tv-btn-active'));
+  btn.classList.add('tv-btn-active');
+  tvState.symbol  = btn.dataset.tv;
+  tvState.yfTicker = btn.dataset.yf;
+  tvState.initialized = false;
+  createTVChart();
+}
+
+function setTVInterval(iv, btn) {
+  document.querySelectorAll('#tv-int-d,#tv-int-w,#tv-int-60').forEach(b => {
+    b.style.background = ''; b.style.color = ''; b.style.borderColor = '';
+  });
+  btn.style.background = 'rgba(201,168,76,.15)';
+  btn.style.color = 'var(--gold)';
+  btn.style.borderColor = 'rgba(201,168,76,.3)';
+  tvState.interval = iv;
+  tvState.initialized = false;
+  createTVChart();
+}
+
+function updateTechSignals(ticker) {
+  const p = state.data.prices?.[ticker];
+  if (!p) { document.getElementById('tv-setup-text').textContent = 'Esperando datos Yahoo Finance...'; return; }
+
+  const hist = p.hist || [];
+  const high52 = Math.max(...hist);
+  const low52  = Math.min(...hist);
+  const price  = p.price;
+  const sma20  = hist.length >= 20 ? (hist.slice(-20).reduce((a,b)=>a+b,0)/20) : null;
+  const pos52  = hist.length > 0 ? Math.round(((price - low52) / (high52 - low52 || 1)) * 100) : null;
+  const fromHigh = ((price / high52 - 1) * 100).toFixed(1);
+  const max3M  = Math.max(...hist.slice(-13));
+  const atr10  = hist.length >= 10
+    ? (hist.slice(-11).map((v,i,a) => i>0 ? Math.abs(a[i]-a[i-1]) : 0).filter(Boolean).reduce((a,b)=>a+b,0)/10).toFixed(2)
+    : null;
+
+  setEl('tv-sig-ticker', `${ticker} · Señales`);
+  setEl('tv-sig-52w-pct', pos52 != null ? pos52+'%' : '—');
+  setEl('tv-sig-52high', high52.toFixed(2));
+  setEl('tv-sig-52low', low52.toFixed(2));
+  setEl('tv-sig-ytd', (p.ytd > 0 ? '+' : '') + p.ytd + '%');
+  styleEl('tv-sig-ytd', p.ytd > 0 ? 'up' : p.ytd < 0 ? 'down' : 'neu');
+  setEl('tv-sig-fromhigh', fromHigh + '% del máx');
+  setEl('tv-sig-atr', atr10 ? '$'+atr10 : '—');
+  setEl('tv-r2', '$'+high52.toFixed(2));
+  setEl('tv-r1', '$'+max3M.toFixed(2));
+  setEl('tv-price', '$'+price.toFixed(2));
+  setEl('tv-s1', sma20 ? '$'+sma20.toFixed(2) : '—');
+  setEl('tv-s2', '$'+low52.toFixed(2));
+
+  if (pos52 != null) {
+    document.getElementById('tv-sig-52w-bar').style.width    = pos52 + '%';
+    document.getElementById('tv-sig-52w-handle').style.left  = pos52 + '%';
+  }
+
+  const trendEl = document.getElementById('tv-sig-trend');
+  if (trendEl && sma20) {
+    if (price > sma20 * 1.02) { trendEl.className='badge b-up'; trendEl.textContent='↑ ALCISTA'; }
+    else if (price < sma20 * 0.98) { trendEl.className='badge b-dn'; trendEl.textContent='↓ BAJISTA'; }
+    else { trendEl.className='badge b-neu'; trendEl.textContent='→ LATERAL'; }
+  }
+
+  const momEl = document.getElementById('tv-sig-mom');
+  if (momEl) {
+    if (p.chg1m > 5)       { momEl.className='badge b-up'; momEl.textContent='↑↑ '+p.chg1m+'%'; }
+    else if (p.chg1m > 0)  { momEl.className='badge b-up'; momEl.textContent='↑ +'+p.chg1m+'%'; }
+    else if (p.chg1m > -5) { momEl.className='badge b-dn'; momEl.textContent='↓ '+p.chg1m+'%'; }
+    else                    { momEl.className='badge b-dn'; momEl.textContent='↓↓ '+p.chg1m+'%'; }
+  }
+
+  // Phase-aligned setup text
+  const setupEl = document.getElementById('tv-setup-text');
+  if (setupEl) {
+    const phase34setups = {
+      GLD: 'Oro en Fase 3/4: <strong style="color:var(--gold)">COMPRAR en soporte SMA20 semanal</strong>. Setup de acumulación mientras DXY < 106. Objetivo: máximos históricos.',
+      GDX: 'Mineras (GDX) siguen al oro con beta ~1.5x. <strong style="color:var(--gold)">Entradas en correcciones > 8%</strong> del último máximo. Mayor riesgo, mayor retorno.',
+      XLE: 'Energía presionada por petróleo + Hormuz. <strong style="color:var(--amber)">Setup swing corto</strong> si WTI > $100. Long si hay resolución geopolítica.',
+      SPY: 'SPY en presión Fase 3. <strong style="color:var(--red)">Cautela larga</strong>. Put spreads o cortos en rebotes al 200SMA. Evitar nuevas posiciones largas especulativas.',
+      QQQ: 'Tech bajo presión máxima Fase 3/4. <strong style="color:var(--red)">Short en rebotes</strong> o hedge con puts. QQQ seguirá dxY y tasas reales.',
+      TLT: 'TLT sensible a expectativas Fed. <strong style="color:var(--blue)">Solo largo</strong> si Fed pivota. Actualmente en zona de compresión.',
+      IWM: 'Small caps = activo más vulnerable en F3/4. <strong style="color:var(--red)">Evitar o short</strong>. Primero en capitular en stress de liquidez.',
+      XLV: 'Salud = defensivo F3/4. <strong style="color:var(--green)">Mantener si YTD > 0</strong> como hedge de cartera.',
+    };
+    setupEl.innerHTML = phase34setups[ticker] || `<strong style="color:var(--text)">${ticker}</strong>: Analizar estructura técnica en chart TradingView. Comparar con ciclo macro Fase 3/4.`;
+  }
+}
 
 </script>
 </body>
