@@ -299,106 +299,250 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 ══════════════════════════════════════════════════ -->
 <div id="tab-diag" class="page active">
 
-  <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Estado del Ciclo Global</div><div class="sh-line"></div><div class="mono" style="font-size:9px;color:var(--text3)">Abril 2026</div></div>
+  <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Ciclo Howell · Diagnóstico en Vivo</div><div class="sh-line"></div><span class="live-badge" id="diag-live-ts">Sin datos</span></div>
 
-  <div class="g3" style="margin-bottom:12px">
-    <div class="pc pc3">
-      <div class="pc-ghost" style="color:var(--p3t)">3</div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px"><div class="lbl" style="color:var(--p3t)">Ciclo Howell</div><span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border2)">ANÁLISIS</span></div>
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p3t);margin-bottom:6px">Fase 3 — Squeeze</div>
-      <div style="font-size:10px;color:var(--text2);line-height:1.6">Reservas Fed < $3.1T · SOFR spikes frecuentes · TGA $1.1T · MOVE 118</div>
-      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-alt">⚠ → Fase 4</span><span class="badge b-dn">Liquidez ↓</span></div>
+  <!-- ── ROW 1: 4 KPI Thermometers ── -->
+  <div class="g4" style="margin-bottom:10px">
+
+    <!-- Reservas Fed -->
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="lbl">① Reservas Fed</div><span class="ind-sig" id="diag-res-sig" style="color:var(--text3);background:var(--surface2)">—</span>
+      </div>
+      <div class="val loading-pulse" id="diag-res-val" style="font-size:20px;margin-bottom:2px">—</div>
+      <div class="mono" id="diag-res-chg" style="font-size:9px;color:var(--text3);margin-bottom:8px">—</div>
+      <div style="position:relative;height:7px;border-radius:4px;overflow:hidden;background:linear-gradient(90deg,#f87171 0%,#fbbf24 40%,#4ade80 100%);margin-bottom:4px">
+        <div id="diag-res-hdl" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#eae6de;border:2px solid #07070e;border-radius:50%;left:50%;transition:left .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
+        <span>$2.5T</span><span style="color:var(--red)">$3.0T</span><span style="color:var(--amber)">$3.3T</span><span>$4.0T</span>
+      </div>
+      <div class="source-badge">FRED WRBWFRBL</div>
     </div>
-    <div class="pc pc3" style="border-color:rgba(251,191,36,.2)">
-      <div class="pc-ghost" style="color:var(--amber)">L</div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px"><div class="lbl" style="color:var(--amber)">Ciclo Fidelity</div><span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border2)">ANÁLISIS</span></div>
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--amber);margin-bottom:6px">Late Cycle</div>
-      <div style="font-size:10px;color:var(--text2);line-height:1.6">Empleo sólido cediendo · Inflación sticky · Márgenes bajo presión</div>
-      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-neu">Late Cycle</span><span class="badge b-alt">Pre-recesión</span></div>
+
+    <!-- TGA -->
+    <div class="card red-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="lbl">② TGA Tesoro</div><span class="ind-sig" id="diag-tga-sig" style="color:var(--text3);background:var(--surface2)">—</span>
+      </div>
+      <div class="val loading-pulse" id="diag-tga-val" style="font-size:20px;margin-bottom:2px">—</div>
+      <div class="mono" id="diag-tga-chg" style="font-size:9px;color:var(--text3);margin-bottom:8px">—</div>
+      <div style="position:relative;height:7px;border-radius:4px;overflow:hidden;background:linear-gradient(90deg,#4ade80 0%,#fbbf24 50%,#f87171 100%);margin-bottom:4px">
+        <div id="diag-tga-hdl" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#eae6de;border:2px solid #07070e;border-radius:50%;left:50%;transition:left .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
+        <span>$0</span><span style="color:var(--amber)">$700B</span><span style="color:var(--red)">$1.0T</span><span>$2.0T</span>
+      </div>
+      <div class="source-badge">FRED WTREGEN</div>
     </div>
-    <div class="pc pc4">
-      <div class="pc-ghost" style="color:var(--p4t)">!</div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px"><div class="lbl" style="color:var(--p4t)">Ciclo Inflación</div><span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border2)">ANÁLISIS</span></div>
-      <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:var(--p4t);margin-bottom:6px">Alta + Shock Petróleo</div>
-      <div style="font-size:10px;color:var(--text2);line-height:1.6">CPI 2.4% + WTI $104 (bloqueo Hormuz) · Fed paralizada · Stagflación</div>
-      <div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-dn">Sin margen Fed</span><span class="badge b-dn">Petróleo ↑</span></div>
+
+    <!-- SOFR Spread -->
+    <div class="card red-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="lbl">③ SOFR Spread</div><span class="ind-sig" id="diag-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</span>
+      </div>
+      <div class="val loading-pulse" id="diag-sofr-val" style="font-size:20px;margin-bottom:2px">—</div>
+      <div class="mono" style="font-size:9px;color:var(--text3);margin-bottom:8px">SOFR − Fed Funds</div>
+      <div style="position:relative;height:7px;border-radius:4px;overflow:hidden;background:linear-gradient(90deg,#4ade80 0%,#fbbf24 30%,#f87171 100%);margin-bottom:4px">
+        <div id="diag-sofr-hdl" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#eae6de;border:2px solid #07070e;border-radius:50%;left:5%;transition:left .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
+        <span>0</span><span style="color:var(--amber)">5bps</span><span style="color:var(--red)">15bps</span><span>30bps</span>
+      </div>
+      <div class="source-badge">FRED SOFR/FEDFUNDS</div>
+    </div>
+
+    <!-- DXY -->
+    <div class="card green-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="lbl">④ DXY</div><span class="ind-sig" id="diag-dxy4-sig" style="color:var(--text3);background:var(--surface2)">—</span>
+      </div>
+      <div class="val loading-pulse" id="diag-dxy4-val" style="font-size:20px;margin-bottom:2px">—</div>
+      <div class="mono" id="diag-dxy4-chg" style="font-size:9px;color:var(--text3);margin-bottom:8px">—</div>
+      <div style="position:relative;height:7px;border-radius:4px;overflow:hidden;background:linear-gradient(90deg,#4ade80 0%,#fbbf24 45%,#f87171 100%);margin-bottom:4px">
+        <div id="diag-dxy4-hdl" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#eae6de;border:2px solid #07070e;border-radius:50%;left:50%;transition:left .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
+        <span>85</span><span style="color:var(--amber)">100</span><span style="color:var(--red)">106</span><span>120</span>
+      </div>
+      <div class="source-badge">FRED DTWEXBGS</div>
     </div>
   </div>
 
-  <div class="g21">
+  <!-- ── ROW 2: Motor de Diagnóstico + Fases Computadas ── -->
+  <div class="g21" style="margin-bottom:10px">
+
+    <!-- Score Engine -->
     <div class="card gold-a"><div class="card-accent"></div>
-      <div class="lbl">Posición en el Ciclo de 65 Meses</div>
-      <div class="ch-wrap ch260"><canvas id="cycleChart" role="img" aria-label="Ciclo de liquidez 65 meses">Onda sinusoidal del ciclo.</canvas></div>
+      <div class="lbl" style="color:var(--gold)">Motor de Diagnóstico Howell</div>
+      <div style="margin:8px 0">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr><th style="font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:left;border-bottom:1px solid var(--border2)">INDICADOR</th><th style="font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:center;border-bottom:1px solid var(--border2)">VALOR</th><th style="font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:center;border-bottom:1px solid var(--border2)">UMBRAL</th><th style="font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:center;border-bottom:1px solid var(--border2)">PTS</th></tr>
+          </thead>
+          <tbody>
+            <tr id="diag-sc-res-row">
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">Reservas Fed</td>
+              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-res-val">—</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&lt;$3.3T→+1 · &lt;$3T→+2</td>
+              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-res-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr id="diag-sc-tga-row">
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">TGA Tesoro</td>
+              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-tga-val">—</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$700B→+1 · &gt;$1T→+2</td>
+              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-tga-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr id="diag-sc-sofr-row">
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">SOFR Spread</td>
+              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-sofr-val">—</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;5bps→+1 · &gt;15bps→+2</td>
+              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-sofr-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr id="diag-sc-dxy-row">
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">DXY</td>
+              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-dxy-val">—</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;106→+0.5 · &gt;110→+1</td>
+              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-dxy-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr id="diag-sc-cpi-row">
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">CPI YoY</td>
+              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-cpi-val">—</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;3%→+0.5 · &gt;3.5%→+1</td>
+              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-cpi-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Total score -->
+      <div style="border-top:1px solid var(--border2);padding-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span class="mono" style="font-size:9px;color:var(--text3)">SCORE TOTAL</span>
+          <span class="mono" style="font-size:16px;font-weight:500" id="diag-score-total">—/7</span>
+        </div>
+        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
+          <div id="diag-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--text3);transition:width .6s,background .4s"></div>
+        </div>
+        <div style="text-align:center">
+          <span class="badge" id="diag-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span>
+        </div>
+      </div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
+
+    <!-- 3 Phase Cards (computed) -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+
+      <!-- Howell Phase -->
+      <div class="pc" id="diag-howell-pc" style="border-color:rgba(251,191,36,.2);background:var(--p3bg)">
+        <div class="pc-ghost" id="diag-howell-ghost" style="color:var(--amber)">3</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">
+          <div class="lbl" style="color:var(--amber)">Ciclo Howell</div>
+          <span class="live-badge">LIVE</span>
+        </div>
+        <div style="font-family:'Playfair Display',serif;font-size:17px;font-weight:700;margin-bottom:5px" id="diag-howell-name">Calculando...</div>
+        <div style="font-size:9px;color:var(--text2);line-height:1.6" id="diag-howell-desc">Esperando datos FRED...</div>
+        <div style="margin-top:7px;display:flex;gap:4px;flex-wrap:wrap" id="diag-howell-badges"></div>
+      </div>
+
+      <!-- Fidelity Phase -->
+      <div class="pc" id="diag-fidelity-pc" style="border-color:rgba(251,191,36,.15);background:var(--p3bg)">
+        <div class="pc-ghost" id="diag-fidelity-ghost" style="color:var(--amber);font-size:40px">L</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">
+          <div class="lbl" style="color:var(--amber)">Ciclo Fidelity</div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border2)">HY+CPI</span>
+        </div>
+        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:3px" id="diag-fidelity-name">Calculando...</div>
+        <div style="font-size:9px;color:var(--text2);line-height:1.5" id="diag-fidelity-desc">Esperando datos...</div>
+        <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap" id="diag-fidelity-badges"></div>
+      </div>
+
+      <!-- Inflation / WTI -->
+      <div class="pc" id="diag-inflation-pc" style="border-color:rgba(248,113,113,.15);background:var(--p4bg)">
+        <div class="pc-ghost" id="diag-inflation-ghost" style="color:var(--red);font-size:40px">!</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">
+          <div class="lbl" style="color:var(--red)">Régimen Inflación</div>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);background:var(--surface2);padding:2px 5px;border-radius:2px;border:1px solid var(--border2)">CPI+WTI+BE</span>
+        </div>
+        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:3px" id="diag-inflation-name">Calculando...</div>
+        <div style="font-size:9px;color:var(--text2);line-height:1.5" id="diag-inflation-desc">Esperando datos...</div>
+        <div style="margin-top:5px;display:flex;gap:4px;flex-wrap:wrap" id="diag-inflation-badges"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── ROW 3: Ciclo 65M + Diagnóstico Cruzado ── -->
+  <div class="g21" style="margin-bottom:10px">
+    <div class="card gold-a"><div class="card-accent"></div>
+      <div class="lbl">Posición en el Ciclo de 65 Meses (inicio Oct 2022)</div>
+      <div class="ch-wrap ch260"><canvas id="cycleChart" role="img" aria-label="Ciclo de liquidez 65 meses">Onda sinusoidal.</canvas></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
       <div class="card">
-        <div class="lbl">Mes actual</div>
+        <div class="lbl">Mes del ciclo</div>
         <div style="display:flex;align-items:baseline;gap:6px;margin:4px 0 8px"><div class="val neu" id="cycle-month">—</div><div class="mono" style="font-size:10px;color:var(--text3)">/ 65</div></div>
-        <div style="width:100%;height:4px;background:var(--border2);border-radius:2px;overflow:hidden"><div id="cycle-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--p1t),var(--p2t),var(--p3t));border-radius:2px"></div></div>
-        <div class="mono" style="font-size:8px;color:var(--text3);display:flex;justify-content:space-between;margin-top:4px"><span>Oct 2022</span><span>Ahora</span><span>~2027</span></div>
+        <div style="width:100%;height:4px;background:var(--border2);border-radius:2px;overflow:hidden;margin-bottom:4px"><div id="cycle-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--p1t),var(--p2t),var(--p3t));border-radius:2px"></div></div>
+        <div class="mono" style="font-size:8px;color:var(--text3);display:flex;justify-content:space-between"><span>Oct '22</span><span>Ahora</span><span>~2027</span></div>
       </div>
       <div class="card">
         <div class="lbl">Diagnóstico cruzado</div>
-        <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px">
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Howell</span><span class="badge b-alt" style="font-size:8px">F3→F4</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Fidelity</span><span class="badge b-neu" style="font-size:8px">Late</span></div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Howell</span><span id="diag-cross-howell" class="badge b-alt" style="font-size:8px">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Fidelity</span><span id="diag-cross-fidelity" class="badge b-neu" style="font-size:8px">—</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-dxy-label" style="font-size:10px;color:var(--text2)">DXY —</span><span id="diag-dxy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">China PBOC</span><span class="badge b-up" style="font-size:8px">Fase 1</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">VIX/VVIX</span><span id="diag-vix-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-wti-label" style="font-size:10px;color:var(--text2)">WTI —</span><span id="diag-wti-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">HY Spread</span><span id="diag-hy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Breakeven 5Y</span><span id="diag-be-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
         </div>
       </div>
-      <div class="card" style="background:rgba(201,168,76,.04);border-color:rgba(201,168,76,.15)">
-        <div class="lbl" style="color:var(--gold)">Veredicto</div>
-        <div style="font-size:11px;color:var(--text2);line-height:1.6;margin-top:4px"><strong style="color:var(--text)">Defensivo.</strong> Oro · Commodities · Value defensivo · Cash. Muro de deuda + petróleo = bomba de presión.</div>
+      <!-- Veredicto dinámico -->
+      <div class="card" style="background:rgba(201,168,76,.04);border-color:rgba(201,168,76,.2)" id="diag-veredicto-card">
+        <div class="lbl" style="color:var(--gold)">Veredicto Computado</div>
+        <div id="diag-veredicto" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
       </div>
     </div>
   </div>
 
-  <div class="g2" style="margin-top:10px">
+  <!-- ── ROW 4: Activos Favorecidos / Bajo Presión ── -->
+  <div class="g2">
     <div class="card" style="border-color:rgba(74,222,128,.12)">
-      <div class="lbl" style="color:var(--green)">Activos Favorecidos</div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
+      <div class="lbl" style="color:var(--green)">Activos Favorecidos — Fase 3/4</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + China</div></div>
+          <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + PBOC</div></div>
           <span id="fav-gold-badge" class="badge b-up">↑↑ FUERTE</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">XLE · XLB · GSG</div><div style="font-size:9px;color:var(--text3)">Commodities / Energía — late + China</div></div>
+          <div><div class="mono" style="font-size:10px;font-weight:500">XLE · XLB</div><div style="font-size:9px;color:var(--text3)">Commodities / Energía — late + China</div></div>
           <span id="fav-comm-badge" class="badge b-up">↑ FAVORABLE</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">XLV · XLP · XLU</div><div style="font-size:9px;color:var(--text3)">Defensivos — demanda inelástica</div></div>
           <span id="fav-def-badge" class="badge b-up">↑ REFUGIO</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">Cash USD · SHY</div><div style="font-size:9px;color:var(--text3)">Preservación capital</div></div>
-          <span class="badge b-neu">= PARKING</span>
-        </div>
       </div>
     </div>
     <div class="card" style="border-color:rgba(248,113,113,.12)">
       <div class="lbl" style="color:var(--red)">Activos Bajo Presión</div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:7px">
+      <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">QQQ · XLK</div><div style="font-size:9px;color:var(--text3)">Tech — liquidez ↓ + tasa alta</div></div>
+          <div><div class="mono" style="font-size:10px;font-weight:500">QQQ · XLK</div><div style="font-size:9px;color:var(--text3)">Tech — liquidez ↓ + tasa real alta</div></div>
           <span id="pre-qqq-badge" class="badge b-dn">↓ PRESIÓN</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">BTC · Crypto</div><div style="font-size:9px;color:var(--text3)">Máxima sensibilidad a liquidez</div></div>
-          <span class="badge b-dn">↓ -50% ATH</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">IWM · Small Caps</div><div style="font-size:9px;color:var(--text3)">Apalancadas — crédito apretándose</div></div>
+          <div><div class="mono" style="font-size:10px;font-weight:500">IWM · Small Caps</div><div style="font-size:9px;color:var(--text3)">Apalancadas — crédito apretado</div></div>
           <span id="pre-iwm-badge" class="badge b-dn">↓ VULNERABLE</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
-          <span class="badge b-dn">↓ EVITAR</span>
+          <span id="pre-hy-badge" class="badge b-dn">— SPREADS</span>
         </div>
       </div>
     </div>
   </div>
+
 </div>
 
 
@@ -1471,10 +1615,9 @@ function updateFredUI() {
     updateMiniChart('dxyChart', dxy, '#4ade80', false);
   }
 
-  const { wti } = state.data;
+  const { wti, cpi, breakeven, hySpread } = state.data;
   if (wti?.length) {
     const wtiVal = wti[0].value;
-    const wtiSign = wtiVal >= 0 ? '' : '';
     const wtiLbl = document.getElementById('diag-wti-label');
     const wtiBdg = document.getElementById('diag-wti-badge');
     if (wtiLbl) wtiLbl.textContent = `WTI $${wtiVal.toFixed(0)}`;
@@ -1486,6 +1629,78 @@ function updateFredUI() {
       wtiBdg.textContent = lb;
     }
   }
+
+  // ── Diag Tab: 4 KPI Thermometers ──
+  if (reserves?.length) {
+    const v = reserves[0].value, p = reserves[1]?.value || v;
+    const diff = (v - p) / 1000;
+    setEl('diag-res-val', formatM(v));
+    setEl('diag-res-chg', (diff >= 0 ? '+' : '') + diff.toFixed(1) + 'B sem.');
+    const pct = Math.max(2, Math.min(98, ((v - 2500000) / (4000000 - 2500000)) * 100));
+    const hdl = document.getElementById('diag-res-hdl'); if (hdl) hdl.style.left = pct + '%';
+    const [sc, st] = v > 3300000 ? ['is-g','ABUNDANTE'] : v > 3000000 ? ['is-a','ALERTA'] : ['is-r','PELIGRO'];
+    updateSig('diag-res-sig', sc, st);
+    document.getElementById('diag-res-val')?.classList.remove('loading-pulse');
+  }
+  if (tga?.length) {
+    const v = tga[0].value, p = tga[1]?.value || v;
+    const diff = (v - p) / 1000;
+    setEl('diag-tga-val', formatM(v));
+    setEl('diag-tga-chg', (diff >= 0 ? '+' : '') + diff.toFixed(1) + 'B sem.');
+    const pct = Math.max(2, Math.min(98, (v / 2000000) * 100));
+    const hdl = document.getElementById('diag-tga-hdl'); if (hdl) hdl.style.left = pct + '%';
+    const [sc, st] = v < 500000 ? ['is-g','BAJO'] : v < 800000 ? ['is-a','ALERTA'] : ['is-r','DRENAJE'];
+    updateSig('diag-tga-sig', sc, st);
+    document.getElementById('diag-tga-val')?.classList.remove('loading-pulse');
+  }
+  if (sofr?.length && fedfunds?.length) {
+    const sp = sofr[0].value - fedfunds[0].value;
+    const abs = Math.abs(sp);
+    setEl('diag-sofr-val', (sp >= 0 ? '+' : '') + sp.toFixed(2) + ' bps');
+    const pct = Math.max(2, Math.min(98, (abs / 30) * 100));
+    const hdl = document.getElementById('diag-sofr-hdl'); if (hdl) hdl.style.left = pct + '%';
+    const [sc, st] = abs < 5 ? ['is-g','NORMAL'] : abs < 15 ? ['is-a','ALERTA'] : ['is-r','SPIKES'];
+    updateSig('diag-sofr-sig', sc, st);
+    document.getElementById('diag-sofr-val')?.classList.remove('loading-pulse');
+  }
+  if (dxy?.length) {
+    const v = dxy[0].value, p = dxy[1]?.value || v;
+    const chg = v - p;
+    setEl('diag-dxy4-val', v.toFixed(1));
+    setEl('diag-dxy4-chg', (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' sem.');
+    const pct = Math.max(2, Math.min(98, ((v - 85) / (120 - 85)) * 100));
+    const hdl = document.getElementById('diag-dxy4-hdl'); if (hdl) hdl.style.left = pct + '%';
+    const [sc, st] = v < 100 ? ['is-g','EXPANSIVO'] : v < 106 ? ['is-a','NEUTRAL'] : ['is-r','CONTRACTIVO'];
+    updateSig('diag-dxy4-sig', sc, st);
+    document.getElementById('diag-dxy4-val')?.classList.remove('loading-pulse');
+  }
+
+  // ── Breakeven + HY in cross-diagnosis ──
+  if (breakeven?.length) {
+    const v = breakeven[0].value;
+    const bdg = document.getElementById('diag-be-badge');
+    if (bdg) {
+      const cl = v < 2 ? 'b-up' : v < 2.8 ? 'b-neu' : 'b-dn';
+      bdg.className = `badge ${cl}`; bdg.style.fontSize = '8px';
+      bdg.textContent = v.toFixed(2) + '% · ' + (v < 2 ? 'anclado' : v < 2.8 ? 'moderado' : 'desanclado');
+    }
+  }
+  if (hySpread?.length) {
+    const v = hySpread[0].value;
+    const bdg = document.getElementById('diag-hy-badge');
+    if (bdg) {
+      const cl = v < 3 ? 'b-up' : v < 4.5 ? 'b-neu' : 'b-dn';
+      bdg.className = `badge ${cl}`; bdg.style.fontSize = '8px';
+      bdg.textContent = v.toFixed(2) + '% · ' + (v < 3 ? 'comprimido' : v < 4.5 ? 'alerta' : 'estrés');
+    }
+    const prBdg = document.getElementById('pre-hy-badge');
+    if (prBdg) {
+      const cl = v < 3 ? 'b-neu' : v < 4.5 ? 'b-dn' : 'b-dn';
+      prBdg.className = `badge ${cl}`; prBdg.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+    }
+  }
+
+  setEl('diag-live-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
 }
 
 // ── ETF Table ──
@@ -1784,39 +1999,241 @@ function updateMoveSkew(prices) {
   }
 }
 
-// ── Diagnostic Engine ──
+// ── Diagnostic Engine (full score + phase computation) ──
 function updateDiagnostic() {
-  const { reserves, tga, sofr, fedfunds, dxy } = state.data;
-  let score = 0;
-  if (reserves?.[0]?.value < 3000000)  score += 2;
-  else if (reserves?.[0]?.value < 3300000) score += 1;
-  if (tga?.[0]?.value > 1000000) score += 2;
-  else if (tga?.[0]?.value > 700000) score += 1;
-  if (sofr?.[0] && fedfunds?.[0]) {
-    const sp = Math.abs(sofr[0].value - fedfunds[0].value);
-    if (sp > 15) score += 2; else if (sp > 5) score += 1;
+  const { reserves, tga, sofr, fedfunds, dxy, cpi, hySpread, wti, breakeven } = state.data;
+  const prices = state.data.prices;
+
+  // ── Score computation ──
+  let resScore = 0, tgaScore = 0, sofrScore = 0, dxyScore = 0, cpiScore = 0;
+  const resVal  = reserves?.[0]?.value;
+  const tgaVal  = tga?.[0]?.value;
+  const dxyVal  = dxy?.[0]?.value;
+  const wtiVal  = wti?.[0]?.value;
+  const beVal   = breakeven?.[0]?.value;
+  const hyVal   = hySpread?.[0]?.value;
+
+  // SOFR spread
+  const sofrAbs = (sofr?.[0] && fedfunds?.[0]) ? Math.abs(sofr[0].value - fedfunds[0].value) : null;
+  const sofrDisp = sofrAbs != null ? (sofr[0].value - fedfunds[0].value).toFixed(2) + ' bps' : '—';
+
+  // CPI YoY
+  let cpiYoY = null;
+  if (cpi?.length >= 13) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
+
+  if (resVal != null) {
+    if (resVal < 3000000) resScore = 2;
+    else if (resVal < 3300000) resScore = 1;
   }
-  if (dxy?.[0]?.value > 110) score += 1;
+  if (tgaVal != null) {
+    if (tgaVal > 1000000) tgaScore = 2;
+    else if (tgaVal > 700000) tgaScore = 1;
+  }
+  if (sofrAbs != null) {
+    if (sofrAbs > 15) sofrScore = 2;
+    else if (sofrAbs > 5) sofrScore = 1;
+  }
+  if (dxyVal != null) {
+    if (dxyVal > 110) dxyScore = 1;
+    else if (dxyVal > 106) dxyScore = 0.5;
+  }
+  if (cpiYoY != null) {
+    if (cpiYoY > 3.5) cpiScore = 1;
+    else if (cpiYoY > 3) cpiScore = 0.5;
+  }
+  const score = resScore + tgaScore + sofrScore + dxyScore + cpiScore;
+  const maxScore = 7;
 
-  const phase = score >= 5
-    ? { txt: 'FASE 4 — Inminente', cl: '#f87171', bg: 'rgba(248,113,113,.1)' }
-    : score >= 3
-    ? { txt: 'FASE 3 → F4',        cl: '#fbbf24', bg: 'rgba(251,191,36,.1)' }
-    : score >= 1
-    ? { txt: 'FASE 3 — Squeeze',   cl: '#fbbf24', bg: 'rgba(251,191,36,.1)' }
-    : { txt: 'Cargando...',         cl: '#524e4a', bg: 'transparent' };
+  // ── Score table rows ──
+  function setPts(id, pts, max) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cls = pts === 0 ? 'b-up' : pts <= max/2 ? 'b-neu' : 'b-dn';
+    el.className = 'badge ' + cls;
+    el.textContent = pts > 0 ? ('+' + pts) : '0';
+    el.style.minWidth = '28px';
+    el.style.justifyContent = 'center';
+  }
+  setEl('diag-sc-res-val',  resVal  != null ? formatM(resVal)  : '—');
+  setEl('diag-sc-tga-val',  tgaVal  != null ? formatM(tgaVal)  : '—');
+  setEl('diag-sc-sofr-val', sofrAbs != null ? sofrDisp          : '—');
+  setEl('diag-sc-dxy-val',  dxyVal  != null ? dxyVal.toFixed(1) : '—');
+  setEl('diag-sc-cpi-val',  cpiYoY  != null ? cpiYoY.toFixed(1) + '%' : '—');
+  setPts('diag-sc-res-pts',  resScore,  2);
+  setPts('diag-sc-tga-pts',  tgaScore,  2);
+  setPts('diag-sc-sofr-pts', sofrScore, 2);
+  setPts('diag-sc-dxy-pts',  dxyScore,  1);
+  setPts('diag-sc-cpi-pts',  cpiScore,  1);
 
+  // ── Total score bar ──
+  const pctBar = Math.min(100, (score / maxScore) * 100);
+  setEl('diag-score-total', score.toFixed(1) + '/' + maxScore);
+  const bar = document.getElementById('diag-score-bar');
+  if (bar) {
+    bar.style.width = pctBar + '%';
+    bar.style.background = score >= 5 ? '#f87171' : score >= 3 ? '#fbbf24' : '#4ade80';
+  }
+
+  // ── Phase determination ──
+  let howellPhase, howellColor, howellBg, howellBorder, howellDesc, howellBadges, howellGhost, howellPcClass;
+  if (score >= 6) {
+    howellPhase = 'Fase 4 — Capitulación'; howellGhost = '4';
+    howellColor = '#f87171'; howellBg = 'var(--p4bg)'; howellBorder = 'rgba(248,113,113,.3)'; howellPcClass = 'pc4';
+    howellDesc = `Score ${score.toFixed(1)}/7 · Reservas bajo umbral crítico · TGA drenando · SOFR en spikes. Estrés sistémico inminente. Capitulación en progreso.`;
+    howellBadges = ['b-dn:⚠ CAPITULACIÓN', 'b-dn:Cash + Oro', 'b-alt:VIX largo'];
+  } else if (score >= 4) {
+    howellPhase = 'Fase 3 → 4 Transición'; howellGhost = '3';
+    howellColor = '#f59e0b'; howellBg = 'var(--p3bg)'; howellBorder = 'rgba(251,191,36,.3)'; howellPcClass = 'pc3';
+    howellDesc = `Score ${score.toFixed(1)}/7 · Liquidez apretándose activamente · TGA y reservas bajo presión dual. Riesgo de evento de liquidez en ventana de 2-4 meses.`;
+    howellBadges = ['b-alt:⚠ Riesgo F4', 'b-neu:Defensivo', 'b-dn:Liquidez ↓'];
+  } else if (score >= 2) {
+    howellPhase = 'Fase 3 — Squeeze'; howellGhost = '3';
+    howellColor = '#fbbf24'; howellBg = 'var(--p3bg)'; howellBorder = 'rgba(251,191,36,.2)'; howellPcClass = 'pc3';
+    howellDesc = `Score ${score.toFixed(1)}/7 · Fase de compresión activa. Oro y commodities lideran. DXY como válvula maestra. Evitar activos de riesgo especulativos.`;
+    howellBadges = ['b-neu:Fase 3 Squeeze', 'b-up:Oro ↑', 'b-neu:Commodities'];
+  } else if (score >= 1) {
+    howellPhase = 'Fase 2 → 3 Transición'; howellGhost = '2';
+    howellColor = '#60a5fa'; howellBg = 'var(--p2bg)'; howellBorder = 'rgba(96,165,250,.2)'; howellPcClass = 'pc2';
+    howellDesc = `Score ${score.toFixed(1)}/7 · Señales de tensión emergente. Inicio de contracción de liquidez. Vigilar reservas y TGA.`;
+    howellBadges = ['b-up:Transición', 'b-neu:Vigilar'];
+  } else {
+    howellPhase = 'Calculando...'; howellGhost = '—';
+    howellColor = '#524e4a'; howellBg = 'var(--surface2)'; howellBorder = 'var(--border2)'; howellPcClass = '';
+    howellDesc = 'Esperando datos FRED...';
+    howellBadges = [];
+  }
+
+  // Update Howell card
+  const howellPc = document.getElementById('diag-howell-pc');
+  if (howellPc) {
+    howellPc.style.background = howellBg;
+    howellPc.style.borderColor = howellBorder;
+  }
+  const howellGhostEl = document.getElementById('diag-howell-ghost');
+  if (howellGhostEl) { howellGhostEl.textContent = howellGhost; howellGhostEl.style.color = howellColor; }
+  setEl('diag-howell-name', howellPhase);
+  const hnEl = document.getElementById('diag-howell-name');
+  if (hnEl) hnEl.style.color = howellColor;
+  setEl('diag-howell-desc', howellDesc);
+  const hbEl = document.getElementById('diag-howell-badges');
+  if (hbEl) hbEl.innerHTML = howellBadges.map(b => {
+    const [cls, txt] = b.split(':');
+    return `<span class="badge ${cls}" style="font-size:8px">${txt}</span>`;
+  }).join('');
+
+  // Score phase badge
+  const phEl = document.getElementById('diag-score-phase');
+  if (phEl) {
+    const cls = score >= 5 ? 'b-dn' : score >= 3 ? 'b-neu' : score >= 1 ? 'b-up' : 'b-neu';
+    phEl.className = 'badge ' + cls;
+    phEl.style.fontSize = '10px'; phEl.style.padding = '4px 12px';
+    phEl.textContent = howellPhase;
+  }
+
+  // ── Fidelity Cycle (from HY + CPI) ──
+  let fidName, fidColor, fidBg, fidBorder, fidDesc, fidBadges, fidGhost;
+  const hyv = hyVal ?? null;
+  const cpiv = cpiYoY ?? null;
+  if (hyv != null) {
+    if (hyv > 4.5 || (hyv > 3.5 && score >= 4)) {
+      fidName = 'Recesión / Crisis Crédito'; fidGhost = 'R';
+      fidColor = '#f87171'; fidBg = 'var(--p4bg)'; fidBorder = 'rgba(248,113,113,.25)';
+      fidDesc = `HY Spread ${hyv.toFixed(2)}% indica estrés crediticio severo. Márgenes corporativos bajo presión máxima. Defaults aumentando.`;
+      fidBadges = ['b-dn:Crisis crédito', 'b-dn:HY >'+hyv.toFixed(1)+'%'];
+    } else if (hyv > 3 || score >= 3) {
+      fidName = 'Late Cycle — Desaceleración'; fidGhost = 'L';
+      fidColor = '#f59e0b'; fidBg = 'var(--p3bg)'; fidBorder = 'rgba(251,191,36,.2)';
+      fidDesc = `HY Spread ${hyv.toFixed(2)}% señala Late Cycle${cpiv != null ? ` · CPI ${cpiv.toFixed(1)}% sticky` : ''}. Empleo cediendo, márgenes bajo presión.`;
+      fidBadges = ['b-neu:Late Cycle', cpiv != null && cpiv > 3 ? 'b-dn:CPI sticky' : 'b-neu:Inflación'];
+    } else {
+      fidName = 'Mid Cycle — Expansión Tardía'; fidGhost = 'M';
+      fidColor = '#60a5fa'; fidBg = 'var(--p2bg)'; fidBorder = 'rgba(96,165,250,.2)';
+      fidDesc = `HY Spread ${hyv.toFixed(2)}% comprimido. Condiciones crediticias todavía favorables aunque deteriorándose en margen.`;
+      fidBadges = ['b-up:Mid Cycle'];
+    }
+  } else {
+    fidName = 'Sin datos HY'; fidGhost = '—';
+    fidColor = '#524e4a'; fidBg = 'var(--surface2)'; fidBorder = 'var(--border2)';
+    fidDesc = 'Esperando BAMLH0A0HYM2 de FRED...';
+    fidBadges = [];
+  }
+  const fidPc = document.getElementById('diag-fidelity-pc');
+  if (fidPc) { fidPc.style.background = fidBg; fidPc.style.borderColor = fidBorder; }
+  const fidGhEl = document.getElementById('diag-fidelity-ghost');
+  if (fidGhEl) { fidGhEl.textContent = fidGhost; fidGhEl.style.color = fidColor; }
+  setEl('diag-fidelity-name', fidName);
+  const fnEl = document.getElementById('diag-fidelity-name');
+  if (fnEl) fnEl.style.color = fidColor;
+  setEl('diag-fidelity-desc', fidDesc);
+  const fbEl = document.getElementById('diag-fidelity-badges');
+  if (fbEl) fbEl.innerHTML = fidBadges.filter(Boolean).map(b => {
+    const [cls, txt] = b.split(':');
+    return `<span class="badge ${cls}" style="font-size:8px">${txt}</span>`;
+  }).join('');
+  const diag_cross_fid = document.getElementById('diag-cross-fidelity');
+  if (diag_cross_fid) { diag_cross_fid.className = 'badge ' + (hyv > 4.5 ? 'b-dn' : hyv > 3 ? 'b-neu' : 'b-up'); diag_cross_fid.style.fontSize = '8px'; diag_cross_fid.textContent = fidGhost === '—' ? '—' : fidGhost + ' · ' + (hyv > 4.5 ? 'Recesión' : hyv > 3 ? 'Late' : 'Mid'); }
+
+  // ── Inflation Regime (from CPI + WTI + Breakeven) ──
+  let infName, infColor, infBg, infBorder, infDesc, infBadges, infGhost;
+  const hasInflData = cpiYoY != null || wtiVal != null;
+  if (hasInflData) {
+    const stagflation = cpiYoY != null && cpiYoY > 3.5 && wtiVal != null && wtiVal > 85;
+    const highInfl    = cpiYoY != null && cpiYoY > 3;
+    const beHigh      = beVal != null && beVal > 2.8;
+    if (stagflation) {
+      infName = 'Stagflación'; infGhost = 'S';
+      infColor = '#f87171'; infBg = 'var(--p4bg)'; infBorder = 'rgba(248,113,113,.25)';
+      infDesc = `CPI YoY ${cpiYoY?.toFixed(1)}% + WTI $${wtiVal?.toFixed(0)} → presión inflacionaria incontrolada. Fed paralizada entre inflación y desaceleración. Sin margen de maniobra.`;
+      infBadges = ['b-dn:Stagflación', 'b-dn:Fed paralizada', 'b-dn:WTI > $85'];
+    } else if (highInfl) {
+      infName = 'Inflación Alta Persistente'; infGhost = '↑';
+      infColor = '#f59e0b'; infBg = 'var(--p3bg)'; infBorder = 'rgba(251,191,36,.25)';
+      infDesc = `CPI YoY ${cpiYoY?.toFixed(1)}%${beHigh ? ` · BE 5Y ${beVal?.toFixed(2)}% desanclado` : ''}. Inflación por encima del target Fed. Restricción monetaria extendida.`;
+      infBadges = ['b-neu:CPI alto', beHigh ? 'b-dn:BE desanclado' : 'b-neu:BE ok'];
+    } else if (cpiYoY != null && cpiYoY > 2) {
+      infName = 'Inflación Moderada'; infGhost = '~';
+      infColor = '#fbbf24'; infBg = 'var(--p3bg)'; infBorder = 'rgba(251,191,36,.15)';
+      infDesc = `CPI YoY ${cpiYoY?.toFixed(1)}%${beVal != null ? ` · BE ${beVal?.toFixed(2)}%` : ''}. Sobre target pero controlable. Fed mantiene sesgo restrictivo.`;
+      infBadges = ['b-neu:Moderado', 'b-neu:Sobre target'];
+    } else {
+      infName = cpiYoY != null ? 'Inflación Controlada' : 'Sin datos CPI'; infGhost = '✓';
+      infColor = '#4ade80'; infBg = 'var(--p1bg)'; infBorder = 'rgba(74,222,128,.2)';
+      infDesc = cpiYoY != null ? `CPI YoY ${cpiYoY?.toFixed(1)}% — dentro del rango objetivo Fed. Entorno deflacionario de largo plazo.` : 'Esperando CPIAUCSL de FRED (necesita 13 observaciones)...';
+      infBadges = ['b-up:Controlado'];
+    }
+  } else {
+    infName = 'Calculando...'; infGhost = '—';
+    infColor = '#524e4a'; infBg = 'var(--surface2)'; infBorder = 'var(--border2)';
+    infDesc = 'Esperando datos CPI/WTI de FRED...'; infBadges = [];
+  }
+  const infPc = document.getElementById('diag-inflation-pc');
+  if (infPc) { infPc.style.background = infBg; infPc.style.borderColor = infBorder; }
+  const infGhEl = document.getElementById('diag-inflation-ghost');
+  if (infGhEl) { infGhEl.textContent = infGhost; infGhEl.style.color = infColor; }
+  setEl('diag-inflation-name', infName);
+  const inEl = document.getElementById('diag-inflation-name');
+  if (inEl) inEl.style.color = infColor;
+  setEl('diag-inflation-desc', infDesc);
+  const ibEl = document.getElementById('diag-inflation-badges');
+  if (ibEl) ibEl.innerHTML = infBadges.filter(Boolean).map(b => {
+    const [cls, txt] = b.split(':');
+    return `<span class="badge ${cls}" style="font-size:8px">${txt}</span>`;
+  }).join('');
+
+  // ── Nav phase badge ──
   const pb = document.getElementById('phase-badge');
   if (pb) {
-    pb.textContent = phase.txt;
-    pb.style.color = phase.cl;
-    pb.style.background = phase.bg;
-    pb.style.borderColor = phase.cl.replace('1)', '.3)');
+    pb.textContent = score >= 5 ? 'FASE 4 — Inminente' : score >= 3 ? 'FASE 3 → F4' : score >= 1 ? 'FASE 3 — Squeeze' : 'Calculando...';
+    const pc = score >= 5 ? '#f87171' : score >= 3 ? '#fbbf24' : '#4ade80';
+    pb.style.color = pc; pb.style.background = pc.replace(')', ',.1)').replace('rgb', 'rgba').replace('#f87171','rgba(248,113,113,.1)').replace('#fbbf24','rgba(251,191,36,.08)').replace('#4ade80','rgba(74,222,128,.08)');
+    pb.style.borderColor = pc.replace('#f87171','rgba(248,113,113,.3)').replace('#fbbf24','rgba(251,191,36,.25)').replace('#4ade80','rgba(74,222,128,.25)');
   }
+  setEl('diag-cross-howell', howellPhase.split(' ')[0] + ' ' + (howellPhase.split(' ')[1] || ''));
+  const cxh = document.getElementById('diag-cross-howell');
+  if (cxh) { cxh.className = 'badge ' + (score >= 5 ? 'b-dn' : score >= 3 ? 'b-alt' : score >= 1 ? 'b-neu' : 'b-neu'); cxh.style.fontSize = '8px'; cxh.textContent = score >= 5 ? 'F4 Inminente' : score >= 3 ? 'F3→F4' : score >= 1 ? 'F3 Squeeze' : '—'; }
 
-  // Actualizar diagnóstico cruzado con datos vivos
-  if (dxy?.[0]) {
-    const dxyVal = dxy[0].value;
+  // ── DXY cross-diagnosis ──
+  if (dxyVal != null) {
     const dxyLbl = document.getElementById('diag-dxy-label');
     const dxyBdg = document.getElementById('diag-dxy-badge');
     if (dxyLbl) dxyLbl.textContent = `DXY ${dxyVal.toFixed(1)}`;
@@ -1827,17 +2244,28 @@ function updateDiagnostic() {
     }
   }
 
-  // VIX/VVIX divergencia
-  const prices = state.data.prices;
+  // ── VIX/VVIX divergence ──
   if (prices) {
     const vix = prices['^VIX'], vvix = prices['^VVIX'];
     const divBdg = document.getElementById('diag-vix-badge');
     if (divBdg && vix && vvix) {
       const div = vvix.chg1m > 5 && vix.chg1m < 0;
-      divBdg.className = div ? 'badge b-alt' : 'badge b-up';
+      divBdg.className = div ? 'badge b-alt' : (vix.price > 30 ? 'badge b-dn' : vix.price > 20 ? 'badge b-neu' : 'badge b-up');
       divBdg.style.fontSize = '8px';
-      divBdg.textContent = div ? 'Divergencia' : `VIX ${vix.price.toFixed(1)}`;
+      divBdg.textContent = div ? `VVIX↑ VIX↓ Div.` : `VIX ${vix.price.toFixed(1)} · VVIX ${vvix.price.toFixed(0)}`;
     }
+  }
+
+  // ── Veredicto dinámico ──
+  const verdEl = document.getElementById('diag-veredicto');
+  if (verdEl && score > 0) {
+    const wtiNote  = wtiVal  != null ? `WTI $${wtiVal.toFixed(0)} ${wtiVal > 85 ? '↑ presión inflacionaria' : 'estabilizado'}.` : '';
+    const hyNote   = hyVal   != null ? `HY Spread ${hyVal.toFixed(2)}% ${hyVal > 4 ? '— estrés crediticio' : '— comprimido'}.` : '';
+    const cpiNote  = cpiYoY  != null ? `CPI YoY ${cpiYoY.toFixed(1)}% ${cpiYoY > 3.5 ? '— sticky' : '— moderado'}.` : '';
+    const resNote  = resVal  != null ? `Reservas Fed ${formatM(resVal)} ${resVal < 3000000 ? '— bajo umbral crítico' : resVal < 3300000 ? '— zona de alerta' : '— nivel seguro'}.` : '';
+    const tgaNote  = tgaVal  != null ? `TGA ${formatM(tgaVal)} ${tgaVal > 1000000 ? '— drenaje masivo activo' : tgaVal > 700000 ? '— drenaje moderado' : '— nivel bajo'}.` : '';
+    const postura  = score >= 5 ? '<strong style="color:var(--red)">MÁXIMA CAUTELA.</strong> Preservar capital. Cash + Oro únicamente.' : score >= 3 ? '<strong style="color:var(--amber)">DEFENSIVO.</strong> Oro · Commodities · Valor defensivo. Reducir riesgo.' : score >= 1 ? '<strong style="color:var(--gold)">SELECTIVO.</strong> Fase Squeeze confirmada. Favorecer GLD, GDX, XLE.' : '<strong style="color:var(--text3)">Sin suficientes datos para veredicto.</strong>';
+    verdEl.innerHTML = `${postura} ${resNote} ${tgaNote} ${cpiNote} ${wtiNote} ${hyNote}`.replace(/  +/g, ' ').trim();
   }
 
   updateSemaforoText(score);
@@ -1852,7 +2280,7 @@ function updateSemaforoText(score) {
   const { dxy, wti } = state.data;
   const dxyNote = dxy?.[0]?.value < 100 ? 'DXY < 100 aporta liquidez global.' : '';
   const wtiNote = wti?.[0]?.value > 90 ? `WTI $${wti[0].value.toFixed(0)} presiona inflación.` : '';
-  el.innerHTML = `<strong style="color:${cl};font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">${alerts}/6 INDICADORES EN ALERTA · ${label}</strong><br><span style="color:var(--text2)">${dxyNote} ${wtiNote}</span>`;
+  el.innerHTML = `<strong style="color:${cl};font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">${Number(alerts).toFixed(1)}/7 SCORE HOWELL · ${label}</strong><br><span style="color:var(--text2)">${dxyNote} ${wtiNote}</span>`;
   el.style.borderColor = cl.replace(')', ',.25)').replace('rgb', 'rgba');
 }
 
