@@ -202,6 +202,13 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 /* ── CHART ── */
 .cw{position:relative;width:100%}
 
+/* ── RANGE SELECTOR ── */
+.range-bar{display:flex;align-items:center;gap:4px;margin-bottom:8px}
+.range-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);margin-right:2px;letter-spacing:.08em}
+.range-btn{font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 8px;border:1px solid var(--border2);background:transparent;color:var(--text3);cursor:pointer;border-radius:2px;transition:all .15s;line-height:1.6}
+.range-btn:hover{border-color:var(--gold);color:var(--gold)}
+.range-active{border-color:var(--gold)!important;color:var(--gold)!important;background:rgba(201,168,76,.08)!important}
+
 
 
 .no-data-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.08em;pointer-events:none}
@@ -378,7 +385,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
         <span>85</span><span style="color:var(--amber)">100</span><span style="color:var(--red)">106</span><span>120</span>
       </div>
-      <div class="source-badge">FRED DTWEXBGS</div>
+      <div class="source-badge">Yahoo Finance DX-Y.NYB</div>
     </div>
   </div>
 
@@ -614,7 +621,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div class="ind-row"><div class="ind-name" data-tip="Spread SOFR menos Fed Funds Rate. Spikes > 15 bps señalan tensión en mercado interbancario y estrés de colateral en repo.">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" id="s-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
       <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita de bonos del Tesoro USA (ICE BofA). Verde &lt; 100 · Alerta 100–140 · Crisis &gt; 140. Correlaciona con estrés sistémico.">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" id="s-move-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
       <div class="ind-row"><div class="ind-name" data-tip="Cuenta General del Tesoro en la Fed. TGA &gt; $1T drena reservas bancarias — equivalente a QT adicional silencioso de ~$250B.">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" id="s-tga-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Índice del dólar (FRED: DTWEXBGS). &lt; 100 = expansivo para liquidez global. &gt; 106 = contractivo. Válvula maestra de liquidez según Howell.">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Índice del dólar (Yahoo: DX-Y.NYB). &lt; 100 = expansivo para liquidez global. &gt; 106 = contractivo. Válvula maestra de liquidez según Howell.">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
       <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita S&amp;P 500. &lt; 20 = calma. 20–30 = cautela. &gt; 30 = estrés. Ver también VVIX (tab 07) para señales institucionales tempranas.">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
     </div>
     <div id="semaforoSummary" style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
@@ -630,9 +637,20 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 <div id="tab-act" class="page">
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
 
+  <!-- RANGE SELECTOR -->
+  <div class="range-bar" style="margin-bottom:10px">
+    <span class="range-lbl">RANGO:</span>
+    <button class="range-btn" data-range="1d" onclick="setChartRange('1d')">1D</button>
+    <button class="range-btn" data-range="5d" onclick="setChartRange('5d')">5D</button>
+    <button class="range-btn" data-range="1mo" onclick="setChartRange('1mo')">1M</button>
+    <button class="range-btn" data-range="3mo" onclick="setChartRange('3mo')">3M</button>
+    <button class="range-btn range-active" data-range="1y" onclick="setChartRange('1y')">1A</button>
+    <span id="range-label-display" style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);margin-left:8px">— Rendimiento 1 año</span>
+  </div>
+
   <!-- HEATMAP -->
   <div class="card gold-a" style="margin-bottom:10px"><div class="card-accent"></div>
-    <div class="lbl">Heatmap Sectorial — Rendimiento YTD 2026 · Estilo Finviz</div>
+    <div class="lbl" id="heatmap-lbl">Heatmap Sectorial — Rendimiento 1A 2026 · Estilo Finviz</div>
     <div id="heatmap" style="margin-top:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:3px"></div>
     <div style="margin-top:8px;display:flex;gap:12px;align-items:center">
       <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#166534"></div>+15%+</div>
@@ -657,8 +675,8 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
     </div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <div class="card green-a"><div class="card-accent"></div>
-        <div class="lbl">Rendimiento YTD Comparado</div>
-        <div class="ch-wrap ch220"><canvas id="assetsChart" role="img" aria-label="Rendimiento ETFs YTD">ETF performance chart.</canvas></div>
+        <div class="lbl" id="assets-chart-lbl">Rendimiento 1A Comparado</div>
+        <div class="ch-wrap ch220"><canvas id="assetsChart" role="img" aria-label="Rendimiento ETFs">ETF performance chart.</canvas></div>
       </div>
     </div>
   </div>
@@ -672,8 +690,16 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="sh"><div class="sh-tag">DXY & China</div><div class="sh-title">Válvula Maestra y Motor Desincronizado</div><div class="sh-line"></div></div>
   <div class="g2" style="margin-bottom:10px">
     <div class="card green-a"><div class="card-accent"></div>
-      <div class="lbl">DXY — Índice del Dólar</div>
+      <div class="lbl">DXY — Índice del Dólar <span style="color:var(--teal);font-size:8px">· Yahoo Finance (spot)</span></div>
       <div style="display:flex;align-items:baseline;gap:8px;margin:6px 0"><div class="val up" id="m-dxy-val">—</div><div class="mono" id="m-dxy-chg" style="font-size:10px;color:var(--text3)">—</div></div>
+      <div class="range-bar" style="margin-bottom:6px">
+        <span class="range-lbl">RANGO:</span>
+        <button class="range-btn dxy-range-btn" data-range="1d" onclick="setChartRange('1d')">1D</button>
+        <button class="range-btn dxy-range-btn" data-range="5d" onclick="setChartRange('5d')">5D</button>
+        <button class="range-btn dxy-range-btn" data-range="1mo" onclick="setChartRange('1mo')">1M</button>
+        <button class="range-btn dxy-range-btn" data-range="3mo" onclick="setChartRange('3mo')">3M</button>
+        <button class="range-btn dxy-range-btn range-active" data-range="1y" onclick="setChartRange('1y')">1A</button>
+      </div>
       <div class="ch-wrap ch180"><canvas id="dxyChart" role="img" aria-label="DXY histórico">DXY chart.</canvas></div>
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px">
         <div class="flow-row"><span class="flow-label">Impacto liquidez global</span><span class="flow-val" id="m-dxy-impact">—</span></div>
@@ -849,6 +875,14 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="padding:7px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.15);border-radius:5px;margin-bottom:8px">
         <div class="mono" style="font-size:8px;color:var(--red);letter-spacing:.1em">SEÑAL ACTIVA — DIVERGENCIA DETECTADA</div>
         <div style="font-size:10px;color:var(--text2);margin-top:3px">VIX cayendo → aparente calma · VVIX subiendo → institucionales comprando protección de cola. Señal de cautela sofisticada.</div>
+      </div>
+      <div class="range-bar" style="margin-bottom:6px">
+        <span class="range-lbl">RANGO:</span>
+        <button class="range-btn vix-range-btn" data-range="1d" onclick="setChartRange('1d')">1D</button>
+        <button class="range-btn vix-range-btn" data-range="5d" onclick="setChartRange('5d')">5D</button>
+        <button class="range-btn vix-range-btn" data-range="1mo" onclick="setChartRange('1mo')">1M</button>
+        <button class="range-btn vix-range-btn" data-range="3mo" onclick="setChartRange('3mo')">3M</button>
+        <button class="range-btn vix-range-btn range-active" data-range="1y" onclick="setChartRange('1y')">1A</button>
       </div>
       <div class="ch-wrap ch200"><canvas id="vixChart" role="img" aria-label="VIX histórico">VIX chart.</canvas></div>
     </div>
@@ -1185,7 +1219,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 
 <script>
 // ── Global state — must be defined BEFORE any chart creation ──
-const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, firstLoad: true };
+const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, priceTimer: null, firstLoad: true, chartRange: '1y' };
 
 // ── Clock ──
 (function tick(){
@@ -1423,7 +1457,7 @@ const ETF_META = {
   XLB:{n:'Materiales',   ph:'F3 ↑',  sig:'b-up', sl:'↑ FAVORABLE'},
 };
 
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,DTWEXBGS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -1492,7 +1526,6 @@ async function loadFredData() {
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
     state.data.fedfunds  = Array.isArray(d.FEDFUNDS)  ? d.FEDFUNDS  : null;
-    state.data.dxy       = Array.isArray(d.DTWEXBGS)  ? d.DTWEXBGS  : null;
     state.data.cpi       = Array.isArray(d.CPIAUCSL)  ? d.CPIAUCSL  : null;
     state.data.breakeven = Array.isArray(d.T5YIE)     ? d.T5YIE     : null;
     state.data.hySpread  = Array.isArray(d.BAMLH0A0HYM2) ? d.BAMLH0A0HYM2 : null;
@@ -1509,7 +1542,7 @@ async function loadFredData() {
 }
 
 // ── Prices: Yahoo Finance v8 vía proxy Vercel ──
-const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M', '^MOVE', '^SKEW', 'CNY=X'];
+const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M', '^MOVE', '^SKEW', 'CNY=X', 'DX-Y.NYB'];
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
@@ -1531,6 +1564,16 @@ async function loadYahooData() {
     if (ok === 0) throw new Error('Sin datos ETF. Intenta recargar.');
 
     state.data.prices = prices;
+
+    // Convertir DX-Y.NYB (Yahoo) a formato FRED-compatible para estado.data.dxy
+    const dxyRaw = prices['DX-Y.NYB'];
+    if (dxyRaw && !dxyRaw.error && dxyRaw.hist?.length) {
+      // FRED format: [{date, value}] más reciente primero
+      const synth = dxyRaw.dates.map((d, i) => ({ date: d, value: dxyRaw.hist[i] })).reverse();
+      synth.unshift({ date: new Date().toISOString().slice(0, 10), value: dxyRaw.price });
+      state.data.dxy = synth;
+    }
+
     updateETFTable(prices);
     updateHeatmap(prices);
     updateAssetsChart(prices);
@@ -1541,6 +1584,9 @@ async function loadYahooData() {
     if (tvState?.initialized) updateTechSignals(tvState.yfTicker);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
     setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+
+    // Iniciar loop de precios en tiempo real (solo una vez)
+    if (!state.priceTimer) startPriceLoop();
   } catch(e) {
     setDs('ds-yf', '#f87171');
     showToast('Precios: ' + e.message);
@@ -1808,9 +1854,15 @@ function updateHeatmap(prices) {
   if (!hm) return;
   const color = v => v > 15?'#166534':v > 5?'#15803d':v > 0?'#374151':v > -5?'#7f1d1d':'#450a0a';
   const text  = v => v > 5 ?'#86efac':v > 0?'#d1d5db':'#fca5a5';
+  const metricMap = { '1d':'chg1d', '5d':'chg5d', '1mo':'chg1m', '3mo':'chg3m', '1y':'ytd' };
+  const metric = metricMap[state.chartRange] || 'ytd';
   const items = ETF_TICKERS
-    .map(t => ({ t, n: ETF_META[t]?.n || t, v: prices[t]?.ytd ?? null }))
+    .map(t => ({ t, n: ETF_META[t]?.n || t, v: prices[t]?.[metric] ?? null }))
     .sort((a, b) => (b.v ?? -999) - (a.v ?? -999));
+  // Update heatmap label
+  const labelMap = { '1d':'1D', '5d':'5D', '1mo':'1M', '3mo':'3M', '1y':'1A' };
+  const hmLbl = document.getElementById('heatmap-lbl');
+  if (hmLbl) hmLbl.textContent = `Heatmap Sectorial — Rendimiento ${labelMap[state.chartRange] || '1A'} · Estilo Finviz`;
   hm.innerHTML = '';
   items.forEach(({ t, n, v }) => {
     const pct = v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—';
@@ -1828,16 +1880,124 @@ function updateHeatmap(prices) {
 function updateAssetsChart(prices) {
   const chart = state.charts['assetsChart'];
   if (!chart) return;
+  const metricMap = { '1d':'chg1d', '5d':'chg5d', '1mo':'chg1m', '3mo':'chg3m', '1y':'ytd' };
+  const metric = metricMap[state.chartRange] || 'ytd';
   const d = ETF_TICKERS
-    .filter(t => prices[t] && !prices[t].error)
-    .map(t => ({ t, v: prices[t].ytd }))
+    .filter(t => prices[t] && !prices[t].error && prices[t][metric] != null)
+    .map(t => ({ t, v: prices[t][metric] }))
     .sort((a, b) => b.v - a.v);
   chart.data.labels = d.map(x => x.t);
   chart.data.datasets[0].data = d.map(x => x.v);
   chart.data.datasets[0].backgroundColor = d.map(x =>
     x.v > 10 ? 'rgba(74,222,128,.7)' : x.v > 0 ? 'rgba(251,191,36,.6)' : 'rgba(248,113,113,.65)'
   );
+  // Update chart label
+  const labelMap = { '1d':'Rendimiento 1D', '5d':'Rendimiento 5D', '1mo':'Rendimiento 1M', '3mo':'Rendimiento 3M', '1y':'Rendimiento 1A' };
+  const lbl = document.getElementById('assets-chart-lbl');
+  if (lbl) lbl.textContent = (labelMap[state.chartRange] || 'Rendimiento 1A') + ' Comparado';
   chart.update();
+}
+
+// ── Chart Range Selector ──
+function setChartRange(r) {
+  state.chartRange = r;
+  // Update all range buttons across the page
+  document.querySelectorAll('.range-btn').forEach(b => {
+    b.classList.toggle('range-active', b.dataset.range === r);
+  });
+  // Update range label text
+  const labelMap = { '1d':'— Rendimiento 1 día', '5d':'— Rendimiento 5 días', '1mo':'— Rendimiento 1 mes', '3mo':'— Rendimiento 3 meses', '1y':'— Rendimiento 1 año' };
+  const rl = document.getElementById('range-label-display');
+  if (rl) rl.textContent = labelMap[r] || '';
+
+  if (!state.data.prices) return;
+  const prices = state.data.prices;
+
+  // Re-render ETF bar chart + heatmap with new metric
+  updateAssetsChart(prices);
+  updateHeatmap(prices);
+
+  // Re-slice VIX chart
+  const vix  = prices['^VIX'];
+  const vvix = prices['^VVIX'];
+  const vixChart = state.charts['vixChart'];
+  if (vixChart && vix?.hist?.length) {
+    const ptsMap = { '1d':1, '5d':5, '1mo':22, '3mo':66, '1y':252 };
+    const n = ptsMap[r] || 252;
+    vixChart.data.labels = vix.dates.slice(-n);
+    vixChart.data.datasets[0].data = vix.hist.slice(-n);
+    if (vvix?.hist) vixChart.data.datasets[1].data = vvix.hist.slice(-n);
+    vixChart.update('none');
+  }
+
+  // Re-slice DXY chart from Yahoo data
+  const dxyYahoo = prices['DX-Y.NYB'];
+  const dxyChart = state.charts['dxyChart'];
+  if (dxyChart && dxyYahoo?.hist?.length) {
+    const ptsMap = { '1d':1, '5d':5, '1mo':22, '3mo':66, '1y':252 };
+    const n = ptsMap[r] || 252;
+    const hist  = dxyYahoo.hist.slice(-n);
+    const dates = dxyYahoo.dates.slice(-n);
+    dxyChart.data.labels = dates.map(d => d.slice(5,10));
+    dxyChart.data.datasets[0].data = hist;
+    dxyChart.update('none');
+  }
+
+  // Re-slice china/GLD chart
+  const gld = prices['GLD'];
+  const chinaChart = state.charts['chinaChart'];
+  if (chinaChart && gld?.hist?.length) {
+    const ptsMap = { '1d':1, '5d':5, '1mo':22, '3mo':66, '1y':252 };
+    const n = ptsMap[r] || 252;
+    chinaChart.data.labels = gld.dates.slice(-n);
+    chinaChart.data.datasets[0].data = gld.hist.slice(-n);
+    chinaChart.update('none');
+  }
+}
+
+// ── Real-time price loop (60s) ──
+function startPriceLoop() {
+  const PRICE_INTERVAL = 60 * 1000;
+  const loop = async () => {
+    if (!state.data.prices) { state.priceTimer = setTimeout(loop, PRICE_INTERVAL); return; }
+    try {
+      const tickers = ALL_YF_TICKERS.map(encodeURIComponent).join(',');
+      const res = await fetch(`/api/yahoo?tickers=${tickers}&priceOnly=true`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = await res.json();
+      if (raw.error) throw new Error(raw.error);
+
+      // Merge only price/chg1d into existing state (preserve hist)
+      ALL_YF_TICKERS.forEach(t => {
+        const d = raw[t];
+        if (d && !d.error && state.data.prices[t]) {
+          state.data.prices[t].price = d.price;
+          state.data.prices[t].chg1d = d.chg1d;
+        }
+      });
+
+      // Update DXY from live price
+      const dxyLive = raw['DX-Y.NYB'];
+      if (dxyLive && !dxyLive.error) {
+        if (state.data.dxy?.length) state.data.dxy[0].value = dxyLive.price;
+        setElF('m-dxy-val', dxyLive.price.toFixed(1));
+        setElF('s-dxy-val', dxyLive.price.toFixed(1));
+        const chgSign = dxyLive.chg1d >= 0 ? '+' : '';
+        setEl('m-dxy-chg', `${chgSign}${dxyLive.chg1d.toFixed(2)}%`);
+      }
+
+      // Refresh tables and charts with live prices
+      updateETFTable(state.data.prices);
+      updateHeatmap(state.data.prices);
+      updateAssetsChart(state.data.prices);
+      updateVolatility(state.data.prices);
+      setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+    } catch(e) {
+      // Silencioso — precio en tiempo real no es crítico
+    }
+    state.priceTimer = setTimeout(loop, PRICE_INTERVAL);
+  };
+  state.priceTimer = setTimeout(loop, PRICE_INTERVAL);
 }
 
 // ── Volatility panel update ──
@@ -1862,9 +2022,11 @@ function updateVolatility(prices) {
 
     const chart = state.charts['vixChart'];
     if (chart && vix.hist.length > 0) {
-      chart.data.labels = vix.dates;
-      chart.data.datasets[0].data = vix.hist;
-      if (vvix?.hist) chart.data.datasets[1].data = vvix.hist;
+      const ptsMap = { '1d':1, '5d':5, '1mo':22, '3mo':66, '1y':252 };
+      const n = ptsMap[state.chartRange] || 252;
+      chart.data.labels = vix.dates.slice(-n);
+      chart.data.datasets[0].data = vix.hist.slice(-n);
+      if (vvix?.hist) chart.data.datasets[1].data = vvix.hist.slice(-n);
       chart.update('none');
     }
 
