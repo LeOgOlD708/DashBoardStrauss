@@ -265,15 +265,61 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .tv-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;cursor:pointer;border-radius:3px;letter-spacing:.06em;transition:all .15s}
 .tv-btn:hover{border-color:var(--blue);color:var(--blue)}
 .tv-btn-active{background:rgba(96,165,250,.12);border-color:var(--blue);color:var(--blue)}
+
+/* ── Nav ticker strip ── */
+#nav-tickers{display:flex;align-items:center;gap:0;flex:1;justify-content:center;overflow:hidden;padding:0 12px}
+.nt-item{display:flex;align-items:center;gap:5px;padding:0 10px;border-right:1px solid var(--border);cursor:default}
+.nt-item:last-child{border-right:none}
+.nt-sym{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.06em}
+.nt-price{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text1);font-weight:500}
+.nt-chg{font-family:'IBM Plex Mono',monospace;font-size:9px}
+.nt-chg.up{color:var(--green)}
+.nt-chg.dn{color:var(--red)}
+.nt-chg.flat{color:var(--text3)}
+
+/* ── Hero score ── */
+.hero-score-block{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 24px;margin-bottom:10px;position:relative;overflow:hidden}
+.hero-score-block::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
+.hero-score-left{text-align:center}
+.hero-score-num{font-family:'IBM Plex Mono',monospace;font-size:52px;font-weight:700;line-height:1;color:var(--gold);letter-spacing:-2px}
+.hero-score-denom{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--text3)}
+.hero-score-label{font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
+.hero-score-mid{display:flex;flex-direction:column;gap:4px}
+.hero-phase-name{font-size:18px;font-weight:600;color:var(--text1);letter-spacing:.02em}
+.hero-phase-desc{font-size:11px;color:var(--text2);line-height:1.4}
+.hero-postura{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;padding:4px 12px;border-radius:3px;border:1px solid;margin-top:4px}
+.hero-postura.defensivo{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
+.hero-postura.neutral{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
+.hero-postura.alcista{color:var(--green);border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08)}
+.hero-score-right{display:flex;flex-direction:column;gap:6px;min-width:180px}
+.hero-score-bar{display:flex;flex-direction:column;gap:2px}
+.hsb-label{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);display:flex;justify-content:space-between}
+.hsb-track{height:4px;border-radius:2px;background:var(--border2);overflow:hidden}
+.hsb-fill{height:100%;border-radius:2px;transition:width .5s}
+
+/* ── Alert banner ── */
+#alert-banner{display:none;padding:7px 20px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;border-bottom:1px solid;text-align:center}
+#alert-banner.show-red{display:block;background:rgba(248,113,113,.1);color:var(--red);border-color:rgba(248,113,113,.3)}
+#alert-banner.show-amber{display:block;background:rgba(251,191,36,.08);color:var(--amber);border-color:rgba(251,191,36,.25)}
 </style>
 </head>
 <body>
+
+<!-- ALERT BANNER -->
+<div id="alert-banner"></div>
 
 <!-- NAV -->
 <nav>
   <div class="brand">
     <div class="brand-name">Macro Trading <span>Academy</span></div>
     <div class="nav-pill">v3.0</div>
+  </div>
+  <div id="nav-tickers">
+    <div class="nt-item"><span class="nt-sym">SPY</span><span class="nt-price" id="nt-SPY-p">—</span><span class="nt-chg flat" id="nt-SPY-c">—</span></div>
+    <div class="nt-item"><span class="nt-sym">GLD</span><span class="nt-price" id="nt-GLD-p">—</span><span class="nt-chg flat" id="nt-GLD-c">—</span></div>
+    <div class="nt-item"><span class="nt-sym">DXY</span><span class="nt-price" id="nt-DXY-p">—</span><span class="nt-chg flat" id="nt-DXY-c">—</span></div>
+    <div class="nt-item"><span class="nt-sym">VIX</span><span class="nt-price" id="nt-VIX-p">—</span><span class="nt-chg flat" id="nt-VIX-c">—</span></div>
+    <div class="nt-item"><span class="nt-sym">WTI</span><span class="nt-price" id="nt-WTI-p">—</span><span class="nt-chg flat" id="nt-WTI-c">—</span></div>
   </div>
   <div class="nav-right">
     <div class="phase-badge" id="phase-badge">FASE 3 → F4</div>
@@ -318,6 +364,42 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
      01 · DIAGNÓSTICO
 ══════════════════════════════════════════════════ -->
 <div id="tab-diag" class="page active">
+
+  <!-- ── HERO SCORE ── -->
+  <div class="hero-score-block">
+    <div class="hero-score-left">
+      <div class="hero-score-num" id="hero-score-num">—</div>
+      <div class="hero-score-denom">/7</div>
+      <div class="hero-score-label">Score Howell</div>
+    </div>
+    <div class="hero-score-mid">
+      <div class="hero-phase-name" id="hero-phase-name">Cargando…</div>
+      <div class="hero-phase-desc" id="hero-phase-desc">Esperando datos de mercado</div>
+      <div class="hero-postura defensivo" id="hero-postura">DEFENSIVO</div>
+    </div>
+    <div class="hero-score-right">
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>Reservas Fed</span><span id="hbar-res-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-res" style="width:0%;background:var(--amber)"></div></div>
+      </div>
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>TGA Tesoro</span><span id="hbar-tga-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-tga" style="width:0%;background:var(--red)"></div></div>
+      </div>
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>SOFR Spread</span><span id="hbar-sofr-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-sofr" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>DXY</span><span id="hbar-dxy-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-dxy" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
+      </div>
+    </div>
+  </div>
 
   <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Ciclo Howell · Diagnóstico en Vivo</div><div class="sh-line"></div><span class="live-badge" id="diag-live-ts">Sin datos</span></div>
 
@@ -1498,6 +1580,8 @@ async function bootData() {
   updateDiagnostic();
   updateWeekStatus();
   updateChecklist();
+  updateNavTickers();
+  updateHeroScore();
   updateLastUpdate();
   hideLoadingState();
   setNavStatus('EN VIVO', '#2dd4bf');
@@ -1531,6 +1615,7 @@ async function loadFredData() {
     state.data.wti       = Array.isArray(d.DCOILWTICO) ? d.DCOILWTICO : null;
 
     updateFredUI();
+    updateNavTickers();
     setDs('ds-fred', '#4ade80');
     setEl('ds-fred-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
   } catch(e) {
@@ -1580,6 +1665,7 @@ async function loadYahooData() {
     updateVolatility(prices);
     updateMoveSkew(prices);
     updateFavoredAssets(prices);
+    updateNavTickers();
     if (tvState?.initialized) updateTechSignals(tvState.yfTicker);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
     setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
@@ -1990,6 +2076,8 @@ function startPriceLoop() {
       updateHeatmap(state.data.prices);
       updateAssetsChart(state.data.prices);
       updateVolatility(state.data.prices);
+      updateNavTickers();
+      updateHeroScore();
       setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
     } catch(e) {
       // Silencioso — precio en tiempo real no es crítico
@@ -2654,6 +2742,115 @@ function computeHowellScore() {
   if (dxyVal != null)  score += dxyVal  > 110 ? 1 : dxyVal > 106 ? 0.5 : 0;
   if (cpiYoY != null)  score += cpiYoY  > 3.5 ? 1 : cpiYoY > 3 ? 0.5 : 0;
   return { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY };
+}
+
+// ── Nav ticker strip ──
+function updateNavTickers() {
+  const p = state.data.prices;
+  // Yahoo-based tickers
+  const yfMap = { SPY: 'SPY', GLD: 'GLD', DXY: 'DX-Y.NYB', VIX: '^VIX' };
+  const yfIds = { SPY: 'SPY', GLD: 'GLD', DXY: 'DXY', VIX: 'VIX' };
+  if (p) {
+    Object.entries(yfIds).forEach(([id, ticker]) => {
+      const d = p[yfMap[id]];
+      const pEl = document.getElementById('nt-' + id + '-p');
+      const cEl = document.getElementById('nt-' + id + '-c');
+      if (!pEl || !cEl) return;
+      if (!d) return;
+      pEl.textContent = d.price >= 100 ? d.price.toFixed(2) : d.price.toFixed(3);
+      const chg = d.chg1d;
+      cEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      cEl.className = 'nt-chg ' + (chg > 0.05 ? 'up' : chg < -0.05 ? 'dn' : 'flat');
+    });
+  }
+  // WTI from FRED
+  const wti = state.data.wti;
+  const wtiEl = document.getElementById('nt-WTI-p');
+  const wtiChgEl = document.getElementById('nt-WTI-c');
+  if (wtiEl && wti?.length) {
+    wtiEl.textContent = wti[0].value.toFixed(2);
+    if (wtiChgEl && wti.length >= 2) {
+      const chg = ((wti[0].value / wti[1].value) - 1) * 100;
+      wtiChgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      wtiChgEl.className = 'nt-chg ' + (chg > 0.05 ? 'up' : chg < -0.05 ? 'dn' : 'flat');
+    }
+  }
+}
+
+// ── Hero score block ──
+function updateHeroScore() {
+  const { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY } = computeHowellScore();
+
+  const numEl = document.getElementById('hero-score-num');
+  const nameEl = document.getElementById('hero-phase-name');
+  const descEl = document.getElementById('hero-phase-desc');
+  const postEl = document.getElementById('hero-postura');
+  if (!numEl) return;
+
+  numEl.textContent = Number.isInteger(score) ? score : score.toFixed(1);
+
+  // Color the number by urgency
+  numEl.style.color = score >= 5 ? 'var(--red)' : score >= 4 ? 'var(--amber)' : score >= 2 ? 'var(--gold)' : 'var(--green)';
+
+  // Phase + description
+  const phases = [
+    { min:0, max:1, name:'Fase 1 · Expansión', desc:'Liquidez abundante. Fed relajada. Condiciones expansivas.' },
+    { min:1, max:2, name:'Fase 2 · Aceleración', desc:'Ciclo acelera. Activos de riesgo lideran. Momentum alcista.' },
+    { min:2, max:4, name:'Fase 3 · Squeeze', desc:'Reservas bajo presión. TGA elevado. Precaución activa.' },
+    { min:4, max:5, name:'Fase 3→4 · Transición', desc:'Señales de estrés creciente. Reducir exposición.' },
+    { min:5, max:7, name:'Fase 4 · Contracción', desc:'Liquidez en caída. Riesgo elevado. Postura defensiva.' },
+  ];
+  const phase = phases.find(p => score >= p.min && score < p.max) || phases[phases.length - 1];
+  nameEl.textContent = phase.name;
+  descEl.textContent = phase.desc;
+
+  // Postura
+  const postura = score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'NEUTRAL' : 'ALCISTA';
+  const cls     = score >= 4 ? 'defensivo' : score >= 2 ? 'neutral' : 'alcista';
+  postEl.textContent = postura;
+  postEl.className = 'hero-postura ' + cls;
+
+  // Mini bars (each indicator contributes up to its max pts)
+  const bars = [
+    { id:'res',  val: resVal != null ? (resVal < 3000000 ? 100 : resVal < 3300000 ? 50 : 10) : 0,
+      label: resVal != null ? '$'+( resVal/1e6).toFixed(2)+'T' : '—',
+      color: resVal != null && resVal < 3000000 ? 'var(--red)' : resVal != null && resVal < 3300000 ? 'var(--amber)' : 'var(--green)' },
+    { id:'tga',  val: tgaVal != null ? (tgaVal > 1000000 ? 100 : tgaVal > 700000 ? 50 : 10) : 0,
+      label: tgaVal != null ? '$'+(tgaVal/1e6).toFixed(2)+'T' : '—',
+      color: tgaVal != null && tgaVal > 1000000 ? 'var(--red)' : tgaVal != null && tgaVal > 700000 ? 'var(--amber)' : 'var(--green)' },
+    { id:'sofr', val: sofrAbs != null ? Math.min((sofrAbs/30)*100, 100) : 0,
+      label: sofrAbs != null ? sofrAbs.toFixed(1)+' bps' : '—',
+      color: sofrAbs != null && sofrAbs > 15 ? 'var(--red)' : sofrAbs != null && sofrAbs > 5 ? 'var(--amber)' : 'var(--green)' },
+    { id:'dxy',  val: dxyVal != null ? Math.min(((dxyVal-85)/40)*100, 100) : 0,
+      label: dxyVal != null ? dxyVal.toFixed(2) : '—',
+      color: dxyVal != null && dxyVal > 106 ? 'var(--red)' : dxyVal != null && dxyVal > 100 ? 'var(--amber)' : 'var(--green)' },
+    { id:'cpi',  val: cpiYoY != null ? Math.min((cpiYoY/5)*100, 100) : 0,
+      label: cpiYoY != null ? cpiYoY.toFixed(1)+'%' : '—',
+      color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && cpiYoY > 2.5 ? 'var(--amber)' : 'var(--green)' },
+  ];
+  bars.forEach(b => {
+    const fill = document.getElementById('hbar-' + b.id);
+    const vlbl = document.getElementById('hbar-' + b.id + '-v');
+    if (fill) { fill.style.width = b.val + '%'; fill.style.background = b.color; }
+    if (vlbl) vlbl.textContent = b.label;
+  });
+
+  // Alert banner
+  const banner = document.getElementById('alert-banner');
+  if (banner) {
+    const vix = state.data.prices?.['^VIX'];
+    const vvix = state.data.prices?.['^VVIX'];
+    const jjActive = vvix && vix && vvix.price > 100 && vix.price > 20;
+    if (score >= 5) {
+      banner.className = 'show-red';
+      banner.textContent = '⚠ ALERTA: Score Howell ' + numEl.textContent + '/7 — Fase 4 Contracción. Postura defensiva obligatoria.';
+    } else if (score >= 4 || jjActive) {
+      banner.className = 'show-amber';
+      banner.textContent = jjActive ? '⚡ Señal JJ Montoya activa — VVIX > 100 con VIX > 20. Volatilidad estructural.' : '⚠ Score Howell ' + numEl.textContent + '/7 — Zona de alerta. Reducir exposición.';
+    } else {
+      banner.className = '';
+    }
+  }
 }
 
 // ── Dynamic Week Status ──
