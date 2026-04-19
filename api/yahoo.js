@@ -39,10 +39,13 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
 
   if (rows.length < 2) return { error: 'Datos insuficientes' };
 
-  const yearAgo      = rows[0].close;
   const monthAgo     = rows[Math.max(0, rows.length - 22)].close;
   const fiveDaysAgo  = rows[Math.max(0, rows.length - 5)].close;
   const threeMonAgo  = rows[Math.max(0, rows.length - 66)].close;
+  // True YTD: last close of previous calendar year
+  const jan1 = `${new Date().getFullYear()}-01-01`;
+  const preYearRows = rows.filter(r => r.date < jan1);
+  const ytdBase = preYearRows.length > 0 ? preYearRows[preYearRows.length - 1].close : rows[0].close;
 
   // Return up to 252 data points (1 year of daily data)
   const histFull = rows.slice(-252);
@@ -53,7 +56,7 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     chg5d:  parseFloat(((price / fiveDaysAgo  - 1) * 100).toFixed(2)),
     chg1m:  parseFloat(((price / monthAgo     - 1) * 100).toFixed(1)),
     chg3m:  parseFloat(((price / threeMonAgo  - 1) * 100).toFixed(1)),
-    ytd:    parseFloat(((price / yearAgo      - 1) * 100).toFixed(1)),
+    ytd:    parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
     hist:   histFull.map(r => parseFloat(r.close.toFixed(2))),
     dates:  histFull.map(r => r.date),
   };

@@ -21,6 +21,7 @@
   --p3bg:#2a1808;--p3t:#f59e0b;
   --p4bg:#2a0808;--p4t:#f87171;
   --r:8px;--r2:12px;
+  --text1:#eae6de;
 }
 body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:300;min-height:100vh;line-height:1.5}
 .mono{font-family:'IBM Plex Mono',monospace}
@@ -210,9 +211,6 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .ch160{height:160px}
 .ch140{height:140px}
 
-/* ── CHART ── */
-.cw{position:relative;width:100%}
-
 /* ── RANGE SELECTOR ── */
 .range-bar{display:flex;align-items:center;gap:4px;margin-bottom:8px}
 .range-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);margin-right:2px;letter-spacing:.08em}
@@ -299,9 +297,11 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .hero-phase-name{font-size:18px;font-weight:600;color:var(--text1);letter-spacing:.02em}
 .hero-phase-desc{font-size:11px;color:var(--text2);line-height:1.4}
 .hero-postura{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;padding:4px 12px;border-radius:3px;border:1px solid;margin-top:4px}
+.hero-postura.max-cautela{color:var(--red);border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.12);font-weight:600}
 .hero-postura.defensivo{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
-.hero-postura.neutral{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
-.hero-postura.alcista{color:var(--green);border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08)}
+.hero-postura.def-selectivo{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
+.hero-postura.selectivo{color:var(--green);border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08)}
+.hero-postura.vigilancia{color:var(--text3);border-color:var(--border2);background:transparent}
 .hero-score-right{display:flex;flex-direction:column;gap:6px;min-width:180px}
 .hero-score-bar{display:flex;flex-direction:column;gap:2px}
 .hsb-label{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);display:flex;justify-content:space-between}
@@ -335,6 +335,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="nav-right">
     <div class="phase-badge" id="phase-badge">FASE 3 → F4</div>
     <div class="live-dot"><div class="dot" id="live-dot-el"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
+    <span id="refresh-cdown" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.06em;padding:2px 6px;border:1px solid var(--border2);border-radius:2px" title="Próxima actualización">15:00</span>
     <div class="clock-display" id="clock">—</div>
   </div>
 </nav>
@@ -379,7 +380,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   <div class="hero-score-block">
     <div class="hero-score-left">
       <div class="hero-score-num" id="hero-score-num">—</div>
-      <div class="hero-score-denom">/7</div>
+      <div class="hero-score-denom">/8</div>
       <div class="hero-score-label">Score Howell</div>
     </div>
     <div class="hero-score-mid">
@@ -530,7 +531,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="border-top:1px solid var(--border2);padding-top:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
           <span class="mono" style="font-size:9px;color:var(--text3)">SCORE TOTAL</span>
-          <span class="mono" style="font-size:16px;font-weight:500" id="diag-score-total">—/7</span>
+          <span class="mono" style="font-size:16px;font-weight:500" id="diag-score-total">—/8</span>
         </div>
         <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
           <div id="diag-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--text3);transition:width .6s,background .4s"></div>
@@ -845,7 +846,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
       <span class="badge b-neu" id="tesis-postura-badge" style="font-size:10px;padding:3px 10px">—</span>
       <span class="badge b-neu" id="tesis-howell-badge" style="font-size:9px">—</span>
-      <span class="mono" style="font-size:14px;font-weight:500" id="tesis-score-display">—/7</span>
+      <span class="mono" style="font-size:14px;font-weight:500" id="tesis-score-display">—/8</span>
     </div>
     <!-- Narrative -->
     <div id="tesis-narrative" style="font-size:11px;color:var(--text2);line-height:1.8;margin-bottom:12px;padding:10px 12px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:6px">Cargando datos...</div>
@@ -1740,13 +1741,20 @@ function manualRefresh() {
 
 function scheduleRefresh() {
   const INTERVAL = 15 * 60 * 1000; // 15 min
-  const fill = document.getElementById('refresh-fill');
+  const fill  = document.getElementById('refresh-fill');
+  const cdown = document.getElementById('refresh-cdown');
   if (!fill) return;
   fill.style.width = '0%';
   let elapsed = 0;
   const step = () => {
     elapsed += 1000;
     fill.style.width = Math.min((elapsed / INTERVAL) * 100, 100) + '%';
+    if (cdown) {
+      const rem = Math.max(0, INTERVAL - elapsed);
+      const m = Math.floor(rem / 60000);
+      const s = Math.floor((rem % 60000) / 1000);
+      cdown.textContent = m + ':' + String(s).padStart(2, '0');
+    }
     if (elapsed >= INTERVAL) { bootData(); return; }
     state.refreshTimer = setTimeout(step, 1000);
   };
@@ -1767,8 +1775,6 @@ function updateFredUI() {
   if (reserves?.length) {
     const latest = reserves[0].value;
     const prev   = reserves[1]?.value || latest;
-    const diff   = (latest - prev).toFixed(0);
-    const sign   = diff >= 0 ? '+' : '';
     const display = formatM(latest);
     setElF('m-res-val', display, latest >= prev ? 'up' : 'dn');
     setElF('s-res-val', display, latest >= prev ? 'up' : 'dn');
@@ -1913,8 +1919,9 @@ function updateFredUI() {
     }
     const prBdg = document.getElementById('pre-hy-badge');
     if (prBdg) {
-      const cl = v < 3 ? 'b-neu' : v < 4.5 ? 'b-dn' : 'b-dn';
-      prBdg.className = `badge ${cl}`; prBdg.textContent = (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+      const cl = v < 3 ? 'b-up' : v < 4.5 ? 'b-neu' : 'b-dn';
+      const lb = v < 3 ? '↑ COMPRIMIDO' : v < 4.5 ? '→ ALERTA ' + v.toFixed(2) + '%' : '↓ ESTRÉS ' + v.toFixed(2) + '%';
+      prBdg.className = `badge ${cl}`; prBdg.textContent = lb;
     }
   }
 
@@ -2160,7 +2167,7 @@ function updateVolatility(prices) {
     }
 
     // Semáforo bar/sig for VIX
-    setElById('s-vix-val', vix.price.toFixed(1));
+    setEl('s-vix-val', vix.price.toFixed(1));
     updateBar('s-vix', vix.price, 10, 50, vix.price < 20 ? 'up' : vix.price < 30 ? 'neu' : 'down');
     updateSig('s-vix-sig', vix.price < 20 ? 'is-g' : vix.price < 30 ? 'is-a' : 'is-r',
               vix.price < 20 ? 'CALMA' : vix.price < 30 ? 'ALERTA' : 'CRISIS');
@@ -2178,7 +2185,7 @@ function updateVolatility(prices) {
 
   if (vvix) {
     countUp('m-vvix-val', vvix.price, v => v.toFixed(0));
-    setElById('m-vvix-val', vvix.price.toFixed(0));
+    setEl('m-vvix-val', vvix.price.toFixed(0));
     const pct = Math.min(90, Math.max(5, ((vvix.price - 80) / 70) * 100));
     const h = document.getElementById('vvix-handle');
     if (h) h.style.left = pct + '%';
@@ -2192,7 +2199,7 @@ function updateVolatility(prices) {
 
   if (vix3m) {
     countUp('m-vix3m-val', vix3m.price, v => v.toFixed(1));
-    setElById('m-vix3m-val', vix3m.price.toFixed(1));
+    setEl('m-vix3m-val', vix3m.price.toFixed(1));
     const pct = Math.min(90, Math.max(5, ((vix3m.price - 12) / 33) * 100));
     const h = document.getElementById('vix3m-handle');
     if (h) h.style.left = pct + '%';
@@ -2204,11 +2211,6 @@ function updateVolatility(prices) {
       b.innerHTML = `<span class="badge ${cl}">${lb} (${spread >= 0 ? '+' : ''}${spread.toFixed(1)})</span>`;
     }
   }
-}
-
-function setElById(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
 }
 
 // ── News ──
@@ -2331,8 +2333,7 @@ function updateMoveSkew(prices) {
   const skew = prices['^SKEW'];
 
   if (move) {
-    const v    = move.price;
-    const sign = move.chg1d >= 0 ? '+' : '';
+    const v = move.price;
     countUp('m-move-val', v, x => x.toFixed(0));
     setElF('m-move-val', v.toFixed(0), move.chg1d >= 0 ? 'dn' : 'up'); // MOVE up = malo
     setElF('s-move-val', v.toFixed(0));
@@ -2362,7 +2363,7 @@ function updateMoveSkew(prices) {
   if (skew) {
     const v = skew.price;
     countUp('m-skew-val', v, x => x.toFixed(0));
-    setElById('m-skew-val', v.toFixed(0));
+    setEl('m-skew-val', v.toFixed(0));
     const pct = Math.min(90, Math.max(5, ((v - 110) / 55) * 100));
     const h = document.getElementById('skew-handle');
     if (h) h.style.left = pct + '%';
@@ -2419,7 +2420,7 @@ function updateDiagnostic() {
     else if (cpiYoY > 3) cpiScore = 0.5;
   }
   const score = resScore + tgaScore + sofrScore + dxyScore + cpiScore;
-  const maxScore = 7;
+  const maxScore = 8;
 
   // ── Score table rows ──
   function setPts(id, pts, max) {
@@ -2456,22 +2457,22 @@ function updateDiagnostic() {
   if (score >= 6) {
     howellPhase = 'Fase 4 — Capitulación'; howellGhost = '4';
     howellColor = '#f87171'; howellBg = 'var(--p4bg)'; howellBorder = 'rgba(248,113,113,.3)'; howellPcClass = 'pc4';
-    howellDesc = `Score ${score.toFixed(1)}/7 · Reservas bajo umbral crítico · TGA drenando · SOFR en spikes. Estrés sistémico inminente. Capitulación en progreso.`;
+    howellDesc = `Score ${score.toFixed(1)}/8 · Reservas bajo umbral crítico · TGA drenando · SOFR en spikes. Estrés sistémico inminente. Capitulación en progreso.`;
     howellBadges = ['b-dn:⚠ CAPITULACIÓN', 'b-dn:Cash + Oro', 'b-alt:VIX largo'];
   } else if (score >= 4) {
     howellPhase = 'Fase 3 → 4 Transición'; howellGhost = '3';
     howellColor = '#f59e0b'; howellBg = 'var(--p3bg)'; howellBorder = 'rgba(251,191,36,.3)'; howellPcClass = 'pc3';
-    howellDesc = `Score ${score.toFixed(1)}/7 · Liquidez apretándose activamente · TGA y reservas bajo presión dual. Riesgo de evento de liquidez en ventana de 2-4 meses.`;
+    howellDesc = `Score ${score.toFixed(1)}/8 · Liquidez apretándose activamente · TGA y reservas bajo presión dual. Riesgo de evento de liquidez en ventana de 2-4 meses.`;
     howellBadges = ['b-alt:⚠ Riesgo F4', 'b-neu:Defensivo', 'b-dn:Liquidez ↓'];
   } else if (score >= 2) {
     howellPhase = 'Fase 3 — Squeeze'; howellGhost = '3';
     howellColor = '#fbbf24'; howellBg = 'var(--p3bg)'; howellBorder = 'rgba(251,191,36,.2)'; howellPcClass = 'pc3';
-    howellDesc = `Score ${score.toFixed(1)}/7 · Fase de compresión activa. Oro y commodities lideran. DXY como válvula maestra. Evitar activos de riesgo especulativos.`;
+    howellDesc = `Score ${score.toFixed(1)}/8 · Fase de compresión activa. Oro y commodities lideran. DXY como válvula maestra. Evitar activos de riesgo especulativos.`;
     howellBadges = ['b-neu:Fase 3 Squeeze', 'b-up:Oro ↑', 'b-neu:Commodities'];
   } else if (score >= 1) {
     howellPhase = 'Fase 2 → 3 Transición'; howellGhost = '2';
     howellColor = '#60a5fa'; howellBg = 'var(--p2bg)'; howellBorder = 'rgba(96,165,250,.2)'; howellPcClass = 'pc2';
-    howellDesc = `Score ${score.toFixed(1)}/7 · Señales de tensión emergente. Inicio de contracción de liquidez. Vigilar reservas y TGA.`;
+    howellDesc = `Score ${score.toFixed(1)}/8 · Señales de tensión emergente. Inicio de contracción de liquidez. Vigilar reservas y TGA.`;
     howellBadges = ['b-up:Transición', 'b-neu:Vigilar'];
   } else {
     howellPhase = 'Calculando...'; howellGhost = '—';
@@ -2668,7 +2669,7 @@ function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
   const howellShort  = howellPhase.split('—')[0].trim();
   if (postEl) { postEl.className = 'badge ' + postCls + ' ' + 'serif'; postEl.style.fontSize='10px'; postEl.style.padding='3px 10px'; postEl.textContent = postura; }
   if (hbEl)   { hbEl.className = 'badge ' + howellCls; hbEl.textContent = howellShort; }
-  if (sdEl)   { sdEl.textContent = score.toFixed(1) + '/7'; sdEl.style.color = score>=5?'var(--red)':score>=3?'var(--amber)':'var(--green)'; }
+  if (sdEl)   { sdEl.textContent = score.toFixed(1) + '/8'; sdEl.style.color = score>=5?'var(--red)':score>=3?'var(--amber)':'var(--green)'; }
   if (tsEl)   tsEl.textContent = 'Act. ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
 
   // ── Narrative ──
@@ -2714,7 +2715,7 @@ function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
 
   // ── Drivers ──
   const drv = [];
-  if (score > 0)      drv.push({l:`Score ${score.toFixed(1)}/7`, c: score>=5?'b-dn':score>=3?'b-neu':'b-up'});
+  if (score > 0)      drv.push({l:`Score ${score.toFixed(1)}/8`, c: score>=5?'b-dn':score>=3?'b-neu':'b-up'});
   if (hyVal  != null) drv.push({l:`HY ${hyVal.toFixed(2)}%`,     c: hyVal>4.5?'b-dn':hyVal>3?'b-neu':'b-up'});
   if (cpiYoY != null) drv.push({l:`CPI ${cpiYoY.toFixed(1)}%`,   c: cpiYoY>3.5?'b-dn':cpiYoY>3?'b-neu':'b-up'});
   if (wtiVal != null) drv.push({l:`WTI $${wtiVal.toFixed(0)}`,    c: wtiVal>90?'b-dn':wtiVal>75?'b-neu':'b-up'});
@@ -2731,7 +2732,7 @@ function updateSemaforoText(score) {
   const { dxy, wti } = state.data;
   const dxyNote = dxy?.[0]?.value < 100 ? 'DXY < 100 aporta liquidez global.' : '';
   const wtiNote = wti?.[0]?.value > 90 ? `WTI $${wti[0].value.toFixed(0)} presiona inflación.` : '';
-  el.innerHTML = `<strong style="color:${cl};font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">${Number(alerts).toFixed(1)}/7 SCORE HOWELL · ${label}</strong><br><span style="color:var(--text2)">${dxyNote} ${wtiNote}</span>`;
+  el.innerHTML = `<strong style="color:${cl};font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">${Number(alerts).toFixed(1)}/8 SCORE HOWELL · ${label}</strong><br><span style="color:var(--text2)">${dxyNote} ${wtiNote}</span>`;
   el.style.borderColor = cl.replace(')', ',.25)').replace('rgb', 'rgba');
 }
 
@@ -2868,12 +2869,10 @@ function computeHowellScore() {
 // ── Nav ticker strip ──
 function updateNavTickers() {
   const p = state.data.prices;
-  // Yahoo-based tickers
   const yfMap = { SPY: 'SPY', GLD: 'GLD', DXY: 'DX-Y.NYB', VIX: '^VIX' };
-  const yfIds = { SPY: 'SPY', GLD: 'GLD', DXY: 'DXY', VIX: 'VIX' };
   if (p) {
-    Object.entries(yfIds).forEach(([id, ticker]) => {
-      const d = p[yfMap[id]];
+    Object.entries(yfMap).forEach(([id, yfticker]) => {
+      const d = p[yfticker];
       const pEl = document.getElementById('nt-' + id + '-p');
       const cEl = document.getElementById('nt-' + id + '-c');
       if (!pEl || !cEl) return;
@@ -2925,9 +2924,9 @@ function updateHeroScore() {
   nameEl.textContent = phase.name;
   descEl.textContent = phase.desc;
 
-  // Postura
-  const postura = score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'NEUTRAL' : 'ALCISTA';
-  const cls     = score >= 4 ? 'defensivo' : score >= 2 ? 'neutral' : 'alcista';
+  // Postura (aligned with updateTesisAuto 4-level system)
+  const postura = score >= 5 ? 'MÁXIMA CAUTELA' : score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'DEFENSIVO SELECTIVO' : score >= 1 ? 'SELECTIVO' : 'VIGILANCIA';
+  const cls     = score >= 5 ? 'max-cautela'    : score >= 4 ? 'defensivo'  : score >= 2 ? 'def-selectivo'      : score >= 1 ? 'selectivo'  : 'vigilancia';
   postEl.textContent = postura;
   postEl.className = 'hero-postura ' + cls;
 
@@ -2964,10 +2963,10 @@ function updateHeroScore() {
     const jjActive = vvix && vix && vvix.price > 100 && vix.price > 20;
     if (score >= 5) {
       banner.className = 'show-red';
-      banner.textContent = '⚠ ALERTA: Score Howell ' + numEl.textContent + '/7 — Fase 4 Contracción. Postura defensiva obligatoria.';
+      banner.textContent = '⚠ ALERTA: Score Howell ' + numEl.textContent + '/8 — Fase 4 Contracción. Postura defensiva obligatoria.';
     } else if (score >= 4 || jjActive) {
       banner.className = 'show-amber';
-      banner.textContent = jjActive ? '⚡ Señal JJ Montoya activa — VVIX > 100 con VIX > 20. Volatilidad estructural.' : '⚠ Score Howell ' + numEl.textContent + '/7 — Zona de alerta. Reducir exposición.';
+      banner.textContent = jjActive ? '⚡ Señal JJ Montoya activa — VVIX > 100 con VIX > 20. Volatilidad estructural.' : '⚠ Score Howell ' + numEl.textContent + '/8 — Zona de alerta. Reducir exposición.';
     } else {
       banner.className = '';
     }
@@ -3021,7 +3020,7 @@ function updateChecklist() {
   const howellLabel = score >= 5 ? 'F4 inminente' : score >= 4 ? 'F3 → F4' : score >= 2 ? 'F3 Squeeze' : score >= 1 ? 'F2 → F3' : null;
 
   const dynResults = [
-    resVal != null ? `${howellLabel} · Score ${score.toFixed(1)}/7 · Reservas ${resVal < 3000000 ? 'bajo umbral crítico ($3T)' : resVal < 3300000 ? 'en zona alerta ($3.3T)' : 'nivel seguro'}` : null,
+    resVal != null ? `${howellLabel} · Score ${score.toFixed(1)}/8 · Reservas ${resVal < 3000000 ? 'bajo umbral crítico ($3T)' : resVal < 3300000 ? 'en zona alerta ($3.3T)' : 'nivel seguro'}` : null,
     dxyVal != null ? `DXY ${dxyVal.toFixed(1)} ${dxyVal > 106 ? '↑ contractivo — liquidez global restringida' : dxyVal > 100 ? '→ neutral — sin impacto claro' : '↓ expansivo — positivo para emergentes y oro'}` : null,
     hyVal != null  ? `${hyVal > 4.5 ? 'Recesión / Crisis Crédito' : hyVal > 3 ? 'Late Cycle → pre-recesión' : 'Mid Cycle — expansión tardía'} · HY Spread ${hyVal.toFixed(2)}%` : null,
     (cpiYoY != null || wtiVal != null) ? `CPI YoY ${cpiYoY != null ? cpiYoY.toFixed(1)+'%' : 'N/D'}${beVal != null ? ' · BE5Y '+beVal.toFixed(2)+'%' : ''} · WTI $${wtiVal != null ? wtiVal.toFixed(0) : 'N/D'} ${wtiVal > 90 ? '— inflacionario' : wtiVal > 75 ? '— neutro' : '— deflacionario'}` : null,

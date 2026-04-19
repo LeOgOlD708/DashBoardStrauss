@@ -13,8 +13,6 @@ const FEEDS = [
   { url: 'https://cointelegraph.com/rss', cat: 'crypto' },
   // Forex / FX
   { url: 'https://rss.fxstreet.com/news', cat: 'forex' },
-  // Seeking Alpha ETFs
-  { url: 'https://seekingalpha.com/feed.xml', cat: 'equities' },
 ];
 
 const CATEGORY_OVERRIDES = {
