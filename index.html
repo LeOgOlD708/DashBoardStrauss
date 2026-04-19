@@ -121,7 +121,12 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .tbl td{padding:7px 8px;border-bottom:1px solid var(--border);font-size:11px}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr:hover td{background:var(--surface2)}
+.tbl-term th{padding:4px 6px;font-size:7px;letter-spacing:.08em}
+.tbl-term td{padding:3px 6px;font-size:9px;border-bottom:1px solid rgba(24,24,38,.8)}
+.tbl-term tr:nth-child(even) td{background:rgba(19,19,32,.5)}
+.tbl-term tr:hover td{background:var(--surface3)}
 .ticker{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500}
+.tbl-ticker{font-size:9px;font-weight:500}
 
 /* ── HEATMAP ── */
 .heatmap{display:grid;gap:3px}
@@ -193,12 +198,12 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 
 /* ── CHART ── */
 .ch-wrap{position:relative;width:100%}
-.ch200{height:200px}
-.ch220{height:220px}
 .ch260{height:260px}
+.ch220{height:220px}
+.ch200{height:200px}
 .ch180{height:180px}
-.ch140{height:140px}
 .ch160{height:160px}
+.ch140{height:140px}
 
 /* ── CHART ── */
 .cw{position:relative;width:100%}
@@ -744,23 +749,28 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
     </div>
   </div>
 
-  <!-- TABLE + CHART -->
-  <div class="g21">
-    <div class="card"><div class="card-accent gold-a" style="position:relative;height:2px;background:var(--gold);border-radius:2px 2px 0 0;margin:-14px -14px 12px"></div>
-      <div class="lbl">Tabla de ETFs — Señales por Fase del Ciclo</div>
-      <div style="overflow-x:auto;margin-top:6px">
-        <table class="tbl">
-          <thead><tr><th>ETF</th><th>Precio</th><th>1D</th><th>1M</th><th>YTD</th><th>52W</th><th>Fase Actual</th><th>Señal</th></tr></thead>
-          <tbody id="etfTable"></tbody>
-        </table>
-      </div>
+  <!-- TABLE — terminal, full width -->
+  <div class="card" style="margin-bottom:10px"><div class="card-accent" style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="lbl">ETF Terminal — Señales por Fase del Ciclo</div>
+      <span class="mono" style="font-size:8px;color:var(--text3)" id="etf-row-count">15 ETFs</span>
     </div>
-    <div style="display:flex;flex-direction:column;gap:10px">
-      <div class="card green-a"><div class="card-accent"></div>
-        <div class="lbl" id="assets-chart-lbl">Rendimiento 1A Comparado</div>
-        <div class="ch-wrap ch220"><canvas id="assetsChart" role="img" aria-label="Rendimiento ETFs">ETF performance chart.</canvas></div>
-      </div>
+    <div style="overflow-x:auto">
+      <table class="tbl tbl-term">
+        <thead><tr>
+          <th>ETF</th><th>NOMBRE</th><th>PRECIO</th>
+          <th>1D%</th><th>1M%</th><th>3M%</th><th>YTD%</th>
+          <th>HIST</th><th>SEÑAL</th>
+        </tr></thead>
+        <tbody id="etfTable"></tbody>
+      </table>
     </div>
+  </div>
+
+  <!-- CHART — full width below -->
+  <div class="card green-a"><div class="card-accent"></div>
+    <div class="lbl" id="assets-chart-lbl">Rendimiento Comparado</div>
+    <div class="ch-wrap ch200"><canvas id="assetsChart" role="img" aria-label="Rendimiento ETFs">ETF performance chart.</canvas></div>
   </div>
 </div>
 
@@ -1409,23 +1419,20 @@ state.charts['assetsChart']=new Chart(document.getElementById('assetsChart'),{
     scales:{x:{grid:{color:border},ticks:{callback:v=>`${v>0?'+':''}${v}%`}},y:{grid:{display:false},ticks:{font:{size:9}}}}}
 });
 
-// ── ETF Table ──
-// ETF table populated by live data only
+// ── ETF Table skeleton ──
 const tbody=document.getElementById('etfTable');
-const etfSkeletons=[
-  ['GLD','Oro'],['GDX','Mineras Oro'],['XLE','Energía'],
-  ['XLV','Salud'],['XLP','Consumo Básico'],['XLU','Utilities'],
-  ['SPY','S&P 500'],['QQQ','Nasdaq 100'],['TLT','Bonos 20Y'],
-  ['XLF','Financieros'],['IWM','Small Caps'],['XLB','Materiales'],
-];
-etfSkeletons.forEach(([ticker,name])=>{
+ETF_TICKERS.forEach(ticker=>{
+  const m=ETF_META[ticker]||{n:ticker};
   tbody.innerHTML+=`<tr>
-    <td><div class="ticker">${ticker}</div><div style="font-size:9px;color:var(--text3)">${name}</div></td>
-    <td class="mono" style="font-size:10px;color:var(--text3)">—</td>
-    <td class="mono" style="font-size:10px;color:var(--text3)">—</td>
-    <td class="mono" style="font-size:10px;color:var(--text3)">—</td>
-    <td style="font-size:9px;color:var(--text3)">—</td>
-    <td><span class="badge b-neu" style="font-size:8px;opacity:.4">Sin datos</span></td>
+    <td class="mono tbl-ticker" style="color:var(--text2)">${ticker}</td>
+    <td class="mono" style="color:var(--text3);font-size:8px">${m.n}</td>
+    <td class="mono" style="color:var(--text3)">—</td>
+    <td class="mono" style="color:var(--text3)">—</td>
+    <td class="mono" style="color:var(--text3)">—</td>
+    <td class="mono" style="color:var(--text3)">—</td>
+    <td class="mono" style="color:var(--text3)">—</td>
+    <td></td>
+    <td><span class="badge b-neu" style="font-size:7px;padding:1px 5px;opacity:.4">···</span></td>
   </tr>`;
 });
 
@@ -1518,20 +1525,23 @@ gf.innerHTML='<div style="padding:16px 0;font-size:11px;color:var(--text3);font-
 //  Sin proxies · Sin CORS · API key nunca expuesta
 // ══════════════════════════════════════════════════════════
 
-const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','SPY','QQQ','TLT','XLF','IWM','XLB'];
+const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','SPY','QQQ','IWM','TLT','EEM'];
 const ETF_META = {
-  GLD:{n:'Oro',          ph:'F3 ↑',  sig:'b-up', sl:'↑↑ FUERTE'},
-  GDX:{n:'Mineras Oro',  ph:'F3 ↑↑', sig:'b-up', sl:'↑↑ MUY FAV.'},
-  XLE:{n:'Energía',      ph:'F3 ↑',  sig:'b-up', sl:'↑ FAVORABLE'},
-  XLV:{n:'Salud',        ph:'F3',    sig:'b-neu', sl:'= NEUTRAL+'},
-  XLP:{n:'Consumo Básico',ph:'F4 prep.',sig:'b-neu',sl:'= REFUGIO'},
-  XLU:{n:'Utilities',    ph:'F4 prep.',sig:'b-neu',sl:'= REFUGIO'},
-  SPY:{n:'S&P 500',      ph:'F3 ↓',  sig:'b-dn', sl:'↓ PRESIÓN'},
-  QQQ:{n:'Nasdaq 100',   ph:'F3 ↓↓', sig:'b-dn', sl:'↓ EVITAR'},
-  TLT:{n:'Bonos 20Y',    ph:'Esperar',sig:'b-alt',sl:'⚠ POST-FED'},
-  XLF:{n:'Financieros',  ph:'F3 ↓',  sig:'b-dn', sl:'↓ PRESIÓN'},
-  IWM:{n:'Small Caps',   ph:'F3/F4 ↓↓',sig:'b-dn',sl:'↓ VULNERABLE'},
-  XLB:{n:'Materiales',   ph:'F3 ↑',  sig:'b-up', sl:'↑ FAVORABLE'},
+  GLD:{n:'Oro',           ph:'F3 ↑',    sig:'b-up',  sl:'↑↑ FUERTE'},
+  GDX:{n:'Mineras Oro',   ph:'F3 ↑↑',   sig:'b-up',  sl:'↑↑ MUY FAV.'},
+  XLE:{n:'Energía',       ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
+  XLV:{n:'Salud',         ph:'F3',      sig:'b-neu', sl:'= NEUTRAL+'},
+  XLP:{n:'Consumo Básico',ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
+  XLU:{n:'Utilities',     ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
+  XLB:{n:'Materiales',    ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
+  XLF:{n:'Financieros',   ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  XLI:{n:'Industriales',  ph:'F3',      sig:'b-neu', sl:'= NEUTRAL'},
+  XLC:{n:'Comunicac.',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  SPY:{n:'S&P 500',       ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  QQQ:{n:'Nasdaq 100',    ph:'F3 ↓↓',   sig:'b-dn',  sl:'↓ EVITAR'},
+  IWM:{n:'Small Caps',    ph:'F3/F4 ↓↓',sig:'b-dn',  sl:'↓ VULNERABLE'},
+  TLT:{n:'Bonos 20Y',     ph:'Esperar', sig:'b-alt', sl:'⚠ POST-FED'},
+  EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
 };
 
 const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
@@ -1894,34 +1904,39 @@ function updateETFTable(prices) {
     const m  = ETF_META[ticker] || { n: ticker, ph: '—', sig: 'b-neu', sl: '—' };
     if (!p || p.error) {
       tbody.innerHTML += `<tr>
-        <td><div class="ticker">${ticker}</div><div style="font-size:9px;color:var(--text3)">${m.n}</div></td>
-        <td class="mono" style="color:var(--text3);font-size:10px">—</td>
-        <td class="mono" style="color:var(--text3);font-size:10px">—</td>
-        <td class="mono" style="color:var(--text3);font-size:10px">—</td>
-        <td class="mono" style="color:var(--text3);font-size:10px">—</td>
+        <td class="mono tbl-ticker" style="color:var(--text2)">${ticker}</td>
+        <td class="mono" style="color:var(--text3);font-size:8px">${m.n}</td>
+        <td class="mono" style="color:var(--text3)">—</td>
+        <td class="mono" style="color:var(--text3)">—</td>
+        <td class="mono" style="color:var(--text3)">—</td>
+        <td class="mono" style="color:var(--text3)">—</td>
+        <td class="mono" style="color:var(--text3)">—</td>
         <td></td>
-        <td style="font-size:9px;color:var(--text3)">—</td>
-        <td><span class="badge ${m.sig}" style="font-size:8px">${m.sl}</span></td>
+        <td><span class="badge ${m.sig}" style="font-size:7px;padding:1px 5px">${m.sl}</span></td>
       </tr>`;
       return;
     }
     const ps   = p.price < 10 ? p.price.toFixed(3) : p.price.toFixed(2);
     const d1c  = p.chg1d >= 0 ? 'up' : 'down';
     const m1c  = p.chg1m >= 0 ? 'up' : 'down';
+    const q3c  = (p.chg3m ?? 0) >= 0 ? 'up' : 'down';
     const yc   = p.ytd   >= 0 ? 'up' : 'down';
     const fcs  = p.chg1d >= 0 ? 'flash-up' : 'flash-dn';
     const d1s  = p.chg1d >= 0 ? '+' : '';
     const ms   = p.chg1m >= 0 ? '+' : '';
+    const qs   = (p.chg3m ?? 0) >= 0 ? '+' : '';
     const ys   = p.ytd   >= 0 ? '+' : '';
+    const q3v  = p.chg3m != null ? `${qs}${p.chg3m}%` : '—';
     tbody.innerHTML += `<tr>
-      <td><div class="ticker">${ticker}<span class="live-badge">LIVE</span></div><div style="font-size:9px;color:var(--text3)">${m.n}</div></td>
-      <td class="mono ${fcs}" style="font-size:10px">$${ps}</td>
-      <td class="mono ${d1c}" style="font-size:10px">${d1s}${p.chg1d}%</td>
-      <td class="mono ${m1c}" style="font-size:10px">${ms}${p.chg1m}%</td>
-      <td class="mono ${yc}" style="font-size:10px">${ys}${p.ytd}%</td>
-      <td class="sp-cell"><canvas id="spark-${ticker}" class="sp-canvas" width="64" height="22"></canvas></td>
-      <td style="font-size:9px;color:var(--text3)">${m.ph}</td>
-      <td><span class="badge ${m.sig}" style="font-size:8px">${m.sl}</span></td>
+      <td class="mono tbl-ticker ${fcs}">${ticker}<span class="live-badge" style="margin-left:3px">LIVE</span></td>
+      <td class="mono" style="color:var(--text2);font-size:8px">${m.n}</td>
+      <td class="mono">$${ps}</td>
+      <td class="mono ${d1c}">${d1s}${p.chg1d}%</td>
+      <td class="mono ${m1c}">${ms}${p.chg1m}%</td>
+      <td class="mono ${q3c}">${q3v}</td>
+      <td class="mono ${yc}">${ys}${p.ytd}%</td>
+      <td class="sp-cell"><canvas id="spark-${ticker}" class="sp-canvas" width="52" height="18"></canvas></td>
+      <td><span class="badge ${m.sig}" style="font-size:7px;padding:1px 5px">${m.sl}</span></td>
     </tr>`;
   });
   // Draw sparklines after table is in DOM
