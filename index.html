@@ -100,9 +100,10 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .b-up{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.2)}
 
 /* ── MODAL ── */
-#tv-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;align-items:center;justify-content:center}
-.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);width:740px;max-width:96vw;max-height:92vh;padding:18px;position:relative;overflow-y:auto}
-.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+#tv-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:99999;align-items:center;justify-content:center}
+#tv-modal.active{display:flex}
+.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);width:740px;max-width:96vw;max-height:92vh;padding:18px;position:relative;display:flex;flex-direction:column;overflow-y:auto}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-shrink:0}
 .modal-close{background:transparent;border:1px solid var(--border2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 10px;cursor:pointer;border-radius:4px;transition:color .15s}
 .modal-close:hover{color:var(--text);border-color:var(--text3)}
 .clickable{cursor:pointer;transition:border-color .15s}
@@ -2292,8 +2293,7 @@ function updateVolatility(prices) {
     setElF('m-vix-val', vix.price.toFixed(1), vix.chg1d >= 0 ? 'dn' : 'up'); // VIX up = malo
     countUp('m-vix-val', vix.price, v => v.toFixed(1));
     const vixPct = Math.min(90, Math.max(5, ((vix.price - 10) / 40) * 100));
-    const vixHandle = document.getElementById('vix')?.querySelector('.vol-handle')
-      || document.querySelector('.card.teal-a .vol-handle');
+    const vixHandle = document.querySelector('.card.teal-a .vol-handle');
     if (vixHandle) vixHandle.style.left = vixPct + '%';
     const vixBadge = document.querySelector('.card.teal-a [style*="text-align:center"]');
     if (vixBadge) {
@@ -2483,7 +2483,8 @@ function updateMoveSkew(prices) {
     countUp('m-move-val', v, x => x.toFixed(0));
     setElF('m-move-val', v.toFixed(0), move.chg1d >= 0 ? 'dn' : 'up'); // MOVE up = malo
     setElF('s-move-val', v.toFixed(0));
-    setEl('m-move-chg', `${sign}${move.chg1d.toFixed(1)}%`);
+    const moveSign = move.chg1d >= 0 ? '+' : '';
+    setEl('m-move-chg', `${moveSign}${move.chg1d.toFixed(1)}%`);
     const c = v < 100 ? 'up' : v < 140 ? 'neu' : 'down';
     styleEl('m-move-val', c);
 
@@ -2543,7 +2544,7 @@ function updateDiagnostic() {
 
   // CPI YoY
   let cpiYoY = null;
-  if (cpi?.length >= 13) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
+  if (cpi?.length >= 13 && cpi[0]?.value && cpi[12]?.value) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
 
   if (resVal != null) {
     if (resVal < 3000000) resScore = 2;
@@ -3044,7 +3045,7 @@ function updateFavoredAssets(prices) {
       if (ytd < -10) return ['b-dn', '↓↓ CAÍDA'];
       if (ytd < -2)  return ['b-dn', '↓ PRESIÓN'];
       if (ytd < 2)   return ['b-neu', '→ LATERAL'];
-      return              ['b-up', '↑ REBOTE'];
+      return              ['b-dn', '↑ REBOTE'];  // rebote en activo presionado = señal negativa
     }
   }
   function applyBadge(id, ytd, isGoodWhenUp) {
@@ -3109,7 +3110,9 @@ function drawSparkline(canvas, data) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
   ctx.clearRect(0, 0, w, h);
-  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
+  const min = Math.min(...data), max = Math.max(...data);
+  if (!isFinite(min) || !isFinite(max)) return;
+  const range = max - min || 1;
   const up = data[data.length - 1] >= data[0];
   ctx.strokeStyle = up ? '#4ade80' : '#f87171';
   ctx.lineWidth = 1.5;
@@ -3132,7 +3135,7 @@ function computeHowellScore() {
   const sofrAbs = (sofr?.[0] && fedfunds?.[0]) ? Math.abs((sofr[0].value - fedfunds[0].value) * 100) : null;
   const dxyVal  = dxy?.[0]?.value;
   let cpiYoY = null;
-  if (cpi?.length >= 13) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
+  if (cpi?.length >= 13 && cpi[0]?.value && cpi[12]?.value) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
   if (resVal != null)  score += resVal  < 3000000 ? 2 : resVal  < 3300000 ? 1 : 0;
   if (tgaVal != null)  score += tgaVal  > 1000000 ? 2 : tgaVal  > 700000  ? 1 : 0;
   if (sofrAbs != null) score += sofrAbs > 15 ? 2 : sofrAbs > 5 ? 1 : 0;
@@ -3536,8 +3539,22 @@ function updateTechSignals(ticker) {
   // Phase-aligned setup text
   const setupEl = document.getElementById('tv-setup-text');
   if (setupEl) {
+    const phase34setups = {
+      GLD: 'Oro en Fase 3/4: <strong style="color:var(--gold)">COMPRAR en soporte SMA20 semanal</strong>. Setup de acumulación mientras DXY < 106. Objetivo: máximos históricos.',
+      GDX: 'Mineras (GDX) siguen al oro con beta ~1.5x. <strong style="color:var(--gold)">Entradas en correcciones > 8%</strong> del último máximo. Mayor riesgo, mayor retorno.',
+      XLE: 'Energía presionada por petróleo + Hormuz. <strong style="color:var(--amber)">Setup swing corto</strong> si WTI > $100. Long si hay resolución geopolítica.',
+      SPY: 'SPY en presión Fase 3. <strong style="color:var(--red)">Cautela larga</strong>. Put spreads o cortos en rebotes al 200SMA. Evitar nuevas posiciones largas especulativas.',
+      QQQ: 'Tech bajo presión máxima Fase 3/4. <strong style="color:var(--red)">Short en rebotes</strong> o hedge con puts. QQQ seguirá dxY y tasas reales.',
+      TLT: 'TLT sensible a expectativas Fed. <strong style="color:var(--blue)">Solo largo</strong> si Fed pivota. Actualmente en zona de compresión.',
+      IWM: 'Small caps = activo más vulnerable en F3/4. <strong style="color:var(--red)">Evitar o short</strong>. Primero en capitular en stress de liquidez.',
+      XLV: 'Salud = defensivo F3/4. <strong style="color:var(--green)">Mantener si YTD > 0</strong> como hedge de cartera.',
+    };
+    setupEl.innerHTML = phase34setups[ticker] || `<strong style="color:var(--text)">${ticker}</strong>: Analizar estructura técnica en chart TradingView. Comparar con ciclo macro Fase 3/4.`;
+  }
+}
+
 // ══════════════════════════════════
-// MODAL UNIVERSAL — TV + FRED
+// MODAL UNIVERSAL — TV + FRED (scope global)
 // ══════════════════════════════════
 const TV_SYMBOLS = {
   GLD:'AMEX:GLD', GDX:'AMEX:GDX', XLE:'AMEX:XLE', XLV:'AMEX:XLV',
@@ -3548,41 +3565,59 @@ const TV_SYMBOLS = {
 };
 
 let _modalChart = null;
+let _modalTVWidget = null;
 
 function closeModal() {
   const m = document.getElementById('tv-modal');
-  if (m) m.style.display = 'none';
+  if (m) m.classList.remove('active');
   if (_modalChart) { try { _modalChart.destroy(); } catch(e) {} _modalChart = null; }
+  if (_modalTVWidget) { try { _modalTVWidget.remove(); } catch(e) {} _modalTVWidget = null; }
   const b = document.getElementById('modal-body');
   if (b) b.innerHTML = '';
 }
 
 function openTVModal(title, tvSymbol) {
-  document.getElementById('modal-title').textContent = title;
-  const body = document.getElementById('modal-body');
+  const titleEl = document.getElementById('modal-title');
+  const body    = document.getElementById('modal-body');
+  const modal   = document.getElementById('tv-modal');
+  if (!titleEl || !body || !modal) return;
+  if (_modalChart) { try { _modalChart.destroy(); } catch(e) {} _modalChart = null; }
+  if (_modalTVWidget) { try { _modalTVWidget.remove(); } catch(e) {} _modalTVWidget = null; }
+  titleEl.textContent = title;
   body.innerHTML = '<div id="modal-tv-container" style="height:420px"></div>';
-  document.getElementById('tv-modal').style.display = 'flex';
-  setTimeout(() => {
-    new TradingView.widget({
+  modal.classList.add('active');
+  let tvRetries = 0;
+  function tryInitTV() {
+    if (typeof TradingView === 'undefined') {
+      if (++tvRetries > 6) { body.innerHTML = '<p style="color:var(--red);font-family:\'IBM Plex Mono\',monospace;font-size:11px;padding:20px">TradingView no disponible — abre <a href="https://tradingview.com/chart/?symbol='+tvSymbol+'" target="_blank" style="color:var(--gold)">tradingview.com</a> directamente.</p>'; return; }
+      setTimeout(tryInitTV, 400);
+      return;
+    }
+    _modalTVWidget = new TradingView.widget({
       container_id:'modal-tv-container', symbol:tvSymbol,
       interval:'D', timezone:'America/New_York', theme:'dark',
       style:'1', locale:'es', width:'100%', height:420,
       hide_side_toolbar:true, allow_symbol_change:true,
     });
-  }, 50);
+  }
+  setTimeout(tryInitTV, 50);
 }
 
 function openFREDModal(title, seriesArr, unit, color, fredUrl) {
-  document.getElementById('modal-title').textContent = title;
-  const body = document.getElementById('modal-body');
-  const rows = seriesArr ? [...seriesArr].reverse() : [];
+  const titleEl = document.getElementById('modal-title');
+  const body    = document.getElementById('modal-body');
+  const modal   = document.getElementById('tv-modal');
+  if (!titleEl || !body || !modal) return;
+  if (_modalChart) { try { _modalChart.destroy(); } catch(e) {} _modalChart = null; }
+  const rows   = seriesArr ? [...seriesArr].reverse() : [];
   const labels = rows.map(r => r.date ? String(r.date).slice(0,10) : '');
   const values = rows.map(r => r.value);
+  titleEl.textContent = title;
   body.innerHTML = `
     <canvas id="modal-canvas" style="width:100%;height:340px"></canvas>
     ${fredUrl ? `<div style="margin-top:10px;text-align:right"><a href="${fredUrl}" target="_blank" class="source-badge" style="font-size:9px">Ver serie completa en FRED ↗</a></div>` : ''}
   `;
-  document.getElementById('tv-modal').style.display = 'flex';
+  modal.classList.add('active');
   const ctx = document.getElementById('modal-canvas').getContext('2d');
   const c = color || '#c9a84c';
   _modalChart = new Chart(ctx, {
@@ -3627,23 +3662,9 @@ function openIndicatorModal(key) {
 }
 
 function openETFModal(ticker) {
-  const sym = TV_SYMBOLS[ticker];
+  const sym  = TV_SYMBOLS[ticker];
   const meta = ETF_META[ticker] || { n: ticker };
   if (sym) openTVModal(ticker + ' — ' + meta.n, sym);
-}
-
-    const phase34setups = {
-      GLD: 'Oro en Fase 3/4: <strong style="color:var(--gold)">COMPRAR en soporte SMA20 semanal</strong>. Setup de acumulación mientras DXY < 106. Objetivo: máximos históricos.',
-      GDX: 'Mineras (GDX) siguen al oro con beta ~1.5x. <strong style="color:var(--gold)">Entradas en correcciones > 8%</strong> del último máximo. Mayor riesgo, mayor retorno.',
-      XLE: 'Energía presionada por petróleo + Hormuz. <strong style="color:var(--amber)">Setup swing corto</strong> si WTI > $100. Long si hay resolución geopolítica.',
-      SPY: 'SPY en presión Fase 3. <strong style="color:var(--red)">Cautela larga</strong>. Put spreads o cortos en rebotes al 200SMA. Evitar nuevas posiciones largas especulativas.',
-      QQQ: 'Tech bajo presión máxima Fase 3/4. <strong style="color:var(--red)">Short en rebotes</strong> o hedge con puts. QQQ seguirá dxY y tasas reales.',
-      TLT: 'TLT sensible a expectativas Fed. <strong style="color:var(--blue)">Solo largo</strong> si Fed pivota. Actualmente en zona de compresión.',
-      IWM: 'Small caps = activo más vulnerable en F3/4. <strong style="color:var(--red)">Evitar o short</strong>. Primero en capitular en stress de liquidez.',
-      XLV: 'Salud = defensivo F3/4. <strong style="color:var(--green)">Mantener si YTD > 0</strong> como hedge de cartera.',
-    };
-    setupEl.innerHTML = phase34setups[ticker] || `<strong style="color:var(--text)">${ticker}</strong>: Analizar estructura técnica en chart TradingView. Comparar con ciclo macro Fase 3/4.`;
-  }
 }
 
 </script>
