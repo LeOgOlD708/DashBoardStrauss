@@ -270,6 +270,15 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 /* ── Sparkline canvas in ETF table ── */
 .sp-canvas{display:block;vertical-align:middle}
 
+/* ── Source links (Fidelity table + thermometers) ── */
+.src-link{font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);text-decoration:none;padding:1px 3px;border:1px solid var(--border2);border-radius:2px;margin-left:4px;vertical-align:middle;white-space:nowrap;transition:all .15s}
+.src-link:hover{color:var(--teal);border-color:rgba(45,212,191,.35);background:rgba(45,212,191,.05)}
+a.source-badge{text-decoration:none;cursor:pointer;transition:color .15s,border-color .15s}
+a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4)!important}
+.fid-th{font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:3px 6px;text-align:left;border-bottom:1px solid var(--border2)}
+.fid-td{padding:5px 6px;font-size:10px;color:var(--text2);border-bottom:1px solid rgba(24,24,38,.5)}
+.fid-td:last-child{border-bottom:none}
+
 /* ── TradingView ticker buttons ── */
 .tv-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;cursor:pointer;border-radius:3px;letter-spacing:.06em;transition:all .15s}
 .tv-btn:hover{border-color:var(--blue);color:var(--blue)}
@@ -430,7 +439,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
         <span>$2.5T</span><span style="color:var(--red)">$3.0T</span><span style="color:var(--amber)">$3.3T</span><span>$4.0T</span>
       </div>
-      <div class="source-badge">FRED WRBWFRBL</div>
+      <a href="https://fred.stlouisfed.org/series/WRBWFRBL" target="_blank" class="source-badge">FRED WRBWFRBL ↗</a>
     </div>
 
     <!-- TGA -->
@@ -446,7 +455,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
         <span>$0</span><span style="color:var(--amber)">$700B</span><span style="color:var(--red)">$1.0T</span><span>$2.0T</span>
       </div>
-      <div class="source-badge">FRED WTREGEN</div>
+      <a href="https://fred.stlouisfed.org/series/WTREGEN" target="_blank" class="source-badge">FRED WTREGEN ↗</a>
     </div>
 
     <!-- SOFR Spread -->
@@ -462,7 +471,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
         <span>0</span><span style="color:var(--amber)">5bps</span><span style="color:var(--red)">15bps</span><span>30bps</span>
       </div>
-      <div class="source-badge">FRED SOFR/FEDFUNDS</div>
+      <a href="https://fred.stlouisfed.org/series/SOFR" target="_blank" class="source-badge">FRED SOFR/FEDFUNDS ↗</a>
     </div>
 
     <!-- DXY -->
@@ -478,7 +487,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
         <span>85</span><span style="color:var(--amber)">100</span><span style="color:var(--red)">106</span><span>120</span>
       </div>
-      <div class="source-badge">Yahoo Finance DX-Y.NYB</div>
+      <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="source-badge">Yahoo DX-Y.NYB ↗</a>
     </div>
   </div>
 
@@ -651,6 +660,121 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
           <span id="pre-hy-badge" class="badge b-dn">— SPREADS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CICLO ECONÓMICO FIDELITY ── -->
+  <div class="sh" style="margin-top:14px">
+    <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Eco Score</div>
+    <div class="sh-title">Ciclo Económico — PMI · PIB · Empleo · Curva · Consumo</div>
+    <div class="sh-line"></div>
+    <span class="live-badge" id="fid-live-ts">Sin datos</span>
+  </div>
+  <div class="g21" style="margin-bottom:10px">
+
+    <!-- Score Table -->
+    <div class="card teal-a"><div class="card-accent"></div>
+      <div class="lbl" style="color:var(--teal)">Motor de Diagnóstico Económico</div>
+      <div style="margin:8px 0">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr>
+              <th class="fid-th">Indicador</th>
+              <th class="fid-th" style="text-align:center">Valor</th>
+              <th class="fid-th" style="text-align:center">Umbral</th>
+              <th class="fid-th" style="text-align:center">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="fid-td">PMI Manufactura <a href="https://fred.stlouisfed.org/series/NAPM" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-pmi-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">&lt;52→+0.5 · &lt;50→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-pmi-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">PIB Real QoQ <a href="https://fred.stlouisfed.org/series/A191RL1Q225SBEA" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-gdp-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">&lt;2%→+0.5 · &lt;0→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-gdp-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">Desempleo <a href="https://fred.stlouisfed.org/series/UNRATE" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-unemp-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">↑+0.2pp→+0.5 · ↑+0.5pp→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-unemp-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">Curva 10Y-2Y <a href="https://fred.stlouisfed.org/series/T10Y2Y" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-yield-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">&lt;0.5%→+0.5 · &lt;0→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-yield-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">Ventas Minoristas <a href="https://fred.stlouisfed.org/series/RSAFS" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-retail-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">MoM &lt;0%→+0.5 · &lt;-1%→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-retail-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td" style="border-bottom:none">Conf. Consumidor <a href="https://fred.stlouisfed.org/series/UMCSENT" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center;border-bottom:none" id="fid-sent-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3);border-bottom:none">&lt;70→+0.5 · &lt;60→+1</td>
+              <td class="fid-td" style="text-align:center;border-bottom:none"><span class="badge b-neu" id="fid-sent-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style="border-top:1px solid var(--border2);padding-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span class="mono" style="font-size:9px;color:var(--text3)">ECO SCORE TOTAL</span>
+          <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/6</span>
+        </div>
+        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
+          <div id="fid-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--teal);transition:width .6s,background .4s"></div>
+        </div>
+        <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span></div>
+      </div>
+    </div>
+
+    <!-- Right: Phase card + 6 sparklines -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="pc" id="fid-phase-pc" style="border-color:rgba(45,212,191,.2);background:var(--surface2)">
+        <div class="pc-ghost" id="fid-phase-ghost" style="color:var(--teal);font-size:40px">—</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">
+          <div class="lbl" style="color:var(--teal)">Ciclo Económico</div>
+          <span class="live-badge">LIVE</span>
+        </div>
+        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:4px" id="fid-phase-name">Calculando...</div>
+        <div style="font-size:9px;color:var(--text2);line-height:1.6" id="fid-phase-desc">Esperando datos FRED...</div>
+        <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap" id="fid-phase-badges"></div>
+      </div>
+      <div class="g2" style="gap:6px">
+        <div class="card card-sm">
+          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">PMI Mfg <span id="fid-pmi-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidPmiChart"></canvas></div>
+        </div>
+        <div class="card card-sm">
+          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">PIB Real % <span id="fid-gdp-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidGdpChart"></canvas></div>
+        </div>
+        <div class="card card-sm">
+          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Desempleo % <span id="fid-unemp-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidUnempChart"></canvas></div>
+        </div>
+        <div class="card card-sm">
+          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Curva 10Y-2Y <span id="fid-yield-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidYieldChart"></canvas></div>
+        </div>
+        <div class="card card-sm">
+          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">V. Minoristas <span id="fid-retail-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidRetailChart"></canvas></div>
+        </div>
+        <div class="card card-sm">
+          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Conf. Consumidor <span id="fid-sent-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidSentChart"></canvas></div>
         </div>
       </div>
     </div>
@@ -1420,6 +1544,12 @@ mini('moveChart',mo,Array(12).fill(null),'amber',false);
 mini('tgaChart',mo,Array(12).fill(null),'red',false);
 mini('dxyChart',mo,Array(12).fill(null),'green',false);
 mini('chinaChart',mo,Array(12).fill(null),'amber',false);
+mini('fidPmiChart',mo,Array(12).fill(null),teal,false);
+mini('fidGdpChart',mo,Array(12).fill(null),blue,false);
+mini('fidUnempChart',mo,Array(12).fill(null),red,false);
+mini('fidYieldChart',mo,Array(12).fill(null),amber,false);
+mini('fidRetailChart',mo,Array(12).fill(null),green,false);
+mini('fidSentChart',mo,Array(12).fill(null),purple,false);
 
 // ── VIX chart ──
 state.charts['vixChart']=new Chart(document.getElementById('vixChart'),{
@@ -1572,7 +1702,7 @@ const ETF_META = {
   EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
 };
 
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,NAPM,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -1616,6 +1746,7 @@ async function bootData() {
   // Re-run FRED UI now that Yahoo has set state.data.dxy — fixes DXY thermometer showing —
   updateFredUI();
   updateDiagnostic();
+  updateFidelitySection();
   updateWeekStatus();
   updateChecklist();
   updateNavTickers();
@@ -1636,7 +1767,7 @@ async function loadFredData() {
   setDs('ds-fred', '#fbbf24');
   setLastUpdate('Cargando FRED...');
   try {
-    const res = await fetch(`/api/fred?series=${FRED_SERIES}&limit=14`);
+    const res = await fetch(`/api/fred?series=${FRED_SERIES}&limit=52`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const d = await res.json();
 
@@ -1650,7 +1781,13 @@ async function loadFredData() {
     state.data.cpi       = Array.isArray(d.CPIAUCSL)  ? d.CPIAUCSL  : null;
     state.data.breakeven = Array.isArray(d.T5YIE)     ? d.T5YIE     : null;
     state.data.hySpread  = Array.isArray(d.BAMLH0A0HYM2) ? d.BAMLH0A0HYM2 : null;
-    state.data.wti       = Array.isArray(d.DCOILWTICO) ? d.DCOILWTICO : null;
+    state.data.wti        = Array.isArray(d.DCOILWTICO)         ? d.DCOILWTICO         : null;
+    state.data.pmi        = Array.isArray(d.NAPM)               ? d.NAPM               : null;
+    state.data.gdpReal    = Array.isArray(d.A191RL1Q225SBEA)    ? d.A191RL1Q225SBEA    : null;
+    state.data.unrate     = Array.isArray(d.UNRATE)             ? d.UNRATE             : null;
+    state.data.yieldCurve = Array.isArray(d.T10Y2Y)             ? d.T10Y2Y             : null;
+    state.data.retail     = Array.isArray(d.RSAFS)              ? d.RSAFS              : null;
+    state.data.sentiment  = Array.isArray(d.UMCSENT)            ? d.UMCSENT            : null;
 
     updateFredUI();
     updateNavTickers();
@@ -2721,6 +2858,135 @@ function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
   if (wtiVal != null) drv.push({l:`WTI $${wtiVal.toFixed(0)}`,    c: wtiVal>90?'b-dn':wtiVal>75?'b-neu':'b-up'});
   if (dxyVal != null) drv.push({l:`DXY ${dxyVal.toFixed(1)}`,     c: dxyVal>106?'b-dn':dxyVal>100?'b-neu':'b-up'});
   if (drvEl) drvEl.innerHTML = drv.map(({l,c})=>`<span class="badge ${c}" style="font-size:8px">${l}</span>`).join('');
+}
+
+// ── Fidelity Economic Cycle Score ──
+function computeFidelityScore() {
+  const { pmi, gdpReal, unrate, yieldCurve, retail, sentiment } = state.data;
+  let pmiScore=0, gdpScore=0, unempScore=0, yieldScore=0, retailScore=0, sentScore=0;
+
+  const pmiVal     = pmi?.[0]?.value;
+  const gdpVal     = gdpReal?.[0]?.value;
+  const unempCurr  = unrate?.[0]?.value;
+  const unempPrev  = unrate?.[3]?.value;  // ~3 months ago
+  const yieldVal   = yieldCurve?.[0]?.value;
+  const retailCurr = retail?.[0]?.value;
+  const retailPrev = retail?.[1]?.value;
+  const sentVal    = sentiment?.[0]?.value;
+
+  if (pmiVal  != null) { if (pmiVal  < 50) pmiScore=1;   else if (pmiVal  < 52) pmiScore=0.5; }
+  if (gdpVal  != null) { if (gdpVal  < 0)  gdpScore=1;   else if (gdpVal  < 2)  gdpScore=0.5; }
+  if (unempCurr != null && unempPrev != null) {
+    const d = unempCurr - unempPrev;
+    if (d >= 0.5) unempScore=1; else if (d >= 0.2) unempScore=0.5;
+  }
+  if (yieldVal  != null) { if (yieldVal  < 0)   yieldScore=1;  else if (yieldVal  < 0.5)  yieldScore=0.5; }
+  if (retailCurr != null && retailPrev != null) {
+    const pct = ((retailCurr / retailPrev) - 1) * 100;
+    if (pct < -1) retailScore=1; else if (pct < 0) retailScore=0.5;
+  }
+  if (sentVal != null) { if (sentVal < 60) sentScore=1; else if (sentVal < 70) sentScore=0.5; }
+
+  return {
+    score: pmiScore+gdpScore+unempScore+yieldScore+retailScore+sentScore,
+    pmiVal, gdpVal, unempCurr, unempPrev, yieldVal, retailCurr, retailPrev, sentVal,
+    pmiScore, gdpScore, unempScore, yieldScore, retailScore, sentScore,
+  };
+}
+
+function updateFidelitySection() {
+  const { score, pmiVal, gdpVal, unempCurr, unempPrev, yieldVal,
+          retailCurr, retailPrev, sentVal,
+          pmiScore, gdpScore, unempScore, yieldScore, retailScore, sentScore } = computeFidelityScore();
+  const maxScore = 6;
+
+  function setPts(id, pts) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'badge ' + (pts === 0 ? 'b-up' : pts <= 0.5 ? 'b-neu' : 'b-dn');
+    el.textContent = pts > 0 ? '+' + pts : '0';
+  }
+
+  const retailMoM  = (retailCurr != null && retailPrev != null) ? ((retailCurr/retailPrev-1)*100) : null;
+  const unempDiff  = (unempCurr  != null && unempPrev  != null) ? (unempCurr - unempPrev) : null;
+
+  setEl('fid-pmi-val',    pmiVal     != null ? pmiVal.toFixed(1)        : '—');
+  setEl('fid-gdp-val',    gdpVal     != null ? gdpVal.toFixed(1)+'%'    : '—');
+  setEl('fid-unemp-val',  unempCurr  != null ? unempCurr.toFixed(1)+'%'+(unempDiff!=null?(unempDiff>=0?' ↑':' ↓')+Math.abs(unempDiff).toFixed(1)+'pp':'') : '—');
+  setEl('fid-yield-val',  yieldVal   != null ? (yieldVal>=0?'+':'')+yieldVal.toFixed(2)+'%' : '—');
+  setEl('fid-retail-val', retailMoM  != null ? (retailMoM>=0?'+':'')+retailMoM.toFixed(2)+'% MoM' : '—');
+  setEl('fid-sent-val',   sentVal    != null ? sentVal.toFixed(1)       : '—');
+  setEl('fid-pmi-lbl',    pmiVal     != null ? pmiVal.toFixed(1)        : '—');
+  setEl('fid-gdp-lbl',    gdpVal     != null ? gdpVal.toFixed(1)+'%'    : '—');
+  setEl('fid-unemp-lbl',  unempCurr  != null ? unempCurr.toFixed(1)+'%': '—');
+  setEl('fid-yield-lbl',  yieldVal   != null ? (yieldVal>=0?'+':'')+yieldVal.toFixed(2)+'%' : '—');
+  setEl('fid-retail-lbl', retailMoM  != null ? (retailMoM>=0?'+':'')+retailMoM.toFixed(1)+'%' : '—');
+  setEl('fid-sent-lbl',   sentVal    != null ? sentVal.toFixed(1)       : '—');
+
+  setPts('fid-pmi-pts', pmiScore); setPts('fid-gdp-pts', gdpScore);
+  setPts('fid-unemp-pts', unempScore); setPts('fid-yield-pts', yieldScore);
+  setPts('fid-retail-pts', retailScore); setPts('fid-sent-pts', sentScore);
+
+  setEl('fid-score-total', score.toFixed(1) + '/' + maxScore);
+  const bar = document.getElementById('fid-score-bar');
+  if (bar) {
+    bar.style.width = Math.min(100,(score/maxScore)*100)+'%';
+    bar.style.background = score>=4 ? '#f87171' : score>=2.5 ? '#fbbf24' : '#2dd4bf';
+  }
+
+  let phaseName, phaseGhost, phaseColor, phaseBg, phaseBorder, phaseDesc, phaseBadges;
+  if (score >= 4.5) {
+    phaseName='Recesión Activa'; phaseGhost='4';
+    phaseColor='#f87171'; phaseBg='var(--p4bg)'; phaseBorder='rgba(248,113,113,.3)';
+    phaseDesc=`Score ${score.toFixed(1)}/6 · PMI en contracción · PIB negativo/estancado · Desempleo en alza. Recesión confirmada o inminente.`;
+    phaseBadges=['b-dn:Recesión','b-dn:Evitar riesgo','b-dn:Cash + Oro'];
+  } else if (score >= 3) {
+    phaseName='Late Cycle — Desaceleración'; phaseGhost='3';
+    phaseColor='#f59e0b'; phaseBg='var(--p3bg)'; phaseBorder='rgba(251,191,36,.3)';
+    phaseDesc=`Score ${score.toFixed(1)}/6 · Señales de desaceleración activa. PMI débil, curva plana/invertida, consumidor cediendo.`;
+    phaseBadges=['b-neu:Late Cycle','b-dn:Curva invertida','b-neu:Defensivo'];
+  } else if (score >= 1.5) {
+    phaseName='Mid Cycle — Expansión'; phaseGhost='2';
+    phaseColor='#60a5fa'; phaseBg='var(--p2bg)'; phaseBorder='rgba(96,165,250,.2)';
+    phaseDesc=`Score ${score.toFixed(1)}/6 · Expansión con señales mixtas. PMI sobre 50, empleo estable, curva en normalización.`;
+    phaseBadges=['b-up:Mid Cycle','b-neu:Señales mixtas'];
+  } else {
+    phaseName='Early Cycle — Aceleración'; phaseGhost='1';
+    phaseColor='#4ade80'; phaseBg='var(--p1bg)'; phaseBorder='rgba(74,222,128,.2)';
+    phaseDesc=`Score ${score.toFixed(1)}/6 · Ciclo temprano/expansivo. PMI ≥52, PIB sólido, empleo estable, confianza alta.`;
+    phaseBadges=['b-up:Early Cycle','b-up:Alcista'];
+  }
+
+  const pc = document.getElementById('fid-phase-pc');
+  if (pc) { pc.style.background=phaseBg; pc.style.borderColor=phaseBorder; }
+  const ghost = document.getElementById('fid-phase-ghost');
+  if (ghost) { ghost.textContent=phaseGhost; ghost.style.color=phaseColor; }
+  setEl('fid-phase-name', phaseName);
+  const nameEl = document.getElementById('fid-phase-name');
+  if (nameEl) nameEl.style.color = phaseColor;
+  setEl('fid-phase-desc', phaseDesc);
+  const badgesEl = document.getElementById('fid-phase-badges');
+  if (badgesEl) badgesEl.innerHTML = phaseBadges.map(b=>{
+    const [cls,txt]=b.split(':');
+    return `<span class="badge ${cls}" style="font-size:8px">${txt}</span>`;
+  }).join('');
+  const phEl = document.getElementById('fid-score-phase');
+  if (phEl) {
+    phEl.className='badge '+(score>=4.5?'b-dn':score>=3?'b-neu':'b-teal');
+    phEl.textContent = phaseName.split('—')[0].trim();
+  }
+  setEl('fid-live-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+
+  // Update sparklines
+  const { pmi, gdpReal, unrate, yieldCurve, retail, sentiment } = state.data;
+  const toSeries = arr => arr ? [...arr].reverse().map(r=>({date:r.date,value:r.value})) : null;
+  const s1=toSeries(pmi),s2=toSeries(gdpReal),s3=toSeries(unrate),s4=toSeries(yieldCurve),s5=toSeries(retail),s6=toSeries(sentiment);
+  if (s1) updateMiniChart('fidPmiChart',    s1, pmiScore   > 0 ? '#f87171' : '#2dd4bf', false);
+  if (s2) updateMiniChart('fidGdpChart',    s2, gdpScore   > 0 ? '#f87171' : '#60a5fa', false);
+  if (s3) updateMiniChart('fidUnempChart',  s3, unempScore > 0 ? '#f87171' : '#4ade80', false);
+  if (s4) updateMiniChart('fidYieldChart',  s4, yieldScore > 0 ? '#f87171' : '#fbbf24', false);
+  if (s5) updateMiniChart('fidRetailChart', s5, retailScore> 0 ? '#f87171' : '#4ade80', false);
+  if (s6) updateMiniChart('fidSentChart',   s6, sentScore  > 0 ? '#f87171' : '#a78bfa', false);
 }
 
 function updateSemaforoText(score) {
