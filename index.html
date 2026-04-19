@@ -197,6 +197,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .ch220{height:220px}
 .ch260{height:260px}
 .ch180{height:180px}
+.ch140{height:140px}
 .ch160{height:160px}
 
 /* ── CHART ── */
@@ -347,15 +348,14 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 <div id="refresh-bar"><div id="refresh-fill"></div></div>
 
 <div class="tabs">
-  <div class="tab active" onclick="go('diag',this)">01 · Diagnóstico</div>
-  <div class="tab" onclick="go('ind',this)">02 · Indicadores</div>
-  <div class="tab" onclick="go('act',this)">03 · Activos</div>
-  <div class="tab" onclick="go('dxy',this)">04 · DXY & China</div>
-  <div class="tab" onclick="go('tesis',this)">05 · Tesis</div>
-  <div class="tab" onclick="go('check',this)">06 · Checklist</div>
-  <div class="tab tab-new" onclick="go('vol',this)">07 · Volatilidad</div>
-  <div class="tab tab-new" onclick="go('news',this)">08 · Noticias</div>
-  <div class="tab tab-new" onclick="go('tecnico',this)">09 · Técnico</div>
+  <div class="tab active" onclick="go('diag',this)">01 · Command Center</div>
+  <div class="tab" onclick="go('act',this)">02 · Activos</div>
+  <div class="tab" onclick="go('dxy',this)">03 · DXY & China</div>
+  <div class="tab" onclick="go('tesis',this)">04 · Tesis</div>
+  <div class="tab" onclick="go('check',this)">05 · Checklist</div>
+  <div class="tab tab-new" onclick="go('vol',this)">06 · Volatilidad</div>
+  <div class="tab tab-new" onclick="go('news',this)">07 · Noticias</div>
+  <div class="tab tab-new" onclick="go('tecnico',this)">08 · Técnico</div>
 </div>
 
 <div class="main">
@@ -645,57 +645,51 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
     </div>
   </div>
 
-</div>
-
-
-<!-- ══════════════════════════════════════════════════
-     02 · INDICADORES
-══════════════════════════════════════════════════ -->
-<div id="tab-ind" class="page">
-  <div class="sh"><div class="sh-tag">Indicadores</div><div class="sh-title">Los 4 Termómetros de Howell</div><div class="sh-line"></div></div>
-  <div class="g2" style="margin-bottom:10px">
+  <!-- ── ROW 5: Termómetros Howell — Histórico ── -->
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Termómetros</div><div class="sh-title">Los 4 Termómetros de Howell — Histórico</div><div class="sh-line"></div></div>
+  <div class="g4" style="margin-bottom:10px">
     <div class="card amber-a"><div class="card-accent"></div>
       <div class="lbl">① Reservas Bancarias Fed</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-res-val">—</div><div class="mono" id="m-res-chg" style="font-size:10px">—</div></div>
-      <div class="ch-wrap ch180"><canvas id="resChart" role="img" aria-label="Reservas Fed">Reservas históricas.</canvas></div>
-      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--surface2);border-radius:5px">
-        <div style="font-size:10px;color:var(--text2)">Umbral abundancia <span class="mono" style="color:var(--amber)">$3.3T</span> · Peligro <span class="mono" style="color:var(--red)">$3.0T</span></div>
-        <span class="badge b-neu">⚠ Alerta</span>
+      <div class="ch-wrap ch140"><canvas id="resChart" role="img" aria-label="Reservas Fed">Reservas históricas.</canvas></div>
+      <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:5px 7px;background:var(--surface2);border-radius:5px">
+        <div style="font-size:9px;color:var(--text2)">Abundancia <span class="mono" style="color:var(--amber)">$3.3T</span> · Peligro <span class="mono" style="color:var(--red)">$3.0T</span></div>
+        <span class="badge b-neu">⚠</span>
       </div>
       <div class="source-badge">FRED: WRBWFRBL</div>
     </div>
     <div class="card red-a"><div class="card-accent"></div>
       <div class="lbl">② Spread SOFR / Fed Funds</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-sofr-val">—</div><div class="mono" style="font-size:10px;color:var(--text3)">SOFR > FFR</div></div>
-      <div class="ch-wrap ch180"><canvas id="sofrChart" role="img" aria-label="Spread SOFR">SOFR histórico.</canvas></div>
-      <div style="margin-top:8px;padding:6px 8px;background:var(--surface2);border-radius:5px;display:flex;justify-content:space-between;align-items:center">
-        <div style="font-size:10px;color:var(--text2)">85% de spikes de 2025 ocurrieron H2. Frecuencia crítica.</div>
+      <div class="ch-wrap ch140"><canvas id="sofrChart" role="img" aria-label="Spread SOFR">SOFR histórico.</canvas></div>
+      <div style="margin-top:6px;padding:5px 7px;background:var(--surface2);border-radius:5px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:9px;color:var(--text2)">85% de spikes en H2 2025</div>
         <span class="badge b-dn">Spikes</span>
       </div>
       <div class="source-badge">FRED: SOFR</div>
     </div>
-  </div>
-  <div class="g2">
     <div class="card amber-a"><div class="card-accent"></div>
-      <div class="lbl">③ MOVE Index — Volatilidad Treasuries</div>
+      <div class="lbl">③ MOVE Index — Vol Treasuries</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono" id="m-move-chg" style="font-size:10px;color:var(--text3)">—</div></div>
-      <div class="ch-wrap ch180"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
-      <div style="margin-top:8px;display:flex;gap:5px">
-        <div style="flex:1;padding:4px 6px;background:rgba(74,222,128,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--green)">Verde</div><div class="mono" style="font-size:10px;color:var(--green)">< 100</div></div>
-        <div style="flex:1;padding:4px 6px;background:rgba(251,191,36,.08);border-radius:4px;text-align:center;border:1px solid rgba(251,191,36,.2)"><div class="mono" style="font-size:7px;color:var(--amber)">Actual</div><div class="mono" style="font-size:10px;color:var(--amber)">100-140</div></div>
-        <div style="flex:1;padding:4px 6px;background:rgba(248,113,113,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--red)">Crisis</div><div class="mono" style="font-size:10px;color:var(--red)">> 140</div></div>
+      <div class="ch-wrap ch140"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
+      <div style="margin-top:6px;display:flex;gap:4px">
+        <div style="flex:1;padding:3px 5px;background:rgba(74,222,128,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--green)">Verde</div><div class="mono" style="font-size:9px;color:var(--green)">< 100</div></div>
+        <div style="flex:1;padding:3px 5px;background:rgba(251,191,36,.08);border-radius:4px;text-align:center;border:1px solid rgba(251,191,36,.2)"><div class="mono" style="font-size:7px;color:var(--amber)">Alerta</div><div class="mono" style="font-size:9px;color:var(--amber)">100-140</div></div>
+        <div style="flex:1;padding:3px 5px;background:rgba(248,113,113,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:7px;color:var(--red)">Crisis</div><div class="mono" style="font-size:9px;color:var(--red)">> 140</div></div>
       </div>
       <div class="source-badge">ICE BofA MOVE</div>
     </div>
     <div class="card red-a"><div class="card-accent"></div>
-      <div class="lbl">④ TGA — Cuenta General del Tesoro</div>
+      <div class="lbl">④ TGA — Cuenta Gral del Tesoro</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" style="font-size:10px;color:var(--red)">Drenaje activo</div></div>
-      <div class="ch-wrap ch180"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
-      <div style="margin-top:8px;padding:6px 8px;background:rgba(248,113,113,.06);border-radius:5px;font-size:10px;color:var(--text2)">TGA > $1T = QT adicional silencioso de $250B equivalente</div>
+      <div class="ch-wrap ch140"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
+      <div style="margin-top:6px;padding:5px 7px;background:rgba(248,113,113,.06);border-radius:5px;font-size:9px;color:var(--text2)">TGA > $1T = QT silencioso ~$250B</div>
       <div class="source-badge">FRED: WTREGEN</div>
     </div>
   </div>
-  <div class="sh" style="margin-top:14px"><div class="sh-tag">Semáforo</div><div class="sh-title">Resumen Integrado</div><div class="sh-line"></div></div>
+
+  <!-- ── ROW 6: Semáforo Integrado ── -->
+  <div class="sh"><div class="sh-tag">Semáforo</div><div class="sh-title">Resumen Integrado</div><div class="sh-line"></div></div>
   <div class="card gold-a"><div class="card-accent"></div>
     <div class="lbl">Estado de todos los indicadores</div>
     <div style="margin-top:8px">
@@ -704,13 +698,19 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
       <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita de bonos del Tesoro USA (ICE BofA). Verde &lt; 100 · Alerta 100–140 · Crisis &gt; 140. Correlaciona con estrés sistémico.">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" id="s-move-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
       <div class="ind-row"><div class="ind-name" data-tip="Cuenta General del Tesoro en la Fed. TGA &gt; $1T drena reservas bancarias — equivalente a QT adicional silencioso de ~$250B.">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" id="s-tga-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
       <div class="ind-row"><div class="ind-name" data-tip="Índice del dólar (Yahoo: DX-Y.NYB). &lt; 100 = expansivo para liquidez global. &gt; 106 = contractivo. Válvula maestra de liquidez según Howell.">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita S&amp;P 500. &lt; 20 = calma. 20–30 = cautela. &gt; 30 = estrés. Ver también VVIX (tab 07) para señales institucionales tempranas.">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+      <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita S&amp;P 500. &lt; 20 = calma. 20–30 = cautela. &gt; 30 = estrés. Ver también VVIX (tab 06) para señales institucionales tempranas.">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
     </div>
     <div id="semaforoSummary" style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
       <strong style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">Cargando...</strong>
     </div>
   </div>
+
 </div>
+
+
+<!-- ══════════════════════════════════════════════════
+     02 · ACTIVOS  (antes 03)
+══════════════════════════════════════════════════ -->
 
 
 <!-- ══════════════════════════════════════════════════
@@ -2939,7 +2939,7 @@ function updateChecklist() {
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey) return;
-  const tabs = ['diag','ind','act','dxy','tesis','check','vol','news','tecnico'];
+  const tabs = ['diag','act','dxy','tesis','check','vol','news','tecnico'];
   const i = parseInt(e.key) - 1;
   if (i >= 0 && i < tabs.length) {
     const tabEls = document.querySelectorAll('.tab');
