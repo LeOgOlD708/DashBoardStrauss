@@ -150,13 +150,18 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .nf-active{border-color:var(--gold)!important;color:var(--gold)!important;background:rgba(201,168,76,.08)!important}
 
 /* ── NEWS CARDS ── */
-.news-item{padding:10px 0;border-bottom:1px solid var(--border)}
+.news-item{padding:6px 0 6px 10px;border-bottom:1px solid var(--border);border-left:2px solid var(--border2);margin-left:0;transition:border-color .15s}
 .news-item:last-child{border-bottom:none}
-.news-source{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.08em;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.news-item.imp-high{border-left-color:var(--red)}
+.news-item.imp-med{border-left-color:var(--amber)}
+.news-item.imp-low{border-left-color:var(--green)}
+.news-item.is-new .news-title{color:var(--text)}
+.news-source{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.08em;margin-bottom:2px;display:flex;align-items:center;gap:5px}
 .news-src-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.news-title{font-size:12px;color:var(--text);line-height:1.4;margin-bottom:3px;cursor:pointer}
+.news-title{font-size:11px;color:var(--text2);line-height:1.4;margin-bottom:2px;cursor:pointer}
 .news-title:hover{color:var(--gold)}
 .news-time{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)}
+.news-new{font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--teal);background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.2);padding:0 4px;border-radius:2px;margin-left:3px}
 .news-impact{font-size:8px;padding:1px 5px;border-radius:2px;font-family:'IBM Plex Mono',monospace}
 .ni-high{background:rgba(248,113,113,.1);color:var(--red)}
 .ni-med{background:rgba(251,191,36,.08);color:var(--amber)}
@@ -1060,34 +1065,23 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   </div>
 
   <div class="g32">
-    <!-- NEWS FEED -->
+    <!-- UNIFIED NEWS FEED -->
     <div>
-      <!-- BREAKING HIGH IMPACT -->
-      <div class="card red-a" style="margin-bottom:10px"><div class="card-accent"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div class="lbl" style="color:var(--red)">Breaking — Alto Impacto</div>
+      <div class="card blue-a"><div class="card-accent"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div class="lbl" style="color:var(--blue)">Feed Unificado — Ordenado por Impacto</div>
           <span id="news-count" class="mono" style="font-size:8px;color:var(--text3)">—</span>
+        </div>
+        <!-- Impact summary -->
+        <div id="news-summary" style="display:flex;gap:8px;margin-bottom:8px;padding:5px 8px;background:var(--surface2);border-radius:4px">
+          <span class="mono" style="font-size:8px;color:var(--text3)">Cargando noticias...</span>
         </div>
         <div id="newsFeed"></div>
       </div>
-
-      <!-- GEOPOLITICS -->
-      <div class="card amber-a" style="margin-bottom:10px"><div class="card-accent"></div>
-        <div class="lbl" style="color:var(--amber)">Radar Geopolítico</div>
-        <div id="geoFeed"></div>
-      </div>
-
-      <!-- CRYPTO -->
-      <div class="card" style="margin-bottom:10px;border-color:rgba(167,139,250,.2)">
-        <div class="lbl" style="color:var(--purple)">Crypto & Digital Assets</div>
-        <div id="cryptoFeed"><div style="padding:10px 0;font-size:10px;color:var(--text3)">Cargando...</div></div>
-      </div>
-
-      <!-- FOREX & MACRO -->
-      <div class="card" style="border-color:rgba(96,165,250,.2)">
-        <div class="lbl" style="color:var(--blue)">Forex & Mercados Globales</div>
-        <div id="forexFeed"><div style="padding:10px 0;font-size:10px;color:var(--text3)">Cargando...</div></div>
-      </div>
+      <!-- Hidden legacy divs for JS compatibility -->
+      <div id="geoFeed" style="display:none"></div>
+      <div id="cryptoFeed" style="display:none"></div>
+      <div id="forexFeed" style="display:none"></div>
     </div>
 
     <!-- RIGHT SIDEBAR -->
@@ -1511,9 +1505,9 @@ const wsd=document.getElementById('weekStatus');
 const nf=document.getElementById('newsFeed');
 nf.innerHTML='<div style="padding:16px 0;font-size:11px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Esperando datos en vivo...</div>';
 
-// Geo feed updated manually or via future news integration
-const gf=document.getElementById('geoFeed');
-gf.innerHTML='<div style="padding:16px 0;font-size:11px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Sin datos — requiere conexión RSS</div>';
+// newsFeed loading state — will be replaced by renderNews() when data arrives
+const _nfSkel=document.getElementById('newsFeed');
+if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Cargando noticias...</div>';
 </script>
 <div style="position:fixed;bottom:14px;left:20px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(90,80,74,0.5);letter-spacing:.08em;pointer-events:none;z-index:999">Angel Lopez (Strauss)</div>
 
@@ -2198,50 +2192,60 @@ const CAT_META = {
 
 function newsItemHTML(item) {
   const { title, link, pubDate, impact, source, category } = item;
-  const ic = impact==='high' ? 'ni-high' : impact==='med' ? 'ni-med' : 'ni-low';
-  const il = impact==='high' ? 'Alto' : impact==='med' ? 'Medio' : 'Bajo';
+  const ic  = impact==='high' ? 'imp-high' : impact==='med' ? 'imp-med' : 'imp-low';
+  const il  = impact==='high' ? 'ALTO' : impact==='med' ? 'MED' : 'LOW';
+  const ilc = impact==='high' ? 'var(--red)' : impact==='med' ? 'var(--amber)' : 'var(--green)';
   const age = pubDate ? timeAgo(new Date(pubDate)) : '—';
+  const isNew = pubDate && (Date.now() - new Date(pubDate).getTime()) < 30 * 60 * 1000;
   const cm = CAT_META[category] || { label: category||'—', cls:'nc-macro', dot:'#524e4a' };
   const safeLink = (link||'#').replace(/'/g, '%27');
-  return `<div class="news-item" data-cat="${category||''}">
+  return `<div class="news-item ${ic}${isNew?' is-new':''}" data-cat="${category||''}">
+    <div class="news-title" onclick="window.open('${safeLink}','_blank')">${title}${isNew?'<span class="news-new">NEW</span>':''}</div>
     <div class="news-source">
       <div class="news-src-dot" style="background:${cm.dot}"></div>
       <span>${source}</span>
-      <span class="news-impact ${ic}" style="margin-left:2px">${il}</span>
-      <span class="news-impact ${cm.cls}" style="margin-left:2px">${cm.label}</span>
+      <span class="news-impact ${cm.cls}">${cm.label}</span>
+      <span style="color:${ilc};font-size:7px">${il}</span>
+      <span class="news-time" style="margin-left:auto">${age}</span>
     </div>
-    <div class="news-title" onclick="window.open('${safeLink}','_blank')">${title}</div>
-    <div class="news-time">${age}</div>
   </div>`;
 }
 
 function renderNews(items) {
   const nf  = document.getElementById('newsFeed');
-  const gf  = document.getElementById('geoFeed');
-  const cf  = document.getElementById('cryptoFeed');
-  const ff  = document.getElementById('forexFeed');
   const cnt = document.getElementById('news-count');
+  const sum = document.getElementById('news-summary');
   if (!nf) return;
 
   const empty = '<div style="padding:10px 0;font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Sin noticias en este momento.</div>';
-  if (!items?.length) {
-    [nf,gf,cf,ff].forEach(el=>{ if(el) el.innerHTML=empty; });
-    return;
-  }
+  if (!items?.length) { nf.innerHTML = empty; return; }
 
-  // Save to state for filter
   state.newsItems = items;
-  if (cnt) cnt.textContent = items.length + ' noticias';
 
-  const macro = items.filter(i => !['crypto','forex'].includes(i.category));
-  const geo   = items.filter(i => i.category==='geopolitics' || i.impact==='high');
-  const crypto= items.filter(i => i.category==='crypto');
-  const forex = items.filter(i => i.category==='forex');
+  // Sort: high → med → low, then by pubDate desc
+  const impOrder = { high:0, med:1, low:2 };
+  const sorted = [...items].sort((a,b)=>{
+    const id = (impOrder[a.impact]??2) - (impOrder[b.impact]??2);
+    if (id !== 0) return id;
+    return new Date(b.pubDate||0) - new Date(a.pubDate||0);
+  });
 
-  nf.innerHTML  = macro.length  ? macro.map(newsItemHTML).join('') : empty;
-  gf.innerHTML  = geo.length    ? geo.map(newsItemHTML).join('') : empty;
-  cf.innerHTML  = crypto.length ? crypto.map(newsItemHTML).join('') : empty;
-  ff.innerHTML  = forex.length  ? forex.map(newsItemHTML).join('') : empty;
+  const high   = sorted.filter(i=>i.impact==='high').length;
+  const med    = sorted.filter(i=>i.impact==='med').length;
+  const low    = sorted.filter(i=>i.impact==='low' || !i.impact).length;
+  const newCnt = sorted.filter(i=>i.pubDate&&(Date.now()-new Date(i.pubDate).getTime())<30*60*1000).length;
+
+  if (cnt) cnt.textContent = sorted.length + ' noticias';
+  if (sum) sum.innerHTML = `
+    <span class="mono" style="font-size:8px;color:var(--red)">${high} Alto</span>
+    <span class="mono" style="font-size:8px;color:var(--text3)">·</span>
+    <span class="mono" style="font-size:8px;color:var(--amber)">${med} Medio</span>
+    <span class="mono" style="font-size:8px;color:var(--text3)">·</span>
+    <span class="mono" style="font-size:8px;color:var(--green)">${low} Bajo</span>
+    ${newCnt>0?`<span class="mono" style="font-size:8px;color:var(--text3)">·</span><span class="news-new">${newCnt} NEW</span>`:''}
+  `;
+
+  nf.innerHTML = sorted.length ? sorted.map(newsItemHTML).join('') : empty;
 }
 
 function filterNews(cat) {
@@ -2249,15 +2253,10 @@ function filterNews(cat) {
   const btn = document.getElementById('nf-'+cat);
   if (btn) btn.classList.add('nf-active');
   if (!state.newsItems?.length) return;
-
-  const sections = ['newsFeed','geoFeed','cryptoFeed','forexFeed'];
-  sections.forEach(id=>{
-    const el=document.getElementById(id);
-    if(!el) return;
-    if(cat==='all'){ el.querySelectorAll('.news-item').forEach(n=>n.style.display=''); return; }
-    el.querySelectorAll('.news-item').forEach(n=>{
-      n.style.display = n.dataset.cat===cat ? '' : 'none';
-    });
+  const nf = document.getElementById('newsFeed');
+  if (!nf) return;
+  nf.querySelectorAll('.news-item').forEach(n=>{
+    n.style.display = (cat==='all' || n.dataset.cat===cat) ? '' : 'none';
   });
 }
 
