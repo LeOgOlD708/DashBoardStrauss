@@ -834,6 +834,39 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 ══════════════════════════════════════════════════ -->
 <div id="tab-tesis" class="page">
   <div class="sh"><div class="sh-tag">Tesis</div><div class="sh-title">Contexto Macro — 3 Horizontes</div><div class="sh-line"></div></div>
+
+  <!-- ── AUTO-TESIS ── -->
+  <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="lbl" style="color:var(--gold)">Tesis Operativa — Auto-computada desde datos en vivo</div>
+      <span class="mono" style="font-size:8px;color:var(--text3)" id="tesis-ts">Calculando...</span>
+    </div>
+    <!-- Postura row -->
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
+      <span class="badge b-neu" id="tesis-postura-badge" style="font-size:10px;padding:3px 10px">—</span>
+      <span class="badge b-neu" id="tesis-howell-badge" style="font-size:9px">—</span>
+      <span class="mono" style="font-size:14px;font-weight:500" id="tesis-score-display">—/7</span>
+    </div>
+    <!-- Narrative -->
+    <div id="tesis-narrative" style="font-size:11px;color:var(--text2);line-height:1.8;margin-bottom:12px;padding:10px 12px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:6px">Cargando datos...</div>
+    <!-- Sugeridos / Evitar -->
+    <div class="g2" style="margin-bottom:10px">
+      <div>
+        <div class="mono" style="font-size:8px;color:var(--green);letter-spacing:.1em;margin-bottom:5px">SUGERIDOS</div>
+        <div id="tesis-long" style="display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+      <div>
+        <div class="mono" style="font-size:8px;color:var(--red);letter-spacing:.1em;margin-bottom:5px">EVITAR / REDUCIR</div>
+        <div id="tesis-short" style="display:flex;flex-direction:column;gap:4px"></div>
+      </div>
+    </div>
+    <!-- Drivers -->
+    <div style="border-top:1px solid var(--border2);padding-top:8px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+      <span class="mono" style="font-size:7px;color:var(--text3);letter-spacing:.1em">DRIVERS:</span>
+      <div id="tesis-drivers" style="display:flex;gap:5px;flex-wrap:wrap"></div>
+    </div>
+  </div>
+
   <div class="g3" style="margin-bottom:12px">
     <div class="card red-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--red)">Corto Plazo — 1-4 semanas</div>
@@ -2612,7 +2645,81 @@ function updateDiagnostic() {
     verdEl.innerHTML = `${postura} ${resNote} ${tgaNote} ${cpiNote} ${wtiNote} ${hyNote}`.replace(/  +/g, ' ').trim();
   }
 
+  updateTesisAuto(score, howellPhase, fidName, infName, { hyVal, cpiYoY, wtiVal, dxyVal, resVal, tgaVal });
   updateSemaforoText(score);
+}
+
+function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
+  const { hyVal, cpiYoY, wtiVal, dxyVal, resVal, tgaVal } = vals;
+  const postEl  = document.getElementById('tesis-postura-badge');
+  const hbEl    = document.getElementById('tesis-howell-badge');
+  const sdEl    = document.getElementById('tesis-score-display');
+  const narEl   = document.getElementById('tesis-narrative');
+  const longEl  = document.getElementById('tesis-long');
+  const shortEl = document.getElementById('tesis-short');
+  const drvEl   = document.getElementById('tesis-drivers');
+  const tsEl    = document.getElementById('tesis-ts');
+  if (!narEl) return;
+
+  // ── Postura ──
+  const postura      = score >= 5 ? 'MÁXIMA CAUTELA' : score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'DEFENSIVO SELECTIVO' : score >= 1 ? 'SELECTIVO' : '—';
+  const postCls      = score >= 5 ? 'b-dn' : score >= 3 ? 'b-neu' : 'b-up';
+  const howellCls    = score >= 5 ? 'b-dn' : score >= 3 ? 'b-alt' : 'b-neu';
+  const howellShort  = howellPhase.split('—')[0].trim();
+  if (postEl) { postEl.className = 'badge ' + postCls + ' ' + 'serif'; postEl.style.fontSize='10px'; postEl.style.padding='3px 10px'; postEl.textContent = postura; }
+  if (hbEl)   { hbEl.className = 'badge ' + howellCls; hbEl.textContent = howellShort; }
+  if (sdEl)   { sdEl.textContent = score.toFixed(1) + '/7'; sdEl.style.color = score>=5?'var(--red)':score>=3?'var(--amber)':'var(--green)'; }
+  if (tsEl)   tsEl.textContent = 'Act. ' + new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+
+  // ── Narrative ──
+  const phTxt = score >= 5 ? `capitulación inminente — preservar capital es la única prioridad`
+    : score >= 4 ? `transición F3→F4 activa — riesgo de evento de liquidez real y próximo`
+    : score >= 2 ? `Fase 3 Squeeze confirmado — compresión de liquidez activa`
+    : score >= 1 ? `señales de tensión emergente — transición F2→F3 en curso`
+    : `datos insuficientes para diagnóstico completo`;
+  const resTxt = resVal != null ? (resVal < 3000000 ? `Reservas Fed en zona de peligro (${formatM(resVal)}) — estrés repo activo.`
+    : resVal < 3300000 ? `Reservas Fed bajo umbral de abundancia (${formatM(resVal)}) — vigilar caídas adicionales.`
+    : `Reservas Fed en zona segura (${formatM(resVal)}).`) : '';
+  const hyTxt  = hyVal  != null ? (hyVal > 4.5 ? `HY Spread ${hyVal.toFixed(2)}% — estrés crediticio severo, defaults posibles.`
+    : hyVal > 3 ? `HY Spread ${hyVal.toFixed(2)}% — late cycle, crédito deteriorándose.`
+    : `HY Spread ${hyVal.toFixed(2)}% comprimido, condiciones de crédito aún sostenibles.`) : '';
+  const cpiTxt = cpiYoY != null ? (cpiYoY > 3.5 ? `CPI YoY ${cpiYoY.toFixed(1)}% sticky — Fed sin espacio para recortar.`
+    : cpiYoY > 3 ? `CPI YoY ${cpiYoY.toFixed(1)}% sobre target — restricción monetaria extendida.`
+    : `CPI YoY ${cpiYoY.toFixed(1)}% — inflación relativamente controlada.`) : '';
+  const wtiTxt = wtiVal != null ? (wtiVal > 90 ? `WTI $${wtiVal.toFixed(0)} — presión inflacionaria energética alta.`
+    : wtiVal > 75 ? `WTI $${wtiVal.toFixed(0)} — energía estabilizada.`
+    : `WTI $${wtiVal.toFixed(0)} — energía baja, alivio inflacionario.`) : '';
+  const dxyTxt = dxyVal != null ? (dxyVal > 106 ? `DXY ${dxyVal.toFixed(1)} contractivo — válvula de liquidez global cerrada.`
+    : dxyVal > 100 ? `DXY ${dxyVal.toFixed(1)} en zona neutral.`
+    : `DXY ${dxyVal.toFixed(1)} < 100 — positivo para liquidez global y activos reales.`) : '';
+  narEl.innerHTML = [`Ciclo Howell en ${phTxt}.`, resTxt, hyTxt, cpiTxt, wtiTxt, dxyTxt].filter(Boolean).join(' ');
+
+  // ── Activos ──
+  let longs, shorts;
+  if (score >= 5) {
+    longs  = [['GLD · IAU','Oro — último refugio sistémico'],['BIL · SHV','T-Bills — cash corta duración'],['Cash USD','Máxima liquidez']];
+    shorts = [['QQQ · IWM','Tech + Small Caps — máximo riesgo'],['HYG · JNK','HY bonds — estrés crediticio'],['XLF','Financieros — contagio potencial']];
+  } else if (score >= 3) {
+    longs  = [['GLD · GDX','Oro y mineras — cobertura sistémica'],['XLE · XLB','Energía + Materiales — late cycle'],['XLP · XLU','Defensivos — demanda inelástica']];
+    shorts = [['QQQ · XLK','Tech — liquidez ↓, tasa real alta'],['IWM','Small Caps — crédito apretado'],['XLC','Comunicaciones — cíclico expuesto']];
+  } else if (score >= 1) {
+    longs  = [['GLD','Oro — reserva de valor'],['XLV · XLP','Salud + Staples — defensivos'],['EEM','Emergentes si DXY < 100']];
+    shorts = [['IWM','Small Caps — vulnerables a crédito'],['XLF','Financieros — vigilar spreads']];
+  } else { longs = [['—','Esperando datos']]; shorts = [['—','Esperando datos']]; }
+
+  const longRow  = ([t,d]) => `<div style="padding:3px 8px;background:rgba(74,222,128,.05);border:1px solid rgba(74,222,128,.1);border-radius:4px"><div class="mono" style="font-size:9px;font-weight:500;color:var(--green)">${t}</div><div style="font-size:8px;color:var(--text3)">${d}</div></div>`;
+  const shortRow = ([t,d]) => `<div style="padding:3px 8px;background:rgba(248,113,113,.04);border:1px solid rgba(248,113,113,.1);border-radius:4px"><div class="mono" style="font-size:9px;font-weight:500;color:var(--red)">${t}</div><div style="font-size:8px;color:var(--text3)">${d}</div></div>`;
+  if (longEl)  longEl.innerHTML  = longs.map(longRow).join('');
+  if (shortEl) shortEl.innerHTML = shorts.map(shortRow).join('');
+
+  // ── Drivers ──
+  const drv = [];
+  if (score > 0)      drv.push({l:`Score ${score.toFixed(1)}/7`, c: score>=5?'b-dn':score>=3?'b-neu':'b-up'});
+  if (hyVal  != null) drv.push({l:`HY ${hyVal.toFixed(2)}%`,     c: hyVal>4.5?'b-dn':hyVal>3?'b-neu':'b-up'});
+  if (cpiYoY != null) drv.push({l:`CPI ${cpiYoY.toFixed(1)}%`,   c: cpiYoY>3.5?'b-dn':cpiYoY>3?'b-neu':'b-up'});
+  if (wtiVal != null) drv.push({l:`WTI $${wtiVal.toFixed(0)}`,    c: wtiVal>90?'b-dn':wtiVal>75?'b-neu':'b-up'});
+  if (dxyVal != null) drv.push({l:`DXY ${dxyVal.toFixed(1)}`,     c: dxyVal>106?'b-dn':dxyVal>100?'b-neu':'b-up'});
+  if (drvEl) drvEl.innerHTML = drv.map(({l,c})=>`<span class="badge ${c}" style="font-size:8px">${l}</span>`).join('');
 }
 
 function updateSemaforoText(score) {
