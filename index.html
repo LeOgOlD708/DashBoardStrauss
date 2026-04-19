@@ -98,6 +98,15 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 /* ── BADGES ── */
 .badge{display:inline-flex;align-items:center;gap:3px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.06em;padding:2px 7px;border-radius:3px;font-weight:500}
 .b-up{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+
+/* ── MODAL ── */
+#tv-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:9999;align-items:center;justify-content:center}
+.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);width:740px;max-width:96vw;max-height:92vh;padding:18px;position:relative;overflow-y:auto}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.modal-close{background:transparent;border:1px solid var(--border2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:3px 10px;cursor:pointer;border-radius:4px;transition:color .15s}
+.modal-close:hover{color:var(--text);border-color:var(--text3)}
+.clickable{cursor:pointer;transition:border-color .15s}
+.clickable:hover{border-color:var(--gold) !important}
 .b-neu{background:rgba(251,191,36,.08);color:var(--amber);border:1px solid rgba(251,191,36,.2)}
 .b-dn{background:rgba(248,113,113,.08);color:var(--red);border:1px solid rgba(248,113,113,.2)}
 .b-alt{background:rgba(167,139,250,.08);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
@@ -427,7 +436,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <div class="g4" style="margin-bottom:10px">
 
     <!-- Reservas Fed -->
-    <div class="card amber-a"><div class="card-accent"></div>
+    <div class="card amber-a clickable" onclick="openIndicatorModal('res')"><div class="card-accent"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div class="lbl">① Reservas Fed</div><span class="ind-sig" id="diag-res-sig" style="color:var(--text3);background:var(--surface2)">—</span>
       </div>
@@ -443,7 +452,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
 
     <!-- TGA -->
-    <div class="card red-a"><div class="card-accent"></div>
+    <div class="card red-a clickable" onclick="openIndicatorModal('tga')"><div class="card-accent"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div class="lbl">② TGA Tesoro</div><span class="ind-sig" id="diag-tga-sig" style="color:var(--text3);background:var(--surface2)">—</span>
       </div>
@@ -459,7 +468,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
 
     <!-- SOFR Spread -->
-    <div class="card red-a"><div class="card-accent"></div>
+    <div class="card red-a clickable" onclick="openIndicatorModal('sofr')"><div class="card-accent"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div class="lbl">③ SOFR Spread</div><span class="ind-sig" id="diag-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</span>
       </div>
@@ -475,7 +484,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
 
     <!-- DXY -->
-    <div class="card green-a"><div class="card-accent"></div>
+    <div class="card green-a clickable" onclick="openIndicatorModal('dxy')"><div class="card-accent"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div class="lbl">④ DXY</div><span class="ind-sig" id="diag-dxy4-sig" style="color:var(--text3);background:var(--surface2)">—</span>
       </div>
@@ -752,27 +761,27 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap" id="fid-phase-badges"></div>
       </div>
       <div class="g2" style="gap:6px">
-        <div class="card card-sm">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('pmi')">
           <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">PMI Mfg <span id="fid-pmi-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidPmiChart"></canvas></div>
         </div>
-        <div class="card card-sm">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('gdp')">
           <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">PIB Real % <span id="fid-gdp-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidGdpChart"></canvas></div>
         </div>
-        <div class="card card-sm">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('unemp')">
           <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Desempleo % <span id="fid-unemp-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidUnempChart"></canvas></div>
         </div>
-        <div class="card card-sm">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('yield')">
           <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Curva 10Y-2Y <span id="fid-yield-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidYieldChart"></canvas></div>
         </div>
-        <div class="card card-sm">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('retail')">
           <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">V. Minoristas <span id="fid-retail-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidRetailChart"></canvas></div>
         </div>
-        <div class="card card-sm">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('sent')">
           <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Conf. Consumidor <span id="fid-sent-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidSentChart"></canvas></div>
         </div>
@@ -783,7 +792,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <!-- ── ROW 5: Termómetros Howell — Histórico ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Termómetros</div><div class="sh-title">Los 4 Termómetros de Howell — Histórico</div><div class="sh-line"></div></div>
   <div class="g4" style="margin-bottom:10px">
-    <div class="card amber-a"><div class="card-accent"></div>
+    <div class="card amber-a clickable" onclick="openIndicatorModal('res')"><div class="card-accent"></div>
       <div class="lbl">① Reservas Bancarias Fed</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-res-val">—</div><div class="mono" id="m-res-chg" style="font-size:10px">—</div></div>
       <div class="ch-wrap ch140"><canvas id="resChart" role="img" aria-label="Reservas Fed">Reservas históricas.</canvas></div>
@@ -793,7 +802,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div class="source-badge">FRED: WRBWFRBL</div>
     </div>
-    <div class="card red-a"><div class="card-accent"></div>
+    <div class="card red-a clickable" onclick="openIndicatorModal('sofr')"><div class="card-accent"></div>
       <div class="lbl">② Spread SOFR / Fed Funds</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-sofr-val">—</div><div class="mono" style="font-size:10px;color:var(--text3)">SOFR > FFR</div></div>
       <div class="ch-wrap ch140"><canvas id="sofrChart" role="img" aria-label="Spread SOFR">SOFR histórico.</canvas></div>
@@ -803,7 +812,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div class="source-badge">FRED: SOFR</div>
     </div>
-    <div class="card amber-a"><div class="card-accent"></div>
+    <div class="card amber-a clickable" onclick="openIndicatorModal('move')"><div class="card-accent"></div>
       <div class="lbl">③ MOVE Index — Vol Treasuries</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono" id="m-move-chg" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch140"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
@@ -814,7 +823,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div class="source-badge">ICE BofA MOVE</div>
     </div>
-    <div class="card red-a"><div class="card-accent"></div>
+    <div class="card red-a clickable" onclick="openIndicatorModal('tga')"><div class="card-accent"></div>
       <div class="lbl">④ TGA — Cuenta Gral del Tesoro</div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" style="font-size:10px;color:var(--red)">Drenaje activo</div></div>
       <div class="ch-wrap ch140"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
@@ -2098,7 +2107,7 @@ function updateETFTable(prices) {
     const qs   = (p.chg3m ?? 0) >= 0 ? '+' : '';
     const ys   = p.ytd   >= 0 ? '+' : '';
     const q3v  = p.chg3m != null ? `${qs}${p.chg3m}%` : '—';
-    tbody.innerHTML += `<tr>
+    tbody.innerHTML += `<tr style="cursor:pointer" onclick="openETFModal('${ticker}')">
       <td class="mono tbl-ticker ${fcs}">${ticker}<span class="live-badge" style="margin-left:3px">LIVE</span></td>
       <td class="mono" style="color:var(--text2);font-size:8px">${m.n}</td>
       <td class="mono">$${ps}</td>
@@ -2139,7 +2148,7 @@ function updateHeatmap(prices) {
     const pct = v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—';
     const bg  = v != null ? color(v) : 'var(--surface2)';
     const tc  = v != null ? text(v)  : 'var(--text3)';
-    hm.innerHTML += `<div class="hm-cell" style="background:${bg}">
+    hm.innerHTML += `<div class="hm-cell" style="background:${bg};cursor:pointer" onclick="openETFModal('${t}')">
       <div class="hm-ticker" style="color:${tc}">${t}</div>
       <div class="hm-name" style="color:${tc};opacity:.8">${n}</div>
       <div class="hm-pct" style="color:${tc}">${pct}${v != null ? '%' : ''}</div>
@@ -3527,6 +3536,102 @@ function updateTechSignals(ticker) {
   // Phase-aligned setup text
   const setupEl = document.getElementById('tv-setup-text');
   if (setupEl) {
+// ══════════════════════════════════
+// MODAL UNIVERSAL — TV + FRED
+// ══════════════════════════════════
+const TV_SYMBOLS = {
+  GLD:'AMEX:GLD', GDX:'AMEX:GDX', XLE:'AMEX:XLE', XLV:'AMEX:XLV',
+  XLP:'AMEX:XLP', XLU:'AMEX:XLU', XLB:'AMEX:XLB', XLF:'AMEX:XLF',
+  XLI:'AMEX:XLI', XLC:'AMEX:XLC', SPY:'AMEX:SPY', QQQ:'NASDAQ:QQQ',
+  IWM:'AMEX:IWM', TLT:'NASDAQ:TLT', EEM:'AMEX:EEM',
+  DXY:'TVC:DXY', MOVE:'TVC:MOVE', VIX:'CBOE:VIX',
+};
+
+let _modalChart = null;
+
+function closeModal() {
+  const m = document.getElementById('tv-modal');
+  if (m) m.style.display = 'none';
+  if (_modalChart) { try { _modalChart.destroy(); } catch(e) {} _modalChart = null; }
+  const b = document.getElementById('modal-body');
+  if (b) b.innerHTML = '';
+}
+
+function openTVModal(title, tvSymbol) {
+  document.getElementById('modal-title').textContent = title;
+  const body = document.getElementById('modal-body');
+  body.innerHTML = '<div id="modal-tv-container" style="height:420px"></div>';
+  document.getElementById('tv-modal').style.display = 'flex';
+  setTimeout(() => {
+    new TradingView.widget({
+      container_id:'modal-tv-container', symbol:tvSymbol,
+      interval:'D', timezone:'America/New_York', theme:'dark',
+      style:'1', locale:'es', width:'100%', height:420,
+      hide_side_toolbar:true, allow_symbol_change:true,
+    });
+  }, 50);
+}
+
+function openFREDModal(title, seriesArr, unit, color, fredUrl) {
+  document.getElementById('modal-title').textContent = title;
+  const body = document.getElementById('modal-body');
+  const rows = seriesArr ? [...seriesArr].reverse() : [];
+  const labels = rows.map(r => r.date ? String(r.date).slice(0,10) : '');
+  const values = rows.map(r => r.value);
+  body.innerHTML = `
+    <canvas id="modal-canvas" style="width:100%;height:340px"></canvas>
+    ${fredUrl ? `<div style="margin-top:10px;text-align:right"><a href="${fredUrl}" target="_blank" class="source-badge" style="font-size:9px">Ver serie completa en FRED ↗</a></div>` : ''}
+  `;
+  document.getElementById('tv-modal').style.display = 'flex';
+  const ctx = document.getElementById('modal-canvas').getContext('2d');
+  const c = color || '#c9a84c';
+  _modalChart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{
+      data:values, borderColor:c, backgroundColor:c+'22',
+      borderWidth:1.5, pointRadius:0, fill:true, tension:0.3
+    }]},
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{
+        label: ctx => ctx.parsed.y != null ? ctx.parsed.y.toLocaleString('es-MX') + (unit ? ' '+unit : '') : '—'
+      }}},
+      scales:{
+        x:{ ticks:{color:'#524e4a',font:{size:9},maxTicksLimit:10}, grid:{color:'#181826'} },
+        y:{ ticks:{color:'#524e4a',font:{size:9}}, grid:{color:'#181826'} }
+      }
+    }
+  });
+}
+
+const INDICATOR_CFG = {
+  res:   { title:'Reservas Bancarias Fed (WRBWFRBL)', dataKey:'reserves', unit:'M USD', color:'#fbbf24', fredUrl:'https://fred.stlouisfed.org/series/WRBWFRBL' },
+  tga:   { title:'TGA — Cuenta General del Tesoro (WTREGEN)', dataKey:'tga', unit:'M USD', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/WTREGEN' },
+  sofr:  { title:'SOFR — Tasa Referencia Repo (SOFR)', dataKey:'sofr', unit:'%', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/SOFR' },
+  dxy:   { title:'DXY — Índice del Dólar', tvSymbol:'TVC:DXY' },
+  move:  { title:'MOVE Index — Volatilidad Treasuries', tvSymbol:'TVC:MOVE' },
+  vix:   { title:'VIX — Volatilidad S&P 500', tvSymbol:'CBOE:VIX' },
+  pmi:   { title:'PMI Manufactura USA (NAPM)', dataKey:'pmi', unit:'', color:'#2dd4bf', fredUrl:'https://fred.stlouisfed.org/series/NAPM' },
+  gdp:   { title:'PIB Real USA — Tasa QoQ (A191RL1Q225SBEA)', dataKey:'gdpReal', unit:'%', color:'#60a5fa', fredUrl:'https://fred.stlouisfed.org/series/A191RL1Q225SBEA' },
+  unemp: { title:'Desempleo USA (UNRATE)', dataKey:'unrate', unit:'%', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/UNRATE' },
+  yield: { title:'Curva 10Y-2Y (T10Y2Y)', dataKey:'yieldCurve', unit:'%', color:'#fbbf24', fredUrl:'https://fred.stlouisfed.org/series/T10Y2Y' },
+  retail:{ title:'Ventas Minoristas USA (RSAFS)', dataKey:'retail', unit:'M USD', color:'#4ade80', fredUrl:'https://fred.stlouisfed.org/series/RSAFS' },
+  sent:  { title:'Confianza del Consumidor (UMCSENT)', dataKey:'sentiment', unit:'', color:'#a78bfa', fredUrl:'https://fred.stlouisfed.org/series/UMCSENT' },
+};
+
+function openIndicatorModal(key) {
+  const c = INDICATOR_CFG[key];
+  if (!c) return;
+  if (c.tvSymbol) openTVModal(c.title, c.tvSymbol);
+  else openFREDModal(c.title, state.data[c.dataKey], c.unit, c.color, c.fredUrl);
+}
+
+function openETFModal(ticker) {
+  const sym = TV_SYMBOLS[ticker];
+  const meta = ETF_META[ticker] || { n: ticker };
+  if (sym) openTVModal(ticker + ' — ' + meta.n, sym);
+}
+
     const phase34setups = {
       GLD: 'Oro en Fase 3/4: <strong style="color:var(--gold)">COMPRAR en soporte SMA20 semanal</strong>. Setup de acumulación mientras DXY < 106. Objetivo: máximos históricos.',
       GDX: 'Mineras (GDX) siguen al oro con beta ~1.5x. <strong style="color:var(--gold)">Entradas en correcciones > 8%</strong> del último máximo. Mayor riesgo, mayor retorno.',
@@ -3542,5 +3647,17 @@ function updateTechSignals(ticker) {
 }
 
 </script>
+
+<!-- ── Universal Modal ── -->
+<div id="tv-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-hdr">
+      <div class="lbl" id="modal-title" style="font-size:11px;color:var(--gold);margin-bottom:0"></div>
+      <button class="modal-close" onclick="closeModal()">✕ cerrar</button>
+    </div>
+    <div id="modal-body" style="min-height:320px"></div>
+  </div>
+</div>
+
 </body>
 </html>
