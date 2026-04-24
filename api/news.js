@@ -106,7 +106,7 @@ module.exports = async (req, res) => {
           },
           signal: AbortSignal.timeout(6000),
         });
-        if (!response.ok) return;
+        if (!response.ok) { console.warn('RSS feed error:', feedUrl, response.status); return; }
 
         const xml = await response.text();
         const itemBlocks = xml.split(/<item[\s>]/i).slice(1);

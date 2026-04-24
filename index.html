@@ -331,6 +331,16 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #alert-banner{display:none;padding:7px 20px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;border-bottom:1px solid;text-align:center}
 #alert-banner.show-red{display:block;background:rgba(248,113,113,.1);color:var(--red);border-color:rgba(248,113,113,.3)}
 #alert-banner.show-amber{display:block;background:rgba(251,191,36,.08);color:var(--amber);border-color:rgba(251,191,36,.25)}
+/* ── Regime banner ── */
+.regime-banner{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-radius:var(--r);border:1px solid;margin-bottom:10px;flex-wrap:wrap;gap:8px;transition:background .4s,border-color .4s}
+.regime-label{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.16em}
+.regime-interp{font-size:10px;color:var(--text2);line-height:1.5;max-width:420px}
+/* ── Yield Curve buttons ── */
+.yc-btn{font-family:'IBM Plex Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .15s;letter-spacing:.05em}
+.yc-btn:hover{border-color:var(--gold);color:var(--gold)}
+.yc-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.08)}
+.yc-level-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border)}
+.yc-level-row:last-child{border-bottom:none}
 </style>
 </head>
 <body>
@@ -395,6 +405,15 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 ══════════════════════════════════════════════════ -->
 <div id="tab-diag" class="page active">
 
+  <!-- ── REGIME BANNER — Decision Engine ── -->
+  <div id="regime-banner" class="regime-banner" style="background:rgba(248,113,113,.04);border-color:rgba(248,113,113,.18)">
+    <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
+      <div id="regime-label" class="regime-label" style="color:var(--red);white-space:nowrap">CARGANDO</div>
+      <div id="regime-interp" class="regime-interp">Esperando datos de mercado...</div>
+    </div>
+    <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center" id="regime-signals"></div>
+  </div>
+
   <!-- ── HERO SCORE ── -->
   <div class="hero-score-block">
     <div class="hero-score-left">
@@ -427,6 +446,18 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="hero-score-bar">
         <div class="hsb-label"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
         <div class="hsb-track"><div class="hsb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="hero-score-bar" style="margin-top:2px;padding-top:4px;border-top:1px solid var(--border)">
+        <div class="hsb-label"><span>Curva 10Y-2Y</span><span id="hbar-yc-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
+      </div>
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>Desempleo</span><span id="hbar-ur-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-ur" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="hero-score-bar">
+        <div class="hsb-label"><span>SPY vs SMA20w</span><span id="hbar-spy-v">—</span></div>
+        <div class="hsb-track"><div class="hsb-fill" id="hbar-spy" style="width:0%;background:var(--green)"></div></div>
       </div>
     </div>
   </div>
@@ -622,7 +653,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Howell</span><span id="diag-cross-howell" class="badge b-alt" style="font-size:8px">—</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Fidelity</span><span id="diag-cross-fidelity" class="badge b-neu" style="font-size:8px">—</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-dxy-label" style="font-size:10px;color:var(--text2)">DXY —</span><span id="diag-dxy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">China PBOC</span><span class="badge b-up" style="font-size:8px">Fase 1</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">China PBOC</span><span id="diag-pboc-badge" class="badge b-up" style="font-size:8px">Cargando</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">VIX/VVIX</span><span id="diag-vix-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-wti-label" style="font-size:10px;color:var(--text2)">WTI —</span><span id="diag-wti-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">HY Spread</span><span id="diag-hy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
@@ -671,6 +702,65 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
           <span id="pre-hy-badge" class="badge b-dn">— SPREADS</span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── CURVA DE TIPOS ── -->
+  <div class="sh" style="margin-top:14px">
+    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Yield Curve</div>
+    <div class="sh-title">Estructura de Plazos — 6M a 30 Años</div>
+    <div class="sh-line"></div>
+    <span id="yc-signal-badge" class="badge b-neu">Cargando</span>
+  </div>
+  <div class="g21" style="margin-bottom:10px">
+    <!-- Chart area -->
+    <div class="card blue-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="lbl" id="yc-shape-label" style="color:var(--blue)">Curva de tipos</div>
+        <div style="display:flex;gap:4px">
+          <button class="yc-btn active" onclick="setYcView('now',this)">Ahora</button>
+          <button class="yc-btn" onclick="setYcView('3m',this)">−3M</button>
+          <button class="yc-btn" onclick="setYcView('1y',this)">−1A</button>
+          <button class="yc-btn" onclick="setYcView('both',this)">Comparar</button>
+        </div>
+      </div>
+      <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
+      <!-- Legend inline -->
+      <div id="yc-legend" style="display:flex;gap:12px;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)">
+        <span><span style="display:inline-block;width:16px;height:2px;background:#4ade80;vertical-align:middle;margin-right:4px;border-radius:1px"></span>Ahora</span>
+        <span id="yc-legend-cmp" style="display:none"><span style="display:inline-block;width:16px;height:2px;background:#fbbf24;vertical-align:middle;margin-right:4px;border-radius:1px;border-top:2px dashed #fbbf24;background:none"></span><span id="yc-legend-cmp-lbl">—</span></span>
+      </div>
+    </div>
+    <!-- Signal panel -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card">
+        <div class="lbl">Spreads clave</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">10Y − 2Y</span>
+            <span id="yc-sp-10y2y" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:8px">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">10Y − 6M</span>
+            <span id="yc-sp-10y6m" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:8px">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">30Y − 6M</span>
+            <span id="yc-sp-30y6m" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:8px">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl">Interpretación</div>
+        <div id="yc-interpretation" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
+      </div>
+      <div class="card">
+        <div class="lbl">Niveles actuales</div>
+        <div id="yc-levels-list" style="margin-top:6px"></div>
       </div>
     </div>
   </div>
@@ -1058,19 +1148,19 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="card" style="border-color:rgba(201,168,76,.2)">
         <div class="lbl" style="color:var(--gold)">Estado esta semana</div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px" id="weekStatus"></div>
-        <div style="margin-top:8px;padding:7px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px">
+        <div id="check-postura-ct" style="margin-top:8px;padding:7px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px">
           <div class="mono" style="font-size:8px;color:var(--red);letter-spacing:.1em">POSTURA GENERAL</div>
-          <div style="font-size:13px;font-weight:500;color:var(--text);margin-top:2px">DEFENSIVO</div>
-          <div style="font-size:9px;color:var(--text2)">Preservar capital. Activos reales y cash.</div>
+          <div id="check-postura-text" style="font-size:13px;font-weight:500;color:var(--text);margin-top:2px">DEFENSIVO</div>
+          <div id="check-postura-desc" style="font-size:9px;color:var(--text2)">Preservar capital. Activos reales y cash.</div>
         </div>
       </div>
       <div class="card">
         <div class="lbl">Próximos eventos clave</div>
         <div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">
-          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">Reservas Fed</span><span class="mono" style="font-size:9px;color:var(--text3)">Jue 17 abr</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">CPI USA</span><span class="mono" style="font-size:9px;color:var(--text3)">Mar 15 abr</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">Reunión Fed</span><span class="mono" style="font-size:9px;color:var(--amber)">May 7, 2026</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="font-size:10px;color:var(--text2)">PMI China</span><span class="mono" style="font-size:9px;color:var(--text3)">30 abr</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">Reservas Fed</span><span id="evt-res" class="mono" style="font-size:9px;color:var(--text3)">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">CPI USA</span><span id="evt-cpi" class="mono" style="font-size:9px;color:var(--text3)">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border)"><span style="font-size:10px;color:var(--text2)">Reunión Fed</span><span id="evt-fed" class="mono" style="font-size:9px;color:var(--amber)">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:4px 0"><span style="font-size:10px;color:var(--text2)">PMI China</span><span id="evt-pmi" class="mono" style="font-size:9px;color:var(--text3)">—</span></div>
         </div>
       </div>
     </div>
@@ -1163,7 +1253,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         </div>
         <div class="signal-block">
           <div class="signal-title">Gamma exposure S&P</div>
-          <div class="signal-text">Dealers con <strong>gamma negativa</strong> bajo 4,780. Si SPX rompe ese nivel, los dealers se ven obligados a vender. Riesgo de cascada.</div>
+          <div class="signal-text" id="jj-gamma-text" contenteditable="true" spellcheck="false" style="outline:none;cursor:text;border-bottom:1px dashed rgba(167,139,250,.2)" title="Haz clic para editar · Se guarda automáticamente"></div>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">
           <div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Fuente: jjmontoya.substack.com</div>
@@ -1473,7 +1563,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 
 <script>
 // ── Global state — must be defined BEFORE any chart creation ──
-const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, priceTimer: null, firstLoad: true, chartRange: '1y' };
+const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, priceTimer: null, firstLoad: true, chartRange: '1y', ycView: 'now' };
 
 // ── Clock ──
 (function tick(){
@@ -1560,6 +1650,40 @@ mini('fidUnempChart',mo,Array(12).fill(null),red,false);
 mini('fidYieldChart',mo,Array(12).fill(null),amber,false);
 mini('fidRetailChart',mo,Array(12).fill(null),green,false);
 mini('fidSentChart',mo,Array(12).fill(null),purple,false);
+
+// ── Yield Curve chart ──
+state.charts['yieldCurveChart'] = new Chart(document.getElementById('yieldCurveChart'), {
+  type: 'line',
+  data: {
+    labels: ['6M','1A','2A','5A','10A','20A','30A'],
+    datasets: [
+      { label:'Ahora', data:Array(7).fill(null), borderColor:green, backgroundColor:'rgba(74,222,128,.06)',
+        borderWidth:2.5, pointRadius:5, pointHoverRadius:7, tension:0.3, fill:false },
+      { label:'Comparación', data:Array(7).fill(null), borderColor:amber, borderDash:[5,4],
+        borderWidth:1.5, pointRadius:3, pointHoverRadius:5, tension:0.3, fill:false, hidden:true }
+    ]
+  },
+  options: {
+    responsive:true, maintainAspectRatio:false,
+    interaction:{ mode:'index', intersect:false },
+    plugins:{
+      legend:{ display:false },
+      tooltip:{
+        backgroundColor:'rgba(7,7,14,.92)', borderColor:'rgba(255,255,255,.08)', borderWidth:1,
+        titleFont:{ family:"'IBM Plex Mono',monospace", size:9 },
+        bodyFont:{ family:"'IBM Plex Mono',monospace", size:10 },
+        callbacks:{
+          label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(2)+'%' : '—'}`,
+        }
+      }
+    },
+    scales:{
+      x:{ grid:{ color:border }, ticks:{ color:'#6b7280', font:{ size:9 } } },
+      y:{ grid:{ color:border }, ticks:{ color:'#6b7280', font:{ size:9 },
+        callback: v => v.toFixed(1)+'%' } }
+    }
+  }
+});
 
 // ── VIX chart ──
 state.charts['vixChart']=new Chart(document.getElementById('vixChart'),{
@@ -1712,7 +1836,7 @@ const ETF_META = {
   EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
 };
 
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,NAPM,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,NAPM,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -1798,6 +1922,14 @@ async function loadFredData() {
     state.data.yieldCurve = Array.isArray(d.T10Y2Y)             ? d.T10Y2Y             : null;
     state.data.retail     = Array.isArray(d.RSAFS)              ? d.RSAFS              : null;
     state.data.sentiment  = Array.isArray(d.UMCSENT)            ? d.UMCSENT            : null;
+    // Yield curve maturities (6M → 30Y)
+    state.data.yc6m  = Array.isArray(d.TB6MS) ? d.TB6MS : null;
+    state.data.yc1y  = Array.isArray(d.GS1)   ? d.GS1   : null;
+    state.data.yc2y  = Array.isArray(d.GS2)   ? d.GS2   : null;
+    state.data.yc5y  = Array.isArray(d.GS5)   ? d.GS5   : null;
+    state.data.yc10y = Array.isArray(d.GS10)  ? d.GS10  : null;
+    state.data.yc20y = Array.isArray(d.GS20)  ? d.GS20  : null;
+    state.data.yc30y = Array.isArray(d.GS30)  ? d.GS30  : null;
 
     updateFredUI();
     updateNavTickers();
@@ -2757,6 +2889,20 @@ function updateDiagnostic() {
   const cxh = document.getElementById('diag-cross-howell');
   if (cxh) { cxh.className = 'badge ' + (score >= 5 ? 'b-dn' : score >= 3 ? 'b-alt' : score >= 1 ? 'b-neu' : 'b-neu'); cxh.style.fontSize = '8px'; cxh.textContent = score >= 5 ? 'F4 Inminente' : score >= 3 ? 'F3→F4' : score >= 1 ? 'F3 Squeeze' : '—'; }
 
+  // ── China PBOC badge (proxy: GLD YTD + DXY) ──
+  const pbocBdg = document.getElementById('diag-pboc-badge');
+  if (pbocBdg) {
+    const gldYtd = prices?.['GLD']?.ytd;
+    let pbocCls = 'b-neu', pbocTxt = 'Fase 2 · Neutral';
+    if (dxyVal != null && gldYtd != null) {
+      if (dxyVal < 102 && gldYtd > 3)       { pbocCls = 'b-up'; pbocTxt = 'Fase 1 · Expansivo'; }
+      else if (dxyVal > 106 || gldYtd < -2) { pbocCls = 'b-dn'; pbocTxt = 'Fase 3 · Restrictivo'; }
+    }
+    pbocBdg.className = `badge ${pbocCls}`;
+    pbocBdg.style.fontSize = '8px';
+    pbocBdg.textContent = pbocTxt;
+  }
+
   // ── DXY cross-diagnosis ──
   if (dxyVal != null) {
     const dxyLbl = document.getElementById('diag-dxy-label');
@@ -3066,6 +3212,186 @@ function updateFavoredAssets(prices) {
 }
 
 // ── Flash on value change ──
+// ═══════════════════════════════════════════════════
+// DECISION ENGINE — Regime + Yield Curve
+// ═══════════════════════════════════════════════════
+
+// Computes macro regime from all available signals
+function computeRegime() {
+  const { yieldCurve, unrate, prices } = state.data;
+  const { score, dxyVal, cpiYoY } = computeHowellScore();
+  const signals = [];
+  let riskPts = 0;
+
+  // 1. Howell score (0-8 → 0-3 risk points)
+  const howellRisk = score >= 5 ? 3 : score >= 3 ? 2 : score >= 1 ? 1 : 0;
+  riskPts += howellRisk;
+  signals.push({ txt: `Score ${score.toFixed(1)}/8`, cls: howellRisk >= 3 ? 'b-dn' : howellRisk >= 2 ? 'b-alt' : howellRisk >= 1 ? 'b-neu' : 'b-up', risk: howellRisk > 0 });
+
+  // 2. Yield curve 10Y-2Y (already in state.data.yieldCurve as T10Y2Y)
+  const ycVal = yieldCurve?.[0]?.value;
+  if (ycVal != null) {
+    const ycRisk = ycVal < 0 ? 2 : ycVal < 0.5 ? 1 : 0;
+    riskPts += ycRisk;
+    signals.push({ txt: `10Y-2Y ${ycVal >= 0 ? '+' : ''}${ycVal.toFixed(2)}%`, cls: ycRisk >= 2 ? 'b-dn' : ycRisk === 1 ? 'b-alt' : 'b-up', risk: ycRisk > 0 });
+  }
+
+  // 3. Unemployment trend (vs 3 months ago)
+  if (unrate?.length >= 4) {
+    const rise = unrate[0].value - unrate[3].value;
+    const urRisk = rise >= 0.5 ? 2 : rise >= 0.2 ? 1 : 0;
+    riskPts += urRisk;
+    signals.push({ txt: `UNRATE ${rise > 0 ? '↑' : '→'}${Math.abs(rise).toFixed(1)}pp`, cls: urRisk >= 2 ? 'b-dn' : urRisk === 1 ? 'b-alt' : 'b-up', risk: urRisk > 0 });
+  }
+
+  // 4. SPY vs SMA100 (≈ 20 semanas)
+  const spy = prices?.['SPY'];
+  if (spy?.hist?.length >= 100) {
+    const sma100 = spy.hist.slice(-100).reduce((a, b) => a + b, 0) / 100;
+    const spyBearish = spy.price < sma100;
+    if (spyBearish) riskPts += 1;
+    signals.push({ txt: spyBearish ? `SPY<SMA20w` : `SPY>SMA20w`, cls: spyBearish ? 'b-dn' : 'b-up', risk: spyBearish });
+  }
+
+  // Regime from total risk points (max ~8)
+  let regime, regimeColor, action;
+  if (riskPts >= 5)      { regime='RISK_OFF'; regimeColor='var(--red)';   action='Postura defensiva — cash, oro, commodities. Salir del riesgo.'; }
+  else if (riskPts >= 3) { regime='NEUTRAL';  regimeColor='var(--amber)'; action='Postura mixta — defensivos + valor. Reducir tecnología.'; }
+  else                   { regime='RISK_ON';  regimeColor='var(--green)'; action='Condiciones expansivas — riesgo moderado aceptable.'; }
+
+  const riskActive = signals.filter(s => s.risk).map(s => s.txt.toLowerCase());
+  const interp = riskActive.length > 0
+    ? riskActive.join(' · ') + ` → ${action.split('—')[0].trim().toLowerCase()}`
+    : action;
+
+  return { regime, regimeColor, action, interp, signals, riskPts };
+}
+
+function updateRegimeBanner() {
+  const banner  = document.getElementById('regime-banner');
+  const labelEl = document.getElementById('regime-label');
+  const interpEl = document.getElementById('regime-interp');
+  const sigEl   = document.getElementById('regime-signals');
+  if (!banner || !labelEl) return;
+
+  const { regime, regimeColor, interp, signals, riskPts } = computeRegime();
+
+  const bg  = riskPts >= 5 ? 'rgba(248,113,113,.05)' : riskPts >= 3 ? 'rgba(251,191,36,.05)' : 'rgba(74,222,128,.04)';
+  const bdr = riskPts >= 5 ? 'rgba(248,113,113,.2)'  : riskPts >= 3 ? 'rgba(251,191,36,.18)' : 'rgba(74,222,128,.15)';
+  banner.style.background  = bg;
+  banner.style.borderColor = bdr;
+  labelEl.textContent = regime;
+  labelEl.style.color = regimeColor;
+  if (interpEl) interpEl.textContent = interp;
+  if (sigEl) sigEl.innerHTML = signals.map(s =>
+    `<span class="badge ${s.cls}" style="font-size:8px">${s.txt}</span>`
+  ).join('');
+}
+
+// ── Yield Curve update ──
+function ycSpreadEl(valId, sigId, spread) {
+  const vEl = document.getElementById(valId);
+  const sEl = document.getElementById(sigId);
+  if (vEl) vEl.textContent = spread != null ? `${spread >= 0 ? '+' : ''}${spread.toFixed(2)}%` : '—';
+  if (sEl && spread != null) {
+    if (spread < 0)        { sEl.className='badge b-dn';  sEl.textContent='Invertido'; }
+    else if (spread < 0.5) { sEl.className='badge b-alt'; sEl.textContent='Plana'; }
+    else                   { sEl.className='badge b-up';  sEl.textContent='Normal'; }
+  }
+}
+
+function updateYieldCurve() {
+  const chart = state.charts['yieldCurveChart'];
+  if (!chart) return;
+  const { yc6m, yc1y, yc2y, yc5y, yc10y, yc20y, yc30y } = state.data;
+
+  const TENORS = [
+    { label:'6M',  data:yc6m  },
+    { label:'1A',  data:yc1y  },
+    { label:'2A',  data:yc2y  },
+    { label:'5A',  data:yc5y  },
+    { label:'10A', data:yc10y },
+    { label:'20A', data:yc20y },
+    { label:'30A', data:yc30y },
+  ];
+
+  // Index helpers: monthly series → idx 0=now, 3=3M ago, 12=1Y ago
+  const now  = TENORS.map(t => t.data?.[0]?.value  ?? null);
+  const ago3M = TENORS.map(t => t.data?.[3]?.value  ?? null);
+  const ago1Y = TENORS.map(t => t.data?.[12]?.value ?? null);
+
+  const view = state.ycView || 'now';
+
+  chart.data.datasets[0].data = now;
+  const isInverted = now[0] != null && now[4] != null && now[0] > now[4];
+  chart.data.datasets[0].borderColor = isInverted ? '#f87171' : '#4ade80';
+
+  const cmpData = view === '1y' ? ago1Y : ago3M;
+  const cmpLabel = view === '1y' ? 'Hace 1A' : 'Hace 3M';
+  chart.data.datasets[1].data   = cmpData;
+  chart.data.datasets[1].label  = cmpLabel;
+  chart.data.datasets[1].hidden = (view === 'now');
+
+  chart.update('none');
+
+  // Legend
+  const legendCmp = document.getElementById('yc-legend-cmp');
+  const legendLbl = document.getElementById('yc-legend-cmp-lbl');
+  if (legendCmp) legendCmp.style.display = view !== 'now' ? 'inline' : 'none';
+  if (legendLbl) legendLbl.textContent = cmpLabel;
+
+  // Spreads
+  const sp10y2y = (now[4] != null && now[2] != null) ? now[4] - now[2] : null;
+  const sp10y6m = (now[4] != null && now[0] != null) ? now[4] - now[0] : null;
+  const sp30y6m = (now[6] != null && now[0] != null) ? now[6] - now[0] : null;
+  ycSpreadEl('yc-sp-10y2y', 'yc-sp-10y2y-sig', sp10y2y);
+  ycSpreadEl('yc-sp-10y6m', 'yc-sp-10y6m-sig', sp10y6m);
+  ycSpreadEl('yc-sp-30y6m', 'yc-sp-30y6m-sig', sp30y6m);
+
+  // Signal badge
+  const sigBdg = document.getElementById('yc-signal-badge');
+  if (sigBdg) {
+    if (isInverted)                              { sigBdg.className='badge b-dn';  sigBdg.textContent='⚠ Invertida'; }
+    else if (sp10y6m != null && sp10y6m < 0.5)  { sigBdg.className='badge b-alt'; sigBdg.textContent='→ Plana'; }
+    else                                          { sigBdg.className='badge b-up';  sigBdg.textContent='↑ Normal'; }
+  }
+
+  // Shape label
+  const shapeEl = document.getElementById('yc-shape-label');
+  if (shapeEl && sp10y6m != null) {
+    const slope = isInverted ? 'invertida' : sp10y6m < 0.5 ? 'plana' : 'normal';
+    shapeEl.textContent = `Curva ${slope} · 10Y-6M: ${sp10y6m >= 0 ? '+' : ''}${sp10y6m.toFixed(2)}%`;
+  }
+
+  // Interpretation
+  const interpEl = document.getElementById('yc-interpretation');
+  if (interpEl) {
+    const msgs = [];
+    if (isInverted)  msgs.push('Curva <strong style="color:var(--red)">invertida</strong> — históricamente anticipa recesión 12-18 meses.');
+    if (sp10y2y != null && sp10y2y < 0) msgs.push(`Spread 10Y-2Y en ${sp10y2y.toFixed(2)}% — señal recesiva activa.`);
+    else if (sp10y2y != null && sp10y2y > 1.5) msgs.push(`Empinamiento 10Y-2Y (+${sp10y2y.toFixed(2)}%) — expectativa de crecimiento o reflación.`);
+    if (sp10y6m != null && sp10y6m >= 0.5 && !isInverted) msgs.push('Parte larga empinada — mercado descuenta crecimiento a largo plazo.');
+    if (msgs.length === 0) msgs.push('Curva con pendiente positiva normal — sin señales de estrés recesivo inmediato.');
+    interpEl.innerHTML = msgs.join('<br>');
+  }
+
+  // Levels list
+  const levelsEl = document.getElementById('yc-levels-list');
+  if (levelsEl) {
+    levelsEl.innerHTML = TENORS.map((t, i) => now[i] != null
+      ? `<div class="yc-level-row"><span class="mono" style="font-size:9px;color:var(--text3)">${t.label}</span><span class="mono" style="font-size:9px;font-weight:500">${now[i].toFixed(2)}%</span></div>`
+      : ''
+    ).join('');
+  }
+}
+
+function setYcView(view, btn) {
+  state.ycView = view;
+  document.querySelectorAll('.yc-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  updateYieldCurve();
+}
+
 function flashEl(id, dir) {
   const el = document.getElementById(id);
   if (!el) return;
@@ -3226,12 +3552,43 @@ function updateHeroScore() {
       label: cpiYoY != null ? cpiYoY.toFixed(1)+'%' : '—',
       color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && cpiYoY > 2.5 ? 'var(--amber)' : 'var(--green)' },
   ];
+  // 3 new confirmation bars
+  const ycVal2 = state.data.yieldCurve?.[0]?.value;
+  const ycNorm = ycVal2 != null ? Math.max(0, Math.min(100, ((ycVal2 + 1) / 3) * 100)) : 0;
+  bars.push({ id:'yc',  val: ycNorm,
+    label: ycVal2 != null ? `${ycVal2 >= 0 ? '+' : ''}${ycVal2.toFixed(2)}%` : '—',
+    color: ycVal2 != null && ycVal2 < 0 ? 'var(--red)' : ycVal2 != null && ycVal2 < 0.5 ? 'var(--amber)' : 'var(--green)' });
+
+  const ur = state.data.unrate;
+  const urNow = ur?.[0]?.value, ur3m = ur?.[3]?.value;
+  const urRise = (urNow != null && ur3m != null) ? urNow - ur3m : null;
+  bars.push({ id:'ur',  val: urRise != null ? Math.min(Math.max(0, (urRise / 1) * 100), 100) : 0,
+    label: urNow != null ? `${urNow.toFixed(1)}% (${urRise != null ? (urRise >= 0 ? '+' : '') + urRise.toFixed(1) : '—'}pp)` : '—',
+    color: urRise != null && urRise >= 0.5 ? 'var(--red)' : urRise != null && urRise >= 0.2 ? 'var(--amber)' : 'var(--green)' });
+
+  const spyData = state.data.prices?.['SPY'];
+  let spyBearish = false, spyLabel = '—', spyPct = 50;
+  if (spyData?.hist?.length >= 100) {
+    const sma100 = spyData.hist.slice(-100).reduce((a, b) => a + b, 0) / 100;
+    spyBearish = spyData.price < sma100;
+    const diff = ((spyData.price / sma100) - 1) * 100;
+    spyLabel = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`;
+    spyPct = Math.min(100, Math.max(0, 50 + diff * 2));
+  }
+  bars.push({ id:'spy', val: spyBearish ? 20 : 80,
+    label: spyLabel,
+    color: spyBearish ? 'var(--red)' : 'var(--green)' });
+
   bars.forEach(b => {
     const fill = document.getElementById('hbar-' + b.id);
     const vlbl = document.getElementById('hbar-' + b.id + '-v');
     if (fill) { fill.style.width = b.val + '%'; fill.style.background = b.color; }
     if (vlbl) vlbl.textContent = b.label;
   });
+
+  // Update regime banner and yield curve alongside hero
+  updateRegimeBanner();
+  updateYieldCurve();
 
   // Alert banner
   const banner = document.getElementById('alert-banner');
@@ -3332,11 +3689,78 @@ function updateChecklist() {
       </div>
     </div>`;
   });
+
+  // ── Update POSTURA GENERAL ──
+  const cpTxt = document.getElementById('check-postura-text');
+  const cpDsc = document.getElementById('check-postura-desc');
+  const cpCt  = document.getElementById('check-postura-ct');
+  if (cpTxt) {
+    const postText = score >= 5 ? 'MÁXIMA CAUTELA' : score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'DEFENSIVO SELECTIVO' : score >= 1 ? 'SELECTIVO' : 'VIGILANCIA';
+    const postDesc = score >= 5 ? 'Cash + Oro exclusivamente. Salir de riesgo.' : score >= 4 ? 'Preservar capital. Activos reales y cash.' : score >= 2 ? 'Oro · Defensivos. Reducir exposición a tecnología.' : score >= 1 ? 'Favorecer GLD, GDX, Commodities vs tech.' : 'Aguardar confirmación de señales.';
+    const bg   = score >= 4 ? 'rgba(248,113,113,.07)' : score >= 2 ? 'rgba(251,191,36,.06)' : 'rgba(74,222,128,.06)';
+    const bdr  = score >= 4 ? 'rgba(248,113,113,.2)'  : score >= 2 ? 'rgba(251,191,36,.18)' : 'rgba(74,222,128,.18)';
+    const col  = score >= 4 ? 'var(--red)'             : score >= 2 ? 'var(--amber)'         : 'var(--green)';
+    cpTxt.textContent = postText;
+    cpTxt.style.color = col;
+    if (cpDsc) cpDsc.textContent = postDesc;
+    if (cpCt)  { cpCt.style.background = bg; cpCt.style.borderColor = bdr; }
+  }
 }
+
+// ── Próximos eventos clave — fechas auto-calculadas ──
+const FOMC_DATES = [
+  new Date(2026, 4, 7), new Date(2026, 5, 17), new Date(2026, 6, 29),
+  new Date(2026, 8, 16), new Date(2026, 10, 4), new Date(2026, 11, 16),
+  new Date(2027, 0, 27), new Date(2027, 2, 17), new Date(2027, 4, 5),
+];
+const CPI_DATES = [
+  new Date(2026, 4, 13), new Date(2026, 5, 11), new Date(2026, 6, 15),
+  new Date(2026, 7, 12), new Date(2026, 8, 10), new Date(2026, 9, 15),
+  new Date(2026, 10, 13), new Date(2026, 11, 10),
+];
+function updateNextEvents() {
+  const now  = new Date();
+  const MES  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  const DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
+  const fmt  = d => `${DIAS[d.getDay()].charAt(0).toUpperCase()+DIAS[d.getDay()].slice(1)} ${d.getDate()} ${MES[d.getMonth()]}`;
+
+  // Reservas Fed: cada jueves (H.4.1)
+  const thu = new Date(now);
+  const daysToThu = ((4 - thu.getDay()) + 7) % 7 || 7;
+  thu.setDate(thu.getDate() + daysToThu);
+
+  // PMI China: último día del mes actual o siguiente si ya pasó
+  const eom = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const pmi = eom > now ? eom : new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+  const nextFOMC = FOMC_DATES.find(d => d > now);
+  const nextCPI  = CPI_DATES.find(d => d > now);
+
+  const resEl = document.getElementById('evt-res');
+  const cpiEl = document.getElementById('evt-cpi');
+  const fedEl = document.getElementById('evt-fed');
+  const pmiEl = document.getElementById('evt-pmi');
+  if (resEl) resEl.textContent = fmt(thu);
+  if (cpiEl) cpiEl.textContent = nextCPI  ? fmt(nextCPI)  : '—';
+  if (fedEl) fedEl.textContent = nextFOMC ? `${nextFOMC.getDate()} ${MES[nextFOMC.getMonth()]} ${nextFOMC.getFullYear()}` : '—';
+  if (pmiEl) pmiEl.textContent = `${pmi.getDate()} ${MES[pmi.getMonth()]}`;
+}
+updateNextEvents();
+
+// ── JJ Montoya — texto gamma editable (guarda en localStorage) ──
+(function() {
+  const el  = document.getElementById('jj-gamma-text');
+  if (!el) return;
+  const KEY = 'jj-gamma-v1';
+  const DEFAULT_HTML = 'Dealers con <strong>gamma negativa</strong> en zona clave. Si SPX rompe el soporte, los dealers se ven forzados a vender. <em style="color:var(--purple);font-size:8px">· Clic para actualizar nivel</em>';
+  el.innerHTML = localStorage.getItem(KEY) || DEFAULT_HTML;
+  el.addEventListener('blur',    () => localStorage.setItem(KEY, el.innerHTML));
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); } });
+})();
 
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.metaKey || e.ctrlKey) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true' || e.metaKey || e.ctrlKey) return;
   const tabs = ['diag','act','dxy','tesis','check','vol','news','tecnico'];
   const i = parseInt(e.key) - 1;
   if (i >= 0 && i < tabs.length) {
