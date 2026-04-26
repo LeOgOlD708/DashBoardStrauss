@@ -623,7 +623,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div class="kb-sub">Normal &lt;20 · Pánico &gt;35</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">SPY vs SMA20w · Tendencia</div>
+          <div class="kb-lbl">SPY vs SMA100 (≈20w) · Tendencia</div>
           <div class="kb-val" id="h-corto-spy" style="font-size:16px">—</div>
           <div class="kb-sub" id="h-corto-spy-sub">Cargando...</div>
         </div>
@@ -3470,8 +3470,9 @@ function updateRegimeBanner() {
 }
 
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
-function updateThreeHorizons() {
-  const { score: hScore, resVal, tgaVal, dxyVal, rrpVal } = computeHowellScore();
+// Recibe howellResult para no volver a llamar computeHowellScore (ya ejecutado en updateHeroScore)
+function updateThreeHorizons(howellResult) {
+  const { score: hScore, resVal, tgaVal, dxyVal, rrpVal } = howellResult;
   const { score: fScore, pmiVal, hyVal } = computeFidelityScore();
   const { regime, regimeColor, interp, riskPts } = computeRegime();
 
@@ -3864,9 +3865,10 @@ function updateHeroScore() {
   });
 
   // Update regime banner, yield curve and three horizons alongside hero
+  // Pasa el resultado de Howell ya calculado para evitar llamada duplicada
   updateRegimeBanner();
   updateYieldCurve();
-  updateThreeHorizons();
+  updateThreeHorizons({ score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal });
 
   // Alert banner
   const banner = document.getElementById('alert-banner');
