@@ -497,54 +497,150 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center" id="regime-signals"></div>
   </div>
 
-  <!-- ── HERO SCORE ── -->
-  <div class="hero-score-block">
-    <div class="hero-score-left">
-      <div class="hero-score-num" id="hero-score-num">—</div>
-      <div class="hero-score-denom">/8</div>
-      <div class="hero-score-label">Score Howell</div>
+  <!-- ── VERDICT HERO v2 ── -->
+  <div class="vh">
+    <div class="vh-score">
+      <div class="vh-num" id="hero-score-num">—</div>
+      <div class="vh-denom">/8</div>
+      <div class="vh-lbl">Score Howell</div>
     </div>
-    <div class="hero-score-mid">
-      <div class="hero-phase-name" id="hero-phase-name">Cargando…</div>
-      <div class="hero-phase-desc" id="hero-phase-desc">Esperando datos de mercado</div>
-      <div class="hero-postura defensivo" id="hero-postura">DEFENSIVO</div>
+    <div class="vh-mid">
+      <div class="vh-phase" id="hero-phase-name">Cargando…</div>
+      <div class="vh-desc" id="hero-phase-desc">Esperando datos de mercado</div>
+      <div class="vh-veredicto hero-postura defensivo" id="hero-postura">DEFENSIVO</div>
     </div>
-    <div class="hero-score-right">
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>Reservas Fed</span><span id="hbar-res-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-res" style="width:0%;background:var(--amber)"></div></div>
+    <div class="vh-bars">
+      <div class="vhb">
+        <div class="vhb-lbl"><span>Reservas Fed</span><span id="hbar-res-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-res" style="width:0%;background:var(--amber)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>TGA Tesoro</span><span id="hbar-tga-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-tga" style="width:0%;background:var(--red)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>TGA Tesoro</span><span id="hbar-tga-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-tga" style="width:0%;background:var(--red)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>SOFR Spread</span><span id="hbar-sofr-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-sofr" style="width:0%;background:var(--green)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>RRP Fed</span><span id="hbar-rrp-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-rrp" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>DXY</span><span id="hbar-dxy-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-dxy" style="width:0%;background:var(--green)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>SOFR Spread</span><span id="hbar-sofr-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-sofr" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>DXY</span><span id="hbar-dxy-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-dxy" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>RRP Fed</span><span id="hbar-rrp-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-rrp" style="width:0%;background:var(--green)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="hero-score-bar" style="margin-top:2px;padding-top:4px;border-top:1px solid var(--border)">
-        <div class="hsb-label"><span>Curva 10Y-2Y</span><span id="hbar-yc-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
+      <div class="vhb" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">
+        <div class="vhb-lbl"><span>Curva 10Y-2Y</span><span id="hbar-yc-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>Desempleo</span><span id="hbar-ur-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-ur" style="width:0%;background:var(--green)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>Desempleo</span><span id="hbar-ur-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-ur" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="hero-score-bar">
-        <div class="hsb-label"><span>SPY vs SMA20w</span><span id="hbar-spy-v">—</span></div>
-        <div class="hsb-track"><div class="hsb-fill" id="hbar-spy" style="width:0%;background:var(--green)"></div></div>
+      <div class="vhb">
+        <div class="vhb-lbl"><span>SPY vs SMA20w</span><span id="hbar-spy-v">—</span></div>
+        <div class="vhb-track"><div class="vhb-fill" id="hbar-spy" style="width:0%;background:var(--green)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── THREE HORIZONS ── -->
+  <div class="h3">
+    <!-- Largo Plazo — Ciclo Howell / Liquidez -->
+    <div class="hcol h-largo">
+      <div class="hcol-hdr">
+        <div>
+          <div class="hcol-lbl">Largo Plazo</div>
+          <div class="hcol-period">6 – 24 meses · Ciclo Howell</div>
+        </div>
+        <span id="h-largo-regime" class="badge b-neu" style="font-size:8px">—</span>
+      </div>
+      <div class="hcol-body">
+        <div class="kb">
+          <div class="kb-lbl">Score Howell</div>
+          <div class="kb-val" id="h-largo-score">—<span style="font-size:11px;color:var(--text3)">/8</span></div>
+          <div class="kb-sub" id="h-largo-fase">Cargando...</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Net Liquidity (Res − TGA − RRP)</div>
+          <div class="kb-val" id="h-largo-netliq" style="font-size:14px">—</div>
+          <div class="kb-sub" id="h-largo-netliq-sub">Reservas · TGA · RRP</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">DXY · Multiplicador global</div>
+          <div class="kb-val" id="h-largo-dxy" style="font-size:16px">—</div>
+          <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 55%,var(--red) 100%)">
+            <div class="thb-hdl" id="h-largo-dxy-hdl" style="left:50%"></div>
+          </div>
+          <div class="kb-sub">Expansivo &lt;100 · Restrictivo &gt;106</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Medio Plazo — Ciclo Fidelity / Economía -->
+    <div class="hcol h-medio">
+      <div class="hcol-hdr">
+        <div>
+          <div class="hcol-lbl">Medio Plazo</div>
+          <div class="hcol-period">1 – 6 meses · Ciclo Fidelity</div>
+        </div>
+        <span id="h-medio-fase" class="badge b-neu" style="font-size:8px">—</span>
+      </div>
+      <div class="hcol-body">
+        <div class="kb">
+          <div class="kb-lbl">Score Fidelity</div>
+          <div class="kb-val" id="h-medio-score">—<span style="font-size:11px;color:var(--text3)">/8</span></div>
+          <div class="kb-sub" id="h-medio-fase-desc">Cargando...</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">PMI Manufactura · Tendencia</div>
+          <div class="kb-val" id="h-medio-pmi" style="font-size:16px">—</div>
+          <div class="kb-sub" id="h-medio-pmi-trend">vs 3m: —</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">HY Spreads · Estrés crediticio</div>
+          <div class="kb-val" id="h-medio-hy" style="font-size:16px">—</div>
+          <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%)">
+            <div class="thb-hdl" id="h-medio-hy-hdl" style="left:20%"></div>
+          </div>
+          <div class="kb-sub">Normal &lt;4.5% · Estrés &gt;5.5%</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Corto Plazo — Régimen de Mercado -->
+    <div class="hcol h-corto">
+      <div class="hcol-hdr">
+        <div>
+          <div class="hcol-lbl">Corto Plazo</div>
+          <div class="hcol-period">1 – 4 semanas · Mercado</div>
+        </div>
+        <span id="h-corto-regime" class="badge b-neu" style="font-size:8px">—</span>
+      </div>
+      <div class="hcol-body">
+        <div class="kb">
+          <div class="kb-lbl">Régimen</div>
+          <div class="kb-val" id="h-corto-regime-label" style="font-size:14px">—</div>
+          <div class="kb-sub" id="h-corto-regime-desc">Cargando...</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">VIX · Volatilidad implícita</div>
+          <div class="kb-val" id="h-corto-vix" style="font-size:16px">—</div>
+          <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%)">
+            <div class="thb-hdl" id="h-corto-vix-hdl" style="left:20%"></div>
+          </div>
+          <div class="kb-sub">Normal &lt;20 · Pánico &gt;35</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">SPY vs SMA20w · Tendencia</div>
+          <div class="kb-val" id="h-corto-spy" style="font-size:16px">—</div>
+          <div class="kb-sub" id="h-corto-spy-sub">Cargando...</div>
+        </div>
       </div>
     </div>
   </div>
@@ -3387,6 +3483,88 @@ function updateRegimeBanner() {
   ).join('');
 }
 
+// ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
+function updateThreeHorizons() {
+  const { score: hScore, resVal, tgaVal, dxyVal, rrpVal } = computeHowellScore();
+  const { score: fScore, pmiVal, pmiPrev3: fPmiPrev, hyVal } = computeFidelityScore();
+  const { regime, regimeColor, interp, riskPts } = computeRegime();
+
+  // ── LARGO — Howell / Liquidez ──
+  const setT = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  const setS = (id,v) => { const el=document.getElementById(id); if(el) el.style.left=v; };
+
+  setT('h-largo-score', hScore.toFixed(1));
+  const hFase = hScore>=5?'Fase 4 · Contracción':hScore>=4?'Fase 3→4 · Alerta':hScore>=2?'Fase 3 · Squeeze':hScore>=1?'Fase 2 · Aceleración':'Fase 1 · Expansión';
+  setT('h-largo-fase', hFase);
+
+  const netLiq = (resVal != null && tgaVal != null && rrpVal != null)
+    ? ((resVal - tgaVal - rrpVal) / 1e6).toFixed(2) + 'T'
+    : (resVal != null && tgaVal != null) ? ((resVal - tgaVal) / 1e6).toFixed(2) + 'T (sin RRP)' : '—';
+  setT('h-largo-netliq', '$' + netLiq);
+  if (resVal != null && tgaVal != null) {
+    const sub = `Res $${(resVal/1e6).toFixed(1)}T · TGA $${(tgaVal/1e6).toFixed(1)}T` + (rrpVal != null ? ` · RRP $${(rrpVal/1e6).toFixed(1)}T` : '');
+    setT('h-largo-netliq-sub', sub);
+  }
+
+  if (dxyVal != null) {
+    setT('h-largo-dxy', dxyVal.toFixed(2));
+    const pct = Math.min(100, Math.max(0, ((dxyVal - 85) / 35) * 100));
+    setS('h-largo-dxy-hdl', pct + '%');
+  }
+
+  const regimeCls = riskPts>=5?'b-dn':riskPts>=3?'b-neu':'b-up';
+  const regEl = document.getElementById('h-largo-regime');
+  if (regEl) { regEl.className='badge '+regimeCls+' style="font-size:8px"'; regEl.textContent=regime.replace('_',' '); }
+
+  // ── MEDIO — Fidelity / Economía ──
+  setT('h-medio-score', fScore.toFixed(1));
+  const fFase = fScore>=6?'Recesión Activa':fScore>=4?'Late Cycle':fScore>=2?'Mid Cycle':'Early Cycle';
+  setT('h-medio-fase', fFase);
+  setT('h-medio-fase-desc', fFase);
+
+  if (pmiVal != null) {
+    setT('h-medio-pmi', pmiVal.toFixed(1));
+    const fPmiPrev3 = state.data.pmi?.[2]?.value;
+    if (fPmiPrev3 != null) {
+      const delta = pmiVal - fPmiPrev3;
+      setT('h-medio-pmi-trend', `vs 3m: ${delta>=0?'+':''}${delta.toFixed(1)} ${delta>0?'↑':delta<0?'↓':'→'}`);
+    }
+  }
+
+  if (hyVal != null) {
+    setT('h-medio-hy', hyVal.toFixed(2) + '%');
+    const hyPct = Math.min(100, Math.max(0, ((hyVal - 2) / 6) * 100));
+    setS('h-medio-hy-hdl', hyPct + '%');
+  }
+
+  const fEl = document.getElementById('h-medio-fase');
+  if (fEl) { fEl.className='badge '+(fScore>=6?'b-dn':fScore>=4?'b-neu':'b-up')+' style="font-size:8px"'; }
+
+  // ── CORTO — Régimen / Mercado ──
+  const cortoEl = document.getElementById('h-corto-regime');
+  if (cortoEl) { cortoEl.className='badge '+regimeCls; cortoEl.textContent=regime.replace('_',' '); }
+  const cortoLblEl = document.getElementById('h-corto-regime-label');
+  if (cortoLblEl) { cortoLblEl.textContent=regime.replace('_',' '); cortoLblEl.style.color=regimeColor; }
+  setT('h-corto-regime-desc', interp ? interp.split('.')[0]+'.' : '—');
+
+  const vix = state.data.prices?.['^VIX']?.price;
+  if (vix != null) {
+    setT('h-corto-vix', vix.toFixed(1));
+    const vixPct = Math.min(100, Math.max(0, ((vix - 10) / 40) * 100));
+    setS('h-corto-vix-hdl', vixPct + '%');
+  }
+
+  const spyData = state.data.prices?.['SPY'];
+  if (spyData?.hist?.length >= 100) {
+    const sma100 = spyData.hist.slice(-100).reduce((a,b)=>a+b,0)/100;
+    const diff = ((spyData.price/sma100)-1)*100;
+    setT('h-corto-spy', '$'+spyData.price.toFixed(0));
+    setT('h-corto-spy-sub', `vs SMA100: ${diff>=0?'+':''}${diff.toFixed(1)}% ${diff>=0?'▲ Alcista':'▼ Bajista'}`);
+    const spyEl = document.getElementById('h-corto-spy');
+    if (spyEl) spyEl.style.color = diff>=0?'var(--green)':'var(--red)';
+  }
+}
+
 // ── Yield Curve update ──
 function ycSpreadEl(valId, sigId, spread) {
   const vEl = document.getElementById(valId);
@@ -3699,9 +3877,10 @@ function updateHeroScore() {
     if (vlbl) vlbl.textContent = b.label;
   });
 
-  // Update regime banner and yield curve alongside hero
+  // Update regime banner, yield curve and three horizons alongside hero
   updateRegimeBanner();
   updateYieldCurve();
+  updateThreeHorizons();
 
   // Alert banner
   const banner = document.getElementById('alert-banner');
