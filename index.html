@@ -305,27 +305,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .nt-chg.dn{color:var(--red)}
 .nt-chg.flat{color:var(--text3)}
 
-/* ── Hero score ── */
-.hero-score-block{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 24px;margin-bottom:10px;position:relative;overflow:hidden}
-.hero-score-block::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
-.hero-score-left{text-align:center}
-.hero-score-num{font-family:'IBM Plex Mono',monospace;font-size:52px;font-weight:700;line-height:1;color:var(--gold);letter-spacing:-2px}
-.hero-score-denom{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--text3)}
-.hero-score-label{font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-top:2px}
-.hero-score-mid{display:flex;flex-direction:column;gap:4px}
-.hero-phase-name{font-size:18px;font-weight:600;color:var(--text1);letter-spacing:.02em}
-.hero-phase-desc{font-size:11px;color:var(--text2);line-height:1.4}
+/* ── Hero postura badge (usado por .vh-veredicto) ── */
 .hero-postura{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;padding:4px 12px;border-radius:3px;border:1px solid;margin-top:4px}
 .hero-postura.max-cautela{color:var(--red);border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.12);font-weight:600}
 .hero-postura.defensivo{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
 .hero-postura.def-selectivo{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
 .hero-postura.selectivo{color:var(--green);border-color:rgba(74,222,128,.4);background:rgba(74,222,128,.08)}
 .hero-postura.vigilancia{color:var(--text3);border-color:var(--border2);background:transparent}
-.hero-score-right{display:flex;flex-direction:column;gap:6px;min-width:180px}
-.hero-score-bar{display:flex;flex-direction:column;gap:2px}
-.hsb-label{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);display:flex;justify-content:space-between}
-.hsb-track{height:4px;border-radius:2px;background:var(--border2);overflow:hidden}
-.hsb-fill{height:100%;border-radius:2px;transition:width .5s}
 
 /* ── Alert banner ── */
 #alert-banner{display:none;padding:7px 20px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;border-bottom:1px solid;text-align:center}
@@ -563,7 +549,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="hcol-body">
         <div class="kb">
           <div class="kb-lbl">Score Howell</div>
-          <div class="kb-val" id="h-largo-score">—<span style="font-size:11px;color:var(--text3)">/8</span></div>
+          <div class="kb-val" id="h-largo-score"><span id="h-largo-score-num">—</span><span style="font-size:11px;color:var(--text3)">/8</span></div>
           <div class="kb-sub" id="h-largo-fase">Cargando...</div>
         </div>
         <div class="kb">
@@ -594,7 +580,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="hcol-body">
         <div class="kb">
           <div class="kb-lbl">Score Fidelity</div>
-          <div class="kb-val" id="h-medio-score">—<span style="font-size:11px;color:var(--text3)">/8</span></div>
+          <div class="kb-val" id="h-medio-score"><span id="h-medio-score-num">—</span><span style="font-size:11px;color:var(--text3)">/8</span></div>
           <div class="kb-sub" id="h-medio-fase-desc">Cargando...</div>
         </div>
         <div class="kb">
@@ -3486,14 +3472,14 @@ function updateRegimeBanner() {
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
 function updateThreeHorizons() {
   const { score: hScore, resVal, tgaVal, dxyVal, rrpVal } = computeHowellScore();
-  const { score: fScore, pmiVal, pmiPrev3: fPmiPrev, hyVal } = computeFidelityScore();
+  const { score: fScore, pmiVal, hyVal } = computeFidelityScore();
   const { regime, regimeColor, interp, riskPts } = computeRegime();
 
   // ── LARGO — Howell / Liquidez ──
   const setT = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
   const setS = (id,v) => { const el=document.getElementById(id); if(el) el.style.left=v; };
 
-  setT('h-largo-score', hScore.toFixed(1));
+  setT('h-largo-score-num', hScore.toFixed(1));
   const hFase = hScore>=5?'Fase 4 · Contracción':hScore>=4?'Fase 3→4 · Alerta':hScore>=2?'Fase 3 · Squeeze':hScore>=1?'Fase 2 · Aceleración':'Fase 1 · Expansión';
   setT('h-largo-fase', hFase);
 
@@ -3514,10 +3500,10 @@ function updateThreeHorizons() {
 
   const regimeCls = riskPts>=5?'b-dn':riskPts>=3?'b-neu':'b-up';
   const regEl = document.getElementById('h-largo-regime');
-  if (regEl) { regEl.className='badge '+regimeCls+' style="font-size:8px"'; regEl.textContent=regime.replace('_',' '); }
+  if (regEl) { regEl.className='badge '+regimeCls; regEl.textContent=regime.replace('_',' '); }
 
   // ── MEDIO — Fidelity / Economía ──
-  setT('h-medio-score', fScore.toFixed(1));
+  setT('h-medio-score-num', fScore.toFixed(1));
   const fFase = fScore>=6?'Recesión Activa':fScore>=4?'Late Cycle':fScore>=2?'Mid Cycle':'Early Cycle';
   setT('h-medio-fase', fFase);
   setT('h-medio-fase-desc', fFase);
@@ -3538,7 +3524,7 @@ function updateThreeHorizons() {
   }
 
   const fEl = document.getElementById('h-medio-fase');
-  if (fEl) { fEl.className='badge '+(fScore>=6?'b-dn':fScore>=4?'b-neu':'b-up')+' style="font-size:8px"'; }
+  if (fEl) { fEl.className='badge '+(fScore>=6?'b-dn':fScore>=4?'b-neu':'b-up'); }
 
   // ── CORTO — Régimen / Mercado ──
   const cortoEl = document.getElementById('h-corto-regime');
@@ -3820,7 +3806,7 @@ function updateHeroScore() {
   const postura = score >= 5 ? 'MÁXIMA CAUTELA' : score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'DEFENSIVO SELECTIVO' : score >= 1 ? 'SELECTIVO' : 'VIGILANCIA';
   const cls     = score >= 5 ? 'max-cautela'    : score >= 4 ? 'defensivo'  : score >= 2 ? 'def-selectivo'      : score >= 1 ? 'selectivo'  : 'vigilancia';
   postEl.textContent = postura;
-  postEl.className = 'hero-postura ' + cls;
+  postEl.className = 'vh-veredicto hero-postura ' + cls;
 
   // Mini bars (each indicator contributes up to its max pts)
   const bars = [
