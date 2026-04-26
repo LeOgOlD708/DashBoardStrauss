@@ -1157,9 +1157,15 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div style="overflow-x:auto">
       <table class="tbl tbl-term">
         <thead><tr>
-          <th>ETF</th><th>NOMBRE</th><th>PRECIO</th>
-          <th>1D%</th><th>1M%</th><th>3M%</th><th>YTD%</th>
-          <th>HIST</th><th>SEÑAL</th>
+          <th onclick="sortETFTable('ticker')" style="cursor:pointer" class="th-sort">ETF <span class="th-arrow"></span></th>
+          <th>NOMBRE</th>
+          <th onclick="sortETFTable('price')" style="cursor:pointer" class="th-sort">PRECIO <span class="th-arrow"></span></th>
+          <th onclick="sortETFTable('chg1d')" style="cursor:pointer" class="th-sort">1D% <span class="th-arrow"></span></th>
+          <th onclick="sortETFTable('chg1m')" style="cursor:pointer" class="th-sort">1M% <span class="th-arrow"></span></th>
+          <th onclick="sortETFTable('chg3m')" style="cursor:pointer" class="th-sort">3M% <span class="th-arrow"></span></th>
+          <th onclick="sortETFTable('ytd')" style="cursor:pointer" class="th-sort">YTD% <span class="th-arrow"></span></th>
+          <th>HIST</th>
+          <th onclick="sortETFTable('signal')" style="cursor:pointer" class="th-sort">SEÑAL <span class="th-arrow"></span></th>
         </tr></thead>
         <tbody id="etfTable"></tbody>
       </table>
@@ -1479,7 +1485,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 
   <!-- Category filter bar -->
   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2)">
-    <span class="lbl" style="width:100%;margin-bottom:2px;font-size:9px">Filtrar por categoría</span>
+    <span class="lbl" style="width:100%;margin-bottom:2px;font-size:9px">Filtrar por categoría · <span style="color:var(--text3)">selección múltiple</span></span>
     <button onclick="filterNews('all')" id="nf-all" class="nf-btn nf-active">Todos</button>
     <button onclick="filterNews('macro')" id="nf-macro" class="nf-btn">Macro</button>
     <button onclick="filterNews('geopolitics')" id="nf-geopolitics" class="nf-btn">Geopolítica</button>
@@ -1489,6 +1495,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <button onclick="filterNews('equities')" id="nf-equities" class="nf-btn">Equities</button>
     <button onclick="filterNews('daytrading')" id="nf-daytrading" class="nf-btn">Day</button>
     <button onclick="filterNews('swingtrading')" id="nf-swingtrading" class="nf-btn">Swing</button>
+    <input id="news-search" type="text" placeholder="Buscar..." oninput="applyNewsFilters()"
+      style="margin-top:4px;width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:3px;padding:4px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text);outline:none">
   </div>
 
   <div class="g32">
@@ -1677,7 +1685,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
             <span id="tv-sig-fromhigh" class="mono" style="font-size:11px;color:var(--text2)">—</span>
           </div>
           <div class="flow-row">
-            <span class="flow-label">ATR 10w (est.)</span>
+            <span class="flow-label">ATR 10w</span>
             <span id="tv-sig-atr" class="mono" style="font-size:11px;color:var(--text2)">—</span>
           </div>
         </div>
@@ -1938,23 +1946,24 @@ triggers.forEach(({icon,cls,name,desc,impact,ic})=>{
 
 // ── Checklist — populated dynamically by updateChecklist() after data loads ──
 const checklistDefs=[
-  {n:1,title:'¿En qué fase está el ciclo de Howell?',desc:'Reservas Fed · Spread SOFR/FFR · MOVE Index · TGA'},
-  {n:2,title:'¿Confirma el DXY el diagnóstico?',desc:'DXY semanal: ¿tendencia alcista, bajista o lateral?'},
-  {n:3,title:'¿En qué fase está el ciclo de Fidelity?',desc:'ISM · Curva de rendimientos · Nóminas · Spreads crédito'},
-  {n:4,title:'¿Dónde está el ciclo de inflación?',desc:'CPI/PCE · Precio petróleo · Breakevens 5Y'},
-  {n:5,title:'¿Qué está haciendo el PBOC?',desc:'Oro en CNY · CNY/USD · PMI China'},
-  {n:6,title:'¿Hay señales de volatilidad institucional?',desc:'VIX vs VVIX · Gamma · CTAs · Vol Control'},
-  {n:7,title:'¿Cuál es el posicionamiento correcto?',desc:'Seleccionar activos por fase · Dirección · Sizing'},
+  {n:1,title:'¿En qué fase está el ciclo de Howell?',desc:'Reservas Fed · Spread SOFR/FFR · MOVE Index · TGA',tab:'diag'},
+  {n:2,title:'¿Confirma el DXY el diagnóstico?',desc:'DXY semanal: ¿tendencia alcista, bajista o lateral?',tab:'dxy'},
+  {n:3,title:'¿En qué fase está el ciclo de Fidelity?',desc:'ISM · Curva de rendimientos · Nóminas · Spreads crédito',tab:'diag'},
+  {n:4,title:'¿Dónde está el ciclo de inflación?',desc:'CPI/PCE · Precio petróleo · Breakevens 5Y',tab:'diag'},
+  {n:5,title:'¿Qué está haciendo el PBOC?',desc:'Oro en CNY · CNY/USD · PMI China',tab:'dxy'},
+  {n:6,title:'¿Hay señales de volatilidad institucional?',desc:'VIX vs VVIX · Gamma · CTAs · Vol Control',tab:'vol'},
+  {n:7,title:'¿Cuál es el posicionamiento correcto?',desc:'Seleccionar activos por fase · Dirección · Sizing',tab:'act'},
 ];
 const cl=document.getElementById('checklistItems');
-checklistDefs.forEach(({n,title,desc})=>{
-  cl.innerHTML+=`<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">
+checklistDefs.forEach(({n,title,desc,tab})=>{
+  cl.innerHTML+=`<div onclick="go('${tab}',document.querySelector('.tab[onclick*=\\'${tab}\\']'))" style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s" onmouseenter="this.style.background='rgba(201,168,76,.04)'" onmouseleave="this.style.background=''">
     <div style="width:22px;height:22px;border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;border:1px solid;background:rgba(201,168,76,.08);border-color:rgba(201,168,76,.2);color:var(--gold)">${n}</div>
     <div style="flex:1">
       <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:2px">${title}</div>
       <div style="font-size:9px;color:var(--text3)">${desc}</div>
       <div style="display:inline-flex;margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:8px;padding:2px 6px;border-radius:2px;background:rgba(82,78,74,.08);border:1px solid var(--border2);color:var(--text3)">Cargando datos...</div>
     </div>
+    <div style="align-self:center;font-size:10px;color:var(--text3);padding-right:4px">→</div>
   </div>`;
 });
 
@@ -2162,7 +2171,7 @@ async function loadYahooData() {
     updateMoveSkew(prices);
     updateFavoredAssets(prices);
     updateNavTickers();
-    if (tvState?.initialized) updateTechSignals(tvState.yfTicker);
+    updateTechSignals(tvState.yfTicker);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
     setEl('ds-yf-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
 
@@ -2387,11 +2396,54 @@ function updateFredUI() {
 }
 
 // ── ETF Table ──
+const _etfSort = { col: null, dir: 'desc' };
+
+function sortETFTable(col) {
+  if (_etfSort.col === col) {
+    _etfSort.dir = _etfSort.dir === 'desc' ? 'asc' : 'desc';
+  } else {
+    _etfSort.col = col;
+    _etfSort.dir = col === 'ticker' ? 'asc' : 'desc';
+  }
+  document.querySelectorAll('.th-sort .th-arrow').forEach(a => a.textContent = '');
+  const ths = document.querySelectorAll('.th-sort');
+  const colMap = { ticker:0, price:2, chg1d:3, chg1m:4, chg3m:5, ytd:6, signal:8 };
+  const idx = colMap[col];
+  if (idx != null && ths.length) {
+    const colTh = document.querySelectorAll('.tbl-term thead th')[idx];
+    const arrow = colTh?.querySelector('.th-arrow');
+    if (arrow) arrow.textContent = _etfSort.dir === 'desc' ? ' ▼' : ' ▲';
+  }
+  if (state.data.prices) updateETFTable(state.data.prices);
+}
+
+function _getSortedTickers(prices) {
+  if (!_etfSort.col) return ETF_TICKERS;
+  const dirMul = _etfSort.dir === 'desc' ? -1 : 1;
+  const sigOrder = { 'b-up': 1, 'b-neu': 0, 'b-dn': -1 };
+  return [...ETF_TICKERS].sort((a, b) => {
+    if (_etfSort.col === 'ticker') return a.localeCompare(b) * dirMul;
+    if (_etfSort.col === 'signal') {
+      const av = sigOrder[ETF_META[a]?.sig] ?? -2;
+      const bv = sigOrder[ETF_META[b]?.sig] ?? -2;
+      return (av - bv) * dirMul;
+    }
+    const ap = prices[a], bp = prices[b];
+    const av = ap?.[_etfSort.col];
+    const bv = bp?.[_etfSort.col];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return (av - bv) * dirMul;
+  });
+}
+
 function updateETFTable(prices) {
   const tbody = document.getElementById('etfTable');
   if (!tbody) return;
   tbody.innerHTML = '';
-  ETF_TICKERS.forEach(ticker => {
+  const sortedTickers = _getSortedTickers(prices);
+  sortedTickers.forEach(ticker => {
     const p  = prices[ticker];
     const m  = ETF_META[ticker] || { n: ticker, ph: '—', sig: 'b-neu', sl: '—' };
     if (!p || p.error) {
@@ -2432,7 +2484,7 @@ function updateETFTable(prices) {
     </tr>`;
   });
   // Draw sparklines after table is in DOM
-  ETF_TICKERS.forEach(t => {
+  sortedTickers.forEach(t => {
     const p = prices[t];
     if (!p?.hist?.length) return;
     const c = document.getElementById(`spark-${t}`);
@@ -2663,9 +2715,11 @@ function updateVolatility(prices) {
     const b = document.getElementById('vix3m-badge');
     if (b) {
       const spread = vix ? vix3m.price - vix.price : 0;
+      const ratio  = vix ? vix.price / vix3m.price : null;
       const cl = spread > 2 ? 'b-up' : spread < -1 ? 'b-dn' : 'b-neu';
-      const lb = spread > 2 ? 'Curva normal' : spread < -1 ? 'Curva invertida' : 'Plana';
-      b.innerHTML = `<span class="badge ${cl}">${lb} (${spread >= 0 ? '+' : ''}${spread.toFixed(1)})</span>`;
+      const lb = spread > 2 ? 'Contango' : spread < -1 ? 'Backwardation' : 'Plana';
+      const ratioStr = ratio != null ? ` · VIX/VIX3M: ${ratio.toFixed(2)}` : '';
+      b.innerHTML = `<span class="badge ${cl}">${lb} (${spread >= 0 ? '+' : ''}${spread.toFixed(1)}${ratioStr})</span>`;
     }
   }
 }
@@ -2738,17 +2792,45 @@ function renderNews(items) {
   `;
 
   nf.innerHTML = sorted.length ? sorted.map(newsItemHTML).join('') : empty;
+  applyNewsFilters();
 }
 
+const _newsActiveCats = new Set(['all']);
+
 function filterNews(cat) {
-  document.querySelectorAll('.nf-btn').forEach(b=>b.classList.remove('nf-active'));
-  const btn = document.getElementById('nf-'+cat);
-  if (btn) btn.classList.add('nf-active');
+  if (cat === 'all') {
+    _newsActiveCats.clear();
+    _newsActiveCats.add('all');
+    document.querySelectorAll('.nf-btn').forEach(b=>b.classList.remove('nf-active'));
+    document.getElementById('nf-all')?.classList.add('nf-active');
+  } else {
+    _newsActiveCats.delete('all');
+    document.getElementById('nf-all')?.classList.remove('nf-active');
+    if (_newsActiveCats.has(cat)) {
+      _newsActiveCats.delete(cat);
+      document.getElementById('nf-'+cat)?.classList.remove('nf-active');
+    } else {
+      _newsActiveCats.add(cat);
+      document.getElementById('nf-'+cat)?.classList.add('nf-active');
+    }
+    if (_newsActiveCats.size === 0) {
+      _newsActiveCats.add('all');
+      document.getElementById('nf-all')?.classList.add('nf-active');
+    }
+  }
+  applyNewsFilters();
+}
+
+function applyNewsFilters() {
   if (!state.newsItems?.length) return;
   const nf = document.getElementById('newsFeed');
   if (!nf) return;
+  const query = (document.getElementById('news-search')?.value || '').toLowerCase().trim();
+  const allCats = _newsActiveCats.has('all');
   nf.querySelectorAll('.news-item').forEach(n=>{
-    n.style.display = (cat==='all' || n.dataset.cat===cat) ? '' : 'none';
+    const catMatch = allCats || _newsActiveCats.has(n.dataset.cat);
+    const textMatch = !query || n.textContent.toLowerCase().includes(query);
+    n.style.display = (catMatch && textMatch) ? '' : 'none';
   });
 }
 
