@@ -422,7 +422,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #regime-banner{padding:14px 20px}
 .regime-label{font-size:20px}
 /* Verdict Hero */
-.vh{display:grid;grid-template-columns:130px 1fr 240px;gap:22px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
+.vh{display:grid;grid-template-columns:170px 1fr 240px;gap:22px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
 .vh::before{content:'';position:absolute;top:0;right:0;width:40%;height:100%;background:radial-gradient(ellipse at top right,rgba(249,115,22,0.05) 0%,transparent 60%);pointer-events:none}
 .vh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
 .vh-score{text-align:center}
@@ -466,7 +466,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 /* Phase cards inside horizons — slightly taller */
 .pc{padding:16px}
 .pc-ghost{font-size:60px}
-@media(max-width:1100px){.h3{grid-template-columns:1fr 1fr}.vh{grid-template-columns:110px 1fr}}
+@media(max-width:1100px){.h3{grid-template-columns:1fr 1fr}.vh{grid-template-columns:140px 1fr}}
 @media(max-width:700px){.h3{grid-template-columns:1fr}.vh{grid-template-columns:1fr}}
 /* ── CHAT IA PHOENIX ── */
 #chat-bubble{position:fixed;bottom:24px;right:24px;z-index:9100;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--phoenix-cream) 0%,var(--phoenix-orange) 50%,var(--phoenix-red) 100%);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 24px -4px rgba(249,115,22,0.5);transition:transform .2s,box-shadow .2s}
@@ -665,10 +665,10 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-denom">/8</div>
       <div class="vh-lbl">Score Howell</div>
       <!-- Mini sparkline trayectoria 13 semanas + delta 4w (rellena espacio en columna izq) -->
-      <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(245,236,228,.08)">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center;margin-bottom:5px">Trend 13 sem</div>
-        <div class="ch-wrap" style="height:64px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
-        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-align:center;margin-top:6px;color:var(--text3)">4w: —</div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(245,236,228,.1)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;text-align:center;margin-bottom:8px">Trend 13 sem</div>
+        <div class="ch-wrap" style="height:110px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
+        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-align:center;margin-top:8px;color:var(--text3)">4w: —</div>
       </div>
     </div>
     <div class="vh-mid">
