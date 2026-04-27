@@ -6,16 +6,16 @@
 //   30 simultaneous requests are well within. Sequential batches were timing out
 //   the Vercel 10s serverless limit when many series were requested.
 // - Per-fetch timeout via AbortController (FETCH_TIMEOUT_MS).
-// - Retry with exponential backoff on 429 (rate limit) and network errors.
+// - Retry with linear backoff on 429 (rate limit), 5xx (upstream error), and network errors.
 // - Cache disabled when response contains errors (avoid propagating bad state).
 // - Detailed logging visible in Vercel function logs.
 
 const FRED_BASE = 'https://api.stlouisfed.org/fred/series/observations';
 const FETCH_TIMEOUT_MS = 5500;    // 5.5s per individual fetch (buffer for Vercel 10s)
-const MAX_RETRIES = 1;            // 1 retry (2 attempts total) — keep total under Vercel timeout
-const BACKOFF_BASE_MS = 400;      // 400ms backoff
+const MAX_RETRIES = 2;            // 2 retries (3 attempts total) — FRED upstream flakiness
+const BACKOFF_SCHEDULE = [400, 800];  // ms before retry 1, retry 2
 
-// Single fetch with timeout + retry on 429/network errors
+// Single fetch with timeout + retry on 429/5xx/network errors
 async function fetchSeries(s, apiKey, limit) {
   const url = `${FRED_BASE}?series_id=${s}&limit=${limit}&sort_order=desc&file_type=json&api_key=${apiKey}`;
   let lastErr = null;
@@ -28,11 +28,11 @@ async function fetchSeries(s, apiKey, limit) {
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeoutId);
 
-      // 429 → retry with backoff
-      if (response.status === 429) {
-        lastErr = `HTTP 429 (rate limit) attempt ${attempt + 1}`;
+      // 429 (rate limit) and 5xx (upstream error) → retry with backoff
+      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+        lastErr = `HTTP ${response.status} attempt ${attempt + 1}`;
         if (attempt < MAX_RETRIES) {
-          await new Promise(r => setTimeout(r, BACKOFF_BASE_MS * Math.pow(2, attempt)));
+          await new Promise(r => setTimeout(r, BACKOFF_SCHEDULE[attempt] || 800));
           continue;
         }
         return { error: lastErr, attempts: attempt + 1 };
@@ -70,7 +70,7 @@ async function fetchSeries(s, apiKey, limit) {
 
       // Retry on network/timeout errors
       if (attempt < MAX_RETRIES) {
-        await new Promise(r => setTimeout(r, BACKOFF_BASE_MS * Math.pow(2, attempt)));
+        await new Promise(r => setTimeout(r, BACKOFF_SCHEDULE[attempt] || 800));
         continue;
       }
       return { error: lastErr, attempts: attempt + 1 };

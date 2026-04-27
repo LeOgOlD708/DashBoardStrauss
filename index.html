@@ -39,10 +39,14 @@
   /* Glow shadows reusables */
   --glow-gold:0 0 0 1px rgba(230,180,80,.18), 0 0 24px -8px rgba(230,180,80,.3);
   --glow-amber:0 0 0 1px rgba(249,115,22,.2), 0 0 30px -10px rgba(249,115,22,.4);
+  /* Typography scale — 8pt-ish, legibilidad sobre tema dark */
+  --fs-2xs:11px;--fs-xs:12px;--fs-sm:13px;--fs-base:14px;
+  --fs-md:16px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;
+  --fs-3xl:36px;--fs-hero:64px;
 }
 body{
   background:var(--bg);
-  color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:300;min-height:100vh;line-height:1.5;
+  color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:400;min-height:100vh;line-height:1.55;
   position:relative;
 }
 /* Glow ambient layered como pseudo-element para evitar repaint en scroll */
@@ -60,21 +64,21 @@ body::before{
 nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:200}
 .brand{display:flex;align-items:center;gap:10px}
 .brand-logo{width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(249,115,22,0.3))}
-.brand-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;letter-spacing:-0.02em;color:var(--text)}
+.brand-name{font-family:'Playfair Display',serif;font-size:19px;font-weight:900;letter-spacing:-0.02em;color:var(--text)}
 .brand-name span{color:var(--gold);font-style:italic}
-.brand-tagline{font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.2em;color:var(--text3);text-transform:uppercase;line-height:1;margin-top:2px}
-.nav-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--bg);background:linear-gradient(135deg,var(--gold) 0%,var(--phoenix-orange) 100%);padding:3px 7px;letter-spacing:0.1em;border-radius:3px;box-shadow:0 0 10px -3px rgba(249,115,22,0.4)}
+.brand-tagline{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--text3);text-transform:uppercase;line-height:1;margin-top:2px}
+.nav-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--bg);background:linear-gradient(135deg,var(--gold) 0%,var(--phoenix-orange) 100%);padding:4px 9px;letter-spacing:0.1em;border-radius:3px;box-shadow:0 0 10px -3px rgba(249,115,22,0.4)}
 .nav-right{display:flex;align-items:center;gap:16px}
-.live-dot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.1em}
-.live-dot .dot{width:5px;height:5px;border-radius:50%;background:var(--text3)}
+.live-dot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em}
+.live-dot .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
-.clock-display{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)}
-.phase-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 9px;background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(220,38,38,.08));border:1px solid rgba(249,115,22,.3);color:var(--phoenix-orange);letter-spacing:.08em;border-radius:3px;box-shadow:0 0 16px -6px rgba(249,115,22,0.4)}
+.clock-display{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text3)}
+.phase-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 11px;background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(220,38,38,.08));border:1px solid rgba(249,115,22,.3);color:var(--phoenix-orange);letter-spacing:.08em;border-radius:3px;box-shadow:0 0 16px -6px rgba(249,115,22,0.4)}
 
 /* ── TABS ── */
 .tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 20px;overflow-x:auto;gap:0}
 .tabs::-webkit-scrollbar{height:0}
-.tab{padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;user-select:none}
+.tab{padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;user-select:none}
 .tab:hover{color:var(--text2)}
 .tab.active{color:var(--gold);border-bottom-color:var(--gold);text-shadow:0 0 18px rgba(230,180,80,.5)}
 .tab:hover:not(.active){color:var(--text2);border-bottom-color:rgba(230,180,80,.2)}
@@ -310,23 +314,23 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 
 /* ── Tooltips en semáforo ── */
 .ind-name[data-tip]{cursor:help;position:relative}
-.ind-name[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:0;background:#0d0d1a;border:1px solid #22223a;color:#9a9288;font-family:'IBM Plex Sans',sans-serif;font-weight:300;font-size:9px;padding:7px 10px;border-radius:5px;white-space:normal;width:220px;line-height:1.5;pointer-events:none;opacity:0;transition:opacity .15s;z-index:300;box-shadow:0 6px 18px rgba(0,0,0,.6)}
+.ind-name[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 8px);left:0;background:#0d0d1a;border:1px solid #22223a;color:#b5a89a;font-family:'IBM Plex Sans',sans-serif;font-weight:400;font-size:11px;padding:8px 11px;border-radius:5px;white-space:normal;width:240px;line-height:1.55;pointer-events:none;opacity:0;transition:opacity .15s;z-index:300;box-shadow:0 6px 18px rgba(0,0,0,.6)}
 .ind-name[data-tip]:hover::after{opacity:1}
 
 /* ── Sparkline canvas in ETF table ── */
 .sp-canvas{display:block;vertical-align:middle}
 
 /* ── Source links (Fidelity table + thermometers) ── */
-.src-link{font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);text-decoration:none;padding:1px 3px;border:1px solid var(--border2);border-radius:2px;margin-left:4px;vertical-align:middle;white-space:nowrap;transition:all .15s}
+.src-link{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);text-decoration:none;padding:1px 5px;border:1px solid var(--border2);border-radius:2px;margin-left:4px;vertical-align:middle;white-space:nowrap;transition:all .15s}
 .src-link:hover{color:var(--teal);border-color:rgba(45,212,191,.35);background:rgba(45,212,191,.05)}
 a.source-badge{text-decoration:none;cursor:pointer;transition:color .15s,border-color .15s}
 a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4)!important}
-.fid-th{font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:3px 6px;text-align:left;border-bottom:1px solid var(--border2)}
-.fid-td{padding:5px 6px;font-size:10px;color:var(--text2);border-bottom:1px solid rgba(24,24,38,.5)}
+.fid-th{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);padding:5px 7px;text-align:left;border-bottom:1px solid var(--border2)}
+.fid-td{padding:6px 7px;font-size:12px;color:var(--text2);border-bottom:1px solid rgba(24,24,38,.5)}
 .fid-td:last-child{border-bottom:none}
 
 /* ── TradingView ticker buttons ── */
-.tv-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:4px 10px;cursor:pointer;border-radius:3px;letter-spacing:.06em;transition:all .15s}
+.tv-btn{background:var(--surface2);border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 11px;cursor:pointer;border-radius:3px;letter-spacing:.06em;transition:all .15s}
 .tv-btn:hover{border-color:var(--blue);color:var(--blue)}
 .tv-btn-active{background:rgba(96,165,250,.12);border-color:var(--blue);color:var(--blue)}
 
@@ -334,15 +338,15 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #nav-tickers{display:flex;align-items:center;gap:0;flex:1;justify-content:center;overflow:hidden;padding:0 12px}
 .nt-item{display:flex;align-items:center;gap:5px;padding:0 10px;border-right:1px solid var(--border);cursor:default}
 .nt-item:last-child{border-right:none}
-.nt-sym{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.06em}
-.nt-price{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text1);font-weight:500}
-.nt-chg{font-family:'IBM Plex Mono',monospace;font-size:9px}
+.nt-sym{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em}
+.nt-price{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text1);font-weight:500}
+.nt-chg{font-family:'IBM Plex Mono',monospace;font-size:11px}
 .nt-chg.up{color:var(--green)}
 .nt-chg.dn{color:var(--red)}
 .nt-chg.flat{color:var(--text3)}
 
 /* ── Hero postura badge (usado por .vh-veredicto) ── */
-.hero-postura{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;padding:4px 12px;border-radius:3px;border:1px solid;margin-top:4px}
+.hero-postura{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;padding:5px 13px;border-radius:3px;border:1px solid;margin-top:4px}
 .hero-postura.max-cautela{color:var(--red);border-color:rgba(248,113,113,.5);background:rgba(248,113,113,.12);font-weight:600}
 .hero-postura.defensivo{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
 .hero-postura.def-selectivo{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.08)}
@@ -350,49 +354,49 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .hero-postura.vigilancia{color:var(--text3);border-color:var(--border2);background:transparent}
 
 /* ── Alert banner ── */
-#alert-banner{display:none;padding:7px 20px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;border-bottom:1px solid;text-align:center}
+#alert-banner{display:none;padding:8px 20px;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.06em;border-bottom:1px solid;text-align:center}
 #alert-banner.show-red{display:block;background:rgba(248,113,113,.1);color:var(--red);border-color:rgba(248,113,113,.3)}
 #alert-banner.show-amber{display:block;background:rgba(251,191,36,.08);color:var(--amber);border-color:rgba(251,191,36,.25)}
 /* ── Regime banner ── */
 .regime-banner{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-radius:var(--r);border:1px solid;margin-bottom:10px;flex-wrap:wrap;gap:8px;transition:background .4s,border-color .4s}
-.regime-label{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.16em}
-.regime-interp{font-size:10px;color:var(--text2);line-height:1.5;max-width:420px}
+.regime-label{font-family:'IBM Plex Mono',monospace;font-size:16px;font-weight:700;letter-spacing:.16em}
+.regime-interp{font-size:12px;color:var(--text2);line-height:1.5;max-width:460px}
 /* ── Yield Curve buttons ── */
-.yc-btn{font-family:'IBM Plex Mono',monospace;font-size:8px;padding:3px 9px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .15s;letter-spacing:.05em}
+.yc-btn{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 10px;border-radius:3px;border:1px solid var(--border2);background:var(--surface2);color:var(--text3);cursor:pointer;transition:all .15s;letter-spacing:.05em}
 .yc-btn:hover{border-color:var(--gold);color:var(--gold)}
 .yc-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.08)}
 .yc-level-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border)}
 .yc-level-row:last-child{border-bottom:none}
 /* ── CMD CENTER v2 — TIPOGRAFÍA AUMENTADA + HORIZONS ── */
-.lbl{font-size:11px}
-.val{font-size:26px}
-.val-sm{font-size:19px}
-.chg{font-size:11px}
-.badge{font-size:10px;padding:3px 9px}
-.sh-title{font-size:18px}
+.lbl{font-size:13px}
+.val{font-size:28px}
+.val-sm{font-size:22px}
+.chg{font-size:13px}
+.badge{font-size:11px;padding:3px 9px}
+.sh-title{font-size:20px}
 .card{padding:18px}
-.ind-name{font-size:11px;width:170px}
-.ind-val{font-size:10px;min-width:82px}
-.ind-sig{font-size:9px}
+.ind-name{font-size:13px;width:180px}
+.ind-val{font-size:12px;min-width:88px}
+.ind-sig{font-size:11px}
 /* Regime banner enlarged */
 #regime-banner{padding:14px 20px}
-.regime-label{font-size:18px}
+.regime-label{font-size:20px}
 /* Verdict Hero */
-.vh{display:grid;grid-template-columns:130px 1fr 220px;gap:22px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
+.vh{display:grid;grid-template-columns:130px 1fr 240px;gap:22px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
 .vh::before{content:'';position:absolute;top:0;right:0;width:40%;height:100%;background:radial-gradient(ellipse at top right,rgba(249,115,22,0.05) 0%,transparent 60%);pointer-events:none}
 .vh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
 .vh-score{text-align:center}
 .vh-num{font-family:'IBM Plex Mono',monospace;font-size:64px;font-weight:700;line-height:1;letter-spacing:-3px}
-.vh-denom{font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--text3)}
-.vh-lbl{font-size:10px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
+.vh-denom{font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--text3)}
+.vh-lbl{font-size:12px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
 .vh-mid{display:flex;flex-direction:column;gap:8px}
-.vh-phase{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;line-height:1.2}
-.vh-desc{font-size:12px;color:var(--text2);line-height:1.5}
-.vh-veredicto{font-size:11px;color:var(--text2);line-height:1.6;padding:8px 11px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:5px}
+.vh-phase{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;line-height:1.2}
+.vh-desc{font-size:14px;color:var(--text2);line-height:1.55}
+.vh-veredicto{font-size:13px;color:var(--text2);line-height:1.6;padding:8px 11px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:5px}
 .vh-bars{display:flex;flex-direction:column;gap:6px}
 .vhb{display:flex;flex-direction:column;gap:2px;padding:1px 4px;border-radius:3px;transition:background .15s}
 .vhb:hover{background:rgba(201,168,76,.05)}
-.vhb-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);display:flex;justify-content:space-between;gap:4px}
+.vhb-lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);display:flex;justify-content:space-between;gap:4px}
 .vhb-track{height:4px;border-radius:2px;background:var(--border2);overflow:hidden}
 .vhb-fill{height:100%;border-radius:2px;transition:width .5s}
 /* Three-horizon grid */
@@ -402,18 +406,18 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .h-largo .hcol-hdr{background:rgba(201,168,76,.07);border-color:rgba(201,168,76,.2)}
 .h-medio .hcol-hdr{background:rgba(45,212,191,.05);border-color:rgba(45,212,191,.16)}
 .h-corto .hcol-hdr{background:rgba(167,139,250,.05);border-color:rgba(167,139,250,.16)}
-.hcol-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:500}
+.hcol-lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:500}
 .h-largo .hcol-lbl{color:var(--gold)}
 .h-medio .hcol-lbl{color:var(--teal)}
 .h-corto .hcol-lbl{color:var(--purple)}
-.hcol-period{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);margin-top:1px}
+.hcol-period{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);margin-top:1px}
 .hcol-body{padding:12px;flex:1;display:flex;flex-direction:column;gap:10px}
 /* KPI block inside horizon */
 .kb{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:10px 13px}
-.kb-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;margin-bottom:5px}
-.kb-val{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;line-height:1.1}
-.kb-sub{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);margin-top:3px}
-.kb-src{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.05em;color:var(--text3);margin-top:6px;padding:1px 5px;background:var(--surface2);border-radius:3px;text-decoration:none;border:1px solid var(--border2)}
+.kb-lbl{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;margin-bottom:5px}
+.kb-val{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500;line-height:1.1}
+.kb-sub{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2);margin-top:3px}
+.kb-src{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.05em;color:var(--text3);margin-top:6px;padding:1px 6px;background:var(--surface2);border-radius:3px;text-decoration:none;border:1px solid var(--border2)}
 .kb-src:hover{color:var(--gold);border-color:rgba(201,168,76,.4)}
 .kb-src.kb-src-derived{cursor:default;font-style:italic}
 /* Compact thermometer bar */
@@ -433,20 +437,20 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #chat-panel.open{display:flex}
 .chat-header{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .chat-header-info{display:flex;flex-direction:column;gap:2px}
-.chat-header-title{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
-.chat-header-sub{font-size:10px;color:var(--text3)}
+.chat-header-title{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+.chat-header-sub{font-size:11px;color:var(--text3)}
 .chat-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:2px 4px;line-height:1;transition:color .15s}
 .chat-close:hover{color:var(--text)}
 .chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth}
 .chat-messages::-webkit-scrollbar{width:3px}
 .chat-messages::-webkit-scrollbar-thumb{background:var(--border2)}
-.chat-msg{max-width:88%;font-size:11px;line-height:1.5;padding:8px 10px;border-radius:10px;word-break:break-word}
+.chat-msg{max-width:88%;font-size:13px;line-height:1.55;padding:9px 11px;border-radius:10px;word-break:break-word}
 .chat-msg.user{align-self:flex-end;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.2);color:var(--text)}
 .chat-msg.assistant{align-self:flex-start;background:var(--surface2);border:1px solid var(--border);color:var(--text2)}
 .chat-msg.typing{color:var(--text3);font-style:italic}
-.chat-empty{text-align:center;padding:24px 12px;color:var(--text3);font-size:11px;line-height:1.6}
+.chat-empty{text-align:center;padding:24px 12px;color:var(--text3);font-size:13px;line-height:1.6}
 .chat-input-row{padding:10px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:flex-end;flex-shrink:0}
-#chat-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:7px 10px;font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:var(--text);resize:none;min-height:34px;max-height:80px;outline:none;line-height:1.4;transition:border-color .15s}
+#chat-input{flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px 11px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:var(--text);resize:none;min-height:36px;max-height:90px;outline:none;line-height:1.4;transition:border-color .15s}
 #chat-input:focus{border-color:rgba(201,168,76,.4)}
 #chat-input::placeholder{color:var(--text3)}
 #chat-send{background:var(--gold);border:none;border-radius:6px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
@@ -454,37 +458,37 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #chat-send svg{width:15px;height:15px;fill:var(--bg)}
 
 /* ── Help icons & Glossary modal ── */
-.help-i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.3);color:var(--gold);font-size:9px;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;margin-left:4px;line-height:1;transition:all .15s;flex-shrink:0;vertical-align:middle;padding:0;user-select:none}
+.help-i{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.3);color:var(--gold);font-size:11px;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;margin-left:4px;line-height:1;transition:all .15s;flex-shrink:0;vertical-align:middle;padding:0;user-select:none}
 .help-i:hover{background:rgba(201,168,76,.28);border-color:rgba(201,168,76,.6);transform:scale(1.15)}
 #glossary-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;align-items:center;justify-content:center;padding:20px}
 #glossary-modal.active{display:flex}
 .gl-box{background:var(--surface);border:1px solid rgba(201,168,76,.3);border-radius:10px;max-width:680px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
 .gl-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(201,168,76,.04)}
-.gl-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--gold);font-weight:500}
-.gl-close{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 10px;border-radius:5px;cursor:pointer}
+.gl-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);font-weight:500}
+.gl-close{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:6px 11px;border-radius:5px;cursor:pointer}
 .gl-close:hover{border-color:var(--gold);color:var(--gold)}
-.gl-body{padding:18px;overflow-y:auto;font-size:12px;line-height:1.6;color:var(--text)}
+.gl-body{padding:18px;overflow-y:auto;font-size:14px;line-height:1.6;color:var(--text)}
 .gl-section{margin-bottom:14px}
-.gl-section h4{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:5px;font-weight:500}
-.gl-section p{font-size:12px;color:var(--text);margin-bottom:6px}
-.gl-section .gl-note{font-size:11px;color:var(--text2);font-style:italic}
+.gl-section h4{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:6px;font-weight:500}
+.gl-section p{font-size:14px;color:var(--text);margin-bottom:6px}
+.gl-section .gl-note{font-size:13px;color:var(--text2);font-style:italic}
 .gl-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.gl-meta-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text2)}
+.gl-meta-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text2)}
 .gl-meta-pill a{color:var(--gold);text-decoration:none}
 .gl-meta-pill a:hover{text-decoration:underline}
 .gl-thresh{display:flex;flex-direction:column;gap:4px;margin-top:4px}
-.gl-thresh-row{display:flex;align-items:center;gap:8px;font-size:11px;font-family:'IBM Plex Mono',monospace}
+.gl-thresh-row{display:flex;align-items:center;gap:8px;font-size:13px;font-family:'IBM Plex Mono',monospace}
 .gl-thresh-tag{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0}
 /* Glossary list view (when no specific indicator selected) */
 .gl-list{display:flex;flex-direction:column;gap:8px}
 .gl-list-item{padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s}
 .gl-list-item:hover{border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.04)}
-.gl-list-item-name{font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px}
-.gl-list-item-desc{font-size:10px;color:var(--text2);line-height:1.4}
-.gl-list-cat{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin:14px 0 6px}
+.gl-list-item-name{font-size:14px;font-weight:500;color:var(--text);margin-bottom:2px}
+.gl-list-item-desc{font-size:12px;color:var(--text2);line-height:1.5}
+.gl-list-cat{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin:14px 0 6px}
 .gl-list-cat:first-child{margin-top:0}
 /* Header glossary button */
-#open-glossary-btn{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(230,180,80,.08),rgba(249,115,22,.06));border:1px solid rgba(230,180,80,.3);color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:5px 10px;border-radius:5px;cursor:pointer;transition:all .2s;text-transform:uppercase;box-shadow:0 0 14px -6px rgba(230,180,80,0.35)}
+#open-glossary-btn{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(230,180,80,.08),rgba(249,115,22,.06));border:1px solid rgba(230,180,80,.3);color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:6px 12px;border-radius:5px;cursor:pointer;transition:all .2s;text-transform:uppercase;box-shadow:0 0 14px -6px rgba(230,180,80,0.35)}
 #open-glossary-btn:hover{background:linear-gradient(135deg,rgba(230,180,80,.16),rgba(249,115,22,.1));border-color:rgba(249,115,22,.5);color:var(--gold2);box-shadow:0 0 22px -6px rgba(249,115,22,0.5)}
 </style>
 </head>
@@ -610,6 +614,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-phase" id="hero-phase-name">Cargando…</div>
       <div class="vh-desc" id="hero-phase-desc">Esperando datos de mercado</div>
       <div class="vh-veredicto hero-postura defensivo" id="hero-postura">DEFENSIVO</div>
+      <div id="hero-data-status" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);padding:5px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:4px;line-height:1.4"></div>
     </div>
     <div class="vh-bars">
       <div class="vhb" onclick="openGlossary('reservas-fed')" style="cursor:pointer" title="Reservas Fed (FRED:WRBWFRBL) — click para ver detalle">
@@ -636,7 +641,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div class="vhb-lbl"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="vhb" onclick="openGlossary('yield-curve-10y2y')" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);cursor:pointer" title="Curva 10Y-2Y (FRED:T10Y2Y) — click para ver detalle">
+      <div style="margin-top:6px;padding:3px 4px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center" title="Estas barras NO suman al Score Howell — son confirmaciones del régimen general">↓ Confirmación · no suma al score</div>
+      <div class="vhb" onclick="openGlossary('yield-curve-10y2y')" style="cursor:pointer" title="Curva 10Y-2Y (FRED:T10Y2Y) — click para ver detalle">
         <div class="vhb-lbl"><span>Curva 10Y-2Y</span><span id="hbar-yc-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
       </div>
@@ -1206,12 +1212,12 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div style="display:flex;flex-direction:column;gap:3px;margin-top:6px">
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Howell</span><span id="diag-cross-howell" class="badge b-alt" style="font-size:8px">—</span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Fidelity</span><span id="diag-cross-fidelity" class="badge b-neu" style="font-size:8px">—</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-dxy-label" style="font-size:10px;color:var(--text2)">DXY —</span><span id="diag-dxy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">China PBOC</span><span id="diag-pboc-badge" class="badge b-up" style="font-size:8px">Cargando</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">VIX/VVIX</span><span id="diag-vix-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span id="diag-wti-label" style="font-size:10px;color:var(--text2)">WTI —</span><span id="diag-wti-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">HY Spread</span><span id="diag-hy-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
-          <div style="display:flex;justify-content:space-between;padding:4px 7px;background:var(--surface2);border-radius:4px"><span style="font-size:10px;color:var(--text2)">Breakeven 5Y</span><span id="diag-be-badge" class="badge b-neu" style="font-size:8px">Cargando</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--surface2);border-radius:4px"><span id="diag-dxy-label" style="font-size:12px;color:var(--text2)">DXY —</span><span id="diag-dxy-badge" class="badge b-neu" style="font-size:11px">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--surface2);border-radius:4px"><span style="font-size:12px;color:var(--text2)">China PBOC</span><span id="diag-pboc-badge" class="badge b-up" style="font-size:11px">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--surface2);border-radius:4px"><span style="font-size:12px;color:var(--text2)">VIX/VVIX</span><span id="diag-vix-badge" class="badge b-neu" style="font-size:11px">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--surface2);border-radius:4px"><span id="diag-wti-label" style="font-size:12px;color:var(--text2)">WTI —</span><span id="diag-wti-badge" class="badge b-neu" style="font-size:11px">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--surface2);border-radius:4px"><span style="font-size:12px;color:var(--text2)">HY Spread</span><span id="diag-hy-badge" class="badge b-neu" style="font-size:11px">—</span></div>
+          <div style="display:flex;justify-content:space-between;padding:5px 8px;background:var(--surface2);border-radius:4px"><span style="font-size:12px;color:var(--text2)">Breakeven 5Y</span><span id="diag-be-badge" class="badge b-neu" style="font-size:11px">—</span></div>
         </div>
       </div>
       <!-- Veredicto dinámico -->
@@ -1287,7 +1293,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div style="border-top:1px solid var(--border2);padding-top:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
           <span class="mono" style="font-size:9px;color:var(--text3)">ECO SCORE TOTAL</span>
-          <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/6</span>
+          <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/8</span>
         </div>
         <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
           <div id="fid-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--teal);transition:width .6s,background .4s"></div>
@@ -2840,10 +2846,10 @@ function updateMarketBreadth(prices) {
   ];
 
   el.innerHTML = items.map(it => `
-    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:8px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.08em">${it.label}</div>
-      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:${it.color};line-height:1.1;margin:4px 0">${it.value}</div>
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);letter-spacing:.05em">${it.sub}</div>
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:10px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.08em">${it.label}</div>
+      <div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:${it.color};line-height:1.1;margin:4px 0">${it.value}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.05em">${it.sub}</div>
     </div>
   `).join('');
 }
@@ -2932,22 +2938,22 @@ function renderEconCalendar(data) {
       const dotColor = e.impact === 'high' ? 'var(--red)' : e.impact === 'med' ? 'var(--amber)' : 'var(--green)';
       const c = matchConsensus(e.name);
       const labelText = c ? c.short : e.name;
-      const consBadge = c ? `<div style="font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding-left:11px;line-height:1.4;letter-spacing:.02em">cons <span style="color:var(--gold)">${c.cons}</span><br>prev ${c.prev}</div>` : '';
+      const consBadge = c ? `<div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding-left:11px;line-height:1.45;letter-spacing:.02em">cons <span style="color:var(--gold)">${c.cons}</span><br>prev ${c.prev}</div>` : '';
       const titleText = c ? `${e.name} · cons: ${c.cons} · prev: ${c.prev} (est. ${CONSENSUS_UPDATED})` : (e.desc || e.name);
-      return `<div style="padding:2px 0" title="${titleText}">
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text)">
-          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+      return `<div style="padding:3px 0" title="${titleText}">
+        <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text)">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
           <span>${labelText}</span>
         </div>
         ${consBadge}
       </div>`;
     }).join('');
 
-    return `<div style="flex-shrink:0;min-width:160px;background:${isToday ? 'rgba(230,180,80,.08)' : 'var(--surface2)'};border:1px solid ${isToday ? 'rgba(230,180,80,.4)' : 'var(--border2)'};border-radius:6px;padding:8px 10px">
-      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border)">
-        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:${isToday ? 'var(--gold)' : 'var(--text)'};line-height:1">${dayNum}</div>
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.05em">${dayLbl} ${monthLbl}</div>
-        ${isToday ? '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:7px;color:var(--gold);letter-spacing:.1em;margin-left:auto">HOY</span>' : ''}
+    return `<div style="flex-shrink:0;min-width:170px;background:${isToday ? 'rgba(230,180,80,.08)' : 'var(--surface2)'};border:1px solid ${isToday ? 'rgba(230,180,80,.4)' : 'var(--border2)'};border-radius:6px;padding:10px 12px">
+      <div style="display:flex;align-items:baseline;gap:7px;margin-bottom:6px;padding-bottom:5px;border-bottom:1px solid var(--border)">
+        <div style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:${isToday ? 'var(--gold)' : 'var(--text)'};line-height:1">${dayNum}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.05em">${dayLbl} ${monthLbl}</div>
+        ${isToday ? '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:10px;color:var(--gold);letter-spacing:.1em;margin-left:auto">HOY</span>' : ''}
       </div>
       ${eventsHtml}
     </div>`;
@@ -3078,8 +3084,18 @@ function updateFredUI() {
       const cl = wtiVal < 75 ? 'b-up' : wtiVal < 90 ? 'b-neu' : 'b-dn';
       const lb = wtiVal < 75 ? '↓ deflactorio' : wtiVal < 90 ? '~ neutral' : '↑ inflacionario';
       wtiBdg.className = `badge ${cl}`;
-      wtiBdg.style.fontSize = '8px';
+      wtiBdg.style.fontSize = '11px';
       wtiBdg.textContent = lb;
+    }
+  } else {
+    // FRED DCOILWTICO no cargó — evitar badge eterno "Cargando"
+    const wtiLbl = document.getElementById('diag-wti-label');
+    const wtiBdg = document.getElementById('diag-wti-badge');
+    if (wtiLbl) wtiLbl.textContent = 'WTI —';
+    if (wtiBdg) {
+      wtiBdg.className = 'badge b-neu';
+      wtiBdg.style.fontSize = '11px';
+      wtiBdg.textContent = 'Sin dato';
     }
   }
 
@@ -4884,7 +4900,20 @@ function computeHowellScore() {
   // CPI: inflación alta → Fed más restrictiva → riesgo
   if (cpiYoY != null)  score += cpiYoY  > 3.5 ? 1 : cpiYoY > 3 ? 0.5 : 0;
 
-  return { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal };
+  // Track de componentes faltantes (datos null = suman 0 al score, pero divisor sigue 8 → score sub-estimado).
+  // Pesos máximos por componente: res=2, tga=2, rrp=1, sofr=1, dxy=1, cpi=1 → total 8.
+  const components = [
+    { key: 'res',  label: 'Reservas',  val: resVal,  weight: 2 },
+    { key: 'tga',  label: 'TGA',       val: tgaVal,  weight: 2 },
+    { key: 'rrp',  label: 'RRP',       val: rrpVal,  weight: 1 },
+    { key: 'sofr', label: 'SOFR',      val: sofrAbs, weight: 1 },
+    { key: 'dxy',  label: 'DXY',       val: dxyVal,  weight: 1 },
+    { key: 'cpi',  label: 'CPI YoY',   val: cpiYoY,  weight: 1 },
+  ];
+  const missing = components.filter(c => c.val == null);
+  const maxAvailable = 8 - missing.reduce((s, c) => s + c.weight, 0);
+
+  return { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal, missing, maxAvailable };
 }
 
 // ── Helper: encontrar el valor de una serie temporal en (o antes de) una fecha dada ──
@@ -5032,18 +5061,33 @@ function updateNavTickers() {
 
 // ── Hero score block ──
 function updateHeroScore() {
-  const { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal } = computeHowellScore();
+  const { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal, missing, maxAvailable } = computeHowellScore();
 
   const numEl = document.getElementById('hero-score-num');
   const nameEl = document.getElementById('hero-phase-name');
   const descEl = document.getElementById('hero-phase-desc');
   const postEl = document.getElementById('hero-postura');
+  const statusEl = document.getElementById('hero-data-status');
   if (!numEl) return;
 
   numEl.textContent = Number.isInteger(score) ? score : score.toFixed(1);
 
   // Color the number by urgency
   numEl.style.color = score >= 5 ? 'var(--red)' : score >= 4 ? 'var(--amber)' : score >= 2 ? 'var(--gold)' : 'var(--green)';
+
+  // Score parcial: cuando faltan inputs, el divisor /8 es engañoso (componentes null suman 0).
+  // Mostrar flag honesto con la lista y un score normalizado al max disponible.
+  if (statusEl) {
+    if (missing && missing.length > 0) {
+      const lost = 8 - maxAvailable;
+      const norm = maxAvailable > 0 ? (score * 8 / maxAvailable) : score;
+      const labels = missing.map(c => c.label).join(', ');
+      statusEl.style.display = '';
+      statusEl.innerHTML = `⚠ Score parcial: ${missing.length} indicador${missing.length > 1 ? 'es' : ''} caído${missing.length > 1 ? 's' : ''} (<strong>${labels}</strong>) · Pierde hasta ${lost} pts del max. Normalizado: <strong>${norm.toFixed(1)}/8</strong>`;
+    } else {
+      statusEl.style.display = 'none';
+    }
+  }
 
   // Phase + description
   // Umbrales unificados con updateDiagnostic, updateThreeHorizons, computeHistoricalHowell
@@ -6164,7 +6208,9 @@ const TV_SYMBOLS = {
   XLP:'AMEX:XLP', XLU:'AMEX:XLU', XLB:'AMEX:XLB', XLF:'AMEX:XLF',
   XLI:'AMEX:XLI', XLC:'AMEX:XLC', SPY:'AMEX:SPY', QQQ:'NASDAQ:QQQ',
   IWM:'AMEX:IWM', TLT:'NASDAQ:TLT', EEM:'AMEX:EEM',
-  DXY:'TVC:DXY', MOVE:'TVC:MOVE', VIX:'CBOE:VIX',
+  // DXY/MOVE/VIX se renderizan vía Chart.js (data Yahoo) — TVC:* requiere TV paid.
+  // Estos fallbacks libres se usan solo si openTVModal recibe la key directamente.
+  DXY:'CAPITALCOM:DXY', VIX:'INDEX:VIX',
 };
 
 let _modalChart = null;
@@ -6246,9 +6292,10 @@ const INDICATOR_CFG = {
   res:   { title:'Reservas Bancarias Fed (WRBWFRBL)', dataKey:'reserves', unit:'M USD', color:'#fbbf24', fredUrl:'https://fred.stlouisfed.org/series/WRBWFRBL' },
   tga:   { title:'TGA — Cuenta General del Tesoro (WTREGEN)', dataKey:'tga', unit:'M USD', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/WTREGEN' },
   sofr:  { title:'SOFR — Tasa Referencia Repo (SOFR)', dataKey:'sofr', unit:'%', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/SOFR' },
-  dxy:   { title:'DXY — Índice del Dólar', tvSymbol:'TVC:DXY' },
-  move:  { title:'MOVE Index — Volatilidad Treasuries', tvSymbol:'TVC:MOVE' },
-  vix:   { title:'VIX — Volatilidad S&P 500', tvSymbol:'CBOE:VIX' },
+  // DXY/MOVE/VIX usan data Yahoo (hist+dates) renderizada con Chart.js — TVC:* requería TV paid.
+  dxy:   { title:'DXY — Índice del Dólar', yfTicker:'DX-Y.NYB', unit:'', color:'#4ade80', sourceLabel:'ICE / Yahoo Finance' },
+  move:  { title:'MOVE Index — Volatilidad Treasuries', yfTicker:'^MOVE', unit:'', color:'#fbbf24', sourceLabel:'ICE BofAML / Yahoo Finance' },
+  vix:   { title:'VIX — Volatilidad S&P 500', yfTicker:'^VIX', unit:'', color:'#f87171', sourceLabel:'CBOE / Yahoo Finance' },
   pmi:   { title:'Producción Manuf. USA (IPMAN)', dataKey:'pmi', unit:'', color:'#2dd4bf', fredUrl:'https://fred.stlouisfed.org/series/IPMAN' },
   gdp:   { title:'PIB Real USA — Tasa QoQ (A191RL1Q225SBEA)', dataKey:'gdpReal', unit:'%', color:'#60a5fa', fredUrl:'https://fred.stlouisfed.org/series/A191RL1Q225SBEA' },
   unemp: { title:'Desempleo USA (UNRATE)', dataKey:'unrate', unit:'%', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/UNRATE' },
@@ -6257,10 +6304,39 @@ const INDICATOR_CFG = {
   sent:  { title:'Confianza del Consumidor (UMCSENT)', dataKey:'sentiment', unit:'', color:'#a78bfa', fredUrl:'https://fred.stlouisfed.org/series/UMCSENT' },
 };
 
+// Convierte Yahoo (.hist + .dates) a formato FRED-compatible y abre Chart.js modal
+function openYahooModal(title, yfTicker, unit, color, sourceLabel) {
+  const yf = state.data.prices?.[yfTicker];
+  if (!yf || !yf.hist?.length || !yf.dates?.length) {
+    const titleEl = document.getElementById('modal-title');
+    const body    = document.getElementById('modal-body');
+    const modal   = document.getElementById('tv-modal');
+    if (!titleEl || !body || !modal) return;
+    titleEl.textContent = title;
+    body.innerHTML = '<p style="color:var(--amber);font-family:\'IBM Plex Mono\',monospace;font-size:12px;padding:24px;text-align:center">Sin datos de Yahoo para ' + yfTicker + '. Reintenta el refresh.</p>';
+    modal.classList.add('active');
+    return;
+  }
+  const series = yf.dates.map((d, i) => ({ date: d, value: yf.hist[i] }));
+  if (yf.price != null) {
+    series.push({ date: new Date().toISOString().slice(0, 10), value: yf.price });
+  }
+  // openFREDModal espera array reverso (más reciente primero)
+  const reversed = series.slice().reverse();
+  const sourceUrl = 'https://finance.yahoo.com/quote/' + encodeURIComponent(yfTicker);
+  openFREDModal(title, reversed, unit, color, sourceUrl);
+  // Override del label del link
+  if (sourceLabel) {
+    const link = document.querySelector('#modal-body a.source-badge');
+    if (link) link.textContent = 'Ver en ' + sourceLabel + ' ↗';
+  }
+}
+
 function openIndicatorModal(key) {
   const c = INDICATOR_CFG[key];
   if (!c) return;
-  if (c.tvSymbol) openTVModal(c.title, c.tvSymbol);
+  if (c.yfTicker)   openYahooModal(c.title, c.yfTicker, c.unit, c.color, c.sourceLabel);
+  else if (c.tvSymbol) openTVModal(c.title, c.tvSymbol);
   else openFREDModal(c.title, state.data[c.dataKey], c.unit, c.color, c.fredUrl);
 }
 
