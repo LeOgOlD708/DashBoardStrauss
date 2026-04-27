@@ -2665,7 +2665,9 @@ async function loadFredData() {
   setDs('ds-fred', '#fbbf24');
   setLastUpdate('Cargando FRED...');
   try {
-    const res = await fetch(`/api/fred?series=${FRED_SERIES}&limit=52`);
+    // limit=104: ~2 años para series semanales · ~14 semanas para series diarias (RRP).
+    // Necesario para Δ13w Net Liquidity y trayectoria 52w.
+    const res = await fetch(`/api/fred?series=${FRED_SERIES}&limit=104`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const d = await res.json();
 
@@ -4604,8 +4606,33 @@ function updateThreeHorizons(howellResult) {
     netLiqEl.style.color = netLiqNum == null ? '' : netLiqNum < 3 ? 'var(--red)' : netLiqNum < 3.5 ? 'var(--amber)' : 'var(--green)';
   }
   if (resVal != null && tgaVal != null) {
+    // Δ13w trend pill (Howell opera en derivadas, no niveles).
+    // Compara netLiq actual vs netLiq 13 semanas atrás (~3 meses, quartil).
+    const past = new Date(); past.setDate(past.getDate() - 13 * 7);
+    const reservesPast = _findValueAt(state.data.reserves, past);
+    const tgaPast      = _findValueAt(state.data.tga,      past);
+    const rrpPastRaw   = _findValueAt(state.data.rrp,      past);
+    const rrpPastM     = rrpPastRaw != null ? rrpPastRaw * 1000 : null;
+    let trendHtml = '';
+    if (netLiqNum != null && reservesPast != null && tgaPast != null) {
+      const netLiqPast = ((reservesPast - tgaPast) - (rrpPastM != null ? rrpPastM : 0)) / 1e6;
+      const deltaT     = netLiqNum - netLiqPast;
+      const deltaPct   = (deltaT / Math.abs(netLiqPast || 1)) * 100;
+      // Thresholds en T (trillions): >+0.3T expansión fuerte, >+0.1T expansión, <-0.3T contracción fuerte
+      const trendIcon = deltaT >  0.3 ? '↑↑'
+                      : deltaT >  0.1 ? '↑'
+                      : deltaT < -0.3 ? '↓↓'
+                      : deltaT < -0.1 ? '↓'
+                      : '→';
+      const trendCol  = deltaT >  0.1 ? 'var(--green)'
+                      : deltaT < -0.1 ? 'var(--red)'
+                      : 'var(--amber)';
+      const sign      = deltaT >= 0 ? '+' : '';
+      trendHtml = `<div style="margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:${trendCol};letter-spacing:.04em">Δ13w: ${trendIcon} ${sign}$${deltaT.toFixed(2)}T (${sign}${deltaPct.toFixed(1)}%)</div>`;
+    }
     const sub = `Res $${(resVal/1e6).toFixed(1)}T · TGA $${(tgaVal/1e6).toFixed(1)}T` + (rrpVal != null ? ` · RRP $${(rrpVal/1000).toFixed(0)}B` : '');
-    setT('h-largo-netliq-sub', sub);
+    const subEl = document.getElementById('h-largo-netliq-sub');
+    if (subEl) subEl.innerHTML = sub + trendHtml;
   }
 
   if (dxyVal != null) {
