@@ -424,7 +424,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .pc-ghost{font-size:60px}
 @media(max-width:1100px){.h3{grid-template-columns:1fr 1fr}.vh{grid-template-columns:110px 1fr}}
 @media(max-width:700px){.h3{grid-template-columns:1fr}.vh{grid-template-columns:1fr}}
-/* ── CHAT IA STRAUSS ── */
+/* ── CHAT IA PHOENIX ── */
 #chat-bubble{position:fixed;bottom:24px;right:24px;z-index:9100;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--phoenix-cream) 0%,var(--phoenix-orange) 50%,var(--phoenix-red) 100%);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 24px -4px rgba(249,115,22,0.5);transition:transform .2s,box-shadow .2s}
 #chat-bubble:hover{transform:scale(1.08);box-shadow:0 4px 20px rgba(0,0,0,.6),0 0 32px -4px rgba(249,115,22,0.7)}
 #chat-bubble:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(201,168,76,.35)}
@@ -2572,7 +2572,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 <script>
 // ══════════════════════════════════════════════════════════
 //  MACRO DASHBOARD v3.0 — SERVERLESS DATA LAYER
-//  Angel Lopez (Strauss) · Macro Trading Academy
+//  Angel Lopez (Phoenix) · Rebirth Capital
 //  Todas las llamadas van al servidor Vercel (/api/)
 //  Sin proxies · Sin CORS · API key nunca expuesta
 // ══════════════════════════════════════════════════════════
@@ -6139,16 +6139,18 @@ function openETFModal(ticker) {
   if (sym) openTVModal(ticker + ' — ' + meta.n, sym);
 }
 
-// ── CHAT IA STRAUSS ──
+// ── CHAT IA PHOENIX ──
 const chatState = {
   open: false,
   messages: [],
   sending: false,
-  sessionId: localStorage.getItem('strauss_chat_sid') || (() => {
-    const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    localStorage.setItem('strauss_chat_sid', id);
-    return id;
-  })()
+  sessionId: localStorage.getItem('phoenix_chat_sid')
+    || localStorage.getItem('strauss_chat_sid')
+    || (() => {
+      const id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem('phoenix_chat_sid', id);
+      return id;
+    })()
 };
 
 function getDashboardContext() {
@@ -6285,7 +6287,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <button class="chat-close" onclick="toggleChat()">✕</button>
   </div>
   <div class="chat-messages" id="chat-messages">
-    <div class="chat-empty">Hola, soy <strong style="color:var(--gold)">Strauss</strong>.<br>Pregúntame sobre los indicadores,<br>el score Howell o la postura actual.</div>
+    <div class="chat-empty">Hola, soy <strong style="color:var(--gold)">Phoenix</strong>.<br>Pregúntame sobre los indicadores,<br>el score Howell o la postura actual.</div>
   </div>
   <div class="chat-input-row">
     <textarea id="chat-input" placeholder="Pregunta sobre el dashboard..." rows="1"></textarea>
