@@ -640,6 +640,25 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
+  <!-- ── ECONOMIC CALENDAR — próximos eventos macro 7 días ── -->
+  <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(26,15,18,.92) 100%);border-color:rgba(230,180,80,.25);overflow:hidden;position:relative">
+    <div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange) 0%,var(--phoenix-cream) 100%)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="lbl" style="color:var(--gold);margin:0">📅 Calendario · Próximos 7 días</span>
+        <button class="help-i" type="button" onclick="openGlossary('economic-calendar')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <span style="display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red)"></span>Alto impacto</span>
+        <span style="display:inline-flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber)"></span>Medio</span>
+        <a href="https://fred.stlouisfed.org/releases/" target="_blank" class="src-link">FRED Releases↗</a>
+      </div>
+    </div>
+    <div id="econ-calendar" style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
+      <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:8px">Cargando calendario...</div>
+    </div>
+  </div>
+
   <!-- ── THREE HORIZONS ── -->
   <div class="h3">
     <!-- Largo Plazo — Ciclo Howell / Liquidez -->
@@ -2589,15 +2608,17 @@ async function bootData() {
   setNavStatus('Cargando...', '#fbbf24');
   showLoadingState();
 
-  const [fredResult, yahooResult, newsResult] = await Promise.allSettled([
+  const [fredResult, yahooResult, newsResult, calResult] = await Promise.allSettled([
     loadFredData(),
     loadYahooData(),
     loadNewsData(),
+    loadEconCalendar(),
   ]);
 
   if (fredResult.status === 'rejected')  console.warn('FRED:', fredResult.reason);
   if (yahooResult.status === 'rejected') console.warn('Yahoo:', yahooResult.reason);
   if (newsResult.status === 'rejected')  console.warn('News:', newsResult.reason);
+  if (calResult.status === 'rejected')   console.warn('Calendar:', calResult.reason);
 
   // Re-run FRED UI now that Yahoo has set state.data.dxy — fixes DXY thermometer showing —
   updateFredUI();
@@ -2744,6 +2765,75 @@ async function loadYahooData() {
     showToast('Precios: ' + e.message);
     throw e;
   }
+}
+
+// ── Economic Calendar (FRED Releases) ──
+async function loadEconCalendar() {
+  try {
+    const res = await fetch('/api/fred-calendar');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.data.calendar = data;
+    renderEconCalendar(data);
+  } catch (e) {
+    console.warn('[Calendar] error:', e.message);
+    const el = document.getElementById('econ-calendar');
+    if (el) el.innerHTML = `<div style="font-size:10px;color:var(--text3);padding:8px">Calendario no disponible</div>`;
+  }
+}
+
+function renderEconCalendar(data) {
+  const el = document.getElementById('econ-calendar');
+  if (!el) return;
+  const events = data?.events || [];
+  const today = data?.today || new Date().toISOString().slice(0, 10);
+
+  // Filtrar próximos 7 días
+  const todayDate = new Date(today);
+  const sevenAhead = new Date(todayDate); sevenAhead.setDate(todayDate.getDate() + 7);
+  const filtered = events.filter(e => {
+    const d = new Date(e.date);
+    return d >= todayDate && d <= sevenAhead;
+  });
+
+  if (!filtered.length) {
+    el.innerHTML = `<div style="font-size:10px;color:var(--text3);padding:8px;font-family:'IBM Plex Mono',monospace">Sin eventos macro en los próximos 7 días.</div>`;
+    return;
+  }
+
+  // Agrupar por día y renderizar como tarjetas horizontales
+  const byDay = {};
+  filtered.forEach(e => {
+    if (!byDay[e.date]) byDay[e.date] = [];
+    byDay[e.date].push(e);
+  });
+
+  const dayNames = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  el.innerHTML = Object.entries(byDay).map(([date, evs]) => {
+    const d = new Date(date + 'T12:00:00'); // mediodía para evitar timezone shift
+    const dayLbl = dayNames[d.getDay()];
+    const dayNum = d.getDate();
+    const monthLbl = monthNames[d.getMonth()];
+    const isToday = date === today;
+    const eventsHtml = evs.map(e => {
+      const dotColor = e.impact === 'high' ? 'var(--red)' : e.impact === 'med' ? 'var(--amber)' : 'var(--green)';
+      return `<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text);padding:2px 0" title="${e.desc}">
+        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+        <span>${e.name}</span>
+      </div>`;
+    }).join('');
+
+    return `<div style="flex-shrink:0;min-width:140px;background:${isToday ? 'rgba(230,180,80,.08)' : 'var(--surface2)'};border:1px solid ${isToday ? 'rgba(230,180,80,.4)' : 'var(--border2)'};border-radius:6px;padding:8px 10px">
+      <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border)">
+        <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:${isToday ? 'var(--gold)' : 'var(--text)'};line-height:1">${dayNum}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.05em">${dayLbl} ${monthLbl}</div>
+        ${isToday ? '<span style="font-family:\'IBM Plex Mono\',monospace;font-size:7px;color:var(--gold);letter-spacing:.1em;margin-left:auto">HOY</span>' : ''}
+      </div>
+      ${eventsHtml}
+    </div>`;
+  }).join('');
 }
 
 // ── News ──
@@ -5814,6 +5904,19 @@ const INDICATORS_GLOSSARY = {
     ],
     note: 'Para oro spot real usar el GLD ETF × 10 como proxy (precisión ±2%).'
   },
+  'economic-calendar': {
+    name: 'Calendario Económico',
+    category: 'Operacional · Eventos',
+    source: { label: 'FRED · Release Dates API', url: 'https://fred.stlouisfed.org/releases/', freq: 'Diario' },
+    what: 'Próximos eventos macro relevantes (CPI, PCE, NFP, FOMC, Initial Claims, Retail Sales, ISM PMI, etc.) en una ventana de 7 días.',
+    formula: 'Llama al endpoint /fred/release/dates para 12 releases prioritarios y filtra fechas próximas.',
+    interpret: 'Saber qué eventos vienen es base operacional. Un release de CPI mañana cambia el sizing y el riesgo de la posición de hoy. NFP el primer viernes del mes es el evento de empleo más vigilado.',
+    thresholds: [
+      { c:'red',    t:'High impact: CPI, PCE, NFP, FOMC, ISM PMI, GDP' },
+      { c:'amber',  t:'Med impact: Initial Claims, Retail Sales, Indust. Prod, Housing Starts, Sentiment, JOLTS' }
+    ],
+    note: 'Fechas vienen directo de FRED Release Dates API. No incluye horas exactas (ET) — generalmente CPI/PCE/NFP a las 8:30 ET, FOMC a las 14:00 ET, ISM a las 10:00 ET.'
+  },
   'spy-levels': {
     name: 'Niveles Técnicos · SPY',
     category: 'Mercado · Niveles Técnicos',
@@ -5896,7 +5999,7 @@ function _glRenderIndex() {
   }
   // Orden de categorías
   const catOrder = [
-    'Operacional · Driver Cross-Asset', 'Operacional · Tasas',
+    'Operacional · Eventos', 'Operacional · Driver Cross-Asset', 'Operacional · Tasas',
     'Howell · Liquidez', 'Howell · Estrés Repo', 'Howell · Liquidez Global', 'Howell · Composite',
     'Inflación', 'Inflación · Fed Preferred', 'Inflación · Expectativas',
     'Fidelity · Composite', 'Fidelity · Manufactura', 'Fidelity · Crecimiento', 'Fidelity · Empleo', 'Fidelity · Consumo', 'Fidelity · Sentimiento',
