@@ -353,7 +353,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .vh-desc{font-size:12px;color:var(--text2);line-height:1.5}
 .vh-veredicto{font-size:11px;color:var(--text2);line-height:1.6;padding:8px 11px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:5px}
 .vh-bars{display:flex;flex-direction:column;gap:6px}
-.vhb{display:flex;flex-direction:column;gap:2px}
+.vhb{display:flex;flex-direction:column;gap:2px;padding:1px 4px;border-radius:3px;transition:background .15s}
+.vhb:hover{background:rgba(201,168,76,.05)}
 .vhb-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);display:flex;justify-content:space-between;gap:4px}
 .vhb-track{height:4px;border-radius:2px;background:var(--border2);overflow:hidden}
 .vhb-fill{height:100%;border-radius:2px;transition:width .5s}
@@ -375,6 +376,9 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .kb-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--text2);text-transform:uppercase;margin-bottom:5px}
 .kb-val{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;line-height:1.1}
 .kb-sub{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);margin-top:3px}
+.kb-src{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.05em;color:var(--text3);margin-top:6px;padding:1px 5px;background:var(--surface2);border-radius:3px;text-decoration:none;border:1px solid var(--border2)}
+.kb-src:hover{color:var(--gold);border-color:rgba(201,168,76,.4)}
+.kb-src.kb-src-derived{cursor:default;font-style:italic}
 /* Compact thermometer bar */
 .thb{position:relative;height:6px;border-radius:3px;margin:6px 0 3px}
 .thb-hdl{position:absolute;top:50%;transform:translate(-50%,-50%);width:11px;height:11px;background:#eae6de;border:2px solid #07070e;border-radius:50%;transition:left .5s}
@@ -537,39 +541,39 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-veredicto hero-postura defensivo" id="hero-postura">DEFENSIVO</div>
     </div>
     <div class="vh-bars">
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('reservas-fed')" style="cursor:pointer" title="Reservas Fed (FRED:WRBWFRBL) — click para ver detalle">
         <div class="vhb-lbl"><span>Reservas Fed</span><span id="hbar-res-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-res" style="width:0%;background:var(--amber)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('tga')" style="cursor:pointer" title="TGA Tesoro (FRED:WTREGEN) — click para ver detalle">
         <div class="vhb-lbl"><span>TGA Tesoro</span><span id="hbar-tga-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-tga" style="width:0%;background:var(--red)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('rrp')" style="cursor:pointer" title="RRP Fed (FRED:RRPTSYD) — click para ver detalle">
         <div class="vhb-lbl"><span>RRP Fed</span><span id="hbar-rrp-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-rrp" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('sofr-spread')" style="cursor:pointer" title="SOFR Spread (FRED:SOFR/FEDFUNDS) — click para ver detalle">
         <div class="vhb-lbl"><span>SOFR Spread</span><span id="hbar-sofr-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-sofr" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('dxy')" style="cursor:pointer" title="DXY (Yahoo:DX-Y.NYB) — click para ver detalle">
         <div class="vhb-lbl"><span>DXY</span><span id="hbar-dxy-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-dxy" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('cpi-yoy')" style="cursor:pointer" title="CPI YoY (FRED:CPIAUCSL) — click para ver detalle">
         <div class="vhb-lbl"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="vhb" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">
+      <div class="vhb" onclick="openGlossary('yield-curve-10y2y')" style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border);cursor:pointer" title="Curva 10Y-2Y (FRED:T10Y2Y) — click para ver detalle">
         <div class="vhb-lbl"><span>Curva 10Y-2Y</span><span id="hbar-yc-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('unrate')" style="cursor:pointer" title="Desempleo (FRED:UNRATE) — click para ver detalle">
         <div class="vhb-lbl"><span>Desempleo</span><span id="hbar-ur-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-ur" style="width:0%;background:var(--green)"></div></div>
       </div>
-      <div class="vhb">
+      <div class="vhb" onclick="openGlossary('spy-sma20w')" style="cursor:pointer" title="SPY vs SMA20w (Yahoo:SPY) — click para ver detalle">
         <div class="vhb-lbl"><span>SPY vs SMA20w</span><span id="hbar-spy-v">—</span></div>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-spy" style="width:0%;background:var(--green)"></div></div>
       </div>
@@ -592,11 +596,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div class="kb-lbl">Score Howell <button class="help-i" type="button" onclick="openGlossary('howell-score')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-largo-score"><span id="h-largo-score-num">—</span><span style="font-size:11px;color:var(--text3)">/8</span></div>
           <div class="kb-sub" id="h-largo-fase">Cargando...</div>
+          <span class="kb-src kb-src-derived">Composite · 6 indicadores</span>
         </div>
         <div class="kb">
           <div class="kb-lbl">Net Liquidity (Res − TGA − RRP) <button class="help-i" type="button" onclick="openGlossary('net-liquidity')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-largo-netliq" style="font-size:14px">—</div>
           <div class="kb-sub" id="h-largo-netliq-sub">Reservas · TGA · RRP</div>
+          <span class="kb-src kb-src-derived">FRED: WRBWFRBL − WTREGEN − RRPTSYD</span>
         </div>
         <div class="kb">
           <div class="kb-lbl">DXY · Multiplicador global <button class="help-i" type="button" onclick="openGlossary('dxy')" title="¿Qué es?">?</button></div>
@@ -605,6 +611,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
             <div class="thb-hdl" id="h-largo-dxy-hdl" style="left:50%"></div>
           </div>
           <div class="kb-sub">Expansivo &lt;100 · Restrictivo &gt;106</div>
+          <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="kb-src">Yahoo: DX-Y.NYB ↗</a>
         </div>
       </div>
     </div>
@@ -623,11 +630,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div class="kb-lbl">Score Fidelity <button class="help-i" type="button" onclick="openGlossary('fidelity-score')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-medio-score"><span id="h-medio-score-num">—</span><span style="font-size:11px;color:var(--text3)">/8</span></div>
           <div class="kb-sub" id="h-medio-fase-desc">Cargando...</div>
+          <span class="kb-src kb-src-derived">Composite · 8 indicadores</span>
         </div>
         <div class="kb">
           <div class="kb-lbl">Producción Manufactura · YoY <button class="help-i" type="button" onclick="openGlossary('ipman-yoy')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-medio-pmi" style="font-size:16px">—</div>
           <div class="kb-sub" id="h-medio-pmi-trend">3m: —</div>
+          <a href="https://fred.stlouisfed.org/series/IPMAN" target="_blank" class="kb-src">FRED: IPMAN ↗</a>
         </div>
         <div class="kb">
           <div class="kb-lbl">HY Spreads · Estrés crediticio <button class="help-i" type="button" onclick="openGlossary('hy-spreads')" title="¿Qué es?">?</button></div>
@@ -636,6 +645,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
             <div class="thb-hdl" id="h-medio-hy-hdl" style="left:20%"></div>
           </div>
           <div class="kb-sub">Normal &lt;4.5% · Estrés &gt;5.5%</div>
+          <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" class="kb-src">FRED: BAMLH0A0HYM2 ↗</a>
         </div>
       </div>
     </div>
@@ -654,6 +664,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div class="kb-lbl">Régimen <button class="help-i" type="button" onclick="openGlossary('regime-corto-plazo')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-corto-regime-label" style="font-size:14px">—</div>
           <div class="kb-sub" id="h-corto-regime-desc">Cargando...</div>
+          <span class="kb-src kb-src-derived">Composite · 4 señales</span>
         </div>
         <div class="kb">
           <div class="kb-lbl">VIX · Volatilidad implícita <button class="help-i" type="button" onclick="openGlossary('vix')" title="¿Qué es?">?</button></div>
@@ -662,11 +673,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
             <div class="thb-hdl" id="h-corto-vix-hdl" style="left:20%"></div>
           </div>
           <div class="kb-sub">Normal &lt;20 · Pánico &gt;35</div>
+          <a href="https://finance.yahoo.com/quote/^VIX" target="_blank" class="kb-src">Yahoo: ^VIX ↗</a>
         </div>
         <div class="kb">
           <div class="kb-lbl">SPY vs SMA100 (≈20w) · Tendencia <button class="help-i" type="button" onclick="openGlossary('spy-sma20w')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-corto-spy" style="font-size:16px">—</div>
           <div class="kb-sub" id="h-corto-spy-sub">Cargando...</div>
+          <a href="https://finance.yahoo.com/quote/SPY" target="_blank" class="kb-src">Yahoo: SPY ↗</a>
         </div>
       </div>
     </div>
@@ -755,37 +768,37 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           </thead>
           <tbody>
             <tr id="diag-sc-res-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">Reservas Fed</td>
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">Reservas Fed <a href="https://fred.stlouisfed.org/series/WRBWFRBL" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('reservas-fed')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-res-val">—</td>
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&lt;$3.3T→+1 · &lt;$3.0T→+2</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-res-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-tga-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">TGA Tesoro</td>
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">TGA Tesoro <a href="https://fred.stlouisfed.org/series/WTREGEN" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('tga')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-tga-val">—</td>
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$700B→+1 · &gt;$1T→+2</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-tga-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-rrp-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">RRP Fed</td>
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">RRP Fed <a href="https://fred.stlouisfed.org/series/RRPTSYD" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('rrp')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-rrp-val">—</td>
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$200B→+0.5 · &gt;$500B→+1</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-rrp-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-sofr-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">SOFR Spread</td>
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">SOFR Spread <a href="https://fred.stlouisfed.org/series/SOFR" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('sofr-spread')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-sofr-val">—</td>
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;5bps→+0.5 · &gt;15bps→+1</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-sofr-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-dxy-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">DXY</td>
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">DXY <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="src-link">Yahoo↗</a> <button class="help-i" type="button" onclick="openGlossary('dxy')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-dxy-val">—</td>
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;106→+0.5 · &gt;110→+1</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-dxy-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-cpi-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">CPI YoY</td>
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">CPI YoY <a href="https://fred.stlouisfed.org/series/CPIAUCSL" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('cpi-yoy')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-cpi-val">—</td>
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;3%→+0.5 · &gt;3.5%→+1</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-cpi-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
@@ -942,6 +955,15 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         </div>
       </div>
       <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <a href="https://fred.stlouisfed.org/series/TB6MS" target="_blank" class="kb-src">FRED: TB6MS ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS1" target="_blank" class="kb-src">GS1 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="kb-src">GS2 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS5" target="_blank" class="kb-src">GS5 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS10" target="_blank" class="kb-src">GS10 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS20" target="_blank" class="kb-src">GS20 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS30" target="_blank" class="kb-src">GS30 ↗</a>
+      </div>
       <!-- Legend inline -->
       <div id="yc-legend" style="display:flex;gap:12px;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)">
         <span><span style="display:inline-block;width:16px;height:2px;background:#4ade80;vertical-align:middle;margin-right:4px;border-radius:1px"></span>Ahora</span>
