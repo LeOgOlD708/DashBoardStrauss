@@ -3,49 +3,76 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Macro Trading Dashboard v3.0 — Angel Lopez (Strauss)</title>
+<title>Rebirth Capital — Macro Intelligence Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#07070e;--surface:#0d0d1a;--surface2:#131320;--surface3:#191926;
-  --gold:#c9a84c;--gold2:#e8c97a;--gold3:#f5e4b0;
-  --text:#eae6de;--text2:#a89f93;--text3:#7a716a;
+  /* ── Rebirth Capital · Phoenix theme ── */
+  /* Base: bordeaux-black con calidez sutil */
+  --bg:#08050a;--surface:#110a10;--surface2:#1a0f12;--surface3:#231419;
+  /* Phoenix gold (cream cálido — ceramic yellow F8D794 base) */
+  --gold:#e6b450;--gold2:#f1cf73;--gold3:#f8d794;
+  /* Texto */
+  --text:#f0ece4;--text2:#b5a89a;--text3:#7d6f63;
+  /* Scoring colors (NO TOCAR — semánticos) */
   --green:#4ade80;--red:#f87171;--amber:#fbbf24;--blue:#60a5fa;
   --purple:#a78bfa;--teal:#2dd4bf;
-  --border:#181826;--border2:#22223a;
+  /* Phoenix accents (para identidad y CTAs, no para scoring) */
+  --phoenix-amber:#f97316;       /* naranja brasa */
+  --phoenix-orange:#fb923c;      /* naranja medio glow */
+  --phoenix-red:#dc2626;         /* rojo intenso fénix */
+  --phoenix-bordeaux:#9c0512;    /* red carriage / mahogany hue */
+  --phoenix-cream:#f8d794;       /* ceramic yellow */
+  --phoenix-deep:#3d1810;        /* mahogany muy oscuro */
+  /* Bordes con tinte cálido */
+  --border:#1d1216;--border2:#2a1a1f;
+  /* Phase pills */
   --p1bg:#0a2218;--p1t:#4ade80;
   --p2bg:#0a1830;--p2t:#60a5fa;
   --p3bg:#2a1808;--p3t:#f59e0b;
   --p4bg:#2a0808;--p4t:#f87171;
   --r:8px;--r2:12px;
-  --text1:#eae6de;
+  --text1:#f0ece4;
+  /* Glow shadows reusables */
+  --glow-gold:0 0 0 1px rgba(230,180,80,.18), 0 0 24px -8px rgba(230,180,80,.3);
+  --glow-amber:0 0 0 1px rgba(249,115,22,.2), 0 0 30px -10px rgba(249,115,22,.4);
 }
-body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:300;min-height:100vh;line-height:1.5}
+body{
+  background:
+    radial-gradient(ellipse 80% 50% at 92% -8%, rgba(249,115,22,0.08) 0%, rgba(249,115,22,0) 55%),
+    radial-gradient(ellipse 60% 40% at 5% 110%, rgba(156,5,18,0.08) 0%, rgba(156,5,18,0) 55%),
+    var(--bg);
+  background-attachment:fixed;
+  color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:300;min-height:100vh;line-height:1.5
+}
 .mono{font-family:'IBM Plex Mono',monospace}
 .serif{font-family:'Playfair Display',serif}
 
 /* ── NAV ── */
 nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:200}
 .brand{display:flex;align-items:center;gap:10px}
-.brand-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;letter-spacing:-0.02em}
+.brand-logo{width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(249,115,22,0.3))}
+.brand-name{font-family:'Playfair Display',serif;font-size:17px;font-weight:900;letter-spacing:-0.02em;color:var(--text)}
 .brand-name span{color:var(--gold);font-style:italic}
-.nav-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--bg);background:var(--gold);padding:3px 7px;letter-spacing:0.1em}
+.brand-tagline{font-family:'IBM Plex Mono',monospace;font-size:7px;letter-spacing:.2em;color:var(--text3);text-transform:uppercase;line-height:1;margin-top:2px}
+.nav-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--bg);background:linear-gradient(135deg,var(--gold) 0%,var(--phoenix-orange) 100%);padding:3px 7px;letter-spacing:0.1em;border-radius:3px;box-shadow:0 0 10px -3px rgba(249,115,22,0.4)}
 .nav-right{display:flex;align-items:center;gap:16px}
 .live-dot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:0.1em}
 .live-dot .dot{width:5px;height:5px;border-radius:50%;background:var(--text3)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .clock-display{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)}
-.phase-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.25);color:var(--amber);letter-spacing:.08em}
+.phase-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 9px;background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(220,38,38,.08));border:1px solid rgba(249,115,22,.3);color:var(--phoenix-orange);letter-spacing:.08em;border-radius:3px;box-shadow:0 0 16px -6px rgba(249,115,22,0.4)}
 
 /* ── TABS ── */
 .tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 20px;overflow-x:auto;gap:0}
 .tabs::-webkit-scrollbar{height:0}
 .tab{padding:9px 14px;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .15s;user-select:none}
 .tab:hover{color:var(--text2)}
-.tab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.tab.active{color:var(--gold);border-bottom-color:var(--gold);text-shadow:0 0 18px rgba(230,180,80,.5)}
+.tab:hover:not(.active){color:var(--text2);border-bottom-color:rgba(230,180,80,.2)}
 .tab-new{position:relative}
 .tab-new::after{content:'NEW';position:absolute;top:6px;right:2px;font-size:7px;color:var(--teal);letter-spacing:.05em}
 
@@ -63,7 +90,11 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 @media(max-width:600px){.g4,.g3,.g2{grid-template-columns:1fr}}
 
 /* ── CARDS ── */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:14px;position:relative;overflow:hidden}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:14px;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .25s}
+.card.gold-a{box-shadow:0 0 0 1px rgba(230,180,80,.05) inset}
+.card.gold-a:hover{border-color:rgba(230,180,80,.25)}
+.card.amber-a:hover{border-color:rgba(249,115,22,.25);box-shadow:0 0 24px -10px rgba(249,115,22,.3)}
+.card.red-a:hover{border-color:rgba(220,38,38,.3);box-shadow:0 0 24px -10px rgba(220,38,38,.3)}
 .card-sm{padding:10px}
 .card-accent{position:absolute;top:0;left:0;right:0;height:2px}
 .gold-a .card-accent{background:var(--gold)}
@@ -83,7 +114,7 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 /* ── SECTION HEADERS ── */
 .sh{display:flex;align-items:center;gap:8px;margin:16px 0 10px}
 .sh:first-child{margin-top:4px}
-.sh-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);padding:2px 7px;border:1px solid rgba(201,168,76,.3);background:rgba(201,168,76,.05)}
+.sh-tag{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--gold);padding:2px 7px;border:1px solid rgba(230,180,80,.3);background:linear-gradient(135deg,rgba(230,180,80,.06),rgba(249,115,22,.04));border-radius:3px}
 .sh-title{font-family:'Playfair Display',serif;font-size:16px;font-weight:700}
 .sh-line{flex:1;height:1px;background:var(--border)}
 
@@ -342,7 +373,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #regime-banner{padding:14px 20px}
 .regime-label{font-size:18px}
 /* Verdict Hero */
-.vh{display:grid;grid-template-columns:130px 1fr 220px;gap:22px;align-items:start;background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden}
+.vh{display:grid;grid-template-columns:130px 1fr 220px;gap:22px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
+.vh::before{content:'';position:absolute;top:0;right:0;width:40%;height:100%;background:radial-gradient(ellipse at top right,rgba(249,115,22,0.05) 0%,transparent 60%);pointer-events:none}
 .vh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
 .vh-score{text-align:center}
 .vh-num{font-family:'IBM Plex Mono',monospace;font-size:64px;font-weight:700;line-height:1;letter-spacing:-3px}
@@ -388,7 +420,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 @media(max-width:1100px){.h3{grid-template-columns:1fr 1fr}.vh{grid-template-columns:110px 1fr}}
 @media(max-width:700px){.h3{grid-template-columns:1fr}.vh{grid-template-columns:1fr}}
 /* ── CHAT IA STRAUSS ── */
-#chat-bubble{position:fixed;bottom:24px;right:24px;z-index:9100;width:46px;height:46px;border-radius:50%;background:var(--gold);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5);transition:transform .2s,box-shadow .2s}
+#chat-bubble{position:fixed;bottom:24px;right:24px;z-index:9100;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--phoenix-cream) 0%,var(--phoenix-orange) 50%,var(--phoenix-red) 100%);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 24px -4px rgba(249,115,22,0.5);transition:transform .2s,box-shadow .2s}
+#chat-bubble:hover{transform:scale(1.08);box-shadow:0 4px 20px rgba(0,0,0,.6),0 0 32px -4px rgba(249,115,22,0.7)}
 #chat-bubble:hover{transform:scale(1.08);box-shadow:0 6px 22px rgba(201,168,76,.35)}
 #chat-bubble svg{width:20px;height:20px;fill:var(--bg)}
 #chat-panel{position:fixed;bottom:80px;right:24px;z-index:9100;width:340px;max-height:520px;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);display:none;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,.6);overflow:hidden}
@@ -446,8 +479,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .gl-list-cat{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin:14px 0 6px}
 .gl-list-cat:first-child{margin-top:0}
 /* Header glossary button */
-#open-glossary-btn{display:inline-flex;align-items:center;gap:5px;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.25);color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:4px 9px;border-radius:5px;cursor:pointer;transition:all .15s;text-transform:uppercase}
-#open-glossary-btn:hover{background:rgba(201,168,76,.14);border-color:rgba(201,168,76,.5)}
+#open-glossary-btn{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(230,180,80,.08),rgba(249,115,22,.06));border:1px solid rgba(230,180,80,.3);color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:5px 10px;border-radius:5px;cursor:pointer;transition:all .2s;text-transform:uppercase;box-shadow:0 0 14px -6px rgba(230,180,80,0.35)}
+#open-glossary-btn:hover{background:linear-gradient(135deg,rgba(230,180,80,.16),rgba(249,115,22,.1));border-color:rgba(249,115,22,.5);color:var(--gold2);box-shadow:0 0 22px -6px rgba(249,115,22,0.5)}
 </style>
 </head>
 <body>
@@ -458,8 +491,30 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 <!-- NAV -->
 <nav>
   <div class="brand">
-    <div class="brand-name">Macro Trading <span>Academy</span></div>
-    <div class="nav-pill">v3.0</div>
+    <svg class="brand-logo" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="Rebirth Capital — Phoenix">
+      <defs>
+        <linearGradient id="phoenix-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#f8d794"/>
+          <stop offset="50%" stop-color="#f97316"/>
+          <stop offset="100%" stop-color="#dc2626"/>
+        </linearGradient>
+        <radialGradient id="phoenix-glow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#fb923c" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#fb923c" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <circle cx="32" cy="32" r="28" fill="url(#phoenix-glow)"/>
+      <!-- Phoenix wings + body, monoline minimalista -->
+      <path d="M32 16 C28 22 22 24 16 22 C20 28 26 32 32 32 C38 32 44 28 48 22 C42 24 36 22 32 16 Z" fill="url(#phoenix-grad)" opacity="0.95"/>
+      <path d="M32 32 L32 50 M28 44 L32 48 L36 44" stroke="url(#phoenix-grad)" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <!-- Spark center -->
+      <circle cx="32" cy="32" r="2" fill="#f8d794"/>
+    </svg>
+    <div style="display:flex;flex-direction:column;line-height:1">
+      <div class="brand-name">Rebirth <span>Capital</span></div>
+      <div class="brand-tagline">Liquidity Intelligence</div>
+    </div>
+    <div class="nav-pill">v4.0</div>
   </div>
   <div id="nav-tickers">
     <div class="nt-item"><span class="nt-sym">SPY</span><span class="nt-price" id="nt-SPY-p">—</span><span class="nt-chg flat" id="nt-SPY-c">—</span></div>
@@ -1835,7 +1890,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 </div><!-- /main -->
 
 <footer style="border-top:1px solid var(--border);padding:10px 20px;display:flex;justify-content:space-between;align-items:center">
-  <span class="mono" style="font-size:8px;color:var(--text3)">Macro Trading Academy · Dashboard v3.0</span><span class="mono" style="font-size:8px;color:var(--text3);margin-left:12px;padding-left:12px;border-left:1px solid var(--border2)">© Angel Lopez (Strauss)</span>
+  <span class="mono" style="font-size:9px;color:var(--text2)">Rebirth Capital · Macro Intelligence v4.0</span><span class="mono" style="font-size:9px;color:var(--text3);margin-left:12px;padding-left:12px;border-left:1px solid var(--border2)">© Angel López</span>
   <span class="mono" style="font-size:8px;color:var(--text3)">FRED · Yahoo Finance · Multi-fuente RSS · Auto-refresh 15min</span>
 </footer>
 
@@ -2106,7 +2161,7 @@ nf.innerHTML='<div style="padding:16px 0;font-size:11px;color:var(--text3);font-
 const _nfSkel=document.getElementById('newsFeed');
 if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace">Cargando noticias...</div>';
 </script>
-<div style="position:fixed;bottom:14px;left:20px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(90,80,74,0.5);letter-spacing:.08em;pointer-events:none;z-index:999">Angel Lopez (Strauss)</div>
+<div style="position:fixed;bottom:14px;left:20px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(230,180,80,0.4);letter-spacing:.12em;pointer-events:none;z-index:999;text-transform:uppercase">↑ Rebirth Capital</div>
 
 <script>
 // ══════════════════════════════════════════════════════════
@@ -5301,7 +5356,7 @@ function getDashboardContext() {
   const phase   = phaseEl?.textContent || '—';
   const mins    = state.lastUpdate ? Math.round((Date.now() - state.lastUpdate) / 60000) : '?';
 
-  return `Eres Strauss, el asistente de análisis macro personal de Ángel López.
+  return `Eres Phoenix, el asistente de inteligencia macro de Rebirth Capital, asignado al análisis personal de Ángel López.
 
 MARCO ANALÍTICO — Modelo Howell de ciclos de liquidez:
 • Fase 1 (Early Expansion): Liquidez abundante — favorecer riesgo, growth, crypto
@@ -5342,7 +5397,7 @@ function renderChatMessages() {
   const box = document.getElementById('chat-messages');
   if (!box) return;
   if (chatState.messages.length === 0) {
-    box.innerHTML = `<div class="chat-empty">Hola, soy <strong style="color:var(--gold)">Strauss</strong>.<br>Pregúntame sobre los indicadores,<br>el score Howell o la postura actual.</div>`;
+    box.innerHTML = `<div class="chat-empty">Hola, soy <strong style="color:var(--gold)">Phoenix</strong>.<br>Asistente de inteligencia macro de Rebirth Capital.<br>Pregúntame sobre los indicadores, el score Howell o la postura actual.</div>`;
     return;
   }
   box.innerHTML = chatState.messages.map(m =>
@@ -5401,15 +5456,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </script>
 
-<!-- ── Chat IA Strauss ── -->
-<div id="chat-bubble" onclick="toggleChat()" title="Asistente IA Strauss">
+<!-- ── Chat IA Phoenix (Rebirth Capital) ── -->
+<div id="chat-bubble" onclick="toggleChat()" title="Phoenix · Asistente IA de Rebirth Capital">
   <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
 </div>
 <div id="chat-panel">
   <div class="chat-header">
     <div class="chat-header-info">
-      <span class="chat-header-title">Strauss IA</span>
-      <span class="chat-header-sub">Análisis macro · Modelo Howell</span>
+      <span class="chat-header-title">Phoenix IA</span>
+      <span class="chat-header-sub">Inteligencia macro · Rebirth Capital</span>
     </div>
     <button class="chat-close" onclick="toggleChat()">✕</button>
   </div>
