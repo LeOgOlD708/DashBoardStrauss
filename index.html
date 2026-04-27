@@ -1943,14 +1943,77 @@ function go(id,el){
 }
 
 // ── Chart defaults ──
-Chart.defaults.color='#524e4a';
-Chart.defaults.borderColor='#181826';
+Chart.defaults.color='#7d6f63';
+Chart.defaults.borderColor='#1d1216';
 Chart.defaults.font.family="'IBM Plex Mono',monospace";
 Chart.defaults.font.size=9;
+Chart.defaults.animation={duration:900,easing:'easeOutCubic'};
+Chart.defaults.animations={
+  tension:{duration:1200,easing:'easeOutQuart',from:0,to:0.4,loop:false}
+};
 
-const gold='#c9a84c',green='#4ade80',red='#f87171',amber='#fbbf24',blue='#60a5fa',teal='#2dd4bf',purple='#a78bfa';
-const surf2='#131320',border='#181826';
+const gold='#e6b450',green='#4ade80',red='#f87171',amber='#fbbf24',blue='#60a5fa',teal='#2dd4bf',purple='#a78bfa';
+const phoenixOrange='#fb923c', phoenixAmber='#f97316', phoenixRed='#dc2626', phoenixCream='#f8d794';
+const surf2='#1a0f12',border='#1d1216';
 const mo=['May','Jun','Jul','Ago','Sep','Oct','Nov','Dic','Ene','Feb','Mar','Abr'];
+
+// ── Phoenix Glow Plugin (opt-in via options.plugins.phoenixGlow) ──
+const phoenixGlowPlugin = {
+  id: 'phoenixGlow',
+  beforeDatasetDraw(chart, args) {
+    const opts = chart.options?.plugins?.phoenixGlow;
+    if (!opts || !opts.enabled) return;
+    const ds = chart.data.datasets[args.index];
+    if (ds?.type === 'bar' || chart.config.type === 'bar') return;
+    chart.ctx.save();
+    chart.ctx.shadowColor = opts.color || 'rgba(249,115,22,0.55)';
+    chart.ctx.shadowBlur  = opts.blur  || 14;
+    chart.ctx.shadowOffsetX = 0;
+    chart.ctx.shadowOffsetY = 0;
+  },
+  afterDatasetDraw(chart, args) {
+    const opts = chart.options?.plugins?.phoenixGlow;
+    if (!opts || !opts.enabled) return;
+    chart.ctx.restore();
+  }
+};
+Chart.register(phoenixGlowPlugin);
+
+// Helper: gradient sunset (orange a transparente vertical) usando bounding del chart
+function phoenixGradient(ctx, chartArea, opts = {}) {
+  if (!chartArea) return 'rgba(249,115,22,0.12)';
+  const top = opts.topAlpha ?? 0.42;
+  const mid = opts.midAlpha ?? 0.16;
+  const r = opts.r ?? 249, g = opts.g ?? 115, b = opts.b ?? 22;
+  const grad = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+  grad.addColorStop(0, `rgba(${r},${g},${b},0)`);
+  grad.addColorStop(0.55, `rgba(${r},${g},${b},${mid})`);
+  grad.addColorStop(1, `rgba(${r},${g},${b},${top})`);
+  return grad;
+}
+
+// Helper: dataset config "estilo Phoenix" para charts de área (línea + glow + relleno cálido)
+function phoenixDataset(data, label = '') {
+  return {
+    label, data,
+    borderColor: phoenixOrange,
+    backgroundColor: (ctx) => {
+      const { chart } = ctx;
+      const { ctx: c, chartArea } = chart;
+      if (!chartArea) return 'rgba(249,115,22,0.12)';
+      return phoenixGradient(c, chartArea);
+    },
+    borderWidth: 2,
+    fill: true,
+    tension: 0.4,
+    pointRadius: 0,
+    pointHoverRadius: 5,
+    pointHoverBackgroundColor: phoenixCream,
+    pointHoverBorderColor: phoenixOrange,
+    pointHoverBorderWidth: 2,
+    cubicInterpolationMode: 'monotone'
+  };
+}
 
 function mini(id,labels,data,color,fill=false){
   const c=new Chart(document.getElementById(id),{
@@ -1959,11 +2022,49 @@ function mini(id,labels,data,color,fill=false){
       backgroundColor:fill?color.replace('#','rgba(').replace(/(.{2})(.{2})(.{2})/,
         (_,r,g,b)=>`rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},0.1)`):'transparent',
       borderWidth:1.5,pointRadius:0,tension:0.35,fill}]},
-    options:{responsive:true,maintainAspectRatio:false,
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:1100,easing:'easeOutQuart'},
       plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},
       scales:{x:{grid:{display:false},ticks:{maxTicksLimit:6}},y:{grid:{color:border}}}}
   });
   state.charts[id]=c;
+  return c;
+}
+
+// ── Phoenix mini chart (área con glow naranja, animación sunrise) ──
+function phoenixMini(id, labels, data) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const c = new Chart(el, {
+    type: 'line',
+    data: { labels, datasets: [phoenixDataset(data, id)] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 1300, easing: 'easeOutQuart' },
+      animations: {
+        y: { duration: 1100, easing: 'easeOutCubic', from: (ctx) => ctx.chart.scales.y.getPixelForValue(0) }
+      },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,5,10,0.92)',
+          borderColor: 'rgba(249,115,22,0.4)',
+          borderWidth: 1,
+          titleColor: '#f8d794',
+          bodyColor: '#f0ece4',
+          padding: 8,
+          displayColors: false
+        },
+        phoenixGlow: { enabled: true, color: 'rgba(249,115,22,0.55)', blur: 14 }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 6, color: '#7d6f63' } },
+        y: { grid: { color: 'rgba(45,30,30,0.5)', drawBorder: false }, ticks: { color: '#7d6f63', maxTicksLimit: 4 } }
+      }
+    }
+  });
+  state.charts[id] = c;
   return c;
 }
 
@@ -1980,29 +2081,64 @@ const pColors=cyLabels.map((_,i)=>i<16?green:i<33?blue:i<49?amber:red);
 state.charts['cycleChart']=new Chart(document.getElementById('cycleChart'),{
   type:'line',
   data:{labels:cyLabels,datasets:[
-    {data:cyData,borderColor:gold,backgroundColor:'rgba(201,168,76,.04)',borderWidth:2,pointRadius:0,tension:0.4,fill:true},
-    {data:cyData,backgroundColor:pColors,borderColor:'transparent',pointRadius:cyPts,showLine:false,type:'scatter'}
+    {
+      data:cyData,
+      borderColor:phoenixOrange,
+      backgroundColor:(ctx)=>{
+        const {chart}=ctx; const {ctx:c, chartArea}=chart;
+        if (!chartArea) return 'rgba(249,115,22,0.1)';
+        return phoenixGradient(c, chartArea, {topAlpha:0.35, midAlpha:0.12});
+      },
+      borderWidth:2.5,
+      pointRadius:0,
+      tension:0.45,
+      fill:true,
+      cubicInterpolationMode:'monotone'
+    },
+    {
+      data:cyData,
+      backgroundColor:cyLabels.map((_,i)=>[15,32,48,64].includes(i) ? phoenixCream : 'transparent'),
+      borderColor:cyLabels.map((_,i)=>[15,32,48,64].includes(i) ? phoenixOrange : 'transparent'),
+      pointRadius:cyPts.map(p=>p?5:0),
+      pointBorderWidth:2,
+      pointHoverRadius:8,
+      showLine:false,
+      type:'scatter'
+    }
   ]},
   options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>`Mes ${c[0].label}`,label:c=>`Índice: ${c.parsed.y.toFixed(0)}`}}},
+    animation:{duration:1500,easing:'easeOutQuart'},
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        backgroundColor:'rgba(8,5,10,0.92)',
+        borderColor:'rgba(249,115,22,0.4)',borderWidth:1,
+        titleColor:'#f8d794',bodyColor:'#f0ece4',
+        callbacks:{title:c=>`Mes ${c[0].label}`,label:c=>`Índice: ${c.parsed.y.toFixed(0)}`}
+      },
+      phoenixGlow:{enabled:true, color:'rgba(249,115,22,0.6)', blur:16}
+    },
     scales:{
-      x:{grid:{color:border},ticks:{maxTicksLimit:13,callback:v=>v%10===0?v:''}},
-      y:{min:0,max:100,grid:{color:border},ticks:{stepSize:25}}
+      x:{grid:{color:'rgba(45,30,30,0.4)'},ticks:{color:'#7d6f63',maxTicksLimit:13,callback:v=>v%10===0?v:''}},
+      y:{min:0,max:100,grid:{color:'rgba(45,30,30,0.4)'},ticks:{color:'#7d6f63',stepSize:25}}
     }}
 });
 
-mini('resChart',mo,Array(12).fill(null),'amber',false);
-mini('sofrChart',mo,Array(12).fill(null),'red',false);
-mini('moveChart',mo,Array(12).fill(null),'amber',false);
-mini('tgaChart',mo,Array(12).fill(null),'red',false);
+// 4 Termómetros Howell — estilo Phoenix
+phoenixMini('resChart', mo, Array(12).fill(null));
+phoenixMini('sofrChart', mo, Array(12).fill(null));
+phoenixMini('moveChart', mo, Array(12).fill(null));
+phoenixMini('tgaChart', mo, Array(12).fill(null));
+// DXY y China (otros tabs) mantienen estilo original
 mini('dxyChart',mo,Array(12).fill(null),'green',false);
 mini('chinaChart',mo,Array(12).fill(null),'amber',false);
-mini('fidPmiChart',mo,Array(12).fill(null),teal,false);
-mini('fidGdpChart',mo,Array(12).fill(null),blue,false);
-mini('fidUnempChart',mo,Array(12).fill(null),red,false);
-mini('fidYieldChart',mo,Array(12).fill(null),amber,false);
-mini('fidRetailChart',mo,Array(12).fill(null),green,false);
-mini('fidSentChart',mo,Array(12).fill(null),purple,false);
+// 6 Eco Sparklines Fidelity — estilo Phoenix
+phoenixMini('fidPmiChart', mo, Array(12).fill(null));
+phoenixMini('fidGdpChart', mo, Array(12).fill(null));
+phoenixMini('fidUnempChart', mo, Array(12).fill(null));
+phoenixMini('fidYieldChart', mo, Array(12).fill(null));
+phoenixMini('fidRetailChart', mo, Array(12).fill(null));
+phoenixMini('fidSentChart', mo, Array(12).fill(null));
 
 // ── Yield Curve chart ──
 state.charts['yieldCurveChart'] = new Chart(document.getElementById('yieldCurveChart'), {
@@ -2018,11 +2154,13 @@ state.charts['yieldCurveChart'] = new Chart(document.getElementById('yieldCurveC
   },
   options: {
     responsive:true, maintainAspectRatio:false,
+    animation:{ duration:1100, easing:'easeOutQuart' },
     interaction:{ mode:'index', intersect:false },
     plugins:{
       legend:{ display:false },
       tooltip:{
-        backgroundColor:'rgba(7,7,14,.92)', borderColor:'rgba(255,255,255,.08)', borderWidth:1,
+        backgroundColor:'rgba(8,5,10,0.92)', borderColor:'rgba(249,115,22,0.4)', borderWidth:1,
+        titleColor:'#f8d794', bodyColor:'#f0ece4', padding:8, displayColors:true,
         titleFont:{ family:"'IBM Plex Mono',monospace", size:9 },
         bodyFont:{ family:"'IBM Plex Mono',monospace", size:10 },
         callbacks:{
@@ -2031,8 +2169,8 @@ state.charts['yieldCurveChart'] = new Chart(document.getElementById('yieldCurveC
       }
     },
     scales:{
-      x:{ grid:{ color:border }, ticks:{ color:'#6b7280', font:{ size:9 } } },
-      y:{ grid:{ color:border }, ticks:{ color:'#6b7280', font:{ size:9 },
+      x:{ grid:{ color:'rgba(45,30,30,0.4)' }, ticks:{ color:'#7d6f63', font:{ size:9 } } },
+      y:{ grid:{ color:'rgba(45,30,30,0.4)' }, ticks:{ color:'#7d6f63', font:{ size:9 },
         callback: v => v.toFixed(1)+'%' } }
     }
   }
@@ -3646,11 +3784,15 @@ function updateMiniChart(id, series, color, fill) {
   const vals = rev.map(o => o.value);
   chart.data.labels = lbls;
   chart.data.datasets[0].data = vals;
-  chart.data.datasets[0].borderColor = color;
-  if (fill) {
-    const rgb = color.replace('#','').match(/.{2}/g).map(h=>parseInt(h,16));
-    chart.data.datasets[0].backgroundColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.1)`;
-    chart.data.datasets[0].fill = true;
+  // Preserve Phoenix styling — no sobrescribir borderColor/backgroundColor
+  const isPhoenix = chart.options?.plugins?.phoenixGlow?.enabled;
+  if (!isPhoenix) {
+    chart.data.datasets[0].borderColor = color;
+    if (fill) {
+      const rgb = color.replace('#','').match(/.{2}/g).map(h=>parseInt(h,16));
+      chart.data.datasets[0].backgroundColor = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0.1)`;
+      chart.data.datasets[0].fill = true;
+    }
   }
   chart.update('none');
 }
