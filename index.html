@@ -584,9 +584,9 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div class="kb-sub" id="h-medio-fase-desc">Cargando...</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">PMI Manufactura · Tendencia</div>
+          <div class="kb-lbl">Producción Manufactura · YoY</div>
           <div class="kb-val" id="h-medio-pmi" style="font-size:16px">—</div>
-          <div class="kb-sub" id="h-medio-pmi-trend">vs 3m: —</div>
+          <div class="kb-sub" id="h-medio-pmi-trend">3m: —</div>
         </div>
         <div class="kb">
           <div class="kb-lbl">HY Spreads · Estrés crediticio</div>
@@ -958,9 +958,9 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           </thead>
           <tbody>
             <tr>
-              <td class="fid-td">PMI Manufactura <a href="https://fred.stlouisfed.org/series/NAPM" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td">Prod. Manuf. (YoY) <a href="https://fred.stlouisfed.org/series/IPMAN" target="_blank" class="src-link">FRED↗</a></td>
               <td class="fid-td mono" style="text-align:center" id="fid-pmi-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">&lt;52→+0.5 · &lt;50→+1</td>
+              <td class="fid-td" style="text-align:center;font-size:9px;color:var(--text3)">YoY &lt;0%→+0.5 · &lt;-2%→+1</td>
               <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-pmi-pts" style="min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr>
@@ -2016,7 +2016,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,NAPM,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -2096,7 +2096,9 @@ async function loadFredData() {
     state.data.breakeven = Array.isArray(d.T5YIE)     ? d.T5YIE     : null;
     state.data.hySpread  = Array.isArray(d.BAMLH0A0HYM2) ? d.BAMLH0A0HYM2 : null;
     state.data.wti        = Array.isArray(d.DCOILWTICO)         ? d.DCOILWTICO         : null;
-    state.data.pmi        = Array.isArray(d.NAPM)               ? d.NAPM               : null;
+    // PMI proxy: IPMAN (Industrial Production: Manufacturing). NAPM se discontinuó en 2018.
+    // Se interpreta vía YoY change (no nivel >50/<50 del PMI clásico).
+    state.data.pmi        = Array.isArray(d.IPMAN)              ? d.IPMAN              : null;
     state.data.gdpReal    = Array.isArray(d.A191RL1Q225SBEA)    ? d.A191RL1Q225SBEA    : null;
     state.data.unrate     = Array.isArray(d.UNRATE)             ? d.UNRATE             : null;
     state.data.yieldCurve = Array.isArray(d.T10Y2Y)             ? d.T10Y2Y             : null;
@@ -2112,6 +2114,12 @@ async function loadFredData() {
     }
     state.data.retail     = Array.isArray(d.RSAFS)              ? d.RSAFS              : null;
     state.data.sentiment  = Array.isArray(d.UMCSENT)            ? d.UMCSENT            : null;
+    // Indicadores leading nuevos
+    state.data.claims     = Array.isArray(d.ICSA)               ? d.ICSA               : null; // Initial Jobless Claims (semanal)
+    state.data.indpro     = Array.isArray(d.INDPRO)             ? d.INDPRO             : null; // Industrial Production total
+    state.data.permits    = Array.isArray(d.PERMIT)             ? d.PERMIT             : null; // Building Permits
+    state.data.corePce    = Array.isArray(d.PCEPILFE)           ? d.PCEPILFE           : null; // Core PCE (Fed preferred)
+    state.data.fwd5y5y    = Array.isArray(d.T5YIFR)             ? d.T5YIFR             : null; // 5Y5Y forward inflation
     // Yield curve maturities (6M → 30Y)
     state.data.yc6m  = Array.isArray(d.TB6MS) ? d.TB6MS : null;
     state.data.yc1y  = Array.isArray(d.GS1)   ? d.GS1   : null;
@@ -3280,12 +3288,17 @@ function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
 }
 
 // ── Fidelity Economic Cycle Score ──
+// Nota: 'pmi' en state.data ahora apunta a IPMAN (Industrial Production: Manufacturing).
+// NAPM se discontinuó en 2018. IPMAN se interpreta vía YoY change (no nivel >50/<50).
 function computeFidelityScore() {
-  const { pmi, gdpReal, unrate, yieldCurve, retail, sentiment, hySpread } = state.data;
+  const { pmi, gdpReal, unrate, yieldCurve, retail, sentiment, hySpread, claims } = state.data;
   let pmiScore=0, pmiTrendScore=0, gdpScore=0, unempScore=0, yieldScore=0, retailScore=0, sentScore=0, hyScore=0;
 
   const pmiVal     = pmi?.[0]?.value;
   const pmiPrev3   = pmi?.[2]?.value;
+  const pmiPrev12  = pmi?.[12]?.value; // 12 meses atrás → YoY
+  const pmiYoY     = (pmiVal != null && pmiPrev12 != null && pmiPrev12 !== 0)
+    ? ((pmiVal / pmiPrev12) - 1) * 100 : null;
   const gdpVal     = gdpReal?.[0]?.value;
   const unempCurr  = unrate?.[0]?.value;
   const unempPrev  = unrate?.[3]?.value;
@@ -3295,10 +3308,11 @@ function computeFidelityScore() {
   const sentVal    = sentiment?.[0]?.value;
   const hyVal      = hySpread?.[0]?.value;
 
-  if (pmiVal  != null) { if (pmiVal  < 50) pmiScore=1; else if (pmiVal < 52) pmiScore=0.5; }
+  // PMI score ahora usa IPMAN YoY: contracción manufacturera = puntos hacia recesión
+  if (pmiYoY != null) { if (pmiYoY < -2) pmiScore=1; else if (pmiYoY < 0) pmiScore=0.5; }
   if (pmiVal != null && pmiPrev3 != null) {
-    const delta = pmiVal - pmiPrev3;
-    if (delta < -1) pmiTrendScore=1; else if (delta < 0) pmiTrendScore=0.5;
+    const delta3m = ((pmiVal / pmiPrev3) - 1) * 100;
+    if (delta3m < -1) pmiTrendScore=1; else if (delta3m < 0) pmiTrendScore=0.5;
   }
   if (gdpVal  != null) { if (gdpVal  < 0)  gdpScore=1;   else if (gdpVal  < 2)  gdpScore=0.5; }
   if (unempCurr != null && unempPrev != null) {
@@ -3313,10 +3327,21 @@ function computeFidelityScore() {
   if (sentVal != null) { if (sentVal < 60) sentScore=1; else if (sentVal < 70) sentScore=0.5; }
   if (hyVal   != null) { if (hyVal > 5.5)  hyScore=1;   else if (hyVal > 4.5)  hyScore=0.5; }
 
+  // Confirmation indicator (no cuenta al score base, solo info): Initial Jobless Claims trend
+  // Si claims subieron >25k en 4 semanas → señal de deterioro laboral
+  const claimsCurr = claims?.[0]?.value;
+  const claimsPrev = claims?.[4]?.value;
+  const claimsDelta = (claimsCurr != null && claimsPrev != null) ? claimsCurr - claimsPrev : null;
+  let claimsSignal = null;
+  if (claimsDelta != null) {
+    claimsSignal = claimsDelta > 25000 ? 'deterioro' : claimsDelta > 10000 ? 'alerta' : 'estable';
+  }
+
   return {
     score: pmiScore+pmiTrendScore+gdpScore+unempScore+yieldScore+retailScore+sentScore+hyScore,
-    pmiVal, gdpVal, unempCurr, unempPrev, yieldVal, retailCurr, retailPrev, sentVal, hyVal,
+    pmiVal, pmiYoY, gdpVal, unempCurr, unempPrev, yieldVal, retailCurr, retailPrev, sentVal, hyVal,
     pmiScore, pmiTrendScore, gdpScore, unempScore, yieldScore, retailScore, sentScore, hyScore,
+    claimsCurr, claimsDelta, claimsSignal,
   };
 }
 
@@ -3336,13 +3361,14 @@ function updateFidelitySection() {
   const retailMoM  = (retailCurr != null && retailPrev != null) ? ((retailCurr/retailPrev-1)*100) : null;
   const unempDiff  = (unempCurr  != null && unempPrev  != null) ? (unempCurr - unempPrev) : null;
 
-  setEl('fid-pmi-val',    pmiVal     != null ? pmiVal.toFixed(1)        : '—');
+  const fidPmiYoY = computeFidelityScore().pmiYoY;
+  setEl('fid-pmi-val',    fidPmiYoY != null ? `${fidPmiYoY>=0?'+':''}${fidPmiYoY.toFixed(1)}% YoY` : (pmiVal != null ? pmiVal.toFixed(1) : '—'));
   setEl('fid-gdp-val',    gdpVal     != null ? gdpVal.toFixed(1)+'%'    : '—');
   setEl('fid-unemp-val',  unempCurr  != null ? unempCurr.toFixed(1)+'%'+(unempDiff!=null?(unempDiff>=0?' ↑':' ↓')+Math.abs(unempDiff).toFixed(1)+'pp':'') : '—');
   setEl('fid-yield-val',  yieldVal   != null ? (yieldVal>=0?'+':'')+yieldVal.toFixed(2)+'%' : '—');
   setEl('fid-retail-val', retailMoM  != null ? (retailMoM>=0?'+':'')+retailMoM.toFixed(2)+'% MoM' : '—');
   setEl('fid-sent-val',   sentVal    != null ? sentVal.toFixed(1)       : '—');
-  setEl('fid-pmi-lbl',    pmiVal     != null ? pmiVal.toFixed(1)        : '—');
+  setEl('fid-pmi-lbl',    fidPmiYoY != null ? `${fidPmiYoY>=0?'+':''}${fidPmiYoY.toFixed(1)}%` : (pmiVal != null ? pmiVal.toFixed(1) : '—'));
   setEl('fid-gdp-lbl',    gdpVal     != null ? gdpVal.toFixed(1)+'%'    : '—');
   setEl('fid-unemp-lbl',  unempCurr  != null ? unempCurr.toFixed(1)+'%': '—');
   setEl('fid-yield-lbl',  yieldVal   != null ? (yieldVal>=0?'+':'')+yieldVal.toFixed(2)+'%' : '—');
@@ -3623,19 +3649,24 @@ function updateThreeHorizons(howellResult) {
   setT('h-medio-fase', fFase);
   setT('h-medio-fase-desc', fFase);
 
+  // IPMAN: mostrar YoY como métrica principal (sustituye al PMI clásico discontinuado)
+  const fPmiYoY = computeFidelityScore().pmiYoY;
   if (pmiVal != null) {
     const pmiEl = document.getElementById('h-medio-pmi');
     if (pmiEl) {
-      pmiEl.textContent = pmiVal.toFixed(1);
-      pmiEl.style.color = pmiVal < 50 ? 'var(--red)' : pmiVal < 52 ? 'var(--amber)' : 'var(--green)';
+      pmiEl.textContent = fPmiYoY != null ? `${fPmiYoY>=0?'+':''}${fPmiYoY.toFixed(1)}% YoY` : pmiVal.toFixed(1);
+      pmiEl.style.color = fPmiYoY == null ? 'var(--text)'
+        : fPmiYoY < -2 ? 'var(--red)'
+        : fPmiYoY <  0 ? 'var(--amber)'
+        : 'var(--green)';
     }
     const fPmiPrev3 = state.data.pmi?.[2]?.value;
     if (fPmiPrev3 != null) {
-      const delta = pmiVal - fPmiPrev3;
+      const delta3m = ((pmiVal / fPmiPrev3) - 1) * 100;
       const trendEl = document.getElementById('h-medio-pmi-trend');
       if (trendEl) {
-        trendEl.textContent = `vs 3m: ${delta>=0?'+':''}${delta.toFixed(1)} ${delta>0?'↑':delta<0?'↓':'→'}`;
-        trendEl.style.color = delta < -1 ? 'var(--red)' : delta < 0 ? 'var(--amber)' : 'var(--green)';
+        trendEl.textContent = `3m: ${delta3m>=0?'+':''}${delta3m.toFixed(1)}% ${delta3m>0?'↑':delta3m<0?'↓':'→'}`;
+        trendEl.style.color = delta3m < -1 ? 'var(--red)' : delta3m < 0 ? 'var(--amber)' : 'var(--green)';
       }
     }
   }
@@ -4480,7 +4511,7 @@ const INDICATOR_CFG = {
   dxy:   { title:'DXY — Índice del Dólar', tvSymbol:'TVC:DXY' },
   move:  { title:'MOVE Index — Volatilidad Treasuries', tvSymbol:'TVC:MOVE' },
   vix:   { title:'VIX — Volatilidad S&P 500', tvSymbol:'CBOE:VIX' },
-  pmi:   { title:'PMI Manufactura USA (NAPM)', dataKey:'pmi', unit:'', color:'#2dd4bf', fredUrl:'https://fred.stlouisfed.org/series/NAPM' },
+  pmi:   { title:'Producción Manuf. USA (IPMAN)', dataKey:'pmi', unit:'', color:'#2dd4bf', fredUrl:'https://fred.stlouisfed.org/series/IPMAN' },
   gdp:   { title:'PIB Real USA — Tasa QoQ (A191RL1Q225SBEA)', dataKey:'gdpReal', unit:'%', color:'#60a5fa', fredUrl:'https://fred.stlouisfed.org/series/A191RL1Q225SBEA' },
   unemp: { title:'Desempleo USA (UNRATE)', dataKey:'unrate', unit:'%', color:'#f87171', fredUrl:'https://fred.stlouisfed.org/series/UNRATE' },
   yield: { title:'Curva 10Y-2Y (T10Y2Y)', dataKey:'yieldCurve', unit:'%', color:'#fbbf24', fredUrl:'https://fred.stlouisfed.org/series/T10Y2Y' },
