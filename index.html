@@ -89,9 +89,41 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .main{padding:16px 20px 60px;max-width:1440px;margin:0 auto}
 .page{display:none}
 .page.active{display:block}
-/* Zona estructural · Fase A (sin tints, sin headers) — los headlines, leads y tints se agregan en Fase B */
-.zone{display:block;margin-bottom:18px}
+/* ── Zona semántica · Fase B · sistema de jerarquía visual con tints + headlines ── */
+.zone{display:block;margin-bottom:28px;padding:20px 22px 16px;border-radius:12px;border:1px solid transparent;position:relative}
 .zone:last-child{margin-bottom:0}
+.zone > *:first-child{margin-top:0}
+.zone > .sh:first-of-type,
+.zone > .zone-head + .sh{margin-top:14px}
+/* 4 tints por zona — cambio de temperatura subliminal cálido→neutro→frío→cálido */
+.zone-decision{background:linear-gradient(180deg,rgba(249,115,22,.035) 0%,transparent 75%);border-color:rgba(249,115,22,.12);box-shadow:inset 0 0 80px -30px rgba(249,115,22,.06)}
+.zone-anatomia{background:transparent;border-color:rgba(245,236,228,.04)}
+.zone-operativo{background:rgba(96,165,250,.02);border-color:rgba(96,165,250,.08)}
+.zone-historico{background:rgba(156,5,18,.018);border-color:rgba(156,5,18,.08)}
+/* Header de zona — Playfair grande + mono small-caps con acento por zona + lead italic dim */
+.zone-head{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border2)}
+.zone-mono{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;font-weight:500;margin-bottom:5px}
+.zone-decision .zone-mono{color:var(--phoenix-orange)}
+.zone-anatomia .zone-mono{color:var(--gold)}
+.zone-operativo .zone-mono{color:var(--blue)}
+.zone-historico .zone-mono{color:var(--phoenix-bordeaux)}
+.zone-head h2{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--text);line-height:1.15;letter-spacing:-.005em;margin:0}
+.zone-lead{font-size:13px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.55;max-width:780px}
+/* Sub-group divider dentro de zonas (TASAS & FED, VOL & CROSS-ASSET, etc.) */
+.zone-divider{display:flex;align-items:center;gap:12px;margin:22px 0 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);font-weight:500}
+.zone-divider::before,.zone-divider::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border2) 50%,transparent)}
+.zone-divider::before{background:linear-gradient(90deg,transparent,var(--border2))}
+.zone-divider::after{background:linear-gradient(90deg,var(--border2),transparent)}
+/* Mobile: aprietar padding de zona y header */
+@media(max-width:700px){.zone{padding:14px 12px 10px;margin-bottom:18px}.zone-head h2{font-size:22px}.zone-mono{font-size:10px}}
+/* Acordeón <details> para tablas detalladas (Motor Howell, Motor Fidelity) */
+.diag-tbl-accordion{margin:8px 0}
+.diag-tbl-accordion summary{cursor:pointer;list-style:none;padding:9px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.06em;color:var(--text2);transition:all .15s;user-select:none}
+.diag-tbl-accordion summary::-webkit-details-marker{display:none}
+.diag-tbl-accordion summary::before{content:'▸';display:inline-block;color:var(--gold);margin-right:8px;transition:transform .2s;font-size:9px}
+.diag-tbl-accordion[open] summary::before{transform:rotate(90deg)}
+.diag-tbl-accordion summary:hover{border-color:rgba(230,180,80,.4);color:var(--gold);background:rgba(230,180,80,.04)}
+.diag-tbl-accordion[open] summary{border-color:rgba(230,180,80,.3);color:var(--gold);margin-bottom:8px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -583,7 +615,14 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <!-- ╔═══════════════════════════════════════════════════════════════╗
        ║  ZONA 1 · DECISIÓN  ·  El trader sale con postura clara         ║
        ╚═══════════════════════════════════════════════════════════════╝ -->
-  <section class="zone" id="z1-decision">
+  <section class="zone zone-decision" id="z1-decision">
+    <header class="zone-head">
+      <div class="zone-mono">01 · Decisión</div>
+      <h2>Postura hoy</h2>
+      <div class="zone-lead">Régimen de corto plazo, score Howell de largo plazo, breadth y catalizadores. El trader sale de esta zona con postura clara.</div>
+    </header>
+    <!-- Badge de divergencia automática · aparece cuando régimen y Howell discrepan ≥2 niveles -->
+    <div id="z1-divergence-badge" style="display:none;margin:0 0 14px;padding:10px 14px;background:linear-gradient(90deg,rgba(251,191,36,.08),rgba(249,115,22,.05));border:1px solid rgba(251,191,36,.3);border-radius:6px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--amber);letter-spacing:.04em;line-height:1.55"></div>
 
   <!-- ── REGIME BANNER — Régimen de Mercado (corto plazo: 1-4 sem) ── -->
   <div id="regime-banner" class="regime-banner" style="background:rgba(248,113,113,.04);border-color:rgba(248,113,113,.18)">
@@ -706,7 +745,14 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <!-- ╔═══════════════════════════════════════════════════════════════╗
        ║  ZONA 2 · ANATOMÍA  ·  Por qué esa decisión · drilldown del score ║
        ╚═══════════════════════════════════════════════════════════════╝ -->
-  <section class="zone" id="z2-anatomia">
+  <section class="zone zone-anatomia" id="z2-anatomia">
+    <header class="zone-head">
+      <div class="zone-mono">02 · Anatomía</div>
+      <h2>¿Por qué este score?</h2>
+      <div class="zone-lead">Componentes que justifican el veredicto. Liquidez global, ciclo económico Fidelity y motor de scoring Howell — dónde está la presión.</div>
+    </header>
+
+  <div class="zone-divider">Liquidez Global · 70% no-Fed</div>
 
   <!-- ── GLOBAL LIQUIDITY PROXY — 70% del ciclo Howell es no-Fed (China + Japan + USD) ── -->
   <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(20,15,30,.92) 100%);border-color:rgba(96,165,250,.25)">
@@ -749,6 +795,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
        Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
        DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
 
+  <div class="zone-divider">Ciclo Económico · Modelo Fidelity</div>
+
   <!-- ── CICLO ECONÓMICO FIDELITY ── -->
   <div class="sh" style="margin-top:14px">
     <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Eco Score</div>
@@ -761,6 +809,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <!-- Score Table -->
     <div class="card teal-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--teal)">Motor de Diagnóstico Económico</div>
+      <details class="diag-tbl-accordion">
+        <summary>Ver tabla detallada · 6 indicadores Fidelity con umbrales</summary>
       <div style="margin:8px 0">
         <table style="width:100%;border-collapse:collapse">
           <thead>
@@ -811,7 +861,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           </tbody>
         </table>
       </div>
-      <div style="border-top:1px solid var(--border2);padding-top:8px">
+      </details>
+      <div style="border-top:1px solid var(--border2);padding-top:8px;margin-top:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
           <span class="mono" style="font-size:12px;color:var(--text3)">ECO SCORE TOTAL</span>
           <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/8</span>
@@ -863,6 +914,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
     </div>
   </div>
+
+  <div class="zone-divider">Motor Howell · Liquidez US · Scoring detallado</div>
 
   <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Ciclo Howell · Diagnóstico en Vivo</div><div class="sh-line"></div><span class="live-badge" id="diag-live-ts">Sin datos</span></div>
 
@@ -940,6 +993,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <!-- Score Engine -->
     <div class="card gold-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--gold)">Motor de Diagnóstico Howell</div>
+      <details class="diag-tbl-accordion">
+        <summary>Ver tabla de scoring detallada · 6 indicadores con umbrales y puntos</summary>
       <div style="margin:8px 0">
         <table style="width:100%;border-collapse:collapse">
           <thead>
@@ -985,7 +1040,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           </tbody>
         </table>
       </div>
-      <!-- Total score -->
+      </details>
+      <!-- Total score (siempre visible) -->
       <div style="border-top:1px solid var(--border2);padding-top:8px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
           <span class="mono" style="font-size:12px;color:var(--text3)">SCORE TOTAL</span>
@@ -1081,7 +1137,14 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <!-- ╔═══════════════════════════════════════════════════════════════╗
        ║  ZONA 3 · CONTEXTO OPERATIVO  ·  Niveles antes de ejecutar      ║
        ╚═══════════════════════════════════════════════════════════════╝ -->
-  <section class="zone" id="z3-operativo">
+  <section class="zone zone-operativo" id="z3-operativo">
+    <header class="zone-head">
+      <div class="zone-mono">03 · Contexto operativo</div>
+      <h2>Niveles antes de ejecutar</h2>
+      <div class="zone-lead">Curva de tipos, real yields, crédito, volatilidad, niveles SPY e indicadores adelantados. Información táctica para el trade — no para la postura.</div>
+    </header>
+
+  <div class="zone-divider">Tasas &amp; Fed Pricing</div>
 
   <!-- ── CURVA DE TIPOS — Tier 1 macro: estructura de tasas ── -->
   <div class="sh" style="margin-top:14px">
@@ -1161,6 +1224,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
     </div>
   </div>
+
+  <div class="zone-divider">Crédito · Volatilidad · Cross-asset</div>
 
   <!-- ── OPERATIONAL CONTEXT — datos críticos para decisiones diarias ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Operacional</div><div class="sh-title">Contexto Operacional · Drivers de Decisión</div><div class="sh-line"></div></div>
@@ -1280,6 +1345,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
+  <div class="zone-divider">Indicadores Adelantados</div>
+
   <!-- ── LEADING INDICATORS — Tier 1: anticipan recesión y manufactura ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Leading</div><div class="sh-title">Indicadores Adelantados — Anticipan el Ciclo</div><div class="sh-line"></div></div>
   <div class="g4" style="margin-bottom:10px">
@@ -1334,7 +1401,14 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <!-- ╔═══════════════════════════════════════════════════════════════╗
        ║  ZONA 4 · HISTÓRICO & PLAYBOOK  ·  Cómo llegamos · qué privilegia la fase ║
        ╚═══════════════════════════════════════════════════════════════╝ -->
-  <section class="zone" id="z4-historico">
+  <section class="zone zone-historico" id="z4-historico">
+    <header class="zone-head">
+      <div class="zone-mono">04 · Histórico & playbook</div>
+      <h2>Cómo llegamos · qué privilegia la fase</h2>
+      <div class="zone-lead">Trayectoria 52 semanas del score Howell, termómetros históricos de los componentes y asset allocation por fase del ciclo.</div>
+    </header>
+
+  <div class="zone-divider">Trayectoria 52 semanas</div>
 
   <!-- ── ROW 4.5: Trayectoria Score Howell ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Trayectoria</div><div class="sh-title">Score Howell · 52 semanas — Evolución histórica</div><div class="sh-line"></div></div>
@@ -1358,6 +1432,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div>Min 52w: <span id="hh-min-score" style="color:var(--green)">—</span> · Max 52w: <span id="hh-max-score" style="color:var(--red)">—</span> · Tendencia 4w: <span id="hh-trend-4w" style="color:var(--text)">—</span></div>
     </div>
   </div>
+
+  <div class="zone-divider">Termómetros · vista histórica 6M</div>
 
   <!-- ── ROW 5: Termómetros Howell — Histórico ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Termómetros</div><div class="sh-title">Los 4 Termómetros de Howell — Histórico</div><div class="sh-line"></div></div>
@@ -1401,6 +1477,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="source-badge">FRED: WTREGEN</div>
     </div>
   </div>
+
+  <div class="zone-divider">Asset Allocation · Consecuencia del diagnóstico</div>
 
   <!-- ── ASSET ALLOCATION (RESULTADO) — Activos Favorecidos / Bajo Presión ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Asset Allocation</div><div class="sh-title">Activos Favorecidos / Bajo Presión — Consecuencia del Diagnóstico</div><div class="sh-line"></div></div>
@@ -4402,8 +4480,29 @@ function updateRegimeBanner() {
   labelEl.style.color = regimeColor;
   if (interpEl) interpEl.textContent = interp;
   if (sigEl) sigEl.innerHTML = signals.map(s =>
-    `<span class="badge ${s.cls}" style="font-size:8px">${s.txt}</span>`
+    `<span class="badge ${s.cls}" style="font-size:11px">${s.txt}</span>`
   ).join('');
+
+  // ── Divergencia automática régimen vs Howell ──
+  // Mapea ambos a escala 1-5 (1=bull extremo, 5=bear extremo). Si difieren ≥2 niveles,
+  // significa que corto y largo plazo están dando señales conflictivas → trader debe
+  // usar timeframe explícito para resolver.
+  const { score } = computeHowellScore();
+  const regLevel = riskPts >= 5 ? 5 : riskPts >= 3 ? 4 : riskPts >= 1 ? 3 : 2;
+  const howLevel = score >= 6 ? 5 : score >= 4 ? 4 : score >= 2 ? 3 : score >= 1 ? 2 : 1;
+  const diff = howLevel - regLevel; // positivo = Howell más bearish que régimen
+  const divBdg = document.getElementById('z1-divergence-badge');
+  if (divBdg) {
+    if (Math.abs(diff) >= 2) {
+      divBdg.style.display = '';
+      const direction = diff > 0
+        ? `Régimen corto <strong>más bullish</strong> que Howell largo (corto: ${regime}, score: ${score.toFixed(1)}/8)`
+        : `Régimen corto <strong>más bearish</strong> que Howell largo (corto: ${regime}, score: ${score.toFixed(1)}/8)`;
+      divBdg.innerHTML = `⚡ <strong>DIVERGENCIA</strong> · ${direction}<br><span style="color:var(--text3);font-style:italic">Regla de prioridad: timeframe ≤1m sigue al régimen, timeframe ≥3m sigue a Howell.</span>`;
+    } else {
+      divBdg.style.display = 'none';
+    }
+  }
 }
 
 // ── Leading Indicators — actualiza los 4 cards de indicadores adelantados ──
