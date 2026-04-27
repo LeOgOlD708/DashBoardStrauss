@@ -882,6 +882,123 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
+  <!-- ── CURVA DE TIPOS — Tier 1 macro: estructura de tasas ── -->
+  <div class="sh" style="margin-top:14px">
+    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Yield Curve</div>
+    <div class="sh-title">Estructura de Plazos — 6M a 30 Años</div>
+    <div class="sh-line"></div>
+    <span id="yc-signal-badge" class="badge b-neu">Cargando</span>
+  </div>
+  <div class="g21" style="margin-bottom:10px">
+    <!-- Chart area -->
+    <div class="card blue-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="lbl" id="yc-shape-label" style="color:var(--blue)">Curva de tipos</div>
+        <div style="display:flex;gap:4px">
+          <button class="yc-btn active" onclick="setYcView('now',this)">Ahora</button>
+          <button class="yc-btn" onclick="setYcView('3m',this)">−3M</button>
+          <button class="yc-btn" onclick="setYcView('1y',this)">−1A</button>
+          <button class="yc-btn" onclick="setYcView('both',this)">Comparar</button>
+        </div>
+      </div>
+      <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <a href="https://fred.stlouisfed.org/series/TB6MS" target="_blank" class="kb-src">FRED: TB6MS ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS1" target="_blank" class="kb-src">GS1 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="kb-src">GS2 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS5" target="_blank" class="kb-src">GS5 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS10" target="_blank" class="kb-src">GS10 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS20" target="_blank" class="kb-src">GS20 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS30" target="_blank" class="kb-src">GS30 ↗</a>
+      </div>
+      <!-- Legend inline -->
+      <div id="yc-legend" style="display:flex;gap:12px;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)">
+        <span><span style="display:inline-block;width:16px;height:2px;background:#4ade80;vertical-align:middle;margin-right:4px;border-radius:1px"></span>Ahora</span>
+        <span id="yc-legend-cmp" style="display:none"><span style="display:inline-block;width:16px;height:2px;background:#fbbf24;vertical-align:middle;margin-right:4px;border-radius:1px;border-top:2px dashed #fbbf24;background:none"></span><span id="yc-legend-cmp-lbl">—</span></span>
+      </div>
+    </div>
+    <!-- Signal panel -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card">
+        <div class="lbl">Spreads clave</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">10Y − 2Y</span>
+            <span id="yc-sp-10y2y" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:8px">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">10Y − 6M</span>
+            <span id="yc-sp-10y6m" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:8px">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">30Y − 6M</span>
+            <span id="yc-sp-30y6m" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:8px">—</span>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="lbl">Interpretación</div>
+        <div id="yc-interpretation" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
+      </div>
+      <div class="card">
+        <div class="lbl">Niveles actuales</div>
+        <div id="yc-levels-list" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── LEADING INDICATORS — Tier 1: anticipan recesión y manufactura ── -->
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Leading</div><div class="sh-title">Indicadores Adelantados — Anticipan el Ciclo</div><div class="sh-line"></div></div>
+  <div class="g4" style="margin-bottom:10px">
+    <!-- Initial Jobless Claims -->
+    <div class="card"><div class="lbl">📈 Initial Claims · 4w
+      <button class="help-i" type="button" onclick="openGlossary('jobless-claims')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-claims-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-claims-trend" class="mono" style="font-size:10px;color:var(--text3)">Δ4w: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Solicitudes de desempleo. Subida sostenida = mercado laboral deteriorándose (leading recesión).</div>
+      <div id="lead-claims-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Industrial Production -->
+    <div class="card"><div class="lbl">🏭 Producción Industrial · YoY
+      <button class="help-i" type="button" onclick="openGlossary('industrial-production')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/INDPRO" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-indpro-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-indpro-mom" class="mono" style="font-size:10px;color:var(--text3)">MoM: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">INDPRO YoY. Negativo sostenido confirma contracción manufacturera real.</div>
+      <div id="lead-indpro-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Building Permits -->
+    <div class="card"><div class="lbl">🏗 Building Permits · YoY
+      <button class="help-i" type="button" onclick="openGlossary('building-permits')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/PERMIT" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-permits-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-permits-trend" class="mono" style="font-size:10px;color:var(--text3)">3m: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Permisos de construcción — leading housing más anticipado que el mismo PIB residencial.</div>
+      <div id="lead-permits-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Core PCE + 5Y5Y forward -->
+    <div class="card"><div class="lbl">💵 Core PCE / Inflación Forward
+      <button class="help-i" type="button" onclick="openGlossary('core-pce')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/PCEPILFE" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-corepce-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-fwd5y5y-val" class="mono" style="font-size:10px;color:var(--text3)">5Y5Y: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Core PCE YoY (métrica preferida Fed). 5Y5Y = expectativas inflación 5-10 años (anclaje).</div>
+      <div id="lead-pce-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+  </div>
+
   <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Ciclo Howell · Diagnóstico en Vivo</div><div class="sh-line"></div><span class="live-badge" id="diag-live-ts">Sin datos</span></div>
 
   <!-- ── ROW 1: 4 KPI Thermometers ── -->
@@ -1094,112 +1211,6 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
-  <!-- ── ROW 4: Activos Favorecidos / Bajo Presión ── -->
-  <div class="g2">
-    <div class="card" style="border-color:rgba(74,222,128,.12)">
-      <div class="lbl" style="color:var(--green)">Activos Favorecidos — Fase 3/4</div>
-      <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + PBOC</div></div>
-          <span id="fav-gold-badge" class="badge b-up">↑↑ FUERTE</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">XLE · XLB</div><div style="font-size:9px;color:var(--text3)">Commodities / Energía — late + China</div></div>
-          <span id="fav-comm-badge" class="badge b-up">↑ FAVORABLE</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">XLV · XLP · XLU</div><div style="font-size:9px;color:var(--text3)">Defensivos — demanda inelástica</div></div>
-          <span id="fav-def-badge" class="badge b-up">↑ REFUGIO</span>
-        </div>
-      </div>
-    </div>
-    <div class="card" style="border-color:rgba(248,113,113,.12)">
-      <div class="lbl" style="color:var(--red)">Activos Bajo Presión</div>
-      <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">QQQ · XLK</div><div style="font-size:9px;color:var(--text3)">Tech — liquidez ↓ + tasa real alta</div></div>
-          <span id="pre-qqq-badge" class="badge b-dn">↓ PRESIÓN</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">IWM · Small Caps</div><div style="font-size:9px;color:var(--text3)">Apalancadas — crédito apretado</div></div>
-          <span id="pre-iwm-badge" class="badge b-dn">↓ VULNERABLE</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
-          <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
-          <span id="pre-hy-badge" class="badge b-dn">— SPREADS</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── CURVA DE TIPOS ── -->
-  <div class="sh" style="margin-top:14px">
-    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Yield Curve</div>
-    <div class="sh-title">Estructura de Plazos — 6M a 30 Años</div>
-    <div class="sh-line"></div>
-    <span id="yc-signal-badge" class="badge b-neu">Cargando</span>
-  </div>
-  <div class="g21" style="margin-bottom:10px">
-    <!-- Chart area -->
-    <div class="card blue-a"><div class="card-accent"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div class="lbl" id="yc-shape-label" style="color:var(--blue)">Curva de tipos</div>
-        <div style="display:flex;gap:4px">
-          <button class="yc-btn active" onclick="setYcView('now',this)">Ahora</button>
-          <button class="yc-btn" onclick="setYcView('3m',this)">−3M</button>
-          <button class="yc-btn" onclick="setYcView('1y',this)">−1A</button>
-          <button class="yc-btn" onclick="setYcView('both',this)">Comparar</button>
-        </div>
-      </div>
-      <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-        <a href="https://fred.stlouisfed.org/series/TB6MS" target="_blank" class="kb-src">FRED: TB6MS ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS1" target="_blank" class="kb-src">GS1 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="kb-src">GS2 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS5" target="_blank" class="kb-src">GS5 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS10" target="_blank" class="kb-src">GS10 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS20" target="_blank" class="kb-src">GS20 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS30" target="_blank" class="kb-src">GS30 ↗</a>
-      </div>
-      <!-- Legend inline -->
-      <div id="yc-legend" style="display:flex;gap:12px;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)">
-        <span><span style="display:inline-block;width:16px;height:2px;background:#4ade80;vertical-align:middle;margin-right:4px;border-radius:1px"></span>Ahora</span>
-        <span id="yc-legend-cmp" style="display:none"><span style="display:inline-block;width:16px;height:2px;background:#fbbf24;vertical-align:middle;margin-right:4px;border-radius:1px;border-top:2px dashed #fbbf24;background:none"></span><span id="yc-legend-cmp-lbl">—</span></span>
-      </div>
-    </div>
-    <!-- Signal panel -->
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <div class="card">
-        <div class="lbl">Spreads clave</div>
-        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">10Y − 2Y</span>
-            <span id="yc-sp-10y2y" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:8px">—</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">10Y − 6M</span>
-            <span id="yc-sp-10y6m" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:8px">—</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">30Y − 6M</span>
-            <span id="yc-sp-30y6m" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:8px">—</span>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="lbl">Interpretación</div>
-        <div id="yc-interpretation" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
-      </div>
-      <div class="card">
-        <div class="lbl">Niveles actuales</div>
-        <div id="yc-levels-list" style="margin-top:6px"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- ── CICLO ECONÓMICO FIDELITY ── -->
   <div class="sh" style="margin-top:14px">
     <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Eco Score</div>
@@ -1380,52 +1391,42 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
-  <!-- ── ROW 6: Indicadores Leading (señales adelantadas) ── -->
-  <div class="sh"><div class="sh-tag">Leading</div><div class="sh-title">Indicadores Adelantados — Anticipan el Ciclo</div><div class="sh-line"></div></div>
-  <div class="g4">
-    <!-- Initial Jobless Claims -->
-    <div class="card"><div class="lbl">📈 Initial Claims · 4w
-      <button class="help-i" type="button" onclick="openGlossary('jobless-claims')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-claims-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-claims-trend" class="mono" style="font-size:10px;color:var(--text3)">Δ4w: —</div>
+  <!-- ── ASSET ALLOCATION (RESULTADO) — Activos Favorecidos / Bajo Presión ── -->
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Asset Allocation</div><div class="sh-title">Activos Favorecidos / Bajo Presión — Consecuencia del Diagnóstico</div><div class="sh-line"></div></div>
+  <div class="g2" style="margin-bottom:10px">
+    <div class="card" style="border-color:rgba(74,222,128,.12)">
+      <div class="lbl" style="color:var(--green)">Activos Favorecidos — Fase 3/4</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + PBOC</div></div>
+          <span id="fav-gold-badge" class="badge b-up">↑↑ FUERTE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">XLE · XLB</div><div style="font-size:9px;color:var(--text3)">Commodities / Energía — late + China</div></div>
+          <span id="fav-comm-badge" class="badge b-up">↑ FAVORABLE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">XLV · XLP · XLU</div><div style="font-size:9px;color:var(--text3)">Defensivos — demanda inelástica</div></div>
+          <span id="fav-def-badge" class="badge b-up">↑ REFUGIO</span>
+        </div>
       </div>
-      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Solicitudes de desempleo. Subida sostenida = mercado laboral deteriorándose (leading recesión).</div>
-      <div id="lead-claims-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
     </div>
-    <!-- Industrial Production -->
-    <div class="card"><div class="lbl">🏭 Producción Industrial · YoY
-      <button class="help-i" type="button" onclick="openGlossary('industrial-production')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/INDPRO" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-indpro-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-indpro-mom" class="mono" style="font-size:10px;color:var(--text3)">MoM: —</div>
+    <div class="card" style="border-color:rgba(248,113,113,.12)">
+      <div class="lbl" style="color:var(--red)">Activos Bajo Presión</div>
+      <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">QQQ · XLK</div><div style="font-size:9px;color:var(--text3)">Tech — liquidez ↓ + tasa real alta</div></div>
+          <span id="pre-qqq-badge" class="badge b-dn">↓ PRESIÓN</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">IWM · Small Caps</div><div style="font-size:9px;color:var(--text3)">Apalancadas — crédito apretado</div></div>
+          <span id="pre-iwm-badge" class="badge b-dn">↓ VULNERABLE</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(248,113,113,.04);border-radius:4px;border:1px solid rgba(248,113,113,.1)">
+          <div><div class="mono" style="font-size:10px;font-weight:500">HYG · JNK</div><div style="font-size:9px;color:var(--text3)">High yield — spreads ampliándose</div></div>
+          <span id="pre-hy-badge" class="badge b-dn">— SPREADS</span>
+        </div>
       </div>
-      <div style="margin-top:4px;font-size:9px;color:var(--text3)">INDPRO YoY. Negativo sostenido confirma contracción manufacturera real.</div>
-      <div id="lead-indpro-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-    <!-- Building Permits -->
-    <div class="card"><div class="lbl">🏗 Building Permits · YoY
-      <button class="help-i" type="button" onclick="openGlossary('building-permits')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/PERMIT" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-permits-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-permits-trend" class="mono" style="font-size:10px;color:var(--text3)">3m: —</div>
-      </div>
-      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Permisos de construcción — leading housing más anticipado que el mismo PIB residencial.</div>
-      <div id="lead-permits-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-    <!-- Core PCE + 5Y5Y forward -->
-    <div class="card"><div class="lbl">💵 Core PCE / Inflación Forward
-      <button class="help-i" type="button" onclick="openGlossary('core-pce')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/PCEPILFE" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-corepce-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-fwd5y5y-val" class="mono" style="font-size:10px;color:var(--text3)">5Y5Y: —</div>
-      </div>
-      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Core PCE YoY (métrica preferida Fed). 5Y5Y = expectativas inflación 5-10 años (anclaje).</div>
-      <div id="lead-pce-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
     </div>
   </div>
 
