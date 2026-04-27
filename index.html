@@ -2896,15 +2896,11 @@ function updateFredUI() {
     const prev   = reserves[1]?.value || latest;
     const display = formatM(latest);
     setElF('m-res-val', display, latest >= prev ? 'up' : 'dn');
-    setElF('s-res-val', display, latest >= prev ? 'up' : 'dn');
     // FRED WRBWFRBL in millions: 3,300,000M = $3.3T, 3,000,000M = $3.0T
     const c = latest > 3300000 ? 'up' : latest > 3000000 ? 'neu' : 'down';
     styleEl('m-res-val', c);
     const diffB = (latest - prev) / 1000;
     setEl('m-res-chg', `${diffB >= 0 ? '+' : ''}${diffB.toFixed(1)}B`);
-    updateBar('s-res', latest, 2500000, 4000000, c);
-    updateSig('s-res-sig', latest > 3300000 ? 'is-g' : latest > 3000000 ? 'is-a' : 'is-r',
-              latest > 3300000 ? 'VERDE' : latest > 3000000 ? 'ALERTA' : 'PELIGRO');
     updateMiniChart('resChart', reserves, '#fbbf24', true);
   }
 
@@ -2913,13 +2909,9 @@ function updateFredUI() {
     const tgaPrev = tga[1]?.value || latest;
     const display = formatM(latest);
     setElF('m-tga-val', display, latest <= tgaPrev ? 'up' : 'dn'); // TGA bajo = bueno
-    setElF('s-tga-val', display, latest <= tgaPrev ? 'up' : 'dn');
     // FRED WTREGEN in millions: 500,000M = $500B, 800,000M = $800B
     const c = latest < 500000 ? 'up' : latest < 800000 ? 'neu' : 'down';
     styleEl('m-tga-val', c);
-    updateBar('s-tga', latest, 0, 1500000, c === 'up' ? 'down' : c === 'down' ? 'up' : 'neu');
-    updateSig('s-tga-sig', latest < 500000 ? 'is-g' : latest < 800000 ? 'is-a' : 'is-r',
-              latest < 500000 ? 'VERDE' : latest < 800000 ? 'ALERTA' : 'PELIGRO');
     updateMiniChart('tgaChart', tga, '#f87171', true);
     // Status badge dinámico (antes hardcoded como "Drenaje activo")
     const tgaStatusEl = document.getElementById('m-tga-status');
@@ -2936,13 +2928,9 @@ function updateFredUI() {
     const sign    = spreadBps >= 0 ? '+' : '';
     const display = `${sign}${spreadBps.toFixed(1)} bps`;
     setElF('m-sofr-val', display, 'dn'); // SOFR spread subiendo = malo
-    setElF('s-sofr-val', display, 'dn');
     const abs = Math.abs(spreadBps);
     const c   = abs < 5 ? 'up' : abs < 15 ? 'neu' : 'down';
     styleEl('m-sofr-val', c);
-    updateBar('s-sofr', abs, 0, 30, c);
-    updateSig('s-sofr-sig', abs < 5 ? 'is-g' : abs < 15 ? 'is-a' : 'is-r',
-              abs < 5 ? 'VERDE' : abs < 15 ? 'ALERTA' : 'SPIKES');
     updateMiniChart('sofrChart', sofr, '#f87171', false);
   }
 
@@ -2952,7 +2940,6 @@ function updateFredUI() {
     const chg    = (latest - prev).toFixed(2);
     const sign   = chg >= 0 ? '+' : '';
     setElF('m-dxy-val', latest.toFixed(1));
-    setElF('s-dxy-val', latest.toFixed(1));
     countUp('m-dxy-val', latest, v => v.toFixed(1));
     setEl('m-dxy-chg', `${sign}${chg}`);
     const c = latest < 100 ? 'up' : latest < 106 ? 'neu' : 'down';
@@ -2960,9 +2947,6 @@ function updateFredUI() {
     const impacto = latest < 100 ? 'Positivo — expansivo' : latest < 106 ? 'Neutro' : 'Negativo — contractivo';
     const impEl = document.getElementById('m-dxy-impact');
     if (impEl) { impEl.textContent = impacto; impEl.className = 'flow-val ' + c; }
-    updateBar('s-dxy', latest, 85, 120, c);
-    updateSig('s-dxy-sig', c === 'up' ? 'is-g' : c === 'neu' ? 'is-a' : 'is-r',
-              c === 'up' ? 'VERDE' : c === 'neu' ? 'NEUTRAL' : 'ALTO');
     updateMiniChart('dxyChart', dxy, '#4ade80', false);
   }
 
@@ -3285,7 +3269,6 @@ function startPriceLoop() {
       if (dxyLive && !dxyLive.error) {
         if (state.data.dxy?.length) state.data.dxy[0].value = dxyLive.price;
         setElF('m-dxy-val', dxyLive.price.toFixed(1));
-        setElF('s-dxy-val', dxyLive.price.toFixed(1));
         const chgSign = dxyLive.chg1d >= 0 ? '+' : '';
         setEl('m-dxy-chg', `${chgSign}${dxyLive.chg1d.toFixed(2)}%`);
       }
@@ -3334,12 +3317,6 @@ function updateVolatility(prices) {
       if (vvix?.hist) chart.data.datasets[1].data = vvix.hist.slice(-n);
       chart.update('none');
     }
-
-    // Semáforo bar/sig for VIX
-    setEl('s-vix-val', vix.price.toFixed(1));
-    updateBar('s-vix', vix.price, 10, 50, vix.price < 20 ? 'up' : vix.price < 30 ? 'neu' : 'down');
-    updateSig('s-vix-sig', vix.price < 20 ? 'is-g' : vix.price < 30 ? 'is-a' : 'is-r',
-              vix.price < 20 ? 'CALMA' : vix.price < 30 ? 'ALERTA' : 'CRISIS');
 
     if (vvix) {
       const divergence = vvix.chg1m > 5 && vix.chg1m < 0;
@@ -3535,7 +3512,6 @@ function updateMoveSkew(prices) {
     const v = move.price;
     countUp('m-move-val', v, x => x.toFixed(0));
     setElF('m-move-val', v.toFixed(0), move.chg1d >= 0 ? 'dn' : 'up'); // MOVE up = malo
-    setElF('s-move-val', v.toFixed(0));
     const moveSign = move.chg1d >= 0 ? '+' : '';
     setEl('m-move-chg', `${moveSign}${move.chg1d.toFixed(1)}%`);
     const c = v < 100 ? 'up' : v < 140 ? 'neu' : 'down';
@@ -3550,11 +3526,6 @@ function updateMoveSkew(prices) {
       else if (v < 140) { bands[1].style.border = '1px solid rgba(251,191,36,.5)'; }
       else              { bands[2].style.border = '1px solid rgba(248,113,113,.5)'; }
     }
-
-    // Update sig in indicator bar
-    updateBar('s-move', v, 50, 200, v < 100 ? 'up' : v < 140 ? 'neu' : 'down');
-    updateSig('s-move-sig', v < 100 ? 'is-g' : v < 140 ? 'is-a' : 'is-r',
-              v < 100 ? 'VERDE' : v < 140 ? 'ALERTA' : 'CRISIS');
 
     const moveSeries = move.hist.map((val, i) => ({ date: move.dates[i], value: val }));
     updateMiniChart('moveChart', moveSeries, '#fbbf24', false);
