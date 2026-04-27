@@ -588,6 +588,17 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     ↑ Régimen de mercado (corto plazo) · ↓ Veredicto Howell (largo plazo, liquidez global). <span style="color:var(--amber);font-weight:500">Pueden divergir</span>: el corto puede ser RISK_ON mientras el largo señala defensa preventiva.
   </div>
 
+  <!-- ── MARKET BREADTH STRIP — momentum sectorial (proxy con ETFs) ── -->
+  <div id="breadth-strip" style="margin:0 0 14px 0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px 14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap">
+      <span class="lbl" style="margin:0">📊 Market Breadth · momentum sectorial <button class="help-i" type="button" onclick="openGlossary('market-breadth')" title="¿Qué es?">?</button></span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.06em">8 SECTORES SPDR · PROXY 5d/20d</span>
+    </div>
+    <div id="breadth-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+      <div style="grid-column:1/-1;font-size:10px;color:var(--text3);padding:6px;text-align:center;font-family:'IBM Plex Mono',monospace">Esperando datos de mercado...</div>
+    </div>
+  </div>
+
   <!-- ── VERDICT HERO v2 ── -->
   <div class="vh">
     <div class="vh-score">
@@ -2754,6 +2765,7 @@ async function loadYahooData() {
     updateVolatility(prices);
     updateMoveSkew(prices);
     updateFavoredAssets(prices);
+    updateMarketBreadth(prices);
     updateNavTickers();
     updateTechSignals(tvState.yfTicker);
     setDs('ds-yf', ok > 5 ? '#4ade80' : '#fbbf24');
@@ -2768,7 +2780,99 @@ async function loadYahooData() {
   }
 }
 
+// ── Market Breadth Strip (proxy via ETFs sectoriales) ──
+function updateMarketBreadth(prices) {
+  const el = document.getElementById('breadth-grid');
+  if (!el) return;
+
+  const sectors    = ['XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC'];
+  const cyclicals  = ['XLF','XLI','XLB','XLE'];
+  const defensives = ['XLP','XLU','XLV'];
+  const riskOn     = ['SPY','IWM','EEM'];
+  const riskOff    = ['TLT','GLD'];
+
+  const perfN = (ticker, n) => {
+    const d = prices[ticker];
+    if (!d?.hist || d.hist.length < n + 1) return null;
+    const recent = d.price ?? d.hist[d.hist.length - 1];
+    const past = d.hist[d.hist.length - 1 - n];
+    if (!past || !recent) return null;
+    return ((recent - past) / past) * 100;
+  };
+  const avgPerf = (tickers, n) => {
+    const vals = tickers.map(t => perfN(t, n)).filter(v => v !== null);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  };
+
+  const sect5dVals  = sectors.map(t => perfN(t, 5)).filter(v => v !== null);
+  const sect20dVals = sectors.map(t => perfN(t, 20)).filter(v => v !== null);
+  const breadth5d   = sect5dVals.length  ? (sect5dVals.filter(v => v > 0).length  / sect5dVals.length)  * 100 : null;
+  const breadth20d  = sect20dVals.length ? (sect20dVals.filter(v => v > 0).length / sect20dVals.length) * 100 : null;
+
+  const cycPerf  = avgPerf(cyclicals, 20);
+  const defPerf  = avgPerf(defensives, 20);
+  const cycVsDef = (cycPerf != null && defPerf != null) ? cycPerf - defPerf : null;
+
+  const onPerf  = avgPerf(riskOn, 20);
+  const offPerf = avgPerf(riskOff, 20);
+  const riskSpread = (onPerf != null && offPerf != null) ? onPerf - offPerf : null;
+
+  const iwm20 = perfN('IWM', 20);
+  const spy20 = perfN('SPY', 20);
+  const smallVsLarge = (iwm20 != null && spy20 != null) ? iwm20 - spy20 : null;
+
+  const fmt = (v, suffix) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + suffix;
+  const colorBreadth = v => v == null ? 'var(--text3)' : v >= 62.5 ? 'var(--green)' : v <= 37.5 ? 'var(--red)' : 'var(--amber)';
+  const colorSpread  = v => v == null ? 'var(--text3)' : v >=  1   ? 'var(--green)' : v <= -1   ? 'var(--red)' : 'var(--amber)';
+
+  const items = [
+    { label: 'BREADTH 5d',  value: fmt(breadth5d, '%'),    color: colorBreadth(breadth5d),   sub: '% sectores ↑' },
+    { label: 'BREADTH 20d', value: fmt(breadth20d, '%'),   color: colorBreadth(breadth20d),  sub: '% sectores ↑' },
+    { label: 'CYC − DEF',   value: fmt(cycVsDef, ' pp'),   color: colorSpread(cycVsDef),     sub: 'spread 20d' },
+    { label: 'RISK ON−OFF', value: fmt(riskSpread, ' pp'), color: colorSpread(riskSpread),   sub: 'spread 20d' },
+    { label: 'IWM − SPY',   value: fmt(smallVsLarge,' pp'),color: colorSpread(smallVsLarge), sub: 'spread 20d' },
+  ];
+
+  el.innerHTML = items.map(it => `
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding:8px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.08em">${it.label}</div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;font-weight:700;color:${it.color};line-height:1.1;margin:4px 0">${it.value}</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);letter-spacing:.05em">${it.sub}</div>
+    </div>
+  `).join('');
+}
+
 // ── Economic Calendar (FRED Releases) ──
+// Consensus map: top releases macro USA — actualizar weekly antes del lunes.
+// Matching por keyword en el `name` del release que devuelve FRED.
+const CONSENSUS_MAP = [
+  // Inflación
+  { keys: ['Consumer Price Index'], short: 'CPI', cons: '+2.6% YoY · +0.2% MoM', prev: '+2.7% YoY · +0.3% MoM' },
+  { keys: ['Personal Income and Outlays', 'Personal Consumption Expenditures'], short: 'PCE', cons: 'Core +2.8% YoY', prev: 'Core +2.9% YoY' },
+  { keys: ['Producer Price Index'], short: 'PPI', cons: '+2.4% YoY · +0.2% MoM', prev: '+2.5% YoY · +0.4% MoM' },
+  // Empleo
+  { keys: ['Employment Situation'], short: 'NFP', cons: '+170k · UR 4.1%', prev: '+150k · UR 4.1%' },
+  { keys: ['Job Openings and Labor Turnover'], short: 'JOLTS', cons: '7.6M openings', prev: '7.5M openings' },
+  { keys: ['Unemployment Insurance Weekly Claims'], short: 'Initial Claims', cons: '215K', prev: '220K' },
+  { keys: ['ADP National Employment'], short: 'ADP', cons: '+155k', prev: '+140k' },
+  // Crecimiento
+  { keys: ['Gross Domestic Product'], short: 'GDP', cons: '+2.1% QoQ ann.', prev: '+2.4% QoQ ann.' },
+  { keys: ['Advance Monthly Sales for Retail Trade', 'Retail Sales'], short: 'Retail Sales', cons: '+0.3% MoM', prev: '+0.6% MoM' },
+  { keys: ['Industrial Production'], short: 'IP', cons: '+0.2% MoM', prev: '+0.4% MoM' },
+  { keys: ['New Residential Construction', 'Housing Starts'], short: 'Housing Starts', cons: '1.36M SAAR', prev: '1.42M SAAR' },
+  // Sentiment
+  { keys: ['Surveys of Consumers', 'University of Michigan'], short: 'U-Mich', cons: '67.5', prev: '69.1' },
+  // Fed
+  { keys: ['FOMC', 'Federal Open Market Committee'], short: 'FOMC', cons: 'Hold 4.25-4.50%', prev: 'Hold 4.25-4.50%' },
+];
+const CONSENSUS_UPDATED = '2026-04-26'; // refrescar weekly
+
+function matchConsensus(name) {
+  if (!name) return null;
+  const n = name.toLowerCase();
+  return CONSENSUS_MAP.find(c => c.keys.some(k => n.includes(k.toLowerCase())));
+}
+
 async function loadEconCalendar() {
   try {
     const res = await fetch('/api/fred-calendar');
@@ -2820,13 +2924,20 @@ function renderEconCalendar(data) {
     const isToday = date === today;
     const eventsHtml = evs.map(e => {
       const dotColor = e.impact === 'high' ? 'var(--red)' : e.impact === 'med' ? 'var(--amber)' : 'var(--green)';
-      return `<div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text);padding:2px 0" title="${e.desc}">
-        <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
-        <span>${e.name}</span>
+      const c = matchConsensus(e.name);
+      const labelText = c ? c.short : e.name;
+      const consBadge = c ? `<div style="font-size:8px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding-left:11px;line-height:1.4;letter-spacing:.02em">cons <span style="color:var(--gold)">${c.cons}</span><br>prev ${c.prev}</div>` : '';
+      const titleText = c ? `${e.name} · cons: ${c.cons} · prev: ${c.prev} (est. ${CONSENSUS_UPDATED})` : (e.desc || e.name);
+      return `<div style="padding:2px 0" title="${titleText}">
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text)">
+          <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
+          <span>${labelText}</span>
+        </div>
+        ${consBadge}
       </div>`;
     }).join('');
 
-    return `<div style="flex-shrink:0;min-width:140px;background:${isToday ? 'rgba(230,180,80,.08)' : 'var(--surface2)'};border:1px solid ${isToday ? 'rgba(230,180,80,.4)' : 'var(--border2)'};border-radius:6px;padding:8px 10px">
+    return `<div style="flex-shrink:0;min-width:160px;background:${isToday ? 'rgba(230,180,80,.08)' : 'var(--surface2)'};border:1px solid ${isToday ? 'rgba(230,180,80,.4)' : 'var(--border2)'};border-radius:6px;padding:8px 10px">
       <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:5px;padding-bottom:4px;border-bottom:1px solid var(--border)">
         <div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:${isToday ? 'var(--gold)' : 'var(--text)'};line-height:1">${dayNum}</div>
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.05em">${dayLbl} ${monthLbl}</div>
@@ -5730,6 +5841,20 @@ const INDICATORS_GLOSSARY = {
     note: 'Métrica más importante para la credibilidad del FOMC.'
   },
   // ── REGIME / VOL ──
+  'market-breadth': {
+    name: 'Market Breadth — momentum sectorial',
+    category: 'Mercado · Internals',
+    source: { label: 'Yahoo · 8 SPDR + SPY/IWM/EEM/TLT/GLD', url: 'https://finance.yahoo.com', freq: 'Diario · 5d/20d' },
+    what: 'Proxy de amplitud de mercado calculado desde ETFs ya pulleados. Mide si el rally/sell-off es amplio (sano) o concentrado (frágil).',
+    formula: 'BREADTH 5d/20d: % de los 8 sectores SPDR (XLE/XLV/XLP/XLU/XLB/XLF/XLI/XLC) con perf positiva en N días. CYC−DEF: avg(XLF,XLI,XLB,XLE) − avg(XLP,XLU,XLV) en 20d. RISK ON−OFF: avg(SPY,IWM,EEM) − avg(TLT,GLD) en 20d. IWM−SPY: spread small vs large 20d.',
+    interpret: 'Breadth >62% = rally amplio y saludable. Breadth <37% = sell-off generalizado. CYC>DEF + IWM>SPY = risk-on con liderazgo cíclico (alcista). DEF>CYC + TLT>SPY = rotación defensiva.',
+    thresholds: [
+      { c:'green', t:'BREADTH ≥ 62% · spreads ≥ +1pp — risk-on amplio' },
+      { c:'amber', t:'37–62% · spreads ±1pp — neutral / mixto' },
+      { c:'red',   t:'BREADTH ≤ 37% · spreads ≤ -1pp — sell-off / defensivo' }
+    ],
+    note: 'Es un proxy con ETFs (no breadth verdadero por componentes). Útil para detectar rotaciones tempranas y validar si el SPY está siendo arrastrado por pocos nombres.'
+  },
   'regime-corto-plazo': {
     name: 'Régimen de Mercado (1-4 sem)',
     category: 'Régimen · Corto Plazo',
