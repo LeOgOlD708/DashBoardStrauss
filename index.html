@@ -1412,7 +1412,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Asset Allocation</div><div class="sh-title">Activos Favorecidos / Bajo Presión — Consecuencia del Diagnóstico</div><div class="sh-line"></div></div>
   <div class="g2" style="margin-bottom:10px">
     <div class="card" style="border-color:rgba(74,222,128,.12)">
-      <div class="lbl" style="color:var(--green)">Activos Favorecidos — Fase 3/4</div>
+      <div class="lbl" style="color:var(--green)">Activos Favorecidos — <span id="fav-phase-label">Fase 3/4</span></div>
       <div style="display:flex;flex-direction:column;gap:4px;margin-top:7px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 9px;background:rgba(74,222,128,.05);border-radius:4px;border:1px solid rgba(74,222,128,.1)">
           <div><div class="mono" style="font-size:10px;font-weight:500">GLD · GDX · IAU</div><div style="font-size:9px;color:var(--text3)">Oro — estrés sistémico + PBOC</div></div>
@@ -3682,57 +3682,21 @@ function updateMoveSkew(prices) {
 }
 
 // ── Diagnostic Engine (full score + phase computation) ──
-// Lógica de scoring sincronizada con computeHowellScore (max=8 con RRP)
+// Scoring delegado a computeHowellScore() (single source of truth — HOWELL_RULES)
 function updateDiagnostic() {
-  const { reserves, tga, sofr, fedfunds, dxy, cpi, hySpread, wti, breakeven, rrp } = state.data;
+  const { hySpread, wti, breakeven, sofr, fedfunds } = state.data;
   const prices = state.data.prices;
 
-  // ── Score computation ──
-  let resScore = 0, tgaScore = 0, rrpScore = 0, sofrScore = 0, dxyScore = 0, cpiScore = 0;
-  const resVal  = reserves?.[0]?.value;
-  const tgaVal  = tga?.[0]?.value;
-  const dxyVal  = dxy?.[0]?.value;
+  const h = computeHowellScore();
+  const { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal,
+          resScore, tgaScore, rrpScore, sofrScore, dxyScore, cpiScore } = h;
+  const maxScore = 8;
   const wtiVal  = wti?.[0]?.value;
   const beVal   = breakeven?.[0]?.value;
   const hyVal   = hySpread?.[0]?.value;
-  // RRPTSYD viene en Billions; se normaliza a millones (×1000) para coincidir con WRBWFRBL/WTREGEN
-  const rrpVal  = rrp?.[0]?.value != null ? rrp[0].value * 1000 : null;
-
-  // SOFR spread — FRED values are in %, convert to bps (* 100)
+  // sofrDisp conserva el signo del spread crudo (computeHowellScore solo guarda |valor|)
   const sofrRaw  = (sofr?.[0] && fedfunds?.[0]) ? (sofr[0].value - fedfunds[0].value) * 100 : null;
-  const sofrAbs  = sofrRaw != null ? Math.abs(sofrRaw) : null;
   const sofrDisp = sofrRaw != null ? (sofrRaw >= 0 ? '+' : '') + sofrRaw.toFixed(1) + ' bps' : '—';
-
-  // CPI YoY
-  let cpiYoY = null;
-  if (cpi?.length >= 13 && cpi[0]?.value && cpi[12]?.value) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
-
-  if (resVal != null) {
-    if (resVal < 3000000) resScore = 2;
-    else if (resVal < 3300000) resScore = 1;
-  }
-  if (tgaVal != null) {
-    if (tgaVal > 1000000) tgaScore = 2;
-    else if (tgaVal > 700000) tgaScore = 1;
-  }
-  if (rrpVal != null) {
-    if (rrpVal > 500000) rrpScore = 1;
-    else if (rrpVal > 200000) rrpScore = 0.5;
-  }
-  if (sofrAbs != null) {
-    if (sofrAbs > 15) sofrScore = 1;
-    else if (sofrAbs > 5) sofrScore = 0.5;
-  }
-  if (dxyVal != null) {
-    if (dxyVal > 110) dxyScore = 1;
-    else if (dxyVal > 106) dxyScore = 0.5;
-  }
-  if (cpiYoY != null) {
-    if (cpiYoY > 3.5) cpiScore = 1;
-    else if (cpiYoY > 3) cpiScore = 0.5;
-  }
-  const score = resScore + tgaScore + rrpScore + sofrScore + dxyScore + cpiScore;
-  const maxScore = 8;
 
   // ── Score table rows ──
   function setPts(id, pts, max) {
@@ -4283,6 +4247,23 @@ function updateFavoredAssets(prices) {
   // Bajo presión (isGoodWhenUp = false for press assets)
   applyBadge('pre-qqq-badge',  prices['QQQ']?.ytd,  false);
   applyBadge('pre-iwm-badge',  prices['IWM']?.ytd,  false);
+  // pre-hy-badge: prefer HY spread (FRED, lo actualiza updateDiagnostic). Si falta, fallback HYG YTD.
+  const hyBdg = document.getElementById('pre-hy-badge');
+  if (hyBdg && hyBdg.textContent.trim() === '— SPREADS') {
+    applyBadge('pre-hy-badge', prices['HYG']?.ytd, false);
+  }
+
+  // Label de fase dinámico
+  const phaseLbl = document.getElementById('fav-phase-label');
+  if (phaseLbl) {
+    const { score } = computeHowellScore();
+    const phaseTxt = score >= 6 ? 'Fase 4 · Contracción'
+                   : score >= 4 ? 'Fase 3→4 · Transición'
+                   : score >= 2 ? 'Fase 3 · Squeeze'
+                   : score >= 1 ? 'Fase 2 · Aceleración'
+                   :              'Fase 1 · Expansión';
+    phaseLbl.textContent = phaseTxt;
+  }
 }
 
 // ── Flash on value change ──
@@ -4874,10 +4855,22 @@ function drawSparkline(canvas, data) {
   ctx.stroke();
 }
 
+// ── Reglas atómicas de scoring Howell (single source of truth) ──
+// Cada regla mapea valor crudo → puntos. Reusable por current/historical/diagnostic.
+const HOWELL_RULES = {
+  res:  v => v == null ? 0 : (v < 3000000 ? 2 : v < 3300000 ? 1 : 0),
+  tga:  v => v == null ? 0 : (v > 1000000 ? 2 : v > 700000  ? 1 : 0),
+  rrp:  v => v == null ? 0 : (v > 500000  ? 1 : v > 200000  ? 0.5 : 0),
+  sofr: v => v == null ? 0 : (v > 15      ? 1 : v > 5       ? 0.5 : 0),
+  dxy:  v => v == null ? 0 : (v > 110     ? 1 : v > 106     ? 0.5 : 0),
+  cpi:  v => v == null ? 0 : (v > 3.5     ? 1 : v > 3       ? 0.5 : 0),
+};
+const HOWELL_WEIGHTS = { res: 2, tga: 2, rrp: 1, sofr: 1, dxy: 1, cpi: 1 };
+const HOWELL_LABELS  = { res: 'Reservas', tga: 'TGA', rrp: 'RRP', sofr: 'SOFR', dxy: 'DXY', cpi: 'CPI YoY' };
+
 // ── Shared helper: compute current Howell score from state ──
 function computeHowellScore() {
   const { reserves, tga, sofr, fedfunds, dxy, cpi, rrp } = state.data;
-  let score = 0;
   const resVal  = reserves?.[0]?.value;
   const tgaVal  = tga?.[0]?.value;
   const sofrAbs = (sofr?.[0] && fedfunds?.[0]) ? Math.abs((sofr[0].value - fedfunds[0].value) * 100) : null;
@@ -4887,33 +4880,26 @@ function computeHowellScore() {
   let cpiYoY = null;
   if (cpi?.length >= 13 && cpi[0]?.value && cpi[12]?.value) cpiYoY = ((cpi[0].value / cpi[12].value) - 1) * 100;
 
-  // Reservas Fed: bajas → liquidez apretada → riesgo
-  if (resVal != null)  score += resVal  < 3000000 ? 2 : resVal  < 3300000 ? 1 : 0;
-  // TGA Tesoro: alto → drena liquidez del sistema → riesgo
-  if (tgaVal != null)  score += tgaVal  > 1000000 ? 2 : tgaVal  > 700000  ? 1 : 0;
-  // RRP: alto → drena liquidez (como TGA); bajo/cero → liquidez liberada → bullish
-  if (rrpVal != null)  score += rrpVal  > 500000  ? 1 : rrpVal  > 200000  ? 0.5 : 0;
-  // SOFR spread: estrés de funding interbancario
-  if (sofrAbs != null) score += sofrAbs > 15 ? 1 : sofrAbs > 5 ? 0.5 : 0;
-  // DXY: fuerte → contractivo para liquidez global en dólares
-  if (dxyVal != null)  score += dxyVal  > 110 ? 1 : dxyVal > 106 ? 0.5 : 0;
-  // CPI: inflación alta → Fed más restrictiva → riesgo
-  if (cpiYoY != null)  score += cpiYoY  > 3.5 ? 1 : cpiYoY > 3 ? 0.5 : 0;
+  const resScore  = HOWELL_RULES.res(resVal);
+  const tgaScore  = HOWELL_RULES.tga(tgaVal);
+  const rrpScore  = HOWELL_RULES.rrp(rrpVal);
+  const sofrScore = HOWELL_RULES.sofr(sofrAbs);
+  const dxyScore  = HOWELL_RULES.dxy(dxyVal);
+  const cpiScore  = HOWELL_RULES.cpi(cpiYoY);
+  const score = resScore + tgaScore + rrpScore + sofrScore + dxyScore + cpiScore;
 
-  // Track de componentes faltantes (datos null = suman 0 al score, pero divisor sigue 8 → score sub-estimado).
-  // Pesos máximos por componente: res=2, tga=2, rrp=1, sofr=1, dxy=1, cpi=1 → total 8.
-  const components = [
-    { key: 'res',  label: 'Reservas',  val: resVal,  weight: 2 },
-    { key: 'tga',  label: 'TGA',       val: tgaVal,  weight: 2 },
-    { key: 'rrp',  label: 'RRP',       val: rrpVal,  weight: 1 },
-    { key: 'sofr', label: 'SOFR',      val: sofrAbs, weight: 1 },
-    { key: 'dxy',  label: 'DXY',       val: dxyVal,  weight: 1 },
-    { key: 'cpi',  label: 'CPI YoY',   val: cpiYoY,  weight: 1 },
-  ];
-  const missing = components.filter(c => c.val == null);
+  // Track de componentes faltantes (datos null suman 0 → score sub-estimado vs /8).
+  const vals = { res: resVal, tga: tgaVal, rrp: rrpVal, sofr: sofrAbs, dxy: dxyVal, cpi: cpiYoY };
+  const missing = Object.keys(vals)
+    .filter(k => vals[k] == null)
+    .map(k => ({ key: k, label: HOWELL_LABELS[k], weight: HOWELL_WEIGHTS[k] }));
   const maxAvailable = 8 - missing.reduce((s, c) => s + c.weight, 0);
 
-  return { score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal, missing, maxAvailable };
+  return {
+    score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal,
+    resScore, tgaScore, rrpScore, sofrScore, dxyScore, cpiScore,
+    missing, maxAvailable,
+  };
 }
 
 // ── Helper: encontrar el valor de una serie temporal en (o antes de) una fecha dada ──
@@ -4948,36 +4934,37 @@ function computeHistoricalHowell() {
     const targetDate = new Date(obs.date);
     let score = 0;
 
-    // Reservas (de la propia obs)
+    // Reservas (de la propia obs) — todos los componentes usan HOWELL_RULES
     const resVal = obs.value;
-    if (resVal != null) score += resVal < 3000000 ? 2 : resVal < 3300000 ? 1 : 0;
+    score += HOWELL_RULES.res(resVal);
 
     // TGA en esa semana
     const tgaVal = _findValueAt(tga, targetDate);
-    if (tgaVal != null) score += tgaVal > 1000000 ? 2 : tgaVal > 700000 ? 1 : 0;
+    score += HOWELL_RULES.tga(tgaVal);
 
-    // RRP (Billions → multiplicar ×1000 a millions)
+    // RRP (Billions → ×1000 a Millions, igual que WRBWFRBL/WTREGEN)
     const rrpRaw = _findValueAt(rrp, targetDate);
     const rrpVal = rrpRaw != null ? rrpRaw * 1000 : null;
-    if (rrpVal != null) score += rrpVal > 500000 ? 1 : rrpVal > 200000 ? 0.5 : 0;
+    score += HOWELL_RULES.rrp(rrpVal);
 
     // SOFR − FedFunds spread (en bps)
     const sofrV = _findValueAt(sofr, targetDate);
     const ffV   = _findValueAt(fedfunds, targetDate);
     const sofrAbs = (sofrV != null && ffV != null) ? Math.abs((sofrV - ffV) * 100) : null;
-    if (sofrAbs != null) score += sofrAbs > 15 ? 1 : sofrAbs > 5 ? 0.5 : 0;
+    score += HOWELL_RULES.sofr(sofrAbs);
 
     // DXY: buscar el close semanal más cercano a targetDate
+    // Si no hay match (targetDate precede a la serie disponible), dejar null —
+    // usar dxyHist[0] (el más viejo) distorsionaba puntos antiguos al asumir
+    // un DXY que no era real para esa semana.
     let dxyVal = null;
     if (Array.isArray(dxyHist) && Array.isArray(dxyDates) && dxyDates.length === dxyHist.length) {
-      // dxyDates en formato "M/D" o similar — comparamos por proximidad
       for (let j = dxyDates.length - 1; j >= 0; j--) {
         const d = new Date(dxyDates[j]);
         if (!isNaN(d.getTime()) && d <= targetDate) { dxyVal = dxyHist[j]; break; }
       }
-      if (dxyVal == null && dxyHist.length) dxyVal = dxyHist[0];
     }
-    if (dxyVal != null) score += dxyVal > 110 ? 1 : dxyVal > 106 ? 0.5 : 0;
+    score += HOWELL_RULES.dxy(dxyVal);
 
     // CPI YoY: necesitamos CPI[targetDate] / CPI[targetDate − 12 meses] − 1
     let cpiYoY = null;
@@ -4987,7 +4974,7 @@ function computeHistoricalHowell() {
       const cpiOld  = _findValueAt(cpi, yearAgo);
       if (cpiNow && cpiOld) cpiYoY = ((cpiNow / cpiOld) - 1) * 100;
     }
-    if (cpiYoY != null) score += cpiYoY > 3.5 ? 1 : cpiYoY > 3 ? 0.5 : 0;
+    score += HOWELL_RULES.cpi(cpiYoY);
 
     points.push({ date: obs.date, score: +score.toFixed(2) });
   }
