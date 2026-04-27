@@ -1742,6 +1742,26 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 // ── Global state — must be defined BEFORE any chart creation ──
 const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, priceTimer: null, firstLoad: true, chartRange: '1y', ycView: 'now' };
 
+// ── ETF metadata — needed early for skeleton rendering (re-declared safely below if needed) ──
+const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','SPY','QQQ','IWM','TLT','EEM'];
+const ETF_META = {
+  GLD:{n:'Oro',           ph:'F3 ↑',    sig:'b-up',  sl:'↑↑ FUERTE'},
+  GDX:{n:'Mineras Oro',   ph:'F3 ↑↑',   sig:'b-up',  sl:'↑↑ MUY FAV.'},
+  XLE:{n:'Energía',       ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
+  XLV:{n:'Salud',         ph:'F3',      sig:'b-neu', sl:'= NEUTRAL+'},
+  XLP:{n:'Consumo Básico',ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
+  XLU:{n:'Utilities',     ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
+  XLB:{n:'Materiales',    ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
+  XLF:{n:'Financieros',   ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  XLI:{n:'Industriales',  ph:'F3',      sig:'b-neu', sl:'= NEUTRAL'},
+  XLC:{n:'Comunicac.',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  SPY:{n:'S&P 500',       ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  QQQ:{n:'Nasdaq 100',    ph:'F3 ↓↓',   sig:'b-dn',  sl:'↓ EVITAR'},
+  IWM:{n:'Small Caps',    ph:'F3/F4 ↓↓',sig:'b-dn',  sl:'↓ VULNERABLE'},
+  TLT:{n:'Bonos 20Y',     ph:'Esperar', sig:'b-alt', sl:'⚠ POST-FED'},
+  EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
+};
+
 // ── Clock ──
 (function tick(){
   const n=new Date();
@@ -1995,25 +2015,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 //  Sin proxies · Sin CORS · API key nunca expuesta
 // ══════════════════════════════════════════════════════════
 
-const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','SPY','QQQ','IWM','TLT','EEM'];
-const ETF_META = {
-  GLD:{n:'Oro',           ph:'F3 ↑',    sig:'b-up',  sl:'↑↑ FUERTE'},
-  GDX:{n:'Mineras Oro',   ph:'F3 ↑↑',   sig:'b-up',  sl:'↑↑ MUY FAV.'},
-  XLE:{n:'Energía',       ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
-  XLV:{n:'Salud',         ph:'F3',      sig:'b-neu', sl:'= NEUTRAL+'},
-  XLP:{n:'Consumo Básico',ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
-  XLU:{n:'Utilities',     ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
-  XLB:{n:'Materiales',    ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
-  XLF:{n:'Financieros',   ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  XLI:{n:'Industriales',  ph:'F3',      sig:'b-neu', sl:'= NEUTRAL'},
-  XLC:{n:'Comunicac.',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  SPY:{n:'S&P 500',       ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  QQQ:{n:'Nasdaq 100',    ph:'F3 ↓↓',   sig:'b-dn',  sl:'↓ EVITAR'},
-  IWM:{n:'Small Caps',    ph:'F3/F4 ↓↓',sig:'b-dn',  sl:'↓ VULNERABLE'},
-  TLT:{n:'Bonos 20Y',     ph:'Esperar', sig:'b-alt', sl:'⚠ POST-FED'},
-  EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
-};
-
+// ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
 const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,NAPM,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD';
 
 // ── Boot on page load ──
