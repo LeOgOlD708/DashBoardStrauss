@@ -599,7 +599,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <div id="breadth-strip" style="margin:0 0 14px 0;background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:10px 14px">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;flex-wrap:wrap">
       <span class="lbl" style="margin:0">📊 Market Breadth · momentum sectorial <button class="help-i" type="button" onclick="openGlossary('market-breadth')" title="¿Qué es?">?</button></span>
-      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">8 SECTORES SPDR · PROXY 5d/20d</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">11 SECTORES SPDR · PROXY 5d/20d</span>
     </div>
     <div id="breadth-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
       <div style="grid-column:1/-1;font-size:10px;color:var(--text3);padding:6px;text-align:center;font-family:'IBM Plex Mono',monospace">Esperando datos de mercado...</div>
@@ -689,26 +689,26 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <span id="gl-regime-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+    <div class="g4" style="gap:8px">
       <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">DXY YoY (invertido)</div>
-        <div class="mono" id="gl-dxy-yoy" style="font-size:18px;font-weight:500;margin-top:3px">—</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">DXY YoY (invertido) · 50%</div>
+        <div class="mono" id="gl-dxy-yoy" style="font-size:20px;font-weight:500;margin-top:3px">—</div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">USD ↓ → liq global ↑</div>
       </div>
       <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">FXI YTD · China</div>
-        <div class="mono" id="gl-fxi-ytd" style="font-size:18px;font-weight:500;margin-top:3px">—</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">FXI YTD · China · 30%</div>
+        <div class="mono" id="gl-fxi-ytd" style="font-size:20px;font-weight:500;margin-top:3px">—</div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Proxy China credit impulse</div>
       </div>
       <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">EWJ YTD · Japan</div>
-        <div class="mono" id="gl-ewj-ytd" style="font-size:18px;font-weight:500;margin-top:3px">—</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">EWJ YTD · Japan · 20%</div>
+        <div class="mono" id="gl-ewj-ytd" style="font-size:20px;font-weight:500;margin-top:3px">—</div>
         <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Proxy BoJ stance</div>
       </div>
       <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.3);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.06em">Score compuesto</div>
-        <div class="mono" id="gl-score" style="font-size:18px;font-weight:500;margin-top:3px;color:var(--text)">—</div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Avg de los 3 sub-componentes</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.06em">Score ponderado</div>
+        <div class="mono" id="gl-score" style="font-size:20px;font-weight:500;margin-top:3px;color:var(--text)">—</div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">DXY:0.5 · FXI:0.3 · EWJ:0.2</div>
       </div>
     </div>
     <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.45">
@@ -4361,9 +4361,16 @@ function updateGlobalLiquidity(prices) {
   setEl('gl-fxi-ytd', fxi,    '%');
   setEl('gl-ewj-ytd', ewj,    '%');
 
-  // Score compuesto: avg de los 3 sub-componentes disponibles
-  const components = [dxyInv, fxi, ewj].filter(v => v != null);
-  const score = components.length ? components.reduce((a, b) => a + b, 0) / components.length : null;
+  // Score compuesto: weights ponderados (Howell mismo argumenta DXY ~70% del ciclo).
+  // DXY 0.5 · FXI 0.3 · EWJ 0.2 — refleja jerarquía real, antes era avg simple.
+  // Si algún componente falta, redistribuye proporcionalmente entre los disponibles.
+  const wMap = [
+    { val: dxyInv, w: 0.5 },
+    { val: fxi,    w: 0.3 },
+    { val: ewj,    w: 0.2 },
+  ].filter(c => c.val != null);
+  const sumW = wMap.reduce((s, c) => s + c.w, 0);
+  const score = sumW > 0 ? wMap.reduce((s, c) => s + c.val * c.w, 0) / sumW : null;
   const scoreEl = document.getElementById('gl-score');
   if (scoreEl) {
     scoreEl.textContent = score == null ? '—' : (score >= 0 ? '+' : '') + score.toFixed(1) + '%';
@@ -4575,8 +4582,9 @@ function updateOperationalContext() {
       ratio > 5 ? 'var(--red)' : ratio > 4 ? 'var(--amber)' : 'var(--green)');
     const bbbTxt = bbb != null ? ` · BBB: ${bbb.toFixed(2)}%` : '';
     setT('op-hyig-detail', `HY: ${hy.toFixed(2)}% · IG: ${ig.toFixed(2)}%${bbbTxt}`);
-    // BBB es leading sobre HY: si BBB > 1.8% antes de que HY > 5%, es early warning
-    const bbbWarn = bbb != null && bbb > 1.8 && ratio < 4;
+    // BBB es leading sobre HY: 1.6% (no 1.8%) es zona genuinamente "early".
+    // Histórico: BBB OAS sano <1.4%, neutral 1.5-1.6%, stress 2.0%+.
+    const bbbWarn = bbb != null && bbb > 1.6 && ratio < 4;
     if (ratio > 5)      setBadge('op-hyig-badge', 'b-dn', 'Stress crediticio alto');
     else if (ratio > 4) setBadge('op-hyig-badge', 'b-neu', 'Stress moderado');
     else if (bbbWarn)   setBadge('op-hyig-badge', 'b-neu', '⚠ BBB anticipa stress');
@@ -4739,6 +4747,9 @@ function updateThreeHorizons(howellResult) {
                       : 'var(--amber)';
       const sign      = deltaT >= 0 ? '+' : '';
       trendHtml = `<div style="margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:${trendCol};letter-spacing:.04em">Δ13w: ${trendIcon} ${sign}$${deltaT.toFixed(2)}T (${sign}${deltaPct.toFixed(1)}%)</div>`;
+    } else if (netLiqNum != null) {
+      // Datos insuficientes (<13w de profundidad) — fallback honesto en lugar de string vacío
+      trendHtml = `<div style="margin-top:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text3);letter-spacing:.04em">Δ13w: — (datos &lt;13w)</div>`;
     }
     const sub = `Res $${(resVal/1e6).toFixed(1)}T · TGA $${(tgaVal/1e6).toFixed(1)}T` + (rrpVal != null ? ` · RRP $${(rrpVal/1000).toFixed(0)}B` : '');
     const subEl = document.getElementById('h-largo-netliq-sub');
@@ -5891,13 +5902,30 @@ const INDICATORS_GLOSSARY = {
     source: { label: 'Calculado · WRBWFRBL−WTREGEN−RRPTSYD', url: '#', freq: 'Semanal' },
     what: 'Liquidez neta del sistema: Reservas Fed disponibles tras restar absorciones del Tesoro y la Fed.',
     formula: 'Net Liquidity = Reservas Fed − TGA − RRP.',
-    interpret: 'Subidas → expansión bursátil (correlación 0.85+ con SPX en 2020-2024). Bajadas → presión sobre activos de riesgo.',
+    interpret: 'Subidas → expansión bursátil (correlación 0.85+ con SPX en 2020-2024). Bajadas → presión sobre activos de riesgo. <strong>Δ13w (cambio 3 meses) es lo que mueve mercados</strong> — Howell opera en derivadas, no niveles.',
     thresholds: [
-      { c:'red',    t:'< $3.0T — peligro' },
-      { c:'amber',  t:'$3.0T – $3.5T — alerta' },
-      { c:'green',  t:'> $3.5T — saludable' }
+      { c:'red',    t:'< $3.0T — peligro (nivel)' },
+      { c:'amber',  t:'$3.0T – $3.5T — alerta (nivel)' },
+      { c:'green',  t:'> $3.5T — saludable (nivel)' },
+      { c:'green',  t:'Δ13w > +$0.3T — expansión fuerte ↑↑' },
+      { c:'red',    t:'Δ13w < -$0.3T — contracción fuerte ↓↓' }
     ],
-    note: 'Mejor proxy del "verdadero QE/QT" más allá del balance Fed reportado.'
+    note: 'Mejor proxy del "verdadero QE/QT" más allá del balance Fed reportado. La pill Δ13w en Three Horizons es la lectura accionable; el nivel solo es contexto.'
+  },
+  'global-liquidity': {
+    name: 'Global Liquidity Proxy',
+    category: 'Howell · Global',
+    source: { label: 'Yahoo · DX-Y.NYB + FXI + EWJ', url: '#', freq: 'Tiempo real' },
+    what: 'Aproximación al ciclo de liquidez global (no-Fed). Howell argumenta que ~70% del ciclo no es Fed → sin China + Japan + USD relativo, mides solo media bicicleta.',
+    formula: 'Score = 0.5 × (-DXY YoY) + 0.3 × FXI YTD + 0.2 × EWJ YTD. DXY pesa más por ser el motor central del ciclo según Howell.',
+    interpret: 'DXY YoY invertido captura el USD relativo (USD débil = liquidez global expansiva). FXI YTD aproxima el China Credit Impulse (proxy retail; el indicador real PBOC requiere fuente paid). EWJ YTD aproxima el BoJ stance.',
+    thresholds: [
+      { c:'green',  t:'> +8% — liquidez global expansiva' },
+      { c:'green',  t:'0 – +8% — levemente expansiva' },
+      { c:'amber',  t:'-8% – 0% — neutral / mixto' },
+      { c:'red',    t:'< -8% — liquidez global contractiva' }
+    ],
+    note: 'Complemento del Howell US-only. Cuando ambos divergen (US contractivo + global expansivo), oro y EM tienden a outperformar SPY.'
   },
   // ── FIDELITY (medio plazo) ──
   'fidelity-score': {
