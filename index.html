@@ -89,6 +89,9 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .main{padding:16px 20px 60px;max-width:1440px;margin:0 auto}
 .page{display:none}
 .page.active{display:block}
+/* Zona estructural · Fase A (sin tints, sin headers) — los headlines, leads y tints se agregan en Fase B */
+.zone{display:block;margin-bottom:18px}
+.zone:last-child{margin-bottom:0}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -577,6 +580,11 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 ══════════════════════════════════════════════════ -->
 <div id="tab-diag" class="page active">
 
+  <!-- ╔═══════════════════════════════════════════════════════════════╗
+       ║  ZONA 1 · DECISIÓN  ·  El trader sale con postura clara         ║
+       ╚═══════════════════════════════════════════════════════════════╝ -->
+  <section class="zone" id="z1-decision">
+
   <!-- ── REGIME BANNER — Régimen de Mercado (corto plazo: 1-4 sem) ── -->
   <div id="regime-banner" class="regime-banner" style="background:rgba(248,113,113,.04);border-color:rgba(248,113,113,.18)">
     <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0">
@@ -660,6 +668,20 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
+  <!-- ── Z1 · LIQUIDEZ NETA · pulse del ciclo Howell (rescatado de Three Horizons) ── -->
+  <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(20,15,30,.92) 100%);border-color:rgba(96,165,250,.25)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:14px">
+      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.1em">💧 LIQUIDEZ NETA · pulse Howell <button class="help-i" type="button" onclick="openGlossary('net-liquidity')" title="¿Qué es?">?</button></div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Reservas Fed − TGA − RRP · Howell opera en derivadas, no niveles</div>
+        </div>
+        <div class="mono" id="h-largo-netliq" style="font-size:32px;font-weight:500;letter-spacing:-1px">—</div>
+      </div>
+      <div id="h-largo-netliq-sub" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text2);text-align:right;line-height:1.55;min-width:220px">Cargando…</div>
+    </div>
+  </div>
+
   <!-- ── ECONOMIC CALENDAR — próximos eventos macro 7 días ── -->
   <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(26,15,18,.92) 100%);border-color:rgba(230,180,80,.25);overflow:hidden;position:relative">
     <div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange) 0%,var(--phoenix-cream) 100%)"></div>
@@ -678,6 +700,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:8px">Cargando calendario...</div>
     </div>
   </div>
+
+  </section>  <!-- /Z1 -->
+
+  <!-- ╔═══════════════════════════════════════════════════════════════╗
+       ║  ZONA 2 · ANATOMÍA  ·  Por qué esa decisión · drilldown del score ║
+       ╚═══════════════════════════════════════════════════════════════╝ -->
+  <section class="zone" id="z2-anatomia">
 
   <!-- ── GLOBAL LIQUIDITY PROXY — 70% del ciclo Howell es no-Fed (China + Japan + USD) ── -->
   <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(20,15,30,.92) 100%);border-color:rgba(96,165,250,.25)">
@@ -716,354 +745,122 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
-  <!-- ── THREE HORIZONS ── -->
-  <div class="h3">
-    <!-- Largo Plazo — Ciclo Howell / Liquidez -->
-    <div class="hcol h-largo">
-      <div class="hcol-hdr">
-        <div>
-          <div class="hcol-lbl">Largo Plazo</div>
-          <div class="hcol-period">6 – 24 meses · Ciclo Howell</div>
-        </div>
-        <span id="h-largo-regime" class="badge b-neu" style="font-size:11px">—</span>
-      </div>
-      <div class="hcol-body">
-        <div class="kb">
-          <div class="kb-lbl">Score Howell <button class="help-i" type="button" onclick="openGlossary('howell-score')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-largo-score"><span id="h-largo-score-num">—</span><span style="font-size:13px;color:var(--text3)">/8</span></div>
-          <div class="kb-sub" id="h-largo-fase">Cargando...</div>
-          <span class="kb-src kb-src-derived">Composite · 6 indicadores</span>
-        </div>
-        <div class="kb">
-          <div class="kb-lbl">Net Liquidity (Res − TGA − RRP) <button class="help-i" type="button" onclick="openGlossary('net-liquidity')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-largo-netliq">—</div>
-          <div class="kb-sub" id="h-largo-netliq-sub">Reservas · TGA · RRP</div>
-          <span class="kb-src kb-src-derived">FRED: WRBWFRBL − WTREGEN − RRPTSYD</span>
-        </div>
-        <div class="kb">
-          <div class="kb-lbl">DXY · Multiplicador global <button class="help-i" type="button" onclick="openGlossary('dxy')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-largo-dxy">—</div>
-          <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 55%,var(--red) 100%)">
-            <div class="thb-hdl" id="h-largo-dxy-hdl" style="left:50%"></div>
-          </div>
-          <div class="kb-sub">Expansivo &lt;100 · Restrictivo &gt;106</div>
-          <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="kb-src">Yahoo: DX-Y.NYB ↗</a>
-        </div>
-      </div>
-    </div>
+  <!-- Three Horizons eliminado en Fase A — Net Liquidity Δ13w rescatado al mini-card de Z1.
+       Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
+       DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
 
-    <!-- Medio Plazo — Ciclo Fidelity / Economía -->
-    <div class="hcol h-medio">
-      <div class="hcol-hdr">
-        <div>
-          <div class="hcol-lbl">Medio Plazo</div>
-          <div class="hcol-period">1 – 6 meses · Ciclo Fidelity</div>
-        </div>
-        <span id="h-medio-fase" class="badge b-neu" style="font-size:11px">—</span>
-      </div>
-      <div class="hcol-body">
-        <div class="kb">
-          <div class="kb-lbl">Score Fidelity <button class="help-i" type="button" onclick="openGlossary('fidelity-score')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-medio-score"><span id="h-medio-score-num">—</span><span style="font-size:13px;color:var(--text3)">/8</span></div>
-          <div class="kb-sub" id="h-medio-fase-desc">Cargando...</div>
-          <span class="kb-src kb-src-derived">Composite · 8 indicadores</span>
-        </div>
-        <div class="kb">
-          <div class="kb-lbl">Producción Manufactura · YoY <button class="help-i" type="button" onclick="openGlossary('ipman-yoy')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-medio-pmi">—</div>
-          <div class="kb-sub" id="h-medio-pmi-trend">3m: —</div>
-          <a href="https://fred.stlouisfed.org/series/IPMAN" target="_blank" class="kb-src">FRED: IPMAN ↗</a>
-        </div>
-        <div class="kb">
-          <div class="kb-lbl">HY Spreads · Estrés crediticio <button class="help-i" type="button" onclick="openGlossary('hy-spreads')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-medio-hy">—</div>
-          <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%)">
-            <div class="thb-hdl" id="h-medio-hy-hdl" style="left:20%"></div>
-          </div>
-          <div class="kb-sub">Normal &lt;4.5% · Estrés &gt;5.5%</div>
-          <a href="https://fred.stlouisfed.org/series/BAMLH0A0HYM2" target="_blank" class="kb-src">FRED: BAMLH0A0HYM2 ↗</a>
-        </div>
-      </div>
-    </div>
-
-    <!-- Corto Plazo — Régimen de Mercado -->
-    <div class="hcol h-corto">
-      <div class="hcol-hdr">
-        <div>
-          <div class="hcol-lbl">Corto Plazo</div>
-          <div class="hcol-period">1 – 4 semanas · Mercado</div>
-        </div>
-        <span id="h-corto-regime" class="badge b-neu" style="font-size:11px">—</span>
-      </div>
-      <div class="hcol-body">
-        <div class="kb">
-          <div class="kb-lbl">Régimen <button class="help-i" type="button" onclick="openGlossary('regime-corto-plazo')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-corto-regime-label">—</div>
-          <div class="kb-sub" id="h-corto-regime-desc">Cargando...</div>
-          <span class="kb-src kb-src-derived">Composite · 4 señales</span>
-        </div>
-        <div class="kb">
-          <div class="kb-lbl">VIX · Volatilidad implícita <button class="help-i" type="button" onclick="openGlossary('vix')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-corto-vix">—</div>
-          <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%)">
-            <div class="thb-hdl" id="h-corto-vix-hdl" style="left:20%"></div>
-          </div>
-          <div class="kb-sub">Normal &lt;20 · Pánico &gt;35</div>
-          <a href="https://finance.yahoo.com/quote/^VIX" target="_blank" class="kb-src">Yahoo: ^VIX ↗</a>
-        </div>
-        <div class="kb">
-          <div class="kb-lbl">SPY vs SMA100 (≈20w) · Tendencia <button class="help-i" type="button" onclick="openGlossary('spy-sma20w')" title="¿Qué es?">?</button></div>
-          <div class="kb-val" id="h-corto-spy">—</div>
-          <div class="kb-sub" id="h-corto-spy-sub">Cargando...</div>
-          <a href="https://finance.yahoo.com/quote/SPY" target="_blank" class="kb-src">Yahoo: SPY ↗</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── OPERATIONAL CONTEXT — datos críticos para decisiones diarias ── -->
-  <div class="sh" style="margin-top:14px"><div class="sh-tag">Operacional</div><div class="sh-title">Contexto Operacional · Drivers de Decisión</div><div class="sh-line"></div></div>
-  <div class="g4" style="margin-bottom:10px">
-    <!-- Real Yields 10Y -->
-    <div class="card amber-a"><div class="card-accent"></div>
-      <div class="lbl">Real Yields · 10Y TIPS
-        <button class="help-i" type="button" onclick="openGlossary('real-yields')" title="¿Qué es?">?</button>
-        <a href="https://fred.stlouisfed.org/series/DFII10" target="_blank" class="src-link">FRED↗</a>
-      </div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="op-realy-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
-        <div id="op-realy-trend" class="mono" style="font-size:10px;color:var(--text3)">vs nominal: —</div>
-      </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Driver #1 del oro y growth tech. Subir = riesgo bajista para GLD/QQQ.</div>
-      <div id="op-realy-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-
-    <!-- HY-IG Ratio -->
-    <div class="card red-a"><div class="card-accent"></div>
-      <div class="lbl">Credit Stress · HY/IG Ratio
-        <button class="help-i" type="button" onclick="openGlossary('hy-ig-ratio')" title="¿Qué es?">?</button>
-        <a href="https://fred.stlouisfed.org/series/BAMLC0A0CM" target="_blank" class="src-link">FRED↗</a>
-      </div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="op-hyig-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
-        <div id="op-hyig-detail" class="mono" style="font-size:11px;color:var(--text3)">HY: — · IG: — · BBB: —</div>
-      </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Ratio HY/IG &gt; 4 = stress crediticio puro. BBB OAS = early warning preferido (Druckenmiller).</div>
-      <div id="op-hyig-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-
-    <!-- Market-Implied Fed Path -->
-    <div class="card gold-a"><div class="card-accent"></div>
-      <div class="lbl">Fed Path · Mercado Descuenta
-        <button class="help-i" type="button" onclick="openGlossary('fed-path')" title="¿Qué es?">?</button>
-        <a href="https://fred.stlouisfed.org/series/DFF" target="_blank" class="src-link">FRED↗</a>
-      </div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="op-fedpath-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
-        <div id="op-fedpath-detail" class="mono" style="font-size:10px;color:var(--text3)">FF: — · 2Y: —</div>
-      </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">2Y − Fed Funds: spread negativo = mercado descuenta cuts. Positivo = hikes.</div>
-      <div id="op-fedpath-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-
-    <!-- VIX Term Structure -->
-    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange),var(--phoenix-red))"></div>
-      <div class="lbl">VIX Term Structure
-        <button class="help-i" type="button" onclick="openGlossary('vix-term')" title="¿Qué es?">?</button>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;align-items:flex-end;gap:4px">
-        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-9d" style="font-size:13px;font-weight:500">—</div><div style="font-size:10px;color:var(--text3);letter-spacing:.1em">9D</div></div>
-        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-1m" style="font-size:13px;font-weight:500">—</div><div style="font-size:10px;color:var(--text3);letter-spacing:.1em">1M</div></div>
-        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-3m" style="font-size:13px;font-weight:500">—</div><div style="font-size:10px;color:var(--text3);letter-spacing:.1em">3M</div></div>
-      </div>
-      <div style="margin-top:6px;height:3px;border-radius:2px;background:var(--surface2);overflow:hidden">
-        <div id="op-vix-curve" style="height:100%;width:50%;background:var(--green);transition:width .5s,background .3s"></div>
-      </div>
-      <div id="op-vix-status" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-  </div>
-
-  <!-- Cross-asset + Niveles Técnicos SPY -->
-  <div class="g2" style="margin-bottom:10px">
-    <!-- Cross-asset signals -->
-    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-cream),var(--phoenix-orange))"></div>
-      <div class="lbl">Cross-Asset · Señales Macro
-        <button class="help-i" type="button" onclick="openGlossary('cross-asset')" title="¿Qué es?">?</button>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
-        <div style="padding:6px 8px;background:var(--surface2);border-radius:5px;border:1px solid var(--border2)">
-          <div style="font-size:12px;color:var(--text2);letter-spacing:.05em">Gold / Copper</div>
-          <div class="mono" id="op-gc-ratio" style="font-size:16px;font-weight:500;margin-top:2px">—</div>
-          <div id="op-gc-sub" class="mono" style="font-size:12px;color:var(--text3);margin-top:2px">—</div>
-        </div>
-        <div style="padding:6px 8px;background:var(--surface2);border-radius:5px;border:1px solid var(--border2)">
-          <div style="font-size:12px;color:var(--text2);letter-spacing:.05em">USD / JPY</div>
-          <div class="mono" id="op-usdjpy" style="font-size:16px;font-weight:500;margin-top:2px">—</div>
-          <div id="op-usdjpy-sub" class="mono" style="font-size:12px;color:var(--text3);margin-top:2px">—</div>
-        </div>
-      </div>
-      <div style="margin-top:6px;font-size:12px;color:var(--text3)">Gold/Copper alto = recesión. USD/JPY alto = flujos hacia USD (risk-off).</div>
-    </div>
-
-    <!-- Niveles Técnicos SPY -->
-    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange),var(--phoenix-cream))"></div>
-      <div class="lbl">Niveles Técnicos · SPY
-        <button class="help-i" type="button" onclick="openGlossary('spy-levels')" title="¿Qué es?">?</button>
-      </div>
-      <div style="margin-top:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(248,113,113,.05);border-radius:4px;margin-bottom:3px">
-          <span style="font-size:10px;color:var(--text2)">52W High</span>
-          <span class="mono" id="op-spy-52h" style="font-size:11px;color:var(--red)">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
-          <span style="font-size:10px;color:var(--text2)">SMA 50d</span>
-          <span class="mono" id="op-spy-sma50" style="font-size:11px">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(230,180,80,.06);border-radius:4px;margin-bottom:3px;border:1px solid rgba(230,180,80,.2)">
-          <span style="font-size:10px;color:var(--gold);font-weight:500">Precio actual</span>
-          <span class="mono" id="op-spy-price" style="font-size:12px;color:var(--gold);font-weight:500">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
-          <span style="font-size:10px;color:var(--text2)">SMA 100d</span>
-          <span class="mono" id="op-spy-sma100" style="font-size:11px">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
-          <span style="font-size:10px;color:var(--text2)">SMA 200d</span>
-          <span class="mono" id="op-spy-sma200" style="font-size:11px">—</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(74,222,128,.05);border-radius:4px">
-          <span style="font-size:10px;color:var(--text2)">52W Low</span>
-          <span class="mono" id="op-spy-52l" style="font-size:11px;color:var(--green)">—</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── CURVA DE TIPOS — Tier 1 macro: estructura de tasas ── -->
+  <!-- ── CICLO ECONÓMICO FIDELITY ── -->
   <div class="sh" style="margin-top:14px">
-    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Yield Curve</div>
-    <div class="sh-title">Estructura de Plazos — 6M a 30 Años</div>
+    <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Eco Score</div>
+    <div class="sh-title">Ciclo Económico — PMI · PIB · Empleo · Curva · Consumo</div>
     <div class="sh-line"></div>
-    <span id="yc-signal-badge" class="badge b-neu">Cargando</span>
+    <span class="live-badge" id="fid-live-ts">Sin datos</span>
   </div>
   <div class="g21" style="margin-bottom:10px">
-    <!-- Chart area -->
-    <div class="card blue-a"><div class="card-accent"></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div class="lbl" id="yc-shape-label" style="color:var(--blue)">Curva de tipos</div>
-        <div style="display:flex;gap:4px">
-          <button class="yc-btn active" onclick="setYcView('now',this)">Ahora</button>
-          <button class="yc-btn" onclick="setYcView('3m',this)">−3M</button>
-          <button class="yc-btn" onclick="setYcView('1y',this)">−1A</button>
-          <button class="yc-btn" onclick="setYcView('both',this)">Comparar</button>
-        </div>
-      </div>
-      <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-        <a href="https://fred.stlouisfed.org/series/TB6MS" target="_blank" class="kb-src">FRED: TB6MS ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS1" target="_blank" class="kb-src">GS1 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="kb-src">GS2 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS5" target="_blank" class="kb-src">GS5 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS10" target="_blank" class="kb-src">GS10 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS20" target="_blank" class="kb-src">GS20 ↗</a>
-        <a href="https://fred.stlouisfed.org/series/GS30" target="_blank" class="kb-src">GS30 ↗</a>
-      </div>
-      <!-- Legend inline -->
-      <div id="yc-legend" style="display:flex;gap:12px;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">
-        <span><span style="display:inline-block;width:16px;height:2px;background:#4ade80;vertical-align:middle;margin-right:4px;border-radius:1px"></span>Ahora</span>
-        <span id="yc-legend-cmp" style="display:none"><span style="display:inline-block;width:16px;height:2px;background:#fbbf24;vertical-align:middle;margin-right:4px;border-radius:1px;border-top:2px dashed #fbbf24;background:none"></span><span id="yc-legend-cmp-lbl">—</span></span>
-      </div>
-    </div>
-    <!-- Signal panel -->
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <!-- 2Y destacado · Fed pricing (lectura más limpia de expectativas Fed 18m) -->
-      <div class="card blue-a"><div class="card-accent"></div>
-        <div class="lbl" style="color:var(--blue)">2Y Treasury · Fed Pricing
-          <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="src-link">FRED↗</a>
-        </div>
-        <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-          <div class="mono" id="yc-2y-val" style="font-size:24px;font-weight:500;color:var(--text)">—</div>
-          <div id="yc-2y-delta" class="mono" style="font-size:12px;color:var(--text3)">ΔYoY: —</div>
-        </div>
-        <div style="margin-top:4px;font-size:12px;color:var(--text3)">Lectura cleaner de expectativas Fed (18m) que la curva — leading vs Fed Funds.</div>
-      </div>
-      <div class="card">
-        <div class="lbl">Spreads clave</div>
-        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">10Y − 2Y</span>
-            <span id="yc-sp-10y2y" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:11px">—</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">10Y − 6M</span>
-            <span id="yc-sp-10y6m" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:11px">—</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">30Y − 6M</span>
-            <span id="yc-sp-30y6m" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:11px">—</span>
-          </div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="lbl">Interpretación</div>
-        <div id="yc-interpretation" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
-      </div>
-      <div class="card">
-        <div class="lbl">Niveles actuales</div>
-        <div id="yc-levels-list" style="margin-top:6px"></div>
-      </div>
-    </div>
-  </div>
 
-  <!-- ── LEADING INDICATORS — Tier 1: anticipan recesión y manufactura ── -->
-  <div class="sh" style="margin-top:14px"><div class="sh-tag">Leading</div><div class="sh-title">Indicadores Adelantados — Anticipan el Ciclo</div><div class="sh-line"></div></div>
-  <div class="g4" style="margin-bottom:10px">
-    <!-- Initial Jobless Claims -->
-    <div class="card"><div class="lbl">📈 Initial Claims · 4w
-      <button class="help-i" type="button" onclick="openGlossary('jobless-claims')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-claims-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-claims-trend" class="mono" style="font-size:10px;color:var(--text3)">Δ4w: —</div>
+    <!-- Score Table -->
+    <div class="card teal-a"><div class="card-accent"></div>
+      <div class="lbl" style="color:var(--teal)">Motor de Diagnóstico Económico</div>
+      <div style="margin:8px 0">
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr>
+              <th class="fid-th">Indicador</th>
+              <th class="fid-th" style="text-align:center">Valor</th>
+              <th class="fid-th" style="text-align:center">Umbral</th>
+              <th class="fid-th" style="text-align:center">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="fid-td">Prod. Manuf. (YoY) <a href="https://fred.stlouisfed.org/series/IPMAN" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-pmi-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">YoY &lt;0%→+0.5 · &lt;-2%→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-pmi-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">PIB Real QoQ <a href="https://fred.stlouisfed.org/series/A191RL1Q225SBEA" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-gdp-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">&lt;2%→+0.5 · &lt;0→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-gdp-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">Desempleo <a href="https://fred.stlouisfed.org/series/UNRATE" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-unemp-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">↑+0.2pp→+0.5 · ↑+0.5pp→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-unemp-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">Curva 10Y-2Y <a href="https://fred.stlouisfed.org/series/T10Y2Y" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-yield-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">&lt;0.5%→+0.5 · &lt;0→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-yield-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td">Ventas Minoristas <a href="https://fred.stlouisfed.org/series/RSAFS" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center" id="fid-retail-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">MoM &lt;0%→+0.5 · &lt;-1%→+1</td>
+              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-retail-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+            <tr>
+              <td class="fid-td" style="border-bottom:none">Conf. Consumidor <a href="https://fred.stlouisfed.org/series/UMCSENT" target="_blank" class="src-link">FRED↗</a></td>
+              <td class="fid-td mono" style="text-align:center;border-bottom:none" id="fid-sent-val">—</td>
+              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3);border-bottom:none">&lt;70→+0.5 · &lt;60→+1</td>
+              <td class="fid-td" style="text-align:center;border-bottom:none"><span class="badge b-neu" id="fid-sent-pts" style="min-width:28px;justify-content:center">—</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Solicitudes de desempleo. Subida sostenida = mercado laboral deteriorándose (leading recesión).</div>
-      <div id="lead-claims-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+      <div style="border-top:1px solid var(--border2);padding-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <span class="mono" style="font-size:12px;color:var(--text3)">ECO SCORE TOTAL</span>
+          <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/8</span>
+        </div>
+        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
+          <div id="fid-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--teal);transition:width .6s,background .4s"></div>
+        </div>
+        <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span></div>
+      </div>
     </div>
-    <!-- Industrial Production -->
-    <div class="card"><div class="lbl">🏭 Producción Industrial · YoY
-      <button class="help-i" type="button" onclick="openGlossary('industrial-production')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/INDPRO" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-indpro-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-indpro-mom" class="mono" style="font-size:10px;color:var(--text3)">MoM: —</div>
+
+    <!-- Right: Phase card + 6 sparklines -->
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="pc" id="fid-phase-pc" style="border-color:rgba(45,212,191,.2);background:var(--surface2)">
+        <div class="pc-ghost" id="fid-phase-ghost" style="color:var(--teal);font-size:40px">—</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">
+          <div class="lbl" style="color:var(--teal)">Ciclo Económico</div>
+          <span class="live-badge">LIVE</span>
+        </div>
+        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:4px" id="fid-phase-name">Calculando...</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6" id="fid-phase-desc">Esperando datos FRED...</div>
+        <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap" id="fid-phase-badges"></div>
       </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">INDPRO YoY. Negativo sostenido confirma contracción manufacturera real.</div>
-      <div id="lead-indpro-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-    <!-- Building Permits -->
-    <div class="card"><div class="lbl">🏗 Building Permits · YoY
-      <button class="help-i" type="button" onclick="openGlossary('building-permits')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/PERMIT" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-permits-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-permits-trend" class="mono" style="font-size:10px;color:var(--text3)">3m: —</div>
+      <div class="g2" style="gap:6px">
+        <div class="card card-sm clickable" onclick="openIndicatorModal('pmi')" title="Producción Manuf. (FRED:IPMAN)">
+          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Prod. Mfg <span style="color:var(--text3);font-size:10px">IPMAN</span></span><span id="fid-pmi-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidPmiChart"></canvas></div>
+        </div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('gdp')" title="PIB Real (FRED:A191RL1Q225SBEA)">
+          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>PIB Real % <span style="color:var(--text3);font-size:10px">QoQ</span></span><span id="fid-gdp-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidGdpChart"></canvas></div>
+        </div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('unemp')" title="Desempleo (FRED:UNRATE)">
+          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Desempleo <span style="color:var(--text3);font-size:10px">UNRATE</span></span><span id="fid-unemp-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidUnempChart"></canvas></div>
+        </div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('yield')" title="Curva 10Y-2Y (FRED:T10Y2Y)">
+          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Curva 10Y-2Y <span style="color:var(--text3);font-size:10px">T10Y2Y</span></span><span id="fid-yield-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidYieldChart"></canvas></div>
+        </div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('retail')" title="Ventas Minoristas (FRED:RSAFS)">
+          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>V. Minoristas <span style="color:var(--text3);font-size:10px">RSAFS</span></span><span id="fid-retail-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidRetailChart"></canvas></div>
+        </div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('sent')" title="Confianza Consumidor UMich (FRED:UMCSENT)">
+          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Conf. Cons. <span style="color:var(--text3);font-size:10px">UMCSENT</span></span><span id="fid-sent-lbl" style="color:var(--text3)">—</span></div>
+          <div class="ch-wrap ch140"><canvas id="fidSentChart"></canvas></div>
+        </div>
       </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Permisos de construcción — leading housing más anticipado que el mismo PIB residencial.</div>
-      <div id="lead-permits-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
-    </div>
-    <!-- Core PCE + 5Y5Y forward -->
-    <div class="card"><div class="lbl">💵 Core PCE / Inflación Forward
-      <button class="help-i" type="button" onclick="openGlossary('core-pce')" title="¿Qué es?">?</button>
-      <a href="https://fred.stlouisfed.org/series/PCEPILFE" target="_blank" class="src-link">FRED↗</a></div>
-      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
-        <div class="mono" id="lead-corepce-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
-        <div id="lead-fwd5y5y-val" class="mono" style="font-size:10px;color:var(--text3)">5Y5Y: —</div>
-      </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Core PCE YoY (métrica preferida Fed). 5Y5Y = expectativas inflación 5-10 años (anclaje).</div>
-      <div id="lead-pce-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
     </div>
   </div>
 
@@ -1279,120 +1076,265 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
-  <!-- ── CICLO ECONÓMICO FIDELITY ── -->
+  </section>  <!-- /Z2 -->
+
+  <!-- ╔═══════════════════════════════════════════════════════════════╗
+       ║  ZONA 3 · CONTEXTO OPERATIVO  ·  Niveles antes de ejecutar      ║
+       ╚═══════════════════════════════════════════════════════════════╝ -->
+  <section class="zone" id="z3-operativo">
+
+  <!-- ── CURVA DE TIPOS — Tier 1 macro: estructura de tasas ── -->
   <div class="sh" style="margin-top:14px">
-    <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Eco Score</div>
-    <div class="sh-title">Ciclo Económico — PMI · PIB · Empleo · Curva · Consumo</div>
+    <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Yield Curve</div>
+    <div class="sh-title">Estructura de Plazos — 6M a 30 Años</div>
     <div class="sh-line"></div>
-    <span class="live-badge" id="fid-live-ts">Sin datos</span>
+    <span id="yc-signal-badge" class="badge b-neu">Cargando</span>
   </div>
   <div class="g21" style="margin-bottom:10px">
-
-    <!-- Score Table -->
-    <div class="card teal-a"><div class="card-accent"></div>
-      <div class="lbl" style="color:var(--teal)">Motor de Diagnóstico Económico</div>
-      <div style="margin:8px 0">
-        <table style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr>
-              <th class="fid-th">Indicador</th>
-              <th class="fid-th" style="text-align:center">Valor</th>
-              <th class="fid-th" style="text-align:center">Umbral</th>
-              <th class="fid-th" style="text-align:center">Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="fid-td">Prod. Manuf. (YoY) <a href="https://fred.stlouisfed.org/series/IPMAN" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-pmi-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">YoY &lt;0%→+0.5 · &lt;-2%→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-pmi-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">PIB Real QoQ <a href="https://fred.stlouisfed.org/series/A191RL1Q225SBEA" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-gdp-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">&lt;2%→+0.5 · &lt;0→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-gdp-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">Desempleo <a href="https://fred.stlouisfed.org/series/UNRATE" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-unemp-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">↑+0.2pp→+0.5 · ↑+0.5pp→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-unemp-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">Curva 10Y-2Y <a href="https://fred.stlouisfed.org/series/T10Y2Y" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-yield-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">&lt;0.5%→+0.5 · &lt;0→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-yield-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">Ventas Minoristas <a href="https://fred.stlouisfed.org/series/RSAFS" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-retail-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">MoM &lt;0%→+0.5 · &lt;-1%→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-retail-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td" style="border-bottom:none">Conf. Consumidor <a href="https://fred.stlouisfed.org/series/UMCSENT" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center;border-bottom:none" id="fid-sent-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3);border-bottom:none">&lt;70→+0.5 · &lt;60→+1</td>
-              <td class="fid-td" style="text-align:center;border-bottom:none"><span class="badge b-neu" id="fid-sent-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- Chart area -->
+    <div class="card blue-a"><div class="card-accent"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div class="lbl" id="yc-shape-label" style="color:var(--blue)">Curva de tipos</div>
+        <div style="display:flex;gap:4px">
+          <button class="yc-btn active" onclick="setYcView('now',this)">Ahora</button>
+          <button class="yc-btn" onclick="setYcView('3m',this)">−3M</button>
+          <button class="yc-btn" onclick="setYcView('1y',this)">−1A</button>
+          <button class="yc-btn" onclick="setYcView('both',this)">Comparar</button>
+        </div>
       </div>
-      <div style="border-top:1px solid var(--border2);padding-top:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <span class="mono" style="font-size:12px;color:var(--text3)">ECO SCORE TOTAL</span>
-          <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/8</span>
-        </div>
-        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
-          <div id="fid-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--teal);transition:width .6s,background .4s"></div>
-        </div>
-        <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span></div>
+      <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+        <a href="https://fred.stlouisfed.org/series/TB6MS" target="_blank" class="kb-src">FRED: TB6MS ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS1" target="_blank" class="kb-src">GS1 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="kb-src">GS2 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS5" target="_blank" class="kb-src">GS5 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS10" target="_blank" class="kb-src">GS10 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS20" target="_blank" class="kb-src">GS20 ↗</a>
+        <a href="https://fred.stlouisfed.org/series/GS30" target="_blank" class="kb-src">GS30 ↗</a>
+      </div>
+      <!-- Legend inline -->
+      <div id="yc-legend" style="display:flex;gap:12px;margin-top:6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">
+        <span><span style="display:inline-block;width:16px;height:2px;background:#4ade80;vertical-align:middle;margin-right:4px;border-radius:1px"></span>Ahora</span>
+        <span id="yc-legend-cmp" style="display:none"><span style="display:inline-block;width:16px;height:2px;background:#fbbf24;vertical-align:middle;margin-right:4px;border-radius:1px;border-top:2px dashed #fbbf24;background:none"></span><span id="yc-legend-cmp-lbl">—</span></span>
       </div>
     </div>
-
-    <!-- Right: Phase card + 6 sparklines -->
+    <!-- Signal panel -->
     <div style="display:flex;flex-direction:column;gap:8px">
-      <div class="pc" id="fid-phase-pc" style="border-color:rgba(45,212,191,.2);background:var(--surface2)">
-        <div class="pc-ghost" id="fid-phase-ghost" style="color:var(--teal);font-size:40px">—</div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:3px">
-          <div class="lbl" style="color:var(--teal)">Ciclo Económico</div>
-          <span class="live-badge">LIVE</span>
+      <!-- 2Y destacado · Fed pricing (lectura más limpia de expectativas Fed 18m) -->
+      <div class="card blue-a"><div class="card-accent"></div>
+        <div class="lbl" style="color:var(--blue)">2Y Treasury · Fed Pricing
+          <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="src-link">FRED↗</a>
         </div>
-        <div style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;margin-bottom:4px" id="fid-phase-name">Calculando...</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.6" id="fid-phase-desc">Esperando datos FRED...</div>
-        <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap" id="fid-phase-badges"></div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+          <div class="mono" id="yc-2y-val" style="font-size:24px;font-weight:500;color:var(--text)">—</div>
+          <div id="yc-2y-delta" class="mono" style="font-size:12px;color:var(--text3)">ΔYoY: —</div>
+        </div>
+        <div style="margin-top:4px;font-size:12px;color:var(--text3)">Lectura cleaner de expectativas Fed (18m) que la curva — leading vs Fed Funds.</div>
       </div>
-      <div class="g2" style="gap:6px">
-        <div class="card card-sm clickable" onclick="openIndicatorModal('pmi')" title="Producción Manuf. (FRED:IPMAN)">
-          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Prod. Mfg <span style="color:var(--text3);font-size:10px">IPMAN</span></span><span id="fid-pmi-lbl" style="color:var(--text3)">—</span></div>
-          <div class="ch-wrap ch140"><canvas id="fidPmiChart"></canvas></div>
+      <div class="card">
+        <div class="lbl">Spreads clave</div>
+        <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">10Y − 2Y</span>
+            <span id="yc-sp-10y2y" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:11px">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">10Y − 6M</span>
+            <span id="yc-sp-10y6m" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:11px">—</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
+            <span style="font-size:10px;color:var(--text2)">30Y − 6M</span>
+            <span id="yc-sp-30y6m" class="mono" style="font-size:10px">—</span>
+            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:11px">—</span>
+          </div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('gdp')" title="PIB Real (FRED:A191RL1Q225SBEA)">
-          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>PIB Real % <span style="color:var(--text3);font-size:10px">QoQ</span></span><span id="fid-gdp-lbl" style="color:var(--text3)">—</span></div>
-          <div class="ch-wrap ch140"><canvas id="fidGdpChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="lbl">Interpretación</div>
+        <div id="yc-interpretation" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
+      </div>
+      <div class="card">
+        <div class="lbl">Niveles actuales</div>
+        <div id="yc-levels-list" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPERATIONAL CONTEXT — datos críticos para decisiones diarias ── -->
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Operacional</div><div class="sh-title">Contexto Operacional · Drivers de Decisión</div><div class="sh-line"></div></div>
+  <div class="g4" style="margin-bottom:10px">
+    <!-- Real Yields 10Y -->
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl">Real Yields · 10Y TIPS
+        <button class="help-i" type="button" onclick="openGlossary('real-yields')" title="¿Qué es?">?</button>
+        <a href="https://fred.stlouisfed.org/series/DFII10" target="_blank" class="src-link">FRED↗</a>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="op-realy-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
+        <div id="op-realy-trend" class="mono" style="font-size:10px;color:var(--text3)">vs nominal: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Driver #1 del oro y growth tech. Subir = riesgo bajista para GLD/QQQ.</div>
+      <div id="op-realy-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+
+    <!-- HY-IG Ratio -->
+    <div class="card red-a"><div class="card-accent"></div>
+      <div class="lbl">Credit Stress · HY/IG Ratio
+        <button class="help-i" type="button" onclick="openGlossary('hy-ig-ratio')" title="¿Qué es?">?</button>
+        <a href="https://fred.stlouisfed.org/series/BAMLC0A0CM" target="_blank" class="src-link">FRED↗</a>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="op-hyig-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
+        <div id="op-hyig-detail" class="mono" style="font-size:11px;color:var(--text3)">HY: — · IG: — · BBB: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Ratio HY/IG &gt; 4 = stress crediticio puro. BBB OAS = early warning preferido (Druckenmiller).</div>
+      <div id="op-hyig-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+
+    <!-- Market-Implied Fed Path -->
+    <div class="card gold-a"><div class="card-accent"></div>
+      <div class="lbl">Fed Path · Mercado Descuenta
+        <button class="help-i" type="button" onclick="openGlossary('fed-path')" title="¿Qué es?">?</button>
+        <a href="https://fred.stlouisfed.org/series/DFF" target="_blank" class="src-link">FRED↗</a>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="op-fedpath-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
+        <div id="op-fedpath-detail" class="mono" style="font-size:10px;color:var(--text3)">FF: — · 2Y: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">2Y − Fed Funds: spread negativo = mercado descuenta cuts. Positivo = hikes.</div>
+      <div id="op-fedpath-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+
+    <!-- VIX Term Structure -->
+    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange),var(--phoenix-red))"></div>
+      <div class="lbl">VIX Term Structure
+        <button class="help-i" type="button" onclick="openGlossary('vix-term')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;align-items:flex-end;gap:4px">
+        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-9d" style="font-size:13px;font-weight:500">—</div><div style="font-size:10px;color:var(--text3);letter-spacing:.1em">9D</div></div>
+        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-1m" style="font-size:13px;font-weight:500">—</div><div style="font-size:10px;color:var(--text3);letter-spacing:.1em">1M</div></div>
+        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-3m" style="font-size:13px;font-weight:500">—</div><div style="font-size:10px;color:var(--text3);letter-spacing:.1em">3M</div></div>
+      </div>
+      <div style="margin-top:6px;height:3px;border-radius:2px;background:var(--surface2);overflow:hidden">
+        <div id="op-vix-curve" style="height:100%;width:50%;background:var(--green);transition:width .5s,background .3s"></div>
+      </div>
+      <div id="op-vix-status" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+  </div>
+
+  <!-- Cross-asset + Niveles Técnicos SPY -->
+  <div class="g2" style="margin-bottom:10px">
+    <!-- Cross-asset signals -->
+    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-cream),var(--phoenix-orange))"></div>
+      <div class="lbl">Cross-Asset · Señales Macro
+        <button class="help-i" type="button" onclick="openGlossary('cross-asset')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+        <div style="padding:6px 8px;background:var(--surface2);border-radius:5px;border:1px solid var(--border2)">
+          <div style="font-size:12px;color:var(--text2);letter-spacing:.05em">Gold / Copper</div>
+          <div class="mono" id="op-gc-ratio" style="font-size:16px;font-weight:500;margin-top:2px">—</div>
+          <div id="op-gc-sub" class="mono" style="font-size:12px;color:var(--text3);margin-top:2px">—</div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('unemp')" title="Desempleo (FRED:UNRATE)">
-          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Desempleo <span style="color:var(--text3);font-size:10px">UNRATE</span></span><span id="fid-unemp-lbl" style="color:var(--text3)">—</span></div>
-          <div class="ch-wrap ch140"><canvas id="fidUnempChart"></canvas></div>
+        <div style="padding:6px 8px;background:var(--surface2);border-radius:5px;border:1px solid var(--border2)">
+          <div style="font-size:12px;color:var(--text2);letter-spacing:.05em">USD / JPY</div>
+          <div class="mono" id="op-usdjpy" style="font-size:16px;font-weight:500;margin-top:2px">—</div>
+          <div id="op-usdjpy-sub" class="mono" style="font-size:12px;color:var(--text3);margin-top:2px">—</div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('yield')" title="Curva 10Y-2Y (FRED:T10Y2Y)">
-          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Curva 10Y-2Y <span style="color:var(--text3);font-size:10px">T10Y2Y</span></span><span id="fid-yield-lbl" style="color:var(--text3)">—</span></div>
-          <div class="ch-wrap ch140"><canvas id="fidYieldChart"></canvas></div>
+      </div>
+      <div style="margin-top:6px;font-size:12px;color:var(--text3)">Gold/Copper alto = recesión. USD/JPY alto = flujos hacia USD (risk-off).</div>
+    </div>
+
+    <!-- Niveles Técnicos SPY -->
+    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange),var(--phoenix-cream))"></div>
+      <div class="lbl">Niveles Técnicos · SPY
+        <button class="help-i" type="button" onclick="openGlossary('spy-levels')" title="¿Qué es?">?</button>
+      </div>
+      <div style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(248,113,113,.05);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">52W High</span>
+          <span class="mono" id="op-spy-52h" style="font-size:11px;color:var(--red)">—</span>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('retail')" title="Ventas Minoristas (FRED:RSAFS)">
-          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>V. Minoristas <span style="color:var(--text3);font-size:10px">RSAFS</span></span><span id="fid-retail-lbl" style="color:var(--text3)">—</span></div>
-          <div class="ch-wrap ch140"><canvas id="fidRetailChart"></canvas></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">SMA 50d</span>
+          <span class="mono" id="op-spy-sma50" style="font-size:11px">—</span>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('sent')" title="Confianza Consumidor UMich (FRED:UMCSENT)">
-          <div class="lbl" style="font-size:11px;display:flex;justify-content:space-between;align-items:center"><span>Conf. Cons. <span style="color:var(--text3);font-size:10px">UMCSENT</span></span><span id="fid-sent-lbl" style="color:var(--text3)">—</span></div>
-          <div class="ch-wrap ch140"><canvas id="fidSentChart"></canvas></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(230,180,80,.06);border-radius:4px;margin-bottom:3px;border:1px solid rgba(230,180,80,.2)">
+          <span style="font-size:10px;color:var(--gold);font-weight:500">Precio actual</span>
+          <span class="mono" id="op-spy-price" style="font-size:12px;color:var(--gold);font-weight:500">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">SMA 100d</span>
+          <span class="mono" id="op-spy-sma100" style="font-size:11px">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">SMA 200d</span>
+          <span class="mono" id="op-spy-sma200" style="font-size:11px">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(74,222,128,.05);border-radius:4px">
+          <span style="font-size:10px;color:var(--text2)">52W Low</span>
+          <span class="mono" id="op-spy-52l" style="font-size:11px;color:var(--green)">—</span>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- ── LEADING INDICATORS — Tier 1: anticipan recesión y manufactura ── -->
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Leading</div><div class="sh-title">Indicadores Adelantados — Anticipan el Ciclo</div><div class="sh-line"></div></div>
+  <div class="g4" style="margin-bottom:10px">
+    <!-- Initial Jobless Claims -->
+    <div class="card"><div class="lbl">📈 Initial Claims · 4w
+      <button class="help-i" type="button" onclick="openGlossary('jobless-claims')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-claims-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-claims-trend" class="mono" style="font-size:10px;color:var(--text3)">Δ4w: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Solicitudes de desempleo. Subida sostenida = mercado laboral deteriorándose (leading recesión).</div>
+      <div id="lead-claims-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Industrial Production -->
+    <div class="card"><div class="lbl">🏭 Producción Industrial · YoY
+      <button class="help-i" type="button" onclick="openGlossary('industrial-production')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/INDPRO" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-indpro-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-indpro-mom" class="mono" style="font-size:10px;color:var(--text3)">MoM: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">INDPRO YoY. Negativo sostenido confirma contracción manufacturera real.</div>
+      <div id="lead-indpro-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Building Permits -->
+    <div class="card"><div class="lbl">🏗 Building Permits · YoY
+      <button class="help-i" type="button" onclick="openGlossary('building-permits')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/PERMIT" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-permits-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-permits-trend" class="mono" style="font-size:10px;color:var(--text3)">3m: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Permisos de construcción — leading housing más anticipado que el mismo PIB residencial.</div>
+      <div id="lead-permits-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Core PCE + 5Y5Y forward -->
+    <div class="card"><div class="lbl">💵 Core PCE / Inflación Forward
+      <button class="help-i" type="button" onclick="openGlossary('core-pce')" title="¿Qué es?">?</button>
+      <a href="https://fred.stlouisfed.org/series/PCEPILFE" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-corepce-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-fwd5y5y-val" class="mono" style="font-size:10px;color:var(--text3)">5Y5Y: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Core PCE YoY (métrica preferida Fed). 5Y5Y = expectativas inflación 5-10 años (anclaje).</div>
+      <div id="lead-pce-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+  </div>
+
+  </section>  <!-- /Z3 -->
+
+  <!-- ╔═══════════════════════════════════════════════════════════════╗
+       ║  ZONA 4 · HISTÓRICO & PLAYBOOK  ·  Cómo llegamos · qué privilegia la fase ║
+       ╚═══════════════════════════════════════════════════════════════╝ -->
+  <section class="zone" id="z4-historico">
 
   <!-- ── ROW 4.5: Trayectoria Score Howell ── -->
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Trayectoria</div><div class="sh-title">Score Howell · 52 semanas — Evolución histórica</div><div class="sh-line"></div></div>
@@ -1498,6 +1440,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
     </div>
   </div>
+
+  </section>  <!-- /Z4 -->
 
 </div>
 
