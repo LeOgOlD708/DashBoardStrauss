@@ -2730,9 +2730,13 @@ const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M', '^VIX9D', '^M
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
+  // Timeout 15s con AbortController — evita zombie requests si /api/yahoo cuelga.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
   try {
     const tickers = ALL_YF_TICKERS.map(encodeURIComponent).join(',');
-    const res = await fetch(`/api/yahoo?tickers=${tickers}`);
+    const res = await fetch(`/api/yahoo?tickers=${tickers}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.json();
 
@@ -2774,8 +2778,10 @@ async function loadYahooData() {
     // Iniciar loop de precios en tiempo real (solo una vez)
     if (!state.priceTimer) startPriceLoop();
   } catch(e) {
+    clearTimeout(timeoutId);
     setDs('ds-yf', '#f87171');
-    showToast('Precios: ' + e.message);
+    const msg = e.name === 'AbortError' ? 'timeout 15s · /api/yahoo no respondió' : e.message;
+    showToast('Precios: ' + msg);
     throw e;
   }
 }
@@ -3197,13 +3203,13 @@ function _getSortedTickers(prices) {
 function updateETFTable(prices) {
   const tbody = document.getElementById('etfTable');
   if (!tbody) return;
-  tbody.innerHTML = '';
   const sortedTickers = _getSortedTickers(prices);
-  sortedTickers.forEach(ticker => {
+  // Acumular HTML en array → assign una vez. Evita N reflows (uno por fila).
+  const rows = sortedTickers.map(ticker => {
     const p  = prices[ticker];
     const m  = ETF_META[ticker] || { n: ticker, ph: '—', sig: 'b-neu', sl: '—' };
     if (!p || p.error) {
-      tbody.innerHTML += `<tr>
+      return `<tr>
         <td class="mono tbl-ticker" style="color:var(--text2)">${ticker}</td>
         <td class="mono" style="color:var(--text3);font-size:8px">${m.n}</td>
         <td class="mono" style="color:var(--text3)">—</td>
@@ -3214,7 +3220,6 @@ function updateETFTable(prices) {
         <td></td>
         <td><span class="badge ${m.sig}" style="font-size:7px;padding:1px 5px">${m.sl}</span></td>
       </tr>`;
-      return;
     }
     const ps   = p.price < 10 ? p.price.toFixed(3) : p.price.toFixed(2);
     const d1c  = p.chg1d >= 0 ? 'up' : 'down';
@@ -3227,7 +3232,7 @@ function updateETFTable(prices) {
     const qs   = (p.chg3m ?? 0) >= 0 ? '+' : '';
     const ys   = p.ytd   >= 0 ? '+' : '';
     const q3v  = p.chg3m != null ? `${qs}${p.chg3m}%` : '—';
-    tbody.innerHTML += `<tr style="cursor:pointer" onclick="openETFModal('${ticker}')">
+    return `<tr style="cursor:pointer" onclick="openETFModal('${ticker}')">
       <td class="mono tbl-ticker ${fcs}">${ticker}<span class="live-badge" style="margin-left:3px">LIVE</span></td>
       <td class="mono" style="color:var(--text2);font-size:8px">${m.n}</td>
       <td class="mono">$${ps}</td>
@@ -3239,6 +3244,7 @@ function updateETFTable(prices) {
       <td><span class="badge ${m.sig}" style="font-size:7px;padding:1px 5px">${m.sl}</span></td>
     </tr>`;
   });
+  tbody.innerHTML = rows.join('');
   // Draw sparklines after table is in DOM
   sortedTickers.forEach(t => {
     const p = prices[t];
@@ -3263,17 +3269,17 @@ function updateHeatmap(prices) {
   const labelMap = { '1d':'1D', '5d':'5D', '1mo':'1M', '3mo':'3M', '1y':'1A' };
   const hmLbl = document.getElementById('heatmap-lbl');
   if (hmLbl) hmLbl.textContent = `Heatmap Sectorial — Rendimiento ${labelMap[state.chartRange] || '1A'} · Estilo Finviz`;
-  hm.innerHTML = '';
-  items.forEach(({ t, n, v }) => {
+  // Acumular en array → assign una vez. Evita reflow por celda.
+  hm.innerHTML = items.map(({ t, n, v }) => {
     const pct = v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) : '—';
     const bg  = v != null ? color(v) : 'var(--surface2)';
     const tc  = v != null ? text(v)  : 'var(--text3)';
-    hm.innerHTML += `<div class="hm-cell" style="background:${bg};cursor:pointer" onclick="openETFModal('${t}')">
+    return `<div class="hm-cell" style="background:${bg};cursor:pointer" onclick="openETFModal('${t}')">
       <div class="hm-ticker" style="color:${tc}">${t}</div>
       <div class="hm-name" style="color:${tc};opacity:.8">${n}</div>
       <div class="hm-pct" style="color:${tc}">${pct}${v != null ? '%' : ''}</div>
     </div>`;
-  });
+  }).join('');
 }
 
 // ── Assets Chart ──
