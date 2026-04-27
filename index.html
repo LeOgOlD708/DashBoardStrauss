@@ -676,6 +676,43 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
+  <!-- ── GLOBAL LIQUIDITY PROXY — 70% del ciclo Howell es no-Fed (China + Japan + USD) ── -->
+  <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(20,15,30,.92) 100%);border-color:rgba(96,165,250,.25)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.1em">🌐 GLOBAL LIQUIDITY PROXY</span>
+        <span style="font-size:11px;color:var(--text3)">— Howell global (no-Fed)</span>
+        <button class="help-i" type="button" onclick="openGlossary('global-liquidity')" title="¿Qué es?">?</button>
+      </div>
+      <span id="gl-regime-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+      <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">DXY YoY (invertido)</div>
+        <div class="mono" id="gl-dxy-yoy" style="font-size:18px;font-weight:500;margin-top:3px">—</div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">USD ↓ → liq global ↑</div>
+      </div>
+      <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">FXI YTD · China</div>
+        <div class="mono" id="gl-fxi-ytd" style="font-size:18px;font-weight:500;margin-top:3px">—</div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Proxy China credit impulse</div>
+      </div>
+      <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">EWJ YTD · Japan</div>
+        <div class="mono" id="gl-ewj-ytd" style="font-size:18px;font-weight:500;margin-top:3px">—</div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Proxy BoJ stance</div>
+      </div>
+      <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.3);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.06em">Score compuesto</div>
+        <div class="mono" id="gl-score" style="font-size:18px;font-weight:500;margin-top:3px;color:var(--text)">—</div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Avg de los 3 sub-componentes</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.45">
+      Howell mismo lo dice: <strong style="color:var(--text2)">~70% del ciclo de liquidez global no es Fed</strong>. Sin China + Japan + USD relativo, mides solo media bicicleta. Aquí está el complemento al Howell US.
+    </div>
+  </div>
+
   <!-- ── THREE HORIZONS ── -->
   <div class="h3">
     <!-- Largo Plazo — Ciclo Howell / Liquidez -->
@@ -2092,7 +2129,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, priceTimer: null, firstLoad: true, chartRange: '1y', ycView: 'now' };
 
 // ── ETF metadata — needed early for skeleton rendering (re-declared safely below if needed) ──
-const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','XLY','XLK','XLRE','SPY','QQQ','IWM','TLT','EEM'];
+const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','XLY','XLK','XLRE','SPY','QQQ','IWM','TLT','EEM','FXI','EWJ'];
 const ETF_META = {
   GLD:{n:'Oro',           ph:'F3 ↑',    sig:'b-up',  sl:'↑↑ FUERTE'},
   GDX:{n:'Mineras Oro',   ph:'F3 ↑↑',   sig:'b-up',  sl:'↑↑ MUY FAV.'},
@@ -2112,6 +2149,8 @@ const ETF_META = {
   IWM:{n:'Small Caps',    ph:'F3/F4 ↓↓',sig:'b-dn',  sl:'↓ VULNERABLE'},
   TLT:{n:'Bonos 20Y',     ph:'Esperar', sig:'b-alt', sl:'⚠ POST-FED'},
   EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
+  FXI:{n:'China large-cap',ph:'F3 ~',   sig:'b-neu', sl:'= GLOBAL LIQ'},
+  EWJ:{n:'Japón',         ph:'F3 ~',    sig:'b-neu', sl:'= GLOBAL LIQ'},
 };
 
 // ── Clock ──
@@ -4272,6 +4311,8 @@ function updateFavoredAssets(prices) {
     applyBadge('pre-hy-badge', prices['HYG']?.ytd, false);
   }
 
+  updateGlobalLiquidity(prices);
+
   // Label de fase dinámico
   const phaseLbl = document.getElementById('fav-phase-label');
   if (phaseLbl) {
@@ -4282,6 +4323,54 @@ function updateFavoredAssets(prices) {
                    : score >= 1 ? 'Fase 2 · Aceleración'
                    :              'Fase 1 · Expansión';
     phaseLbl.textContent = phaseTxt;
+  }
+}
+
+// ── Global Liquidity Proxy — el 70% del ciclo Howell que NO es Fed ──
+// Composición: DXY YoY invertido (USD relativo) + FXI YTD (China credit impulse proxy)
+// + EWJ YTD (BoJ stance proxy). Score compuesto = avg de los 3.
+function updateGlobalLiquidity(prices) {
+  // DXY YoY: usa hist (~252 días = 1 año) o fallback a yahoo ytd
+  const dxy = prices['DX-Y.NYB'];
+  let dxyYoY = null;
+  if (dxy?.hist?.length >= 200) {
+    const past = dxy.hist[dxy.hist.length - 252] ?? dxy.hist[0];
+    const now = dxy.price ?? dxy.hist[dxy.hist.length - 1];
+    if (past && now) dxyYoY = ((now - past) / past) * 100;
+  } else if (dxy?.ytd != null) {
+    dxyYoY = dxy.ytd; // fallback aproximado
+  }
+  const dxyInv = dxyYoY != null ? -dxyYoY : null;
+  const fxi = prices['FXI']?.ytd;
+  const ewj = prices['EWJ']?.ytd;
+
+  const fmt = (v, suffix) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + suffix;
+  const colorOf = v => v == null ? 'var(--text3)' : v > 5 ? 'var(--green)' : v < -5 ? 'var(--red)' : 'var(--amber)';
+
+  const setEl = (id, val, suffix) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = fmt(val, suffix);
+    el.style.color = colorOf(val);
+  };
+  setEl('gl-dxy-yoy', dxyInv, '%');
+  setEl('gl-fxi-ytd', fxi,    '%');
+  setEl('gl-ewj-ytd', ewj,    '%');
+
+  // Score compuesto: avg de los 3 sub-componentes disponibles
+  const components = [dxyInv, fxi, ewj].filter(v => v != null);
+  const score = components.length ? components.reduce((a, b) => a + b, 0) / components.length : null;
+  const scoreEl = document.getElementById('gl-score');
+  if (scoreEl) {
+    scoreEl.textContent = score == null ? '—' : (score >= 0 ? '+' : '') + score.toFixed(1) + '%';
+    scoreEl.style.color = colorOf(score);
+  }
+  const bdg = document.getElementById('gl-regime-badge');
+  if (bdg && score != null) {
+    if (score > 8)        { bdg.className='badge b-up';  bdg.textContent='Liquidez global expansiva'; }
+    else if (score > 0)   { bdg.className='badge b-up';  bdg.textContent='Levemente expansiva'; }
+    else if (score > -8)  { bdg.className='badge b-neu'; bdg.textContent='Neutral / mixto'; }
+    else                  { bdg.className='badge b-dn';  bdg.textContent='Liquidez global contractiva'; }
   }
 }
 
