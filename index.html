@@ -722,7 +722,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
             <tr id="diag-sc-res-row">
               <td style="padding:5px 6px;font-size:10px;color:var(--text2)">Reservas Fed</td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-res-val">—</td>
-              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&lt;$3.3T→+1 · &lt;$3T→+2</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&lt;$3.3T→+1 · &lt;$3.0T→+2</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-res-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-tga-row">
@@ -731,10 +731,16 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
               <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$700B→+1 · &gt;$1T→+2</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-tga-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
+            <tr id="diag-sc-rrp-row">
+              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">RRP Fed</td>
+              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-rrp-val">—</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$200B→+0.5 · &gt;$500B→+1</td>
+              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-rrp-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
+            </tr>
             <tr id="diag-sc-sofr-row">
               <td style="padding:5px 6px;font-size:10px;color:var(--text2)">SOFR Spread</td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-sofr-val">—</td>
-              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;5bps→+1 · &gt;15bps→+2</td>
+              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;5bps→+0.5 · &gt;15bps→+1</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-sofr-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-dxy-row">
@@ -2982,18 +2988,21 @@ function updateMoveSkew(prices) {
 }
 
 // ── Diagnostic Engine (full score + phase computation) ──
+// Lógica de scoring sincronizada con computeHowellScore (max=8 con RRP)
 function updateDiagnostic() {
-  const { reserves, tga, sofr, fedfunds, dxy, cpi, hySpread, wti, breakeven } = state.data;
+  const { reserves, tga, sofr, fedfunds, dxy, cpi, hySpread, wti, breakeven, rrp } = state.data;
   const prices = state.data.prices;
 
   // ── Score computation ──
-  let resScore = 0, tgaScore = 0, sofrScore = 0, dxyScore = 0, cpiScore = 0;
+  let resScore = 0, tgaScore = 0, rrpScore = 0, sofrScore = 0, dxyScore = 0, cpiScore = 0;
   const resVal  = reserves?.[0]?.value;
   const tgaVal  = tga?.[0]?.value;
   const dxyVal  = dxy?.[0]?.value;
   const wtiVal  = wti?.[0]?.value;
   const beVal   = breakeven?.[0]?.value;
   const hyVal   = hySpread?.[0]?.value;
+  // RRPTSYD viene en Billions; se normaliza a millones (×1000) para coincidir con WRBWFRBL/WTREGEN
+  const rrpVal  = rrp?.[0]?.value != null ? rrp[0].value * 1000 : null;
 
   // SOFR spread — FRED values are in %, convert to bps (* 100)
   const sofrRaw  = (sofr?.[0] && fedfunds?.[0]) ? (sofr[0].value - fedfunds[0].value) * 100 : null;
@@ -3012,9 +3021,13 @@ function updateDiagnostic() {
     if (tgaVal > 1000000) tgaScore = 2;
     else if (tgaVal > 700000) tgaScore = 1;
   }
+  if (rrpVal != null) {
+    if (rrpVal > 500000) rrpScore = 1;
+    else if (rrpVal > 200000) rrpScore = 0.5;
+  }
   if (sofrAbs != null) {
-    if (sofrAbs > 15) sofrScore = 2;
-    else if (sofrAbs > 5) sofrScore = 1;
+    if (sofrAbs > 15) sofrScore = 1;
+    else if (sofrAbs > 5) sofrScore = 0.5;
   }
   if (dxyVal != null) {
     if (dxyVal > 110) dxyScore = 1;
@@ -3024,7 +3037,7 @@ function updateDiagnostic() {
     if (cpiYoY > 3.5) cpiScore = 1;
     else if (cpiYoY > 3) cpiScore = 0.5;
   }
-  const score = resScore + tgaScore + sofrScore + dxyScore + cpiScore;
+  const score = resScore + tgaScore + rrpScore + sofrScore + dxyScore + cpiScore;
   const maxScore = 8;
 
   // ── Score table rows ──
@@ -3039,12 +3052,14 @@ function updateDiagnostic() {
   }
   setEl('diag-sc-res-val',  resVal  != null ? formatM(resVal)  : '—');
   setEl('diag-sc-tga-val',  tgaVal  != null ? formatM(tgaVal)  : '—');
+  setEl('diag-sc-rrp-val',  rrpVal  != null ? '$' + (rrpVal/1000).toFixed(0) + 'B' : '—');
   setEl('diag-sc-sofr-val', sofrAbs != null ? sofrDisp          : '—');
   setEl('diag-sc-dxy-val',  dxyVal  != null ? dxyVal.toFixed(1) : '—');
   setEl('diag-sc-cpi-val',  cpiYoY  != null ? cpiYoY.toFixed(1) + '%' : '—');
   setPts('diag-sc-res-pts',  resScore,  2);
   setPts('diag-sc-tga-pts',  tgaScore,  2);
-  setPts('diag-sc-sofr-pts', sofrScore, 2);
+  setPts('diag-sc-rrp-pts',  rrpScore,  1);
+  setPts('diag-sc-sofr-pts', sofrScore, 1);
   setPts('diag-sc-dxy-pts',  dxyScore,  1);
   setPts('diag-sc-cpi-pts',  cpiScore,  1);
 
@@ -4127,10 +4142,10 @@ function updateHeroScore() {
       color: sofrAbs != null && sofrAbs > 15 ? 'var(--red)' : sofrAbs != null && sofrAbs > 5 ? 'var(--amber)' : 'var(--green)' },
     { id:'dxy',  val: dxyVal != null ? Math.min(((dxyVal-85)/40)*100, 100) : 0,
       label: dxyVal != null ? dxyVal.toFixed(2) : '—',
-      color: dxyVal != null && dxyVal > 106 ? 'var(--red)' : dxyVal != null && dxyVal > 100 ? 'var(--amber)' : 'var(--green)' },
+      color: dxyVal != null && dxyVal > 110 ? 'var(--red)' : dxyVal != null && dxyVal > 106 ? 'var(--amber)' : 'var(--green)' },
     { id:'cpi',  val: cpiYoY != null ? Math.min((cpiYoY/5)*100, 100) : 0,
       label: cpiYoY != null ? cpiYoY.toFixed(1)+'%' : '—',
-      color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && cpiYoY > 2.5 ? 'var(--amber)' : 'var(--green)' },
+      color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && cpiYoY > 3 ? 'var(--amber)' : 'var(--green)' },
     { id:'rrp',  val: rrpVal != null ? Math.min(100, (rrpVal / 1500000) * 100) : 0,
       label: rrpVal != null ? '$'+(rrpVal/1000).toFixed(0)+'B RRP' : '—',
       color: rrpVal != null && rrpVal > 500000 ? 'var(--red)' : rrpVal != null && rrpVal > 200000 ? 'var(--amber)' : 'var(--green)' },
