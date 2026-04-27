@@ -588,8 +588,11 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;align-items:center" id="regime-signals"></div>
   </div>
-  <div style="margin:-6px 0 10px;padding:5px 12px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);letter-spacing:.04em;line-height:1.6">
+  <div style="margin:-6px 0 10px;padding:7px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);letter-spacing:.04em;line-height:1.65;background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.15);border-radius:5px">
     ↑ Régimen de mercado (corto plazo) · ↓ Veredicto Howell (largo plazo, liquidez global). <span style="color:var(--amber);font-weight:500">Pueden divergir</span>: el corto puede ser RISK_ON mientras el largo señala defensa preventiva.
+    <div style="margin-top:5px;color:var(--text3)">
+      <strong style="color:var(--text2)">Regla de prioridad:</strong> si divergen >2 niveles → banner pesa para horizontes ≤1 mes (timing táctico), Howell pesa para ≥3 meses (sizing estructural). Nunca ignorar la divergencia: es la información más valiosa del dashboard.
+    </div>
   </div>
 
   <!-- ── MARKET BREADTH STRIP — momentum sectorial (proxy con ETFs) ── -->
@@ -1397,7 +1400,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;flex-wrap:wrap;gap:8px">
       <div>
         <div class="lbl" style="color:var(--gold)">Re-computado desde series FRED (no archivado)</div>
-        <div style="font-size:10px;color:var(--text2);margin-top:3px">Cada punto aplica la fórmula del Score Howell sobre los datos de esa semana. <button class="help-i" type="button" onclick="openGlossary('howell-score')" title="¿Qué es el Score Howell?">?</button></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:3px">Cada punto aplica la fórmula del Score Howell sobre los datos de esa semana. <button class="help-i" type="button" onclick="openGlossary('howell-score')" title="¿Qué es el Score Howell?">?</button></div>
+        <div style="font-size:11px;color:var(--text3);margin-top:3px;font-style:italic">⚠ Aplica thresholds <strong>actuales (2026)</strong> retroactivamente. La trayectoria es comparable internamente, pero los puntos viejos no reflejan calibración de su época (RRP $2T en 2022 puntuaba distinto).</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <div style="display:flex;align-items:center;gap:4px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text3)"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#4ade80"></span>F1-2 (0-2)</div>
@@ -5280,9 +5284,10 @@ function updateHeroScore() {
     { id:'dxy',  val: dxyVal != null ? Math.min(((dxyVal-85)/40)*100, 100) : 0,
       label: dxyVal != null ? dxyVal.toFixed(2) : '—',
       color: dxyVal != null && dxyVal > 107 ? 'var(--red)' : dxyVal != null && dxyVal > 103 ? 'var(--amber)' : 'var(--green)' },
+    // CPI: amber también para deflación recesiva (<1.5%) — asimetría que el score no captura
     { id:'cpi',  val: cpiYoY != null ? Math.min((cpiYoY/5)*100, 100) : 0,
-      label: cpiYoY != null ? cpiYoY.toFixed(1)+'%' : '—',
-      color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && cpiYoY > 3 ? 'var(--amber)' : 'var(--green)' },
+      label: cpiYoY != null ? cpiYoY.toFixed(1)+'%' + (cpiYoY < 1.5 ? ' ⚠' : '') : '—',
+      color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && (cpiYoY > 3 || cpiYoY < 1.5) ? 'var(--amber)' : 'var(--green)' },
     { id:'rrp',  val: rrpVal != null ? Math.min(100, (rrpVal / 2500000) * 100) : 0,
       label: rrpVal != null ? '$'+(rrpVal/1000).toFixed(0)+'B RRP' : '—',
       color: rrpVal != null && rrpVal > 500000 ? 'var(--red)' : rrpVal != null && rrpVal > 300000 ? 'var(--amber)' : 'var(--green)' },
@@ -5801,13 +5806,14 @@ const INDICATORS_GLOSSARY = {
     source: { label: 'FRED · CPIAUCSL', url: 'https://fred.stlouisfed.org/series/CPIAUCSL', freq: 'Mensual' },
     what: 'Variación anual del Consumer Price Index (todos los items urbanos).',
     formula: '(CPI[hoy] / CPI[12 meses atrás] − 1) × 100.',
-    interpret: 'Target Fed: 2%. >3% = inflación pegajosa, restricción monetaria extendida. >3.5% = riesgo de re-aceleración.',
+    interpret: 'Target Fed: 2%. >3% = inflación pegajosa, restricción monetaria extendida. >3.5% = riesgo de re-aceleración. <strong>Asimetría conocida:</strong> el score Howell solo penaliza el lado alcista (CPI alto → Fed hawkish). Pero CPI bajando rápido (<1.5%) también es bearish — señal de demanda colapsando / recesión deflacionaria. Vigilar ambos extremos.',
     thresholds: [
-      { c:'green',  t:'< 3% — cerca de target (0 pts)' },
+      { c:'red',    t:'< 1.5% — deflación recesiva (alerta visual, no suma)' },
+      { c:'green',  t:'1.5 – 3% — cerca de target (0 pts)' },
       { c:'amber',  t:'3 – 3.5% — sticky (+0.5 pt)' },
       { c:'red',    t:'> 3.5% — re-aceleración (+1 pt)' }
     ],
-    note: 'Acompañar con Core PCE (tab inflación) — la métrica preferida del FOMC.'
+    note: 'Acompañar con Core PCE (tab inflación) — la métrica preferida del FOMC. La barra del Hero ahora marca ámbar también si CPI <1.5% (alerta deflacionaria).'
   },
   'move': {
     name: 'MOVE Index — Vol Treasuries',
@@ -5871,13 +5877,13 @@ const INDICATORS_GLOSSARY = {
     source: { label: 'Calculado · 6 indicadores', url: '#', freq: 'Tiempo real' },
     what: 'Composite score que sintetiza el ciclo de liquidez global según Michael Howell (CrossBorder Capital).',
     formula: 'Reservas (0-2) + TGA (0-2) + RRP (0-1) + SOFR (0-1) + DXY (0-1) + CPI (0-1) = max 8.',
-    interpret: 'Determina la fase del ciclo: 0-2 = Fase 1-2 (expansión/aceleración), 3-4 = Fase 3 (squeeze), 5-6 = Fase 3→4 (transición), >6 = Fase 4 (capitulación/recesión).',
+    interpret: 'Determina la fase del ciclo: 0-2 = Fase 1-2 (expansión/aceleración), 3-4 = Fase 3 (squeeze), 5-6 = Fase 3→4 (transición), >6 = Fase 4 (capitulación/recesión). <strong>⚠ Trampa de aditividad:</strong> cuando 4+ componentes están en hawkish max al mismo tiempo, suelen ser reflejo del MISMO evento sistémico (no riesgos independientes que se suman). Score 8/8 NO es 8× el riesgo de score 2/8 — es la misma señal repetida en distintos canales. Tratá divergencias entre componentes (ej. Reservas bien pero SOFR estresado) como información más valiosa que el número agregado.',
     thresholds: [
       { c:'green',  t:'0 – 2 → Fase 1-2 — expansión activa' },
       { c:'amber',  t:'3 – 4.5 → Fase 3 — squeeze de liquidez' },
       { c:'red',    t:'≥ 5 → Fase 3→4 / Fase 4 — alerta defensiva' }
     ],
-    note: 'Cada componente del score se puede consultar individualmente con su propio botón ?.'
+    note: 'Cada componente del score se puede consultar individualmente con su propio botón ?. Recalibrado 2026-04-27 (TGA $900K/+2, DXY >107/+1, RRP >$300B/+0.5).'
   },
   'net-liquidity': {
     name: 'Net Liquidity (Howell)',
