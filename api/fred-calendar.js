@@ -54,23 +54,39 @@ module.exports = async (req, res) => {
   const future = new Date();
   future.setDate(today.getDate() + 14);
   const fmtDate = d => d.toISOString().slice(0, 10);
+  const todayStr  = fmtDate(today);
+  const futureStr = fmtDate(future);
 
   const results = [];
   const tStart = Date.now();
+  const errors = [];
 
   // Procesa todos los releases en paralelo (12 releases, OK en límite FRED)
   await Promise.all(RELEASES.map(async (rel) => {
     try {
-      const url = `${FRED_BASE}/${rel.id}?api_key=${apiKey}&file_type=json&realtime_start=${fmtDate(today)}&realtime_end=${fmtDate(future)}&include_release_dates_with_no_data=true&limit=10`;
+      // FRED API: release_id va como QUERY PARAM, no en el path.
+      // include_release_dates_with_no_data=true devuelve fechas futuras programadas.
+      // sort_order=asc para tener primero las fechas más cercanas.
+      const url = `${FRED_BASE}?release_id=${rel.id}&api_key=${apiKey}&file_type=json`
+        + `&include_release_dates_with_no_data=true&sort_order=desc&limit=8`;
       const response = await fetchWithTimeout(url);
       if (!response.ok) {
-        console.warn(`[FRED-Cal] release ${rel.id} HTTP ${response.status}`);
+        errors.push(`${rel.name}=HTTP ${response.status}`);
+        console.warn(`[FRED-Cal] release ${rel.id} (${rel.name}) HTTP ${response.status}`);
         return;
       }
       const data = await response.json();
+      if (data.error_code) {
+        errors.push(`${rel.name}=${data.error_code}`);
+        console.warn(`[FRED-Cal] release ${rel.id} error: ${data.error_message}`);
+        return;
+      }
       const dates = data.release_dates || [];
-      // Solo incluir fechas futuras o de hoy
-      const upcoming = dates.filter(d => d.date >= fmtDate(today)).slice(0, 3);
+      // Filtrar a la ventana hoy → +14 días, quedarnos con las próximas
+      const upcoming = dates
+        .filter(d => d.date >= todayStr && d.date <= futureStr)
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(0, 3);
       upcoming.forEach(d => {
         results.push({
           date: d.date,
@@ -82,15 +98,21 @@ module.exports = async (req, res) => {
         });
       });
     } catch (e) {
-      console.warn(`[FRED-Cal] release ${rel.id} error: ${e.message}`);
+      errors.push(`${rel.name}=${e.message}`);
+      console.warn(`[FRED-Cal] release ${rel.id} (${rel.name}) error: ${e.message}`);
     }
   }));
 
   // Ordenar por fecha ascendente
   results.sort((a, b) => a.date.localeCompare(b.date));
 
-  console.log(`[FRED-Cal] ${RELEASES.length} releases en ${Date.now() - tStart}ms · ${results.length} eventos próximos`);
+  console.log(`[FRED-Cal] ${RELEASES.length} releases en ${Date.now() - tStart}ms · ${results.length} eventos próximos · errores=${errors.length}`);
+  if (errors.length) console.log('[FRED-Cal] errores:', errors.join(' · '));
 
-  res.setHeader('Cache-Control', 's-maxage=14400, stale-while-revalidate=3600'); // 4h cache, calendario cambia poco
-  return res.status(200).json({ events: results, today: fmtDate(today) });
+  // No cachear si hay errores o si results está vacío con errores
+  const cacheControl = errors.length > 0
+    ? 'max-age=0, no-cache, no-store'
+    : 's-maxage=14400, stale-while-revalidate=3600'; // 4h cache cuando todo OK
+  res.setHeader('Cache-Control', cacheControl);
+  return res.status(200).json({ events: results, today: todayStr, errors: errors.length ? errors : undefined });
 };

@@ -2,17 +2,18 @@
 // Calls FRED API server-side (no CORS issues, API key never exposed to browser)
 //
 // Strategy:
-// - Batches series in groups of BATCH_SIZE (sequential batches, parallel within batch)
-//   to avoid hitting FRED's rate limit with 27 simultaneous requests.
+// - All series fetched in parallel (Promise.all). FRED rate limit is 120/min,
+//   30 simultaneous requests are well within. Sequential batches were timing out
+//   the Vercel 10s serverless limit when many series were requested.
 // - Per-fetch timeout via AbortController (FETCH_TIMEOUT_MS).
 // - Retry with exponential backoff on 429 (rate limit) and network errors.
+// - Cache disabled when response contains errors (avoid propagating bad state).
 // - Detailed logging visible in Vercel function logs.
 
 const FRED_BASE = 'https://api.stlouisfed.org/fred/series/observations';
-const BATCH_SIZE = 6;             // 6 series per batch (4-5 batches for 27 series)
-const FETCH_TIMEOUT_MS = 7000;    // 7s per individual fetch
-const MAX_RETRIES = 2;            // up to 2 retries (3 attempts total) on 429/network
-const BACKOFF_BASE_MS = 600;      // 600ms, 1.2s
+const FETCH_TIMEOUT_MS = 5500;    // 5.5s per individual fetch (buffer for Vercel 10s)
+const MAX_RETRIES = 1;            // 1 retry (2 attempts total) — keep total under Vercel timeout
+const BACKOFF_BASE_MS = 400;      // 400ms backoff
 
 // Single fetch with timeout + retry on 429/network errors
 async function fetchSeries(s, apiKey, limit) {
@@ -99,14 +100,11 @@ module.exports = async (req, res) => {
   const results = {};
   const tStart = Date.now();
 
-  // Process in sequential batches; within each batch, requests run in parallel
-  for (let i = 0; i < seriesList.length; i += BATCH_SIZE) {
-    const batch = seriesList.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.all(
-      batch.map(s => fetchSeries(s, apiKey, limit).then(r => [s, r]))
-    );
-    for (const [s, r] of batchResults) results[s] = r;
-  }
+  // All series in parallel — FRED rate limit (120/min) holds; faster than batching.
+  const allResults = await Promise.all(
+    seriesList.map(s => fetchSeries(s, apiKey, limit).then(r => [s, r]))
+  );
+  for (const [s, r] of allResults) results[s] = r;
 
   // Summary log: which series succeeded vs failed
   const ok      = seriesList.filter(s => Array.isArray(results[s]));
@@ -117,7 +115,11 @@ module.exports = async (req, res) => {
     console.log('[FRED] failed:', failed.map(s => `${s}=${results[s]?.error || '?'}`).join(' · '));
   }
 
-  // Cache 1 hour — FRED data is weekly/monthly/daily, doesn't need real-time
-  res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
+  // Don't cache responses with errors — avoid propagating broken state to all clients.
+  // Healthy responses cache 1h (FRED data is weekly/monthly/daily, not real-time).
+  const cacheControl = failed.length > 0
+    ? 'max-age=0, no-cache, no-store'
+    : 's-maxage=3600, stale-while-revalidate=600';
+  res.setHeader('Cache-Control', cacheControl);
   return res.status(200).json(results);
 };
