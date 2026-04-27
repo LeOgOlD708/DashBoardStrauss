@@ -1091,7 +1091,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
     <div class="card red-a clickable" onclick="openIndicatorModal('tga')"><div class="card-accent"></div>
       <div class="lbl">④ TGA — Cuenta Gral del Tesoro</div>
-      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" style="font-size:10px;color:var(--red)">Drenaje activo</div></div>
+      <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" id="m-tga-status" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch140"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
       <div style="margin-top:6px;padding:5px 7px;background:rgba(248,113,113,.06);border-radius:5px;font-size:9px;color:var(--text2)">TGA > $1T = QT silencioso ~$250B</div>
       <div class="source-badge">FRED: WTREGEN</div>
@@ -2122,6 +2122,19 @@ async function loadFredData() {
     // Check for API key error
     if (d.error) throw new Error(d.error);
 
+    // Diagnostic: log what FRED returned per series (length or error)
+    const _fredSummary = Object.fromEntries(
+      Object.entries(d).map(([k, v]) => [
+        k,
+        Array.isArray(v) ? `len=${v.length}` : (v?.error ? `err=${v.error}` : typeof v)
+      ])
+    );
+    console.log('[FRED response]', _fredSummary);
+    const _fredFailed = Object.entries(d).filter(([_,v]) => !Array.isArray(v) || v.length === 0);
+    if (_fredFailed.length) {
+      console.warn('[FRED failed/empty]', _fredFailed.map(([k,v]) => `${k}=${Array.isArray(v) ? 'empty' : v?.error || '?'}`).join(' · '));
+    }
+
     state.data.reserves  = Array.isArray(d.WRBWFRBL)  ? d.WRBWFRBL  : null;
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
@@ -2313,6 +2326,14 @@ function updateFredUI() {
     updateSig('s-tga-sig', latest < 500000 ? 'is-g' : latest < 800000 ? 'is-a' : 'is-r',
               latest < 500000 ? 'VERDE' : latest < 800000 ? 'ALERTA' : 'PELIGRO');
     updateMiniChart('tgaChart', tga, '#f87171', true);
+    // Status badge dinámico (antes hardcoded como "Drenaje activo")
+    const tgaStatusEl = document.getElementById('m-tga-status');
+    if (tgaStatusEl) {
+      const txt = latest >= 1000000 ? 'Drenaje masivo' : latest >= 700000 ? 'Drenaje activo' : latest >= 400000 ? 'Niveles normales' : 'Saldo bajo';
+      const col = latest >= 1000000 ? 'var(--red)' : latest >= 700000 ? 'var(--amber)' : latest >= 400000 ? 'var(--text2)' : 'var(--green)';
+      tgaStatusEl.textContent = txt;
+      tgaStatusEl.style.color = col;
+    }
   }
 
   if (sofr?.length && fedfunds?.length) {
