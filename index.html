@@ -667,8 +667,8 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <!-- Mini sparkline trayectoria 13 semanas + delta 4w (rellena espacio en columna izq) -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(245,236,228,.08)">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center;margin-bottom:5px">Trend 13 sem</div>
-        <div class="ch-wrap" style="height:40px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
-        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-align:center;margin-top:5px;color:var(--text3)">4w: —</div>
+        <div class="ch-wrap" style="height:64px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
+        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-align:center;margin-top:6px;color:var(--text3)">4w: —</div>
       </div>
     </div>
     <div class="vh-mid">
@@ -915,13 +915,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         </div>
         <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:11px;padding:5px 14px">Cargando...</span></div>
       </div>
-      <!-- TRAYECTORIA IPMAN YoY 24m · chart Chart.js dinámico -->
+      <!-- TRAYECTORIA IPMAN YoY 24m · chart Chart.js dinámico con escala Y % -->
       <div style="margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">PROD. MFG · IPMAN YoY · 24 MESES</span>
           <span class="mono" id="fid-history-trend" style="font-size:11px;color:var(--text3)">—</span>
         </div>
-        <div class="ch-wrap" style="height:120px;position:relative"><canvas id="fidHistoryMini" role="img" aria-label="Trayectoria IPMAN YoY"></canvas></div>
+        <div class="ch-wrap" style="height:150px;position:relative"><canvas id="fidHistoryMini" role="img" aria-label="Trayectoria IPMAN YoY"></canvas></div>
       </div>
       <!-- VALORES ACTUALES · 6 indicadores con su valor + pts (reemplaza la tabla detallada) -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
@@ -1083,13 +1083,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <span class="badge" id="diag-score-phase" style="font-size:11px;padding:5px 14px">Cargando...</span>
         </div>
       </div>
-      <!-- TRAYECTORIA · chart Chart.js dinámico (tooltips, hover, animación) -->
+      <!-- TRAYECTORIA · chart Chart.js dinámico (tooltips, hover, animación) con escala Y 0/8 -->
       <div style="margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
           <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">TRAYECTORIA · 13 SEMANAS</span>
           <span class="mono" id="diag-history-trend" style="font-size:11px;color:var(--text3)">—</span>
         </div>
-        <div class="ch-wrap" style="height:120px;position:relative"><canvas id="diagHistoryMini" role="img" aria-label="Trayectoria Score Howell 13w"></canvas></div>
+        <div class="ch-wrap" style="height:150px;position:relative"><canvas id="diagHistoryMini" role="img" aria-label="Trayectoria Score Howell 13w"></canvas></div>
       </div>
       <!-- COMPOSICIÓN · breakdown horizontal de pts/max por componente -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
@@ -2534,10 +2534,16 @@ state.charts['howellHistoryChart'] = new Chart(document.getElementById('howellHi
 });
 
 // ── Mini Chart.js dinámicos · Hero sparkline + Motor Howell + Motor Fidelity ──
-// Chart.js para tener tooltips on-hover, animación, interactividad nativa
-function initMiniChart(canvasId, color, tooltipFmt) {
+// Chart.js para tooltips on-hover, animación, interactividad nativa
+// opts.showAxes:true → ejes con grilla y números visibles (charts grandes)
+//                false → sparkline puro sin ejes (Hero columna izq)
+function initMiniChart(canvasId, color, tooltipFmt, opts = {}) {
   const el = document.getElementById(canvasId);
   if (!el) return null;
+  const showAxes = opts.showAxes === true;
+  const yMin = opts.yMin;
+  const yMax = opts.yMax;
+  const yFormatter = opts.yFormatter || (v => v.toFixed(1));
   return new Chart(el, {
     type: 'line',
     data: {
@@ -2562,6 +2568,7 @@ function initMiniChart(canvasId, color, tooltipFmt) {
       maintainAspectRatio: false,
       animation: { duration: 700, easing: 'easeOutQuart' },
       interaction: { mode: 'index', intersect: false },
+      layout: { padding: showAxes ? { left: 4, right: 8, top: 6, bottom: 0 } : 0 },
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -2579,18 +2586,32 @@ function initMiniChart(canvasId, color, tooltipFmt) {
         }
       },
       scales: {
-        x: { display: false },
-        y: { display: false, beginAtZero: false }
+        x: showAxes ? {
+          display: true,
+          grid: { color: 'rgba(45,30,30,0.25)', drawBorder: false },
+          ticks: { color: '#7d6f63', font: { size: 9, family: "'IBM Plex Mono', monospace" }, maxTicksLimit: 6, autoSkip: true, maxRotation: 0 }
+        } : { display: false },
+        y: showAxes ? {
+          display: true,
+          min: yMin, max: yMax, beginAtZero: false,
+          grid: { color: 'rgba(45,30,30,0.25)', drawBorder: false },
+          ticks: { color: '#7d6f63', font: { size: 9, family: "'IBM Plex Mono', monospace" }, maxTicksLimit: 5, callback: v => yFormatter(v) }
+        } : { display: false, beginAtZero: false }
       }
     }
   });
 }
+// Hero sparkline · sin ejes (40px alto, sería ruido)
 state.charts['heroScoreMini']  = initMiniChart('heroScoreMini',  '#e6b450', (v) => `Score ${v.toFixed(1)}/8`);
+// Motor Howell · escala Y 0→8 en formato "X/8"
 state.charts['diagHistoryMini'] = initMiniChart('diagHistoryMini', '#fbbf24', (v) => {
   const phase = v >= 6 ? 'Fase 4' : v >= 4 ? 'Fase 3→4' : v >= 2 ? 'Fase 3' : v >= 1 ? 'Fase 2' : 'Fase 1';
   return `Score ${v.toFixed(1)}/8 · ${phase}`;
-});
-state.charts['fidHistoryMini'] = initMiniChart('fidHistoryMini', '#2dd4bf', (v) => `IPMAN YoY: ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
+}, { showAxes: true, yMin: 0, yMax: 8, yFormatter: v => v + '/8' });
+// Motor Fidelity · escala Y dinámica con formato porcentaje
+state.charts['fidHistoryMini'] = initMiniChart('fidHistoryMini', '#2dd4bf',
+  (v) => `IPMAN YoY: ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`,
+  { showAxes: true, yFormatter: v => (v >= 0 ? '+' : '') + v.toFixed(0) + '%' });
 
 // 4 Termómetros Howell — estilo Phoenix
 phoenixMini('resChart', mo, Array(12).fill(null));
