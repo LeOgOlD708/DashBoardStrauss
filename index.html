@@ -809,7 +809,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div id="diag-dxy4-hdl" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#eae6de;border:2px solid #07070e;border-radius:50%;left:50%;transition:left .5s"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
-        <span>85</span><span style="color:var(--amber)">100</span><span style="color:var(--red)">106</span><span>120</span>
+        <span>85</span><span style="color:var(--green)">100</span><span style="color:var(--amber)">106</span><span style="color:var(--red)">110</span><span>120</span>
       </div>
       <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="source-badge">Yahoo DX-Y.NYB ↗</a>
     </div>
@@ -3451,26 +3451,32 @@ function updateDiagnostic() {
 
   // ── Phase determination ──
   let howellPhase, howellColor, howellBg, howellBorder, howellDesc, howellBadges, howellGhost, howellPcClass;
+  // Nomenclatura unificada con updateHeroScore y updateThreeHorizons
   if (score >= 6) {
-    howellPhase = 'Fase 4 — Capitulación'; howellGhost = '4';
+    howellPhase = 'Fase 4 · Contracción'; howellGhost = '4';
     howellColor = '#f87171'; howellBg = 'var(--p4bg)'; howellBorder = 'rgba(248,113,113,.3)'; howellPcClass = 'pc4';
     howellDesc = `Score ${score.toFixed(1)}/8 · Reservas bajo umbral crítico · TGA drenando · SOFR en spikes. Estrés sistémico inminente. Capitulación en progreso.`;
-    howellBadges = ['b-dn:⚠ CAPITULACIÓN', 'b-dn:Cash + Oro', 'b-alt:VIX largo'];
+    howellBadges = ['b-dn:⚠ CONTRACCIÓN', 'b-dn:Cash + Oro', 'b-alt:VIX largo'];
   } else if (score >= 4) {
-    howellPhase = 'Fase 3 → 4 Transición'; howellGhost = '3';
+    howellPhase = 'Fase 3→4 · Transición'; howellGhost = '3';
     howellColor = '#f59e0b'; howellBg = 'var(--p3bg)'; howellBorder = 'rgba(251,191,36,.3)'; howellPcClass = 'pc3';
     howellDesc = `Score ${score.toFixed(1)}/8 · Liquidez apretándose activamente · TGA y reservas bajo presión dual. Riesgo de evento de liquidez en ventana de 2-4 meses.`;
     howellBadges = ['b-alt:⚠ Riesgo F4', 'b-neu:Defensivo', 'b-dn:Liquidez ↓'];
   } else if (score >= 2) {
-    howellPhase = 'Fase 3 — Squeeze'; howellGhost = '3';
+    howellPhase = 'Fase 3 · Squeeze'; howellGhost = '3';
     howellColor = '#fbbf24'; howellBg = 'var(--p3bg)'; howellBorder = 'rgba(251,191,36,.2)'; howellPcClass = 'pc3';
     howellDesc = `Score ${score.toFixed(1)}/8 · Fase de compresión activa. Oro y commodities lideran. DXY como válvula maestra. Evitar activos de riesgo especulativos.`;
     howellBadges = ['b-neu:Fase 3 Squeeze', 'b-up:Oro ↑', 'b-neu:Commodities'];
   } else if (score >= 1) {
-    howellPhase = 'Fase 2 → 3 Transición'; howellGhost = '2';
+    howellPhase = 'Fase 2 · Aceleración'; howellGhost = '2';
     howellColor = '#60a5fa'; howellBg = 'var(--p2bg)'; howellBorder = 'rgba(96,165,250,.2)'; howellPcClass = 'pc2';
     howellDesc = `Score ${score.toFixed(1)}/8 · Señales de tensión emergente. Inicio de contracción de liquidez. Vigilar reservas y TGA.`;
-    howellBadges = ['b-up:Transición', 'b-neu:Vigilar'];
+    howellBadges = ['b-up:Aceleración', 'b-neu:Vigilar'];
+  } else if (score >= 0) {
+    howellPhase = 'Fase 1 · Expansión'; howellGhost = '1';
+    howellColor = '#4ade80'; howellBg = 'var(--p1bg)'; howellBorder = 'rgba(74,222,128,.2)'; howellPcClass = 'pc1';
+    howellDesc = `Score ${score.toFixed(1)}/8 · Liquidez abundante. Fed acomodaticia, reservas saludables. Condiciones expansivas — favorecer riesgo.`;
+    howellBadges = ['b-up:Expansión', 'b-up:Risk-on'];
   } else {
     howellPhase = 'Calculando...'; howellGhost = '—';
     howellColor = '#524e4a'; howellBg = 'var(--surface2)'; howellBorder = 'var(--border2)'; howellPcClass = '';
@@ -4146,7 +4152,9 @@ function updateThreeHorizons(howellResult) {
     hScoreEl.textContent = hScore.toFixed(1);
     hScoreEl.style.color = hScore>=5 ? 'var(--red)' : hScore>=3 ? 'var(--amber)' : 'var(--green)';
   }
-  const hFase = hScore>=5?'Fase 4 · Contracción':hScore>=4?'Fase 3→4 · Alerta':hScore>=2?'Fase 3 · Squeeze':hScore>=1?'Fase 2 · Aceleración':'Fase 1 · Expansión';
+  // Nomenclatura unificada con updateDiagnostic, updateHeroScore y computeHistoricalHowell.
+  // Umbrales: ≥6 → Fase 4 (consistente con updateDiagnostic); ≥4 → Fase 3→4; ≥2 → Fase 3; ≥1 → Fase 2; <1 → Fase 1.
+  const hFase = hScore>=6?'Fase 4 · Contracción':hScore>=4?'Fase 3→4 · Transición':hScore>=2?'Fase 3 · Squeeze':hScore>=1?'Fase 2 · Aceleración':'Fase 1 · Expansión';
   setT('h-largo-fase', hFase);
 
   const netLiqNum = (resVal != null && tgaVal != null && rrpVal != null)
@@ -4605,12 +4613,13 @@ function updateHeroScore() {
   numEl.style.color = score >= 5 ? 'var(--red)' : score >= 4 ? 'var(--amber)' : score >= 2 ? 'var(--gold)' : 'var(--green)';
 
   // Phase + description
+  // Umbrales unificados con updateDiagnostic, updateThreeHorizons, computeHistoricalHowell
   const phases = [
     { min:0, max:1, name:'Fase 1 · Expansión', desc:'Liquidez abundante. Fed relajada. Condiciones expansivas.' },
     { min:1, max:2, name:'Fase 2 · Aceleración', desc:'Ciclo acelera. Activos de riesgo lideran. Momentum alcista.' },
     { min:2, max:4, name:'Fase 3 · Squeeze', desc:'Reservas bajo presión. TGA elevado. Precaución activa.' },
-    { min:4, max:5, name:'Fase 3→4 · Transición', desc:'Señales de estrés creciente. Reducir exposición.' },
-    { min:5, max:7, name:'Fase 4 · Contracción', desc:'Liquidez en caída. Riesgo elevado. Postura defensiva.' },
+    { min:4, max:6, name:'Fase 3→4 · Transición', desc:'Señales de estrés creciente. Reducir exposición.' },
+    { min:6, max:9, name:'Fase 4 · Contracción', desc:'Liquidez en caída. Riesgo elevado. Postura defensiva.' },
   ];
   const phase = phases.find(p => score >= p.min && score < p.max) || phases[phases.length - 1];
   nameEl.textContent = phase.name;
