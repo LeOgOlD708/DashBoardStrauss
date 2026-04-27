@@ -806,9 +806,9 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
         <div class="mono" id="op-hyig-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
-        <div id="op-hyig-detail" class="mono" style="font-size:10px;color:var(--text3)">HY: — · IG: —</div>
+        <div id="op-hyig-detail" class="mono" style="font-size:11px;color:var(--text3)">HY: — · IG: — · BBB: —</div>
       </div>
-      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Ratio HY/IG &gt; 4 = stress crediticio puro. Mejor leading que VIX.</div>
+      <div style="margin-top:4px;font-size:12px;color:var(--text3)">Ratio HY/IG &gt; 4 = stress crediticio puro. BBB OAS = early warning preferido (Druckenmiller).</div>
       <div id="op-hyig-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
     </div>
 
@@ -936,6 +936,17 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
     <!-- Signal panel -->
     <div style="display:flex;flex-direction:column;gap:8px">
+      <!-- 2Y destacado · Fed pricing (lectura más limpia de expectativas Fed 18m) -->
+      <div class="card blue-a"><div class="card-accent"></div>
+        <div class="lbl" style="color:var(--blue)">2Y Treasury · Fed Pricing
+          <a href="https://fred.stlouisfed.org/series/GS2" target="_blank" class="src-link">FRED↗</a>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+          <div class="mono" id="yc-2y-val" style="font-size:24px;font-weight:500;color:var(--text)">—</div>
+          <div id="yc-2y-delta" class="mono" style="font-size:12px;color:var(--text3)">ΔYoY: —</div>
+        </div>
+        <div style="margin-top:4px;font-size:12px;color:var(--text3)">Lectura cleaner de expectativas Fed (18m) que la curva — leading vs Fed Funds.</div>
+      </div>
       <div class="card">
         <div class="lbl">Spreads clave</div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
@@ -2598,7 +2609,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,DFF';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -2715,6 +2726,7 @@ async function loadFredData() {
     // Operacional B+: Real Yields, IG OAS, Fed Funds Effective
     state.data.realYield10 = Array.isArray(d.DFII10)           ? d.DFII10             : null; // 10Y TIPS yield (real)
     state.data.igSpread    = Array.isArray(d.BAMLC0A0CM)       ? d.BAMLC0A0CM         : null; // Investment Grade OAS
+    state.data.bbbSpread   = Array.isArray(d.BAMLC0A4CBBB)     ? d.BAMLC0A4CBBB       : null; // BBB-Treasury OAS — early warning
     state.data.fedFundsEff = Array.isArray(d.DFF)              ? d.DFF                : null; // Fed Funds Effective Rate
     // Yield curve maturities (6M → 30Y)
     state.data.yc6m  = Array.isArray(d.TB6MS) ? d.TB6MS : null;
@@ -4460,16 +4472,21 @@ function updateOperationalContext() {
     else                setBadge('op-realy-badge', 'b-up', 'Negativo · pro-oro');
   }
 
-  // ── 2. HY-IG Ratio ──
+  // ── 2. HY-IG Ratio (con BBB como early warning) ──
   const hy = state.data.hySpread?.[0]?.value;
   const ig = state.data.igSpread?.[0]?.value;
+  const bbb = state.data.bbbSpread?.[0]?.value;
   if (hy != null && ig != null && ig > 0) {
     const ratio = hy / ig;
     setT('op-hyig-val', ratio.toFixed(2) + '×',
       ratio > 5 ? 'var(--red)' : ratio > 4 ? 'var(--amber)' : 'var(--green)');
-    setT('op-hyig-detail', `HY: ${hy.toFixed(2)}% · IG: ${ig.toFixed(2)}%`);
+    const bbbTxt = bbb != null ? ` · BBB: ${bbb.toFixed(2)}%` : '';
+    setT('op-hyig-detail', `HY: ${hy.toFixed(2)}% · IG: ${ig.toFixed(2)}%${bbbTxt}`);
+    // BBB es leading sobre HY: si BBB > 1.8% antes de que HY > 5%, es early warning
+    const bbbWarn = bbb != null && bbb > 1.8 && ratio < 4;
     if (ratio > 5)      setBadge('op-hyig-badge', 'b-dn', 'Stress crediticio alto');
     else if (ratio > 4) setBadge('op-hyig-badge', 'b-neu', 'Stress moderado');
+    else if (bbbWarn)   setBadge('op-hyig-badge', 'b-neu', '⚠ BBB anticipa stress');
     else                 setBadge('op-hyig-badge', 'b-up', 'Crédito tranquilo');
   }
 
@@ -4775,6 +4792,25 @@ function updateYieldCurve() {
   const legendLbl = document.getElementById('yc-legend-cmp-lbl');
   if (legendCmp) legendCmp.style.display = view !== 'now' ? 'inline' : 'none';
   if (legendLbl) legendLbl.textContent = cmpLabel;
+
+  // 2Y destacado · Fed Pricing (lectura cleaner de expectativas Fed 18m)
+  const gs2Now  = state.data.yc2y?.[0]?.value;
+  const gs2_1y  = state.data.yc2y?.[12]?.value;
+  const gs2El = document.getElementById('yc-2y-val');
+  const gs2DEl = document.getElementById('yc-2y-delta');
+  if (gs2El && gs2Now != null) {
+    gs2El.textContent = gs2Now.toFixed(2) + '%';
+    gs2El.style.color = gs2Now > 4.5 ? 'var(--red)' : gs2Now > 3 ? 'var(--amber)' : 'var(--green)';
+  }
+  if (gs2DEl && gs2Now != null && gs2_1y != null) {
+    const d = gs2Now - gs2_1y;
+    const bps = Math.round(d * 100);
+    const dir = d >  0.25 ? '↑ Fed hawkish pricing'
+              : d < -0.25 ? '↓ Fed dovish pricing'
+              :              '→ pricing estable';
+    gs2DEl.textContent = `ΔYoY: ${bps >= 0 ? '+' : ''}${bps}bps · ${dir}`;
+    gs2DEl.style.color = d > 0.25 ? 'var(--red)' : d < -0.25 ? 'var(--green)' : 'var(--text3)';
+  }
 
   // Spreads
   const sp10y2y = (now[4] != null && now[2] != null) ? now[4] - now[2] : null;
