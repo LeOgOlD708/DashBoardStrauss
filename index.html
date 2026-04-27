@@ -1098,20 +1098,48 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
-  <!-- ── ROW 6: Semáforo Integrado ── -->
-  <div class="sh"><div class="sh-tag">Semáforo</div><div class="sh-title">Resumen Integrado</div><div class="sh-line"></div></div>
-  <div class="card gold-a"><div class="card-accent"></div>
-    <div class="lbl">Estado de todos los indicadores</div>
-    <div style="margin-top:8px">
-      <div class="ind-row"><div class="ind-name" data-tip="Reservas bancarias en la Fed. Umbral de abundancia $3.3T · peligro $3.0T. Caer debajo activa estrés de repo y transición a Fase 4.">Reservas Fed</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-res-val">—</div><div class="ind-sig" id="s-res-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Spread SOFR menos Fed Funds Rate. Spikes > 15 bps señalan tensión en mercado interbancario y estrés de colateral en repo.">SOFR Spread</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-sofr-val">—</div><div class="ind-sig" id="s-sofr-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita de bonos del Tesoro USA (ICE BofA). Verde &lt; 100 · Alerta 100–140 · Crisis &gt; 140. Correlaciona con estrés sistémico.">MOVE Index</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-move-val">—</div><div class="ind-sig" id="s-move-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Cuenta General del Tesoro en la Fed. TGA &gt; $1T drena reservas bancarias — equivalente a QT adicional silencioso de ~$250B.">TGA Tesoro</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-tga-val">—</div><div class="ind-sig" id="s-tga-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Índice del dólar (Yahoo: DX-Y.NYB). &lt; 100 = expansivo para liquidez global. &gt; 106 = contractivo. Válvula maestra de liquidez según Howell.">DXY</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-dxy-val">—</div><div class="ind-sig" id="s-dxy-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
-      <div class="ind-row"><div class="ind-name" data-tip="Volatilidad implícita S&amp;P 500. &lt; 20 = calma. 20–30 = cautela. &gt; 30 = estrés. Ver también VVIX (tab 06) para señales institucionales tempranas.">VIX</div><div class="ind-track"><div class="ind-fill" style="width:0%;background:var(--border2)"></div></div><div class="ind-val" id="s-vix-val">—</div><div class="ind-sig" id="s-vix-sig" style="color:var(--text3);background:var(--surface2)">—</div></div>
+  <!-- ── ROW 6: Indicadores Leading (señales adelantadas) ── -->
+  <div class="sh"><div class="sh-tag">Leading</div><div class="sh-title">Indicadores Adelantados — Anticipan el Ciclo</div><div class="sh-line"></div></div>
+  <div class="g4">
+    <!-- Initial Jobless Claims -->
+    <div class="card"><div class="lbl">📈 Initial Claims · 4w
+      <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-claims-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-claims-trend" class="mono" style="font-size:10px;color:var(--text3)">Δ4w: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Solicitudes de desempleo. Subida sostenida = mercado laboral deteriorándose (leading recesión).</div>
+      <div id="lead-claims-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
     </div>
-    <div id="semaforoSummary" style="margin-top:10px;padding:8px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.12);border-radius:5px;font-size:10px;color:var(--text2)">
-      <strong style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">Cargando...</strong>
+    <!-- Industrial Production -->
+    <div class="card"><div class="lbl">🏭 Producción Industrial · YoY
+      <a href="https://fred.stlouisfed.org/series/INDPRO" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-indpro-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-indpro-mom" class="mono" style="font-size:10px;color:var(--text3)">MoM: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">INDPRO YoY. Negativo sostenido confirma contracción manufacturera real.</div>
+      <div id="lead-indpro-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Building Permits -->
+    <div class="card"><div class="lbl">🏗 Building Permits · YoY
+      <a href="https://fred.stlouisfed.org/series/PERMIT" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-permits-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-permits-trend" class="mono" style="font-size:10px;color:var(--text3)">3m: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Permisos de construcción — leading housing más anticipado que el mismo PIB residencial.</div>
+      <div id="lead-permits-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+    <!-- Core PCE + 5Y5Y forward -->
+    <div class="card"><div class="lbl">💵 Core PCE / Inflación Forward
+      <a href="https://fred.stlouisfed.org/series/PCEPILFE" target="_blank" class="src-link">FRED↗</a></div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="lead-corepce-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
+        <div id="lead-fwd5y5y-val" class="mono" style="font-size:10px;color:var(--text3)">5Y5Y: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Core PCE YoY (métrica preferida Fed). 5Y5Y = expectativas inflación 5-10 años (anclaje).</div>
+      <div id="lead-pce-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
     </div>
   </div>
 
@@ -3594,6 +3622,95 @@ function updateRegimeBanner() {
   ).join('');
 }
 
+// ── Leading Indicators — actualiza los 4 cards de indicadores adelantados ──
+function updateLeadingIndicators() {
+  const { claims, indpro, permits, corePce, fwd5y5y } = state.data;
+  const setT = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  const setBadge = (id, cls, txt) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<span class="badge ${cls}">${txt}</span>`;
+  };
+  const setColor = (id, c) => { const el=document.getElementById(id); if(el) el.style.color=c; };
+
+  // ── Initial Jobless Claims ──
+  if (claims?.[0]?.value != null) {
+    const curr = claims[0].value;
+    const prev4 = claims?.[3]?.value;
+    setT('lead-claims-val', `${(curr/1000).toFixed(0)}K`);
+    if (prev4 != null) {
+      const delta = curr - prev4;
+      setT('lead-claims-trend', `Δ4w: ${delta>=0?'+':''}${(delta/1000).toFixed(0)}K`);
+      if (delta > 25000) {
+        setBadge('lead-claims-badge', 'b-dn', 'Deterioro laboral');
+        setColor('lead-claims-val', 'var(--red)');
+      } else if (delta > 10000) {
+        setBadge('lead-claims-badge', 'b-neu', 'Alerta');
+        setColor('lead-claims-val', 'var(--amber)');
+      } else {
+        setBadge('lead-claims-badge', 'b-up', 'Estable');
+        setColor('lead-claims-val', 'var(--green)');
+      }
+    }
+  }
+
+  // ── Industrial Production YoY ──
+  if (indpro?.[0]?.value != null) {
+    const curr = indpro[0].value;
+    const prev12 = indpro?.[12]?.value;
+    const prev1  = indpro?.[1]?.value;
+    if (prev12 != null) {
+      const yoy = ((curr/prev12)-1)*100;
+      setT('lead-indpro-val', `${yoy>=0?'+':''}${yoy.toFixed(1)}%`);
+      setColor('lead-indpro-val', yoy < -1 ? 'var(--red)' : yoy < 0 ? 'var(--amber)' : 'var(--green)');
+      if (yoy < -1)      setBadge('lead-indpro-badge', 'b-dn', 'Contracción');
+      else if (yoy < 0)  setBadge('lead-indpro-badge', 'b-neu', 'Desaceleración');
+      else if (yoy < 2)  setBadge('lead-indpro-badge', 'b-neu', 'Tibio');
+      else                setBadge('lead-indpro-badge', 'b-up', 'Expansión');
+    }
+    if (prev1 != null) {
+      const mom = ((curr/prev1)-1)*100;
+      setT('lead-indpro-mom', `MoM: ${mom>=0?'+':''}${mom.toFixed(2)}%`);
+    }
+  }
+
+  // ── Building Permits YoY ──
+  if (permits?.[0]?.value != null) {
+    const curr = permits[0].value;
+    const prev12 = permits?.[12]?.value;
+    const prev3  = permits?.[3]?.value;
+    if (prev12 != null) {
+      const yoy = ((curr/prev12)-1)*100;
+      setT('lead-permits-val', `${yoy>=0?'+':''}${yoy.toFixed(1)}%`);
+      setColor('lead-permits-val', yoy < -10 ? 'var(--red)' : yoy < 0 ? 'var(--amber)' : 'var(--green)');
+      if (yoy < -10)     setBadge('lead-permits-badge', 'b-dn', 'Housing débil');
+      else if (yoy < 0)  setBadge('lead-permits-badge', 'b-neu', 'Desacelerando');
+      else                setBadge('lead-permits-badge', 'b-up', 'Housing OK');
+    }
+    if (prev3 != null) {
+      const m3 = ((curr/prev3)-1)*100;
+      setT('lead-permits-trend', `3m: ${m3>=0?'+':''}${m3.toFixed(1)}%`);
+    }
+  }
+
+  // ── Core PCE YoY + 5Y5Y forward ──
+  if (corePce?.[0]?.value != null) {
+    const curr = corePce[0].value;
+    const prev12 = corePce?.[12]?.value;
+    if (prev12 != null) {
+      const yoy = ((curr/prev12)-1)*100;
+      setT('lead-corepce-val', `${yoy.toFixed(1)}%`);
+      setColor('lead-corepce-val', yoy > 3 ? 'var(--red)' : yoy > 2.5 ? 'var(--amber)' : 'var(--green)');
+      if (yoy > 3)        setBadge('lead-pce-badge', 'b-dn', 'Sobre target Fed');
+      else if (yoy > 2.5) setBadge('lead-pce-badge', 'b-neu', 'Cerca target');
+      else if (yoy > 1.8) setBadge('lead-pce-badge', 'b-up', 'En target');
+      else                setBadge('lead-pce-badge', 'b-neu', 'Sub-target');
+    }
+  }
+  if (fwd5y5y?.[0]?.value != null) {
+    setT('lead-fwd5y5y-val', `5Y5Y: ${fwd5y5y[0].value.toFixed(2)}%`);
+  }
+}
+
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
 // Recibe howellResult para no volver a llamar computeHowellScore (ya ejecutado en updateHeroScore)
 function updateThreeHorizons(howellResult) {
@@ -4036,6 +4153,7 @@ function updateHeroScore() {
   updateRegimeBanner();
   updateYieldCurve();
   updateThreeHorizons({ score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal });
+  updateLeadingIndicators();
 
   // Alert banner
   const banner = document.getElementById('alert-banner');
