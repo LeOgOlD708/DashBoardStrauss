@@ -1080,7 +1080,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div id="diag-dxy4-hdl" style="position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#eae6de;border:2px solid #07070e;border-radius:50%;left:50%;transition:left .5s"></div>
       </div>
       <div style="display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3)">
-        <span>85</span><span style="color:var(--green)">100</span><span style="color:var(--amber)">106</span><span style="color:var(--red)">110</span><span>120</span>
+        <span>85</span><span style="color:var(--green)">100</span><span style="color:var(--amber)">103</span><span style="color:var(--red)">107</span><span>120</span>
       </div>
       <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="source-badge">Yahoo DX-Y.NYB ↗</a>
     </div>
@@ -1107,13 +1107,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
             <tr id="diag-sc-tga-row">
               <td style="padding:5px 6px;font-size:10px;color:var(--text2)">TGA Tesoro <a href="https://fred.stlouisfed.org/series/WTREGEN" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('tga')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-tga-val">—</td>
-              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$700B→+1 · &gt;$1T→+2</td>
+              <td style="padding:5px 6px;font-size:11px;color:var(--text2);text-align:center">&gt;$500B→+0.5 · &gt;$700B→+1 · &gt;$900B→+2</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-tga-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-rrp-row">
               <td style="padding:5px 6px;font-size:10px;color:var(--text2)">RRP Fed <a href="https://fred.stlouisfed.org/series/RRPTSYD" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('rrp')" title="¿Qué es?">?</button></td>
               <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-rrp-val">—</td>
-              <td style="padding:5px 6px;font-size:9px;color:var(--text3);text-align:center">&gt;$200B→+0.5 · &gt;$500B→+1</td>
+              <td style="padding:5px 6px;font-size:11px;color:var(--text2);text-align:center">&gt;$300B→+0.5 · &gt;$500B→+1</td>
               <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-rrp-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
             </tr>
             <tr id="diag-sc-sofr-row">
@@ -1403,7 +1403,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="lbl">④ TGA — Cuenta Gral del Tesoro<button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('tga')" title="¿Qué es?">?</button></div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" id="m-tga-status" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch140"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
-      <div style="margin-top:6px;padding:5px 7px;background:rgba(248,113,113,.06);border-radius:5px;font-size:9px;color:var(--text2)">TGA > $1T = QT silencioso ~$250B</div>
+      <div style="margin-top:6px;padding:5px 7px;background:rgba(248,113,113,.06);border-radius:5px;font-size:11px;color:var(--text2)">TGA > $900B = QT silencioso ~$250B</div>
       <div class="source-badge">FRED: WTREGEN</div>
     </div>
   </div>
@@ -3906,7 +3906,7 @@ function updateDiagnostic() {
     let pbocCls = 'b-neu', pbocTxt = 'Fase 2 · Neutral';
     if (dxyVal != null && gldYtd != null) {
       if (dxyVal < 102 && gldYtd > 3)       { pbocCls = 'b-up'; pbocTxt = 'Fase 1 · Expansivo'; }
-      else if (dxyVal > 106 || gldYtd < -2) { pbocCls = 'b-dn'; pbocTxt = 'Fase 3 · Restrictivo'; }
+      else if (dxyVal > 103 || gldYtd < -2) { pbocCls = 'b-dn'; pbocTxt = 'Fase 3 · Restrictivo'; }
     }
     pbocBdg.className = `badge ${pbocCls}`;
     pbocBdg.style.fontSize = '8px';
@@ -3944,7 +3944,7 @@ function updateDiagnostic() {
     const hyNote   = hyVal   != null ? `HY Spread ${hyVal.toFixed(2)}% ${hyVal > 4 ? '— estrés crediticio' : '— comprimido'}.` : '';
     const cpiNote  = cpiYoY  != null ? `CPI YoY ${cpiYoY.toFixed(1)}% ${cpiYoY > 3.5 ? '— sticky' : '— moderado'}.` : '';
     const resNote  = resVal  != null ? `Reservas Fed ${formatM(resVal)} ${resVal < 3000000 ? '— bajo umbral crítico' : resVal < 3300000 ? '— zona de alerta' : '— nivel seguro'}.` : '';
-    const tgaNote  = tgaVal  != null ? `TGA ${formatM(tgaVal)} ${tgaVal > 1000000 ? '— drenaje masivo activo' : tgaVal > 700000 ? '— drenaje moderado' : '— nivel bajo'}.` : '';
+    const tgaNote  = tgaVal  != null ? `TGA ${formatM(tgaVal)} ${tgaVal > 900000 ? '— drenaje masivo activo' : tgaVal > 700000 ? '— drenaje moderado' : tgaVal > 500000 ? '— elevado' : '— nivel bajo'}.` : '';
     const postura  = score >= 5 ? '<strong style="color:var(--red)">MÁXIMA CAUTELA.</strong> Preservar capital. Cash + Oro únicamente.' : score >= 3 ? '<strong style="color:var(--amber)">DEFENSIVO.</strong> Oro · Commodities · Valor defensivo. Reducir riesgo.' : score >= 1 ? '<strong style="color:var(--gold)">SELECTIVO.</strong> Fase Squeeze confirmada. Favorecer GLD, GDX, XLE.' : '<strong style="color:var(--text3)">Sin suficientes datos para veredicto.</strong>';
     verdEl.innerHTML = `${postura} ${resNote} ${tgaNote} ${cpiNote} ${wtiNote} ${hyNote}`.replace(/  +/g, ' ').trim();
   }
@@ -3993,7 +3993,7 @@ function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
   const wtiTxt = wtiVal != null ? (wtiVal > 90 ? `WTI $${wtiVal.toFixed(0)} — presión inflacionaria energética alta.`
     : wtiVal > 75 ? `WTI $${wtiVal.toFixed(0)} — energía estabilizada.`
     : `WTI $${wtiVal.toFixed(0)} — energía baja, alivio inflacionario.`) : '';
-  const dxyTxt = dxyVal != null ? (dxyVal > 106 ? `DXY ${dxyVal.toFixed(1)} contractivo — válvula de liquidez global cerrada.`
+  const dxyTxt = dxyVal != null ? (dxyVal > 103 ? `DXY ${dxyVal.toFixed(1)} contractivo — válvula de liquidez global cerrada.`
     : dxyVal > 100 ? `DXY ${dxyVal.toFixed(1)} en zona neutral.`
     : `DXY ${dxyVal.toFixed(1)} < 100 — positivo para liquidez global y activos reales.`) : '';
   narEl.innerHTML = [`Ciclo Howell en ${phTxt}.`, resTxt, hyTxt, cpiTxt, wtiTxt, dxyTxt].filter(Boolean).join(' ');
@@ -4612,7 +4612,7 @@ function updateThreeHorizons(howellResult) {
     const dxyEl = document.getElementById('h-largo-dxy');
     if (dxyEl) {
       dxyEl.textContent = dxyVal.toFixed(2);
-      dxyEl.style.color = dxyVal > 110 ? 'var(--red)' : dxyVal > 106 ? 'var(--amber)' : 'var(--green)';
+      dxyEl.style.color = dxyVal > 107 ? 'var(--red)' : dxyVal > 103 ? 'var(--amber)' : 'var(--green)';
     }
     // Rango unificado con Hero (L5108): [85,125] — antes era 35 = inconsistencia visual.
     const pct = Math.min(100, Math.max(0, ((dxyVal - 85) / 40) * 100));
@@ -4862,13 +4862,19 @@ function drawSparkline(canvas, data) {
 }
 
 // ── Reglas atómicas de scoring Howell (single source of truth) ──
-// Cada regla mapea valor crudo → puntos. Reusable por current/historical/diagnostic.
+// Recalibrado 2026-04-27 (régimen post-2024 Yellen TGA games + Fed pause):
+//   - TGA: banda objetivo Treasury 2024+ es $750-850B; $1T es inalcanzable salvo evento.
+//          Se reescala >900K/+2 (antes >1M) con tier nuevo >500K/+0.5 para captar drenaje moderado.
+//   - DXY: pico 2022 fue 114 (one-off squeeze); rango 2026 oscila 100-108.
+//          Threshold antiguo (>110/+1) rara vez se activaba → ahora >107/+1, >103/+0.5.
+//   - RRP: era de RRP-as-funding-source (2022-2023) terminó. Se sube el tier bajo de 200K→300K
+//          para reflejar la distribución actual ($0-50B típico).
 const HOWELL_RULES = {
   res:  v => v == null ? 0 : (v < 3000000 ? 2 : v < 3300000 ? 1 : 0),
-  tga:  v => v == null ? 0 : (v > 1000000 ? 2 : v > 700000  ? 1 : 0),
-  rrp:  v => v == null ? 0 : (v > 500000  ? 1 : v > 200000  ? 0.5 : 0),
+  tga:  v => v == null ? 0 : (v > 900000  ? 2 : v > 700000  ? 1 : v > 500000 ? 0.5 : 0),
+  rrp:  v => v == null ? 0 : (v > 500000  ? 1 : v > 300000  ? 0.5 : 0),
   sofr: v => v == null ? 0 : (v > 15      ? 1 : v > 5       ? 0.5 : 0),
-  dxy:  v => v == null ? 0 : (v > 110     ? 1 : v > 106     ? 0.5 : 0),
+  dxy:  v => v == null ? 0 : (v > 107     ? 1 : v > 103     ? 0.5 : 0),
   cpi:  v => v == null ? 0 : (v > 3.5     ? 1 : v > 3       ? 0.5 : 0),
 };
 const HOWELL_WEIGHTS = { res: 2, tga: 2, rrp: 1, sofr: 1, dxy: 1, cpi: 1 };
@@ -5113,21 +5119,21 @@ function updateHeroScore() {
     { id:'res',  val: resVal != null ? (resVal < 3000000 ? 100 : resVal < 3300000 ? 50 : 10) : 0,
       label: resVal != null ? '$'+( resVal/1e6).toFixed(2)+'T' : '—',
       color: resVal != null && resVal < 3000000 ? 'var(--red)' : resVal != null && resVal < 3300000 ? 'var(--amber)' : 'var(--green)' },
-    { id:'tga',  val: tgaVal != null ? (tgaVal > 1000000 ? 100 : tgaVal > 700000 ? 50 : 10) : 0,
+    { id:'tga',  val: tgaVal != null ? (tgaVal > 900000 ? 100 : tgaVal > 700000 ? 60 : tgaVal > 500000 ? 30 : 10) : 0,
       label: tgaVal != null ? '$'+(tgaVal/1e6).toFixed(2)+'T' : '—',
-      color: tgaVal != null && tgaVal > 1000000 ? 'var(--red)' : tgaVal != null && tgaVal > 700000 ? 'var(--amber)' : 'var(--green)' },
+      color: tgaVal != null && tgaVal > 900000 ? 'var(--red)' : tgaVal != null && tgaVal > 700000 ? 'var(--amber)' : 'var(--green)' },
     { id:'sofr', val: sofrAbs != null ? Math.min((sofrAbs/30)*100, 100) : 0,
       label: sofrAbs != null ? sofrAbs.toFixed(1)+' bps' : '—',
       color: sofrAbs != null && sofrAbs > 15 ? 'var(--red)' : sofrAbs != null && sofrAbs > 5 ? 'var(--amber)' : 'var(--green)' },
     { id:'dxy',  val: dxyVal != null ? Math.min(((dxyVal-85)/40)*100, 100) : 0,
       label: dxyVal != null ? dxyVal.toFixed(2) : '—',
-      color: dxyVal != null && dxyVal > 110 ? 'var(--red)' : dxyVal != null && dxyVal > 106 ? 'var(--amber)' : 'var(--green)' },
+      color: dxyVal != null && dxyVal > 107 ? 'var(--red)' : dxyVal != null && dxyVal > 103 ? 'var(--amber)' : 'var(--green)' },
     { id:'cpi',  val: cpiYoY != null ? Math.min((cpiYoY/5)*100, 100) : 0,
       label: cpiYoY != null ? cpiYoY.toFixed(1)+'%' : '—',
       color: cpiYoY != null && cpiYoY > 3.5 ? 'var(--red)' : cpiYoY != null && cpiYoY > 3 ? 'var(--amber)' : 'var(--green)' },
-    { id:'rrp',  val: rrpVal != null ? Math.min(100, (rrpVal / 1500000) * 100) : 0,
+    { id:'rrp',  val: rrpVal != null ? Math.min(100, (rrpVal / 2500000) * 100) : 0,
       label: rrpVal != null ? '$'+(rrpVal/1000).toFixed(0)+'B RRP' : '—',
-      color: rrpVal != null && rrpVal > 500000 ? 'var(--red)' : rrpVal != null && rrpVal > 200000 ? 'var(--amber)' : 'var(--green)' },
+      color: rrpVal != null && rrpVal > 500000 ? 'var(--red)' : rrpVal != null && rrpVal > 300000 ? 'var(--amber)' : 'var(--green)' },
   ];
   // 3 new confirmation bars
   const ycVal2 = state.data.yieldCurve?.[0]?.value;
@@ -5206,7 +5212,7 @@ function updateWeekStatus() {
     'Fase Howell': score >= 5 ? ['F4 Inmin.','b-dn'] : score >= 4 ? ['F3→F4','b-alt'] : score >= 2 ? ['F3 Squeeze','b-neu'] : score >= 1 ? ['F2→F3','b-up'] : ['Sin datos','b-neu'],
     'Fase Fidelity': hyVal != null ? (hyVal > 4.5 ? ['Recesión','b-dn'] : hyVal > 3 ? ['Late','b-neu'] : ['Mid','b-up']) : ['Sin datos','b-neu'],
     'Inflación': cpiYoY != null ? (cpiYoY > 3.5 && wtiVal > 85 ? ['Stagflación','b-dn'] : cpiYoY > 3.5 ? ['Alta sticky','b-dn'] : cpiYoY > 2 ? ['Moderada','b-neu'] : ['Controlada','b-up']) : (wtiVal != null ? (wtiVal > 90 ? ['WTI ↑ Presión','b-dn'] : ['Sin CPI','b-neu']) : ['Sin datos','b-neu']),
-    'DXY': dxyVal != null ? (dxyVal > 106 ? [dxyVal.toFixed(1)+' ↑','b-dn'] : dxyVal > 100 ? [dxyVal.toFixed(1)+' →','b-neu'] : [dxyVal.toFixed(1)+' ↓','b-up']) : ['Sin datos','b-neu'],
+    'DXY': dxyVal != null ? (dxyVal > 103 ? [dxyVal.toFixed(1)+' ↑','b-dn'] : dxyVal > 100 ? [dxyVal.toFixed(1)+' →','b-neu'] : [dxyVal.toFixed(1)+' ↓','b-up']) : ['Sin datos','b-neu'],
     'PBOC': cny != null ? (cny.price < 7.1 ? ['CNY Fuerte','b-up'] : cny.price < 7.3 ? ['Activo','b-up'] : cny.price < 7.5 ? ['Presión','b-neu'] : ['Devaluación','b-dn']) : ['Sin datos','b-neu'],
     'VIX/VVIX': (vix && vvix) ? (vvix.chg1m > 5 && vix.chg1m < 0 ? ['Div. Activa','b-alt'] : vix.price > 30 ? ['Estrés','b-dn'] : vix.price > 20 ? ['Alerta','b-neu'] : ['Calma','b-up']) : ['Sin datos','b-neu'],
   };
@@ -5239,7 +5245,7 @@ function updateChecklist() {
 
   const dynResults = [
     resVal != null ? `${howellLabel} · Score ${score.toFixed(1)}/8 · Reservas ${resVal < 3000000 ? 'bajo umbral crítico ($3T)' : resVal < 3300000 ? 'en zona alerta ($3.3T)' : 'nivel seguro'}` : null,
-    dxyVal != null ? `DXY ${dxyVal.toFixed(1)} ${dxyVal > 106 ? '↑ contractivo — liquidez global restringida' : dxyVal > 100 ? '→ neutral — sin impacto claro' : '↓ expansivo — positivo para emergentes y oro'}` : null,
+    dxyVal != null ? `DXY ${dxyVal.toFixed(1)} ${dxyVal > 103 ? '↑ contractivo — liquidez global restringida' : dxyVal > 100 ? '→ neutral — sin impacto claro' : '↓ expansivo — positivo para emergentes y oro'}` : null,
     hyVal != null  ? `${hyVal > 4.5 ? 'Recesión / Crisis Crédito' : hyVal > 3 ? 'Late Cycle → pre-recesión' : 'Mid Cycle — expansión tardía'} · HY Spread ${hyVal.toFixed(2)}%` : null,
     (cpiYoY != null || wtiVal != null) ? `CPI YoY ${cpiYoY != null ? cpiYoY.toFixed(1)+'%' : 'N/D'}${beVal != null ? ' · BE5Y '+beVal.toFixed(2)+'%' : ''} · WTI $${wtiVal != null ? wtiVal.toFixed(0) : 'N/D'} ${wtiVal > 90 ? '— inflacionario' : wtiVal > 75 ? '— neutro' : '— deflacionario'}` : null,
     (cny && gld) ? `CNY/USD ${cny.price.toFixed(3)} · Oro en CNY ≈ ¥${Math.round(gld.price * 10 * cny.price).toLocaleString()} · ${cny.price < 7.3 ? 'PBOC comprador activo' : 'Presión cambiaria CNY'}` : null,
@@ -5586,11 +5592,12 @@ const INDICATORS_GLOSSARY = {
     source: { label: 'FRED · WTREGEN', url: 'https://fred.stlouisfed.org/series/WTREGEN', freq: 'Semanal' },
     what: 'Cuenta del Tesoro USA en la Fed. Cuando el Tesoro acumula efectivo aquí, drena reservas bancarias 1:1.',
     formula: 'Valor directo en millones de USD.',
-    interpret: 'TGA alta = Tesoro está absorbiendo liquidez (equivalente a QT silencioso). $700B–$1T es alerta; >$1T es drenaje masivo.',
+    interpret: 'TGA alta = Tesoro está absorbiendo liquidez (equivalente a QT silencioso). Banda objetivo Treasury 2024+: $750-850B. $700B-$900B es alerta; >$900B es drenaje masivo (recalibrado 2026).',
     thresholds: [
-      { c:'green',  t:'< $700B — saldo normal' },
-      { c:'amber',  t:'$700B – $1.0T — drenaje activo (+1 pt)' },
-      { c:'red',    t:'> $1.0T — drenaje masivo, ~$250B QT silencioso (+2 pts)' }
+      { c:'green',  t:'< $500B — saldo normal' },
+      { c:'amber',  t:'$500B – $700B — elevado (+0.5 pt)' },
+      { c:'amber',  t:'$700B – $900B — drenaje activo (+1 pt)' },
+      { c:'red',    t:'> $900B — drenaje masivo, ~$250B QT silencioso (+2 pts)' }
     ],
     note: 'Subidas grandes ocurren tras suspensiones del techo de deuda (T-bill issuance).'
   },
@@ -5602,8 +5609,8 @@ const INDICATORS_GLOSSARY = {
     formula: 'Valor en Billions USD; el dashboard lo normaliza × 1000 a millones.',
     interpret: 'RRP alto = MM funds prefieren la Fed antes que prestar al mercado → drenaje. En 2024 cayó de $2.5T a $0.3T liberando liquidez masiva (Howell crítica esto en su modelo).',
     thresholds: [
-      { c:'green',  t:'< $200B — drenaje mínimo (0 pts)' },
-      { c:'amber',  t:'$200B – $500B — drenaje moderado (+0.5 pt)' },
+      { c:'green',  t:'< $300B — drenaje mínimo (0 pts)' },
+      { c:'amber',  t:'$300B – $500B — drenaje moderado (+0.5 pt)' },
       { c:'red',    t:'> $500B — drenaje significativo (+1 pt)' }
     ],
     note: 'Net Liquidity = Reservas − TGA − RRP (la fórmula central de Howell).'
@@ -5631,8 +5638,8 @@ const INDICATORS_GLOSSARY = {
     interpret: 'DXY es la "válvula maestra" de liquidez global según Howell. Subir DXY = liquidez global se contrae (USD escasea fuera de USA). Bajar DXY = liquidez se expande globalmente.',
     thresholds: [
       { c:'green',  t:'< 100 — expansivo para liquidez global' },
-      { c:'amber',  t:'106 – 110 — restrictivo (+0.5 pt)' },
-      { c:'red',    t:'> 110 — muy restrictivo (+1 pt)' }
+      { c:'amber',  t:'103 – 107 — restrictivo (+0.5 pt)' },
+      { c:'red',    t:'> 107 — muy restrictivo (+1 pt)' }
     ],
     note: 'Beta S&P500 vs DXY: ~−1.35x. Subidas violentas (>5% en mes) son banderas rojas.'
   },
@@ -6399,7 +6406,7 @@ DATOS DEL DASHBOARD (actualizados hace ${mins} min):
 • TGA (Treasury): ${tga ? '$' + (tga / 1e9).toFixed(0) + 'B' : '—'} (> $700B = drenaje moderado)
 • RRP Fed: ${d.rrp?.[0]?.value != null ? '$' + d.rrp[0].value.toFixed(0) + 'B' : '—'} (alto = drena liquidez; bajo = liberó liquidez)
 • SOFR spread: ${sofr !== null ? sofr + ' bps' : '—'} (normal < 10 bps)
-• DXY: ${dxy ? dxy.toFixed(2) : '—'} (expansivo < 100, restrictivo > 105)
+• DXY: ${dxy ? dxy.toFixed(2) : '—'} (expansivo < 100, restrictivo > 103, muy restrictivo > 107)
 • VIX: ${vix ? vix.toFixed(2) : '—'} (stress > 25, pánico > 35)
 • GLD: ${gld ? '$' + gld.toFixed(2) : '—'}
 • WTI: ${wti ? '$' + wti.toFixed(2) : '—'}
