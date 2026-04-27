@@ -410,6 +410,40 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #chat-send{background:var(--gold);border:none;border-radius:6px;width:34px;height:34px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
 #chat-send:disabled{opacity:.4;cursor:default}
 #chat-send svg{width:15px;height:15px;fill:var(--bg)}
+
+/* ── Help icons & Glossary modal ── */
+.help-i{display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;border-radius:50%;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.3);color:var(--gold);font-size:9px;font-weight:600;font-family:'IBM Plex Mono',monospace;cursor:pointer;margin-left:4px;line-height:1;transition:all .15s;flex-shrink:0;vertical-align:middle;padding:0;user-select:none}
+.help-i:hover{background:rgba(201,168,76,.28);border-color:rgba(201,168,76,.6);transform:scale(1.15)}
+#glossary-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9999;align-items:center;justify-content:center;padding:20px}
+#glossary-modal.active{display:flex}
+.gl-box{background:var(--surface);border:1px solid rgba(201,168,76,.3);border-radius:10px;max-width:680px;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.gl-hdr{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--border);background:rgba(201,168,76,.04)}
+.gl-title{font-family:'Playfair Display',serif;font-size:18px;color:var(--gold);font-weight:500}
+.gl-close{background:transparent;border:1px solid var(--border2);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 10px;border-radius:5px;cursor:pointer}
+.gl-close:hover{border-color:var(--gold);color:var(--gold)}
+.gl-body{padding:18px;overflow-y:auto;font-size:12px;line-height:1.6;color:var(--text)}
+.gl-section{margin-bottom:14px}
+.gl-section h4{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--gold);text-transform:uppercase;margin-bottom:5px;font-weight:500}
+.gl-section p{font-size:12px;color:var(--text);margin-bottom:6px}
+.gl-section .gl-note{font-size:11px;color:var(--text2);font-style:italic}
+.gl-meta{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.gl-meta-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:3px 8px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text2)}
+.gl-meta-pill a{color:var(--gold);text-decoration:none}
+.gl-meta-pill a:hover{text-decoration:underline}
+.gl-thresh{display:flex;flex-direction:column;gap:4px;margin-top:4px}
+.gl-thresh-row{display:flex;align-items:center;gap:8px;font-size:11px;font-family:'IBM Plex Mono',monospace}
+.gl-thresh-tag{display:inline-block;width:10px;height:10px;border-radius:50%;flex-shrink:0}
+/* Glossary list view (when no specific indicator selected) */
+.gl-list{display:flex;flex-direction:column;gap:8px}
+.gl-list-item{padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all .15s}
+.gl-list-item:hover{border-color:rgba(201,168,76,.4);background:rgba(201,168,76,.04)}
+.gl-list-item-name{font-size:13px;font-weight:500;color:var(--text);margin-bottom:2px}
+.gl-list-item-desc{font-size:10px;color:var(--text2);line-height:1.4}
+.gl-list-cat{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--text3);text-transform:uppercase;margin:14px 0 6px}
+.gl-list-cat:first-child{margin-top:0}
+/* Header glossary button */
+#open-glossary-btn{display:inline-flex;align-items:center;gap:5px;background:rgba(201,168,76,.06);border:1px solid rgba(201,168,76,.25);color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.08em;padding:4px 9px;border-radius:5px;cursor:pointer;transition:all .15s;text-transform:uppercase}
+#open-glossary-btn:hover{background:rgba(201,168,76,.14);border-color:rgba(201,168,76,.5)}
 </style>
 </head>
 <body>
@@ -434,6 +468,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div class="phase-badge" id="phase-badge">FASE 3 → F4</div>
     <div class="live-dot"><div class="dot" id="live-dot-el"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
     <span id="refresh-cdown" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.06em;padding:2px 6px;border:1px solid var(--border2);border-radius:2px" title="Próxima actualización">15:00</span>
+    <button id="open-glossary-btn" onclick="openGlossary()" title="Abre glosario de indicadores">📖 Glosario</button>
     <div class="clock-display" id="clock">—</div>
   </div>
 </nav>
@@ -4579,6 +4614,528 @@ function updateTechSignals(ticker) {
 }
 
 // ══════════════════════════════════
+// GLOSARIO DE INDICADORES (scope global)
+// Cada entry: name, category, source, formula, interpretation, thresholds[], note
+// ══════════════════════════════════
+const INDICATORS_GLOSSARY = {
+  // ── HOWELL (largo plazo, liquidez) ──
+  'reservas-fed': {
+    name: 'Reservas Bancarias Fed',
+    category: 'Howell · Liquidez',
+    source: { label: 'FRED · WRBWFRBL', url: 'https://fred.stlouisfed.org/series/WRBWFRBL', freq: 'Semanal' },
+    what: 'Saldo agregado de los bancos comerciales en cuentas de la Reserva Federal. Es la "gasolina" del sistema bancario USA.',
+    formula: 'Valor directo en millones de USD (ej: 3,000,000 = $3.0T).',
+    interpret: 'Cuando bajan, los bancos pierden liquidez para prestar e invertir. Howell considera $3.3T el umbral de abundancia y $3.0T el de peligro (estrés de repo, transición a Fase 4).',
+    thresholds: [
+      { c:'green',  t:'≥ $3.3T — abundancia (0 pts)' },
+      { c:'amber',  t:'$3.0T – $3.3T — alerta (+1 pt)' },
+      { c:'red',    t:'< $3.0T — peligro (+2 pts)' }
+    ],
+    note: 'Subir reservas = QE o inyección. Bajar = QT, TGA build, o RRP build.'
+  },
+  'tga': {
+    name: 'TGA — Cuenta General del Tesoro',
+    category: 'Howell · Liquidez',
+    source: { label: 'FRED · WTREGEN', url: 'https://fred.stlouisfed.org/series/WTREGEN', freq: 'Semanal' },
+    what: 'Cuenta del Tesoro USA en la Fed. Cuando el Tesoro acumula efectivo aquí, drena reservas bancarias 1:1.',
+    formula: 'Valor directo en millones de USD.',
+    interpret: 'TGA alta = Tesoro está absorbiendo liquidez (equivalente a QT silencioso). $700B–$1T es alerta; >$1T es drenaje masivo.',
+    thresholds: [
+      { c:'green',  t:'< $700B — saldo normal' },
+      { c:'amber',  t:'$700B – $1.0T — drenaje activo (+1 pt)' },
+      { c:'red',    t:'> $1.0T — drenaje masivo, ~$250B QT silencioso (+2 pts)' }
+    ],
+    note: 'Subidas grandes ocurren tras suspensiones del techo de deuda (T-bill issuance).'
+  },
+  'rrp': {
+    name: 'RRP — Reverse Repo Facility',
+    category: 'Howell · Liquidez',
+    source: { label: 'FRED · RRPTSYD', url: 'https://fred.stlouisfed.org/series/RRPTSYD', freq: 'Diaria' },
+    what: 'Facilidad de la Fed donde money market funds depositan efectivo overnight a cambio de Treasuries. Drena liquidez del sistema.',
+    formula: 'Valor en Billions USD; el dashboard lo normaliza × 1000 a millones.',
+    interpret: 'RRP alto = MM funds prefieren la Fed antes que prestar al mercado → drenaje. En 2024 cayó de $2.5T a $0.3T liberando liquidez masiva (Howell crítica esto en su modelo).',
+    thresholds: [
+      { c:'green',  t:'< $200B — drenaje mínimo (0 pts)' },
+      { c:'amber',  t:'$200B – $500B — drenaje moderado (+0.5 pt)' },
+      { c:'red',    t:'> $500B — drenaje significativo (+1 pt)' }
+    ],
+    note: 'Net Liquidity = Reservas − TGA − RRP (la fórmula central de Howell).'
+  },
+  'sofr-spread': {
+    name: 'SOFR Spread (SOFR − Fed Funds)',
+    category: 'Howell · Estrés Repo',
+    source: { label: 'FRED · SOFR / FEDFUNDS', url: 'https://fred.stlouisfed.org/series/SOFR', freq: 'Diaria' },
+    what: 'Diferencia entre la tasa de financiamiento garantizado overnight (SOFR) y la Fed Funds Rate.',
+    formula: '(SOFR − FEDFUNDS) × 100 bps.',
+    interpret: 'Spread normal: cercano a 0. Spikes >5 bps indican estrés en mercado de repo (escasez de colateral). >15 bps = alerta sistémica (como sept-2019).',
+    thresholds: [
+      { c:'green',  t:'< 5 bps — normal (0 pts)' },
+      { c:'amber',  t:'5 – 15 bps — tensión leve (+0.5 pt)' },
+      { c:'red',    t:'> 15 bps — estrés repo (+1 pt)' }
+    ],
+    note: 'Lectura clave para anticipar paneles de liquidez como sept-2019.'
+  },
+  'dxy': {
+    name: 'DXY — Índice del Dólar',
+    category: 'Howell · Liquidez Global',
+    source: { label: 'Yahoo · DX-Y.NYB', url: 'https://finance.yahoo.com/quote/DX-Y.NYB', freq: 'Tiempo real' },
+    what: 'Mide la fortaleza del USD vs canasta de 6 monedas (EUR, JPY, GBP, CAD, SEK, CHF).',
+    formula: 'Yahoo Finance: DX-Y.NYB.',
+    interpret: 'DXY es la "válvula maestra" de liquidez global según Howell. Subir DXY = liquidez global se contrae (USD escasea fuera de USA). Bajar DXY = liquidez se expande globalmente.',
+    thresholds: [
+      { c:'green',  t:'< 100 — expansivo para liquidez global' },
+      { c:'amber',  t:'106 – 110 — restrictivo (+0.5 pt)' },
+      { c:'red',    t:'> 110 — muy restrictivo (+1 pt)' }
+    ],
+    note: 'Beta S&P500 vs DXY: ~−1.35x. Subidas violentas (>5% en mes) son banderas rojas.'
+  },
+  'cpi-yoy': {
+    name: 'CPI YoY — Inflación al Consumidor',
+    category: 'Inflación',
+    source: { label: 'FRED · CPIAUCSL', url: 'https://fred.stlouisfed.org/series/CPIAUCSL', freq: 'Mensual' },
+    what: 'Variación anual del Consumer Price Index (todos los items urbanos).',
+    formula: '(CPI[hoy] / CPI[12 meses atrás] − 1) × 100.',
+    interpret: 'Target Fed: 2%. >3% = inflación pegajosa, restricción monetaria extendida. >3.5% = riesgo de re-aceleración.',
+    thresholds: [
+      { c:'green',  t:'< 3% — cerca de target (0 pts)' },
+      { c:'amber',  t:'3 – 3.5% — sticky (+0.5 pt)' },
+      { c:'red',    t:'> 3.5% — re-aceleración (+1 pt)' }
+    ],
+    note: 'Acompañar con Core PCE (tab inflación) — la métrica preferida del FOMC.'
+  },
+  'move': {
+    name: 'MOVE Index — Vol Treasuries',
+    category: 'Mercado · Volatilidad',
+    source: { label: 'Yahoo · ^MOVE', url: 'https://finance.yahoo.com/quote/^MOVE', freq: 'Tiempo real' },
+    what: 'Volatilidad implícita ponderada de opciones Treasury 1m (ICE BofA MOVE Index). Equivalente al VIX pero para bonos.',
+    formula: 'Yahoo Finance: ^MOVE.',
+    interpret: 'Rangos: <100 = calma, 100-140 = alerta, >140 = crisis. Correlaciona estrés sistémico con bond market dislocation.',
+    thresholds: [
+      { c:'green',  t:'< 100 — verde' },
+      { c:'amber',  t:'100 – 140 — alerta' },
+      { c:'red',    t:'> 140 — crisis (recordar SVB marzo-2023: 198)' }
+    ],
+    note: 'Antes de SVB el MOVE estuvo >140 por semanas. Buen leading de tail risk.'
+  },
+  'yield-curve-10y2y': {
+    name: 'Curva 10Y-2Y',
+    category: 'Mercado · Recesión',
+    source: { label: 'FRED · T10Y2Y', url: 'https://fred.stlouisfed.org/series/T10Y2Y', freq: 'Diaria' },
+    what: 'Spread entre Treasury 10 años y 2 años.',
+    formula: 'GS10 − GS2 (Fed publica T10Y2Y directamente).',
+    interpret: 'Inversión histórica predice recesión 6-18 meses después. Plana (<0.5%) = mercado descuenta desaceleración. Empinada (>1.5%) = expansión.',
+    thresholds: [
+      { c:'red',    t:'< 0% — invertida (recesión probable)' },
+      { c:'amber',  t:'0 – 0.5% — plana (alerta)' },
+      { c:'green',  t:'> 0.5% — normal o empinada' }
+    ],
+    note: 'Re-empinamiento (steepening) tras inversión es la señal real de recesión.'
+  },
+  'unrate': {
+    name: 'Tasa de Desempleo',
+    category: 'Fidelity · Empleo',
+    source: { label: 'FRED · UNRATE', url: 'https://fred.stlouisfed.org/series/UNRATE', freq: 'Mensual' },
+    what: 'Porcentaje de la fuerza laboral USA sin empleo y buscando.',
+    formula: 'UNRATE directo. El dashboard mide cambio vs hace 3 meses.',
+    interpret: 'Sahm Rule: cuando promedio 3m sube ≥0.5pp vs mínimo 12m, recesión está iniciando. Cambio +0.2pp ya es señal de cautela.',
+    thresholds: [
+      { c:'green',  t:'Δ3m < +0.2pp — estable' },
+      { c:'amber',  t:'+0.2pp ≤ Δ3m < +0.5pp — cediendo (+0.5 pt)' },
+      { c:'red',    t:'Δ3m ≥ +0.5pp — Sahm rule trigger (+1 pt)' }
+    ],
+    note: 'Mejor leading que el nivel absoluto.'
+  },
+  'spy-sma20w': {
+    name: 'SPY vs SMA20w (≈SMA100 diaria)',
+    category: 'Mercado · Tendencia',
+    source: { label: 'Yahoo · SPY', url: 'https://finance.yahoo.com/quote/SPY', freq: 'Tiempo real' },
+    what: 'Posición del SPY relativa a su media móvil de 20 semanas (≈100 días).',
+    formula: '(precio actual / SMA100) − 1, en %.',
+    interpret: 'SPY > SMA = tendencia alcista. < SMA = bajista. Distancia >5% = sobrecompra; >−5% = sobreventa.',
+    thresholds: [
+      { c:'green',  t:'> 0% — alcista' },
+      { c:'red',    t:'< 0% — bajista' }
+    ],
+    note: 'En Howell Fase 3-4 esperar test de SMA y posiblemente ruptura bajista.'
+  },
+  // ── HOWELL composite ──
+  'howell-score': {
+    name: 'Score Howell (0-8)',
+    category: 'Howell · Composite',
+    source: { label: 'Calculado · 6 indicadores', url: '#', freq: 'Tiempo real' },
+    what: 'Composite score que sintetiza el ciclo de liquidez global según Michael Howell (CrossBorder Capital).',
+    formula: 'Reservas (0-2) + TGA (0-2) + RRP (0-1) + SOFR (0-1) + DXY (0-1) + CPI (0-1) = max 8.',
+    interpret: 'Determina la fase del ciclo: 0-2 = Fase 1-2 (expansión/aceleración), 3-4 = Fase 3 (squeeze), 5-6 = Fase 3→4 (transición), >6 = Fase 4 (capitulación/recesión).',
+    thresholds: [
+      { c:'green',  t:'0 – 2 → Fase 1-2 — expansión activa' },
+      { c:'amber',  t:'3 – 4.5 → Fase 3 — squeeze de liquidez' },
+      { c:'red',    t:'≥ 5 → Fase 3→4 / Fase 4 — alerta defensiva' }
+    ],
+    note: 'Cada componente del score se puede consultar individualmente con su propio botón ?.'
+  },
+  'net-liquidity': {
+    name: 'Net Liquidity (Howell)',
+    category: 'Howell · Composite',
+    source: { label: 'Calculado · WRBWFRBL−WTREGEN−RRPTSYD', url: '#', freq: 'Semanal' },
+    what: 'Liquidez neta del sistema: Reservas Fed disponibles tras restar absorciones del Tesoro y la Fed.',
+    formula: 'Net Liquidity = Reservas Fed − TGA − RRP.',
+    interpret: 'Subidas → expansión bursátil (correlación 0.85+ con SPX en 2020-2024). Bajadas → presión sobre activos de riesgo.',
+    thresholds: [
+      { c:'red',    t:'< $3.0T — peligro' },
+      { c:'amber',  t:'$3.0T – $3.5T — alerta' },
+      { c:'green',  t:'> $3.5T — saludable' }
+    ],
+    note: 'Mejor proxy del "verdadero QE/QT" más allá del balance Fed reportado.'
+  },
+  // ── FIDELITY (medio plazo) ──
+  'fidelity-score': {
+    name: 'Score Fidelity (0-8)',
+    category: 'Fidelity · Composite',
+    source: { label: 'Calculado · 8 indicadores', url: '#', freq: 'Tiempo real' },
+    what: 'Composite del ciclo económico de Fidelity Investments (modelo de 4 fases: Early/Mid/Late/Recession).',
+    formula: 'IPMAN YoY + IPMAN trend + GDP + Δ Desempleo + Yield Curve + Retail + Sentiment + HY Spreads = max 8.',
+    interpret: 'Score bajo = expansión sólida. Score alto = recesión activa.',
+    thresholds: [
+      { c:'green',  t:'< 2 → Early Cycle (aceleración)' },
+      { c:'amber',  t:'2 – 4 → Mid Cycle (expansión madura)' },
+      { c:'red',    t:'4 – 6 → Late Cycle (desaceleración)' },
+      { c:'red',    t:'≥ 6 → Recesión activa' }
+    ],
+    note: 'Complemento del Howell: Howell mide liquidez (causa), Fidelity mide economía (efecto).'
+  },
+  'ipman-yoy': {
+    name: 'Producción Manufactura YoY',
+    category: 'Fidelity · Manufactura',
+    source: { label: 'FRED · IPMAN', url: 'https://fred.stlouisfed.org/series/IPMAN', freq: 'Mensual' },
+    what: 'Producción Industrial Manufacturera (Industrial Production: Manufacturing). Sustituye al PMI clásico que la Fed dejó de publicar (NAPM, discontinuada 2018).',
+    formula: '(IPMAN[hoy] / IPMAN[12 meses atrás] − 1) × 100.',
+    interpret: 'YoY < 0% = manufactura contrayéndose. YoY < −2% sostenido = recesión manufacturera real.',
+    thresholds: [
+      { c:'green',  t:'YoY ≥ 0% — expansión manufacturera' },
+      { c:'amber',  t:'−2% ≤ YoY < 0% — desaceleración (+0.5 pt)' },
+      { c:'red',    t:'YoY < −2% — contracción (+1 pt)' }
+    ],
+    note: 'NO confundir con PMI clásico (>50 = expansión). IPMAN se interpreta vía YoY change.'
+  },
+  'gdp-real': {
+    name: 'PIB Real QoQ (anualizado)',
+    category: 'Fidelity · Crecimiento',
+    source: { label: 'FRED · A191RL1Q225SBEA', url: 'https://fred.stlouisfed.org/series/A191RL1Q225SBEA', freq: 'Trimestral' },
+    what: 'Crecimiento real del PIB USA QoQ anualizado.',
+    formula: 'BEA: real GDP percent change from preceding period, annualized.',
+    interpret: 'Tendencia secular USA: ~2%. <2% = desaceleración. <0% = contracción técnica (un trimestre).',
+    thresholds: [
+      { c:'green',  t:'> 2% — sólido' },
+      { c:'amber',  t:'0 – 2% — débil (+0.5 pt)' },
+      { c:'red',    t:'< 0% — contracción (+1 pt)' }
+    ],
+    note: '2 trimestres consecutivos <0% = recesión técnica (no necesariamente NBER).'
+  },
+  'retail-sales': {
+    name: 'Ventas Retail MoM',
+    category: 'Fidelity · Consumo',
+    source: { label: 'FRED · RSAFS', url: 'https://fred.stlouisfed.org/series/RSAFS', freq: 'Mensual' },
+    what: 'Total de ventas retail y food services en USA, mes-sobre-mes.',
+    formula: '(RSAFS[hoy] / RSAFS[mes anterior] − 1) × 100.',
+    interpret: 'MoM <0 = consumo cayendo. <-1% = caída material. El consumo es 70% del PIB USA.',
+    thresholds: [
+      { c:'green',  t:'> 0% MoM — consumo saludable' },
+      { c:'amber',  t:'−1% – 0% — débil (+0.5 pt)' },
+      { c:'red',    t:'< −1% — caída material (+1 pt)' }
+    ],
+    note: 'Mejor leer 3-month rolling average (datos noisy mes a mes).'
+  },
+  'consumer-sentiment': {
+    name: 'Confianza Consumidor (UMich)',
+    category: 'Fidelity · Sentimiento',
+    source: { label: 'FRED · UMCSENT', url: 'https://fred.stlouisfed.org/series/UMCSENT', freq: 'Mensual' },
+    what: 'University of Michigan Consumer Sentiment Index. Promedio histórico ~85-90.',
+    formula: 'UMCSENT directo (encuesta).',
+    interpret: '<70 = pesimismo extendido. <60 = niveles de recesión. Tiende a anteceder cambios en gasto.',
+    thresholds: [
+      { c:'green',  t:'> 70 — neutro/positivo' },
+      { c:'amber',  t:'60 – 70 — pesimismo (+0.5 pt)' },
+      { c:'red',    t:'< 60 — niveles recesivos (+1 pt)' }
+    ],
+    note: 'Polarización política puede sesgar lecturas a corto plazo.'
+  },
+  'hy-spreads': {
+    name: 'High Yield Spreads',
+    category: 'Crédito · Estrés',
+    source: { label: 'FRED · BAMLH0A0HYM2', url: 'https://fred.stlouisfed.org/series/BAMLH0A0HYM2', freq: 'Diaria' },
+    what: 'Option-Adjusted Spread del índice ICE BofA US High Yield vs Treasuries.',
+    formula: 'OAS = yield HY index − yield comparable Treasury.',
+    interpret: 'Histórico: 3-4% normal, 4.5-6% alerta, >7% crisis (COVID alcanzó 11%, 2008 alcanzó 22%).',
+    thresholds: [
+      { c:'green',  t:'< 4.5% — comprimido / normal' },
+      { c:'amber',  t:'4.5 – 5.5% — estrés moderado (+0.5 pt)' },
+      { c:'red',    t:'> 5.5% — estrés crediticio (+1 pt)' }
+    ],
+    note: 'Mejor leading que VIX para identificar estrés crediticio antes de capitulación equity.'
+  },
+  // ── LEADING ──
+  'jobless-claims': {
+    name: 'Initial Jobless Claims',
+    category: 'Leading · Empleo',
+    source: { label: 'FRED · ICSA', url: 'https://fred.stlouisfed.org/series/ICSA', freq: 'Semanal' },
+    what: 'Solicitudes iniciales de desempleo cada semana. Indicador laboral más rápido (semanal vs mensual UNRATE).',
+    formula: 'ICSA directo. El dashboard mide Δ vs hace 4 semanas.',
+    interpret: 'Subida sostenida >25k en 4 semanas = mercado laboral deteriorándose. Liderazgo recesión típicamente 3-6 meses.',
+    thresholds: [
+      { c:'green',  t:'Δ4w < +10k — estable' },
+      { c:'amber',  t:'+10k ≤ Δ4w < +25k — alerta' },
+      { c:'red',    t:'Δ4w ≥ +25k — deterioro laboral' }
+    ],
+    note: 'No cuenta para Score Fidelity, es señal de confirmación adelantada.'
+  },
+  'industrial-production': {
+    name: 'Producción Industrial YoY',
+    category: 'Leading · Manufactura',
+    source: { label: 'FRED · INDPRO', url: 'https://fred.stlouisfed.org/series/INDPRO', freq: 'Mensual' },
+    what: 'Producción Industrial total USA (manufactura + minería + utilities).',
+    formula: '(INDPRO[hoy] / INDPRO[12 meses atrás] − 1) × 100.',
+    interpret: 'YoY <0 sostenido = contracción industrial. Confirma o niega la lectura de IPMAN (que es solo manufactura).',
+    thresholds: [
+      { c:'green',  t:'YoY ≥ 2% — expansión sólida' },
+      { c:'amber',  t:'0 – 2% — tibio' },
+      { c:'red',    t:'< 0% — contracción' }
+    ],
+    note: 'Más amplio que IPMAN; útil para confirmar tendencias.'
+  },
+  'building-permits': {
+    name: 'Building Permits YoY',
+    category: 'Leading · Housing',
+    source: { label: 'FRED · PERMIT', url: 'https://fred.stlouisfed.org/series/PERMIT', freq: 'Mensual' },
+    what: 'Permisos de construcción residenciales nuevos.',
+    formula: '(PERMIT[hoy] / PERMIT[12 meses atrás] − 1) × 100.',
+    interpret: 'Housing es de los sectores más sensibles a tasas. Caídas anticipan slowdown económico (8 de 10 recesiones desde 1960 fueron precedidas por caída de permits).',
+    thresholds: [
+      { c:'green',  t:'YoY ≥ 0% — housing OK' },
+      { c:'amber',  t:'−10% – 0% — desaceleración' },
+      { c:'red',    t:'YoY < −10% — housing débil' }
+    ],
+    note: 'Componente clásico del Conference Board Leading Economic Index.'
+  },
+  'core-pce': {
+    name: 'Core PCE YoY',
+    category: 'Inflación · Fed Preferred',
+    source: { label: 'FRED · PCEPILFE', url: 'https://fred.stlouisfed.org/series/PCEPILFE', freq: 'Mensual' },
+    what: 'Personal Consumption Expenditures excluyendo Food & Energy. Es la métrica de inflación que el FOMC oficialmente trackea para su target del 2%.',
+    formula: '(PCEPILFE[hoy] / PCEPILFE[12 meses atrás] − 1) × 100.',
+    interpret: '<2% = sub-target. 2-2.5% = en target. >3% = sobre target → restricción monetaria persistente.',
+    thresholds: [
+      { c:'green',  t:'1.8 – 2.5% — en target Fed' },
+      { c:'amber',  t:'2.5 – 3% — cerca target' },
+      { c:'red',    t:'> 3% — sobre target' }
+    ],
+    note: 'Fed pivot rate cuts requiere Core PCE convergiendo sostenidamente al 2%.'
+  },
+  'fwd5y5y': {
+    name: '5Y5Y Forward Inflation',
+    category: 'Inflación · Expectativas',
+    source: { label: 'FRED · T5YIFR', url: 'https://fred.stlouisfed.org/series/T5YIFR', freq: 'Diaria' },
+    what: 'Expectativa de inflación promedio para los años 5-10 desde hoy. Anclaje de expectativas de largo plazo.',
+    formula: 'Derivado de TIPS y Treasury 5Y/10Y breakevens.',
+    interpret: '~2% = bien anclado al target. >2.5% = mercado descuenta inflación persistente. <1.5% = riesgo deflacionario.',
+    thresholds: [
+      { c:'green',  t:'1.8 – 2.3% — anclado' },
+      { c:'amber',  t:'2.3 – 2.7% — leve presión' },
+      { c:'red',    t:'> 2.7% — desanclamiento alcista' }
+    ],
+    note: 'Métrica más importante para la credibilidad del FOMC.'
+  },
+  // ── REGIME / VOL ──
+  'regime-corto-plazo': {
+    name: 'Régimen de Mercado (1-4 sem)',
+    category: 'Régimen · Corto Plazo',
+    source: { label: 'Calculado · 4 señales', url: '#', freq: 'Tiempo real' },
+    what: 'Composite de corto plazo: combina 4 señales para clasificar el régimen actual del mercado.',
+    formula: 'Howell pts (0-3) + T10Y2Y pts (0-2) + UNRATE trend (0-2) + SPY vs SMA100 (0-1) = riskPts (0-8).',
+    interpret: 'Puede divergir del Howell de largo plazo: el corto puede ser RISK_ON mientras el largo señala defensa preventiva.',
+    thresholds: [
+      { c:'green',  t:'riskPts < 3 → RISK_ON' },
+      { c:'amber',  t:'3 ≤ riskPts < 5 → NEUTRAL' },
+      { c:'red',    t:'riskPts ≥ 5 → RISK_OFF' }
+    ],
+    note: 'Útil para timing táctico (entradas/salidas) pero no contradice el Howell estructural.'
+  },
+  'vix': {
+    name: 'VIX — Volatilidad Implícita SP500',
+    category: 'Mercado · Volatilidad',
+    source: { label: 'Yahoo · ^VIX', url: 'https://finance.yahoo.com/quote/^VIX', freq: 'Tiempo real' },
+    what: 'Expectativa del mercado de volatilidad SP500 a 30 días, calculado de opciones SPX.',
+    formula: 'CBOE Volatility Index.',
+    interpret: '<20 = calma. 20-30 = cautela. >30 = estrés/pánico. VIX subiendo en mercado alcista = divergencia (vol bid).',
+    thresholds: [
+      { c:'green',  t:'< 20 — calma' },
+      { c:'amber',  t:'20 – 30 — cautela' },
+      { c:'red',    t:'> 30 — estrés' }
+    ],
+    note: 'Comparar con VVIX y VIX3M para identificar si la calma es genuina o complacencia.'
+  },
+  'vvix': {
+    name: 'VVIX — Volatilidad de la Volatilidad',
+    category: 'Mercado · Volatilidad Inst.',
+    source: { label: 'Yahoo · ^VVIX', url: 'https://finance.yahoo.com/quote/^VVIX', freq: 'Tiempo real' },
+    what: 'Volatilidad implícita de las opciones del VIX. Mide expectativa institucional de moves en el VIX.',
+    formula: 'CBOE VVIX Index.',
+    interpret: 'VVIX subiendo mientras VIX cae = institucionales comprando protección de cola (señal sofisticada de cautela).',
+    thresholds: [
+      { c:'green',  t:'< 95 — bajo' },
+      { c:'amber',  t:'95 – 120 — cautela inst.' },
+      { c:'red',    t:'> 120 — estrés alto' }
+    ],
+    note: 'Históricamente leading del VIX en 1-2 días.'
+  },
+  'vix3m': {
+    name: 'VIX3M — Vol 3 Meses',
+    category: 'Mercado · Volatilidad',
+    source: { label: 'Yahoo · ^VIX3M', url: 'https://finance.yahoo.com/quote/^VIX3M', freq: 'Tiempo real' },
+    what: 'Volatilidad implícita SP500 a 3 meses. Comparado con VIX (1m), define la term structure de vol.',
+    formula: 'CBOE VIX3M.',
+    interpret: 'VIX3M > VIX (contango) = normal. VIX > VIX3M (backwardation) = estrés inminente. Ratio VIX/VIX3M >1 = backwardation.',
+    thresholds: [
+      { c:'green',  t:'spread > 2 — contango (normal)' },
+      { c:'amber',  t:'−1 a 2 — plana' },
+      { c:'red',    t:'spread < −1 — backwardation (estrés)' }
+    ],
+    note: 'Backwardation persistente >5 días anticipa caídas significativas.'
+  },
+  'skew': {
+    name: 'CBOE SKEW',
+    category: 'Mercado · Tail Risk',
+    source: { label: 'Yahoo · ^SKEW', url: 'https://finance.yahoo.com/quote/^SKEW', freq: 'Tiempo real' },
+    what: 'Mide la demanda de protección contra eventos extremos (puts OTM far). Rangos: 100 (sin demanda) a 150+ (alta demanda).',
+    formula: 'CBOE SKEW Index.',
+    interpret: 'SKEW alto + VIX bajo = institucionales pagando primas por puts mientras retail sigue comprando call. Divergencia clásica antes de caídas.',
+    thresholds: [
+      { c:'green',  t:'< 125 — riesgo cola bajo' },
+      { c:'amber',  t:'125 – 145 — cobertura moderada' },
+      { c:'red',    t:'> 145 — alta cobertura' }
+    ],
+    note: 'No es un timing tool exacto; señaliza distribución de probabilidades, no momento.'
+  }
+};
+
+// Color resolver para los pills de threshold
+function _glColorFor(c) {
+  return c === 'green' ? '#4ade80' : c === 'amber' ? '#fbbf24' : c === 'red' ? '#f87171' : 'var(--text3)';
+}
+
+// Genera el HTML de un help icon
+function helpIcon(key) {
+  return `<button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('${key}')" title="¿Qué es este indicador?">?</button>`;
+}
+
+// Render de una entrada del glosario
+function _glRenderEntry(key) {
+  const e = INDICATORS_GLOSSARY[key];
+  if (!e) return `<div style="color:var(--text3);font-size:11px">Indicador no documentado: ${key}</div>`;
+  const sourceLink = e.source.url && e.source.url !== '#'
+    ? `<a href="${e.source.url}" target="_blank" rel="noopener">${e.source.label} ↗</a>`
+    : e.source.label;
+  const thresholdsHtml = (e.thresholds || []).map(t => `
+    <div class="gl-thresh-row">
+      <span class="gl-thresh-tag" style="background:${_glColorFor(t.c)}"></span>
+      <span style="color:var(--text2)">${t.t}</span>
+    </div>
+  `).join('');
+
+  return `
+    <div class="gl-meta">
+      <span class="gl-meta-pill">${e.category}</span>
+      <span class="gl-meta-pill">📊 ${sourceLink}</span>
+      <span class="gl-meta-pill">⏱ ${e.source.freq}</span>
+    </div>
+    <div class="gl-section">
+      <h4>Qué es</h4>
+      <p>${e.what}</p>
+    </div>
+    <div class="gl-section">
+      <h4>Cómo se calcula</h4>
+      <p>${e.formula}</p>
+    </div>
+    <div class="gl-section">
+      <h4>Cómo interpretar</h4>
+      <p>${e.interpret}</p>
+    </div>
+    ${thresholdsHtml ? `<div class="gl-section">
+      <h4>Umbrales en este dashboard</h4>
+      <div class="gl-thresh">${thresholdsHtml}</div>
+    </div>` : ''}
+    ${e.note ? `<div class="gl-section">
+      <h4>Notas</h4>
+      <p class="gl-note">${e.note}</p>
+    </div>` : ''}
+    <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border);text-align:center">
+      <button class="gl-close" onclick="openGlossary()">← Volver al índice</button>
+    </div>
+  `;
+}
+
+// Render del índice del glosario (cuando se abre sin key)
+function _glRenderIndex() {
+  const byCat = {};
+  for (const [key, e] of Object.entries(INDICATORS_GLOSSARY)) {
+    const cat = e.category;
+    if (!byCat[cat]) byCat[cat] = [];
+    byCat[cat].push({ key, ...e });
+  }
+  // Orden de categorías
+  const catOrder = [
+    'Howell · Liquidez', 'Howell · Estrés Repo', 'Howell · Liquidez Global', 'Howell · Composite',
+    'Inflación', 'Inflación · Fed Preferred', 'Inflación · Expectativas',
+    'Fidelity · Composite', 'Fidelity · Manufactura', 'Fidelity · Crecimiento', 'Fidelity · Empleo', 'Fidelity · Consumo', 'Fidelity · Sentimiento',
+    'Crédito · Estrés',
+    'Leading · Empleo', 'Leading · Manufactura', 'Leading · Housing',
+    'Régimen · Corto Plazo', 'Mercado · Volatilidad', 'Mercado · Volatilidad Inst.', 'Mercado · Tail Risk', 'Mercado · Recesión', 'Mercado · Tendencia'
+  ];
+  const orderedCats = catOrder.filter(c => byCat[c]).concat(Object.keys(byCat).filter(c => !catOrder.includes(c)));
+
+  let html = `<div style="font-size:11px;color:var(--text2);margin-bottom:14px;padding:8px 10px;background:rgba(201,168,76,.05);border:1px solid rgba(201,168,76,.15);border-radius:5px">
+    Click cualquier indicador para ver qué es, cómo se calcula y cómo interpretarlo. También puedes acceder directamente desde el ícono <span class="help-i" style="cursor:default;margin:0">?</span> junto a cada indicador en el dashboard.
+  </div><div class="gl-list">`;
+
+  for (const cat of orderedCats) {
+    html += `<div class="gl-list-cat">${cat}</div>`;
+    for (const item of byCat[cat]) {
+      html += `<div class="gl-list-item" onclick="openGlossary('${item.key}')">
+        <div class="gl-list-item-name">${item.name}</div>
+        <div class="gl-list-item-desc">${item.what}</div>
+      </div>`;
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function openGlossary(key) {
+  const modal = document.getElementById('glossary-modal');
+  const title = document.getElementById('gl-title');
+  const body  = document.getElementById('gl-body');
+  if (!modal || !body) return;
+  if (key && INDICATORS_GLOSSARY[key]) {
+    title.textContent = INDICATORS_GLOSSARY[key].name;
+    body.innerHTML = _glRenderEntry(key);
+  } else {
+    title.textContent = '📖 Glosario de Indicadores';
+    body.innerHTML = _glRenderIndex();
+  }
+  modal.classList.add('active');
+  body.scrollTop = 0;
+}
+
+function closeGlossary() {
+  const modal = document.getElementById('glossary-modal');
+  if (modal) modal.classList.remove('active');
+}
+
+// Esc cierra el glosario
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeGlossary();
+});
+
+// ══════════════════════════════════
 // MODAL UNIVERSAL — TV + FRED (scope global)
 // ══════════════════════════════════
 const TV_SYMBOLS = {
@@ -4845,6 +5402,17 @@ document.addEventListener('DOMContentLoaded', () => {
     <button id="chat-send" onclick="sendChatMessage()">
       <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
     </button>
+  </div>
+</div>
+
+<!-- ── Glossary Modal ── -->
+<div id="glossary-modal" onclick="if(event.target===this)closeGlossary()">
+  <div class="gl-box">
+    <div class="gl-hdr">
+      <div class="gl-title" id="gl-title">Glosario de Indicadores</div>
+      <button class="gl-close" onclick="closeGlossary()">✕ cerrar</button>
+    </div>
+    <div class="gl-body" id="gl-body"></div>
   </div>
 </div>
 
