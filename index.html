@@ -745,6 +745,124 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
   </div>
 
+  <!-- ── OPERATIONAL CONTEXT — datos críticos para decisiones diarias ── -->
+  <div class="sh" style="margin-top:14px"><div class="sh-tag">Operacional</div><div class="sh-title">Contexto Operacional · Drivers de Decisión</div><div class="sh-line"></div></div>
+  <div class="g4" style="margin-bottom:10px">
+    <!-- Real Yields 10Y -->
+    <div class="card amber-a"><div class="card-accent"></div>
+      <div class="lbl">Real Yields · 10Y TIPS
+        <button class="help-i" type="button" onclick="openGlossary('real-yields')" title="¿Qué es?">?</button>
+        <a href="https://fred.stlouisfed.org/series/DFII10" target="_blank" class="src-link">FRED↗</a>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="op-realy-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
+        <div id="op-realy-trend" class="mono" style="font-size:10px;color:var(--text3)">vs nominal: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Driver #1 del oro y growth tech. Subir = riesgo bajista para GLD/QQQ.</div>
+      <div id="op-realy-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+
+    <!-- HY-IG Ratio -->
+    <div class="card red-a"><div class="card-accent"></div>
+      <div class="lbl">Credit Stress · HY/IG Ratio
+        <button class="help-i" type="button" onclick="openGlossary('hy-ig-ratio')" title="¿Qué es?">?</button>
+        <a href="https://fred.stlouisfed.org/series/BAMLC0A0CM" target="_blank" class="src-link">FRED↗</a>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="op-hyig-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
+        <div id="op-hyig-detail" class="mono" style="font-size:10px;color:var(--text3)">HY: — · IG: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">Ratio HY/IG &gt; 4 = stress crediticio puro. Mejor leading que VIX.</div>
+      <div id="op-hyig-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+
+    <!-- Market-Implied Fed Path -->
+    <div class="card gold-a"><div class="card-accent"></div>
+      <div class="lbl">Fed Path · Mercado Descuenta
+        <button class="help-i" type="button" onclick="openGlossary('fed-path')" title="¿Qué es?">?</button>
+        <a href="https://fred.stlouisfed.org/series/DFF" target="_blank" class="src-link">FRED↗</a>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+        <div class="mono" id="op-fedpath-val" style="font-size:20px;font-weight:500;color:var(--text)">—</div>
+        <div id="op-fedpath-detail" class="mono" style="font-size:10px;color:var(--text3)">FF: — · 2Y: —</div>
+      </div>
+      <div style="margin-top:4px;font-size:9px;color:var(--text3)">2Y − Fed Funds: spread negativo = mercado descuenta cuts. Positivo = hikes.</div>
+      <div id="op-fedpath-badge" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+
+    <!-- VIX Term Structure -->
+    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange),var(--phoenix-red))"></div>
+      <div class="lbl">VIX Term Structure
+        <button class="help-i" type="button" onclick="openGlossary('vix-term')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;align-items:flex-end;gap:4px">
+        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-9d" style="font-size:13px;font-weight:500">—</div><div style="font-size:7px;color:var(--text3);letter-spacing:.1em">9D</div></div>
+        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-1m" style="font-size:13px;font-weight:500">—</div><div style="font-size:7px;color:var(--text3);letter-spacing:.1em">1M</div></div>
+        <div style="text-align:center;flex:1"><div class="mono" id="op-vix-3m" style="font-size:13px;font-weight:500">—</div><div style="font-size:7px;color:var(--text3);letter-spacing:.1em">3M</div></div>
+      </div>
+      <div style="margin-top:6px;height:3px;border-radius:2px;background:var(--surface2);overflow:hidden">
+        <div id="op-vix-curve" style="height:100%;width:50%;background:var(--green);transition:width .5s,background .3s"></div>
+      </div>
+      <div id="op-vix-status" style="margin-top:6px"><span class="badge b-neu">—</span></div>
+    </div>
+  </div>
+
+  <!-- Cross-asset + Niveles Técnicos SPY -->
+  <div class="g2" style="margin-bottom:10px">
+    <!-- Cross-asset signals -->
+    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-cream),var(--phoenix-orange))"></div>
+      <div class="lbl">Cross-Asset · Señales Macro
+        <button class="help-i" type="button" onclick="openGlossary('cross-asset')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px">
+        <div style="padding:6px 8px;background:var(--surface2);border-radius:5px;border:1px solid var(--border2)">
+          <div style="font-size:9px;color:var(--text2);letter-spacing:.05em">Gold / Copper</div>
+          <div class="mono" id="op-gc-ratio" style="font-size:16px;font-weight:500;margin-top:2px">—</div>
+          <div id="op-gc-sub" class="mono" style="font-size:9px;color:var(--text3);margin-top:2px">—</div>
+        </div>
+        <div style="padding:6px 8px;background:var(--surface2);border-radius:5px;border:1px solid var(--border2)">
+          <div style="font-size:9px;color:var(--text2);letter-spacing:.05em">USD / JPY</div>
+          <div class="mono" id="op-usdjpy" style="font-size:16px;font-weight:500;margin-top:2px">—</div>
+          <div id="op-usdjpy-sub" class="mono" style="font-size:9px;color:var(--text3);margin-top:2px">—</div>
+        </div>
+      </div>
+      <div style="margin-top:6px;font-size:9px;color:var(--text3)">Gold/Copper alto = recesión. USD/JPY alto = flujos hacia USD (risk-off).</div>
+    </div>
+
+    <!-- Niveles Técnicos SPY -->
+    <div class="card"><div class="card-accent" style="background:linear-gradient(90deg,var(--phoenix-orange),var(--phoenix-cream))"></div>
+      <div class="lbl">Niveles Técnicos · SPY
+        <button class="help-i" type="button" onclick="openGlossary('spy-levels')" title="¿Qué es?">?</button>
+      </div>
+      <div style="margin-top:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(248,113,113,.05);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">52W High</span>
+          <span class="mono" id="op-spy-52h" style="font-size:11px;color:var(--red)">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">SMA 50d</span>
+          <span class="mono" id="op-spy-sma50" style="font-size:11px">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(230,180,80,.06);border-radius:4px;margin-bottom:3px;border:1px solid rgba(230,180,80,.2)">
+          <span style="font-size:10px;color:var(--gold);font-weight:500">Precio actual</span>
+          <span class="mono" id="op-spy-price" style="font-size:12px;color:var(--gold);font-weight:500">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">SMA 100d</span>
+          <span class="mono" id="op-spy-sma100" style="font-size:11px">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:var(--surface2);border-radius:4px;margin-bottom:3px">
+          <span style="font-size:10px;color:var(--text2)">SMA 200d</span>
+          <span class="mono" id="op-spy-sma200" style="font-size:11px">—</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:rgba(74,222,128,.05);border-radius:4px">
+          <span style="font-size:10px;color:var(--text2)">52W Low</span>
+          <span class="mono" id="op-spy-52l" style="font-size:11px;color:var(--green)">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="sh"><div class="sh-tag">Diagnóstico</div><div class="sh-title">Ciclo Howell · Diagnóstico en Vivo</div><div class="sh-line"></div><span class="live-badge" id="diag-live-ts">Sin datos</span></div>
 
   <!-- ── ROW 1: 4 KPI Thermometers ── -->
@@ -2440,7 +2558,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,DFF';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -2550,6 +2668,10 @@ async function loadFredData() {
     state.data.permits    = Array.isArray(d.PERMIT)             ? d.PERMIT             : null; // Building Permits
     state.data.corePce    = Array.isArray(d.PCEPILFE)           ? d.PCEPILFE           : null; // Core PCE (Fed preferred)
     state.data.fwd5y5y    = Array.isArray(d.T5YIFR)             ? d.T5YIFR             : null; // 5Y5Y forward inflation
+    // Operacional B+: Real Yields, IG OAS, Fed Funds Effective
+    state.data.realYield10 = Array.isArray(d.DFII10)           ? d.DFII10             : null; // 10Y TIPS yield (real)
+    state.data.igSpread    = Array.isArray(d.BAMLC0A0CM)       ? d.BAMLC0A0CM         : null; // Investment Grade OAS
+    state.data.fedFundsEff = Array.isArray(d.DFF)              ? d.DFF                : null; // Fed Funds Effective Rate
     // Yield curve maturities (6M → 30Y)
     state.data.yc6m  = Array.isArray(d.TB6MS) ? d.TB6MS : null;
     state.data.yc1y  = Array.isArray(d.GS1)   ? d.GS1   : null;
@@ -2571,7 +2693,7 @@ async function loadFredData() {
 }
 
 // ── Prices: Yahoo Finance v8 vía proxy Vercel ──
-const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M', '^MOVE', '^SKEW', 'CNY=X', 'DX-Y.NYB'];
+const ALL_YF_TICKERS = [...ETF_TICKERS, '^VIX', '^VVIX', '^VIX3M', '^VIX9D', '^MOVE', '^SKEW', 'CNY=X', 'DX-Y.NYB', 'HG=F', 'JPY=X'];
 
 async function loadYahooData() {
   setDs('ds-yf', '#fbbf24');
@@ -4134,6 +4256,138 @@ function updateLeadingIndicators() {
   }
 }
 
+// ── Operational Context — Real Yields, HY-IG, Fed Path, VIX Term, Cross-asset, SPY niveles ──
+function updateOperationalContext() {
+  const setT = (id, v, c) => { const el = document.getElementById(id); if (el) { el.textContent = v; if (c) el.style.color = c; } };
+  const setBadge = (id, cls, txt) => { const el = document.getElementById(id); if (el) el.innerHTML = `<span class="badge ${cls}">${txt}</span>`; };
+
+  // ── 1. Real Yields 10Y ──
+  const ry = state.data.realYield10?.[0]?.value;
+  const nominal10y = state.data.yc10y?.[0]?.value;
+  if (ry != null) {
+    setT('op-realy-val', `${ry >= 0 ? '+' : ''}${ry.toFixed(2)}%`,
+      ry > 2 ? 'var(--red)' : ry > 1 ? 'var(--amber)' : ry < 0 ? 'var(--green)' : 'var(--text)');
+    if (nominal10y != null) {
+      const breakeven = nominal10y - ry;
+      setT('op-realy-trend', `vs nom: ${nominal10y.toFixed(2)}% · BE: ${breakeven.toFixed(2)}%`);
+    }
+    if (ry > 2)        setBadge('op-realy-badge', 'b-dn', 'Restrictivo · presión GLD');
+    else if (ry > 1)   setBadge('op-realy-badge', 'b-neu', 'Tibio');
+    else if (ry > 0)   setBadge('op-realy-badge', 'b-up', 'Acomodaticio');
+    else                setBadge('op-realy-badge', 'b-up', 'Negativo · pro-oro');
+  }
+
+  // ── 2. HY-IG Ratio ──
+  const hy = state.data.hySpread?.[0]?.value;
+  const ig = state.data.igSpread?.[0]?.value;
+  if (hy != null && ig != null && ig > 0) {
+    const ratio = hy / ig;
+    setT('op-hyig-val', ratio.toFixed(2) + '×',
+      ratio > 5 ? 'var(--red)' : ratio > 4 ? 'var(--amber)' : 'var(--green)');
+    setT('op-hyig-detail', `HY: ${hy.toFixed(2)}% · IG: ${ig.toFixed(2)}%`);
+    if (ratio > 5)      setBadge('op-hyig-badge', 'b-dn', 'Stress crediticio alto');
+    else if (ratio > 4) setBadge('op-hyig-badge', 'b-neu', 'Stress moderado');
+    else                 setBadge('op-hyig-badge', 'b-up', 'Crédito tranquilo');
+  }
+
+  // ── 3. Market-Implied Fed Path (2Y vs Fed Funds) ──
+  const ff = state.data.fedFundsEff?.[0]?.value;
+  const gs2 = state.data.yc2y?.[0]?.value;
+  if (ff != null && gs2 != null) {
+    const spread = gs2 - ff;
+    const spreadBps = Math.round(spread * 100);
+    setT('op-fedpath-val', `${spreadBps >= 0 ? '+' : ''}${spreadBps} bps`,
+      spread < -0.5 ? 'var(--green)' : spread < 0 ? 'var(--amber)' : spread > 0.5 ? 'var(--red)' : 'var(--text)');
+    setT('op-fedpath-detail', `FF: ${ff.toFixed(2)}% · 2Y: ${gs2.toFixed(2)}%`);
+    if (spread < -0.75)      setBadge('op-fedpath-badge', 'b-up', 'Cuts agresivos descontados');
+    else if (spread < -0.25) setBadge('op-fedpath-badge', 'b-up', 'Cuts moderados');
+    else if (spread < 0.25)  setBadge('op-fedpath-badge', 'b-neu', 'Hold esperado');
+    else                      setBadge('op-fedpath-badge', 'b-dn', 'Hikes descontados');
+  }
+
+  // ── 4. VIX Term Structure ──
+  const vix9d  = state.data.prices?.['^VIX9D']?.price;
+  const vix1m  = state.data.prices?.['^VIX']?.price;
+  const vix3m  = state.data.prices?.['^VIX3M']?.price;
+  if (vix9d != null) setT('op-vix-9d', vix9d.toFixed(1));
+  if (vix1m != null) setT('op-vix-1m', vix1m.toFixed(1));
+  if (vix3m != null) setT('op-vix-3m', vix3m.toFixed(1));
+  if (vix1m != null && vix3m != null) {
+    // Backwardation: VIX > VIX3M (estrés inminente)
+    // Contango: VIX < VIX3M (normal)
+    const isBackwardation = vix1m > vix3m;
+    const ratio = vix1m / vix3m;
+    const curveEl = document.getElementById('op-vix-curve');
+    if (curveEl) {
+      const pct = Math.min(100, Math.max(20, ratio * 50));
+      curveEl.style.width = pct + '%';
+      curveEl.style.background = isBackwardation ? 'var(--phoenix-red)' : ratio > 0.95 ? 'var(--phoenix-orange)' : 'var(--green)';
+    }
+    if (isBackwardation)      setBadge('op-vix-status', 'b-dn', 'Backwardation · estrés inminente');
+    else if (ratio > 0.95)    setBadge('op-vix-status', 'b-neu', 'Curva plana · alerta');
+    else                       setBadge('op-vix-status', 'b-up', `Contango (×${ratio.toFixed(2)}) · normal`);
+  }
+
+  // ── 5. Cross-Asset: Gold/Copper ratio + USD/JPY ──
+  const gold   = state.data.prices?.['GLD']?.price;       // GLD ETF (~ oro × 0.1)
+  const copper = state.data.prices?.['HG=F']?.price;      // Copper futures USD/lb
+  if (gold != null && copper != null && copper > 0) {
+    // GLD * 10 ≈ oro spot. Ratio gold/copper en términos de spot oro / lb cobre.
+    const goldSpot = gold * 10;
+    const ratio = goldSpot / copper;
+    setT('op-gc-ratio', ratio.toFixed(0));
+    if (ratio > 600)      { setT('op-gc-sub', '↑ Recesión descontada', 'var(--red)'); }
+    else if (ratio > 500) { setT('op-gc-sub', '→ Defensivo', 'var(--amber)'); }
+    else if (ratio > 400) { setT('op-gc-sub', '→ Mid-cycle', 'var(--text2)'); }
+    else                  { setT('op-gc-sub', '↓ Reflación', 'var(--green)'); }
+  }
+  const jpy = state.data.prices?.['JPY=X']?.price;
+  if (jpy != null) {
+    setT('op-usdjpy', jpy.toFixed(2));
+    if (jpy > 155)        { setT('op-usdjpy-sub', '↑ USD muy fuerte', 'var(--red)'); }
+    else if (jpy > 145)   { setT('op-usdjpy-sub', '→ USD fuerte', 'var(--amber)'); }
+    else if (jpy > 130)   { setT('op-usdjpy-sub', '→ Equilibrio', 'var(--text2)'); }
+    else                  { setT('op-usdjpy-sub', '↓ JPY fuerte · risk-on', 'var(--green)'); }
+  }
+
+  // ── 6. SPY Niveles Técnicos ──
+  const spy = state.data.prices?.['SPY'];
+  if (spy?.hist?.length >= 50) {
+    const hist = spy.hist;
+    const price = spy.price;
+    const sma50  = hist.slice(-50).reduce((a, b) => a + b, 0) / 50;
+    const sma100 = hist.length >= 100 ? hist.slice(-100).reduce((a, b) => a + b, 0) / 100 : null;
+    const sma200 = hist.length >= 200 ? hist.slice(-200).reduce((a, b) => a + b, 0) / 200 : null;
+    const high52 = Math.max(...hist);
+    const low52  = Math.min(...hist);
+
+    const fmt = v => v != null ? '$' + v.toFixed(2) : '—';
+    const cmp = (label, level) => {
+      if (level == null) return '';
+      const diff = ((price / level) - 1) * 100;
+      const sign = diff >= 0 ? '+' : '';
+      return ` (${sign}${diff.toFixed(1)}%)`;
+    };
+
+    setT('op-spy-52h', fmt(high52) + cmp('high', high52));
+    setT('op-spy-sma50', fmt(sma50) + cmp('sma50', sma50));
+    setT('op-spy-price', fmt(price));
+    setT('op-spy-sma100', fmt(sma100) + cmp('sma100', sma100));
+    setT('op-spy-sma200', fmt(sma200) + cmp('sma200', sma200));
+    setT('op-spy-52l', fmt(low52) + cmp('low', low52));
+
+    // Color SMAs según relación con precio: si precio > SMA = verde (alcista)
+    const colorSma = (id, level) => {
+      if (level == null) return;
+      const el = document.getElementById(id);
+      if (el) el.style.color = price >= level ? 'var(--green)' : 'var(--red)';
+    };
+    colorSma('op-spy-sma50', sma50);
+    colorSma('op-spy-sma100', sma100);
+    colorSma('op-spy-sma200', sma200);
+  }
+}
+
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
 // Recibe howellResult para no volver a llamar computeHowellScore (ya ejecutado en updateHeroScore)
 function updateThreeHorizons(howellResult) {
@@ -4693,6 +4947,7 @@ function updateHeroScore() {
   updateThreeHorizons({ score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal });
   updateLeadingIndicators();
   updateHowellHistory();
+  updateOperationalContext();
 
   // Alert banner
   const banner = document.getElementById('alert-banner');
@@ -5482,6 +5737,96 @@ const INDICATORS_GLOSSARY = {
       { c:'red',    t:'> 145 — alta cobertura' }
     ],
     note: 'No es un timing tool exacto; señaliza distribución de probabilidades, no momento.'
+  },
+  // ── Operational B+ ──
+  'real-yields': {
+    name: 'Real Yields 10Y (TIPS)',
+    category: 'Operacional · Driver Cross-Asset',
+    source: { label: 'FRED · DFII10', url: 'https://fred.stlouisfed.org/series/DFII10', freq: 'Diaria' },
+    what: 'Yield del Treasury 10Y indexado a inflación. Es el rendimiento real (post-inflación) que recibe un inversor.',
+    formula: 'DFII10 directo. Breakeven inflation = nominal 10Y − real 10Y.',
+    interpret: 'Real yields es el driver #1 del oro, growth tech (QQQ) y emerging markets. Cuando suben fuerte, el oro y QQQ caen casi mecánicamente.',
+    thresholds: [
+      { c:'green',  t:'< 0% — negativo, muy pro-oro y growth' },
+      { c:'green',  t:'0 – 1% — acomodaticio' },
+      { c:'amber',  t:'1 – 2% — tibio' },
+      { c:'red',    t:'> 2% — restrictivo, presión sobre GLD/QQQ' }
+    ],
+    note: 'Mover real yields >50bps en 2 semanas usualmente provoca correcciones tech.'
+  },
+  'hy-ig-ratio': {
+    name: 'Credit Stress Ratio (HY / IG)',
+    category: 'Crédito · Stress',
+    source: { label: 'FRED · BAMLH0A0HYM2 / BAMLC0A0CM', url: 'https://fred.stlouisfed.org/series/BAMLC0A0CM', freq: 'Diaria' },
+    what: 'Ratio entre el spread del High Yield y el del Investment Grade. Aísla el stress específico del high-yield del stress sistémico.',
+    formula: 'HY OAS / IG OAS. Ambos en %.',
+    interpret: 'Cuando el ratio sube, es porque HY se amplía MÁS que IG → flow específico de high-yield (apetito por riesgo cae). Si ambos se amplían proporcionalmente (ratio estable), es contagio sistémico.',
+    thresholds: [
+      { c:'green',  t:'< 4× — crédito tranquilo' },
+      { c:'amber',  t:'4 – 5× — stress moderado' },
+      { c:'red',    t:'> 5× — stress crediticio alto, leading recesión' }
+    ],
+    note: 'Mejor leading que VIX para identificar stress crediticio antes de capitulación equity.'
+  },
+  'fed-path': {
+    name: 'Fed Path · Mercado Descuenta',
+    category: 'Operacional · Tasas',
+    source: { label: 'FRED · DFF + GS2', url: 'https://fred.stlouisfed.org/series/DFF', freq: 'Diaria' },
+    what: 'Spread entre el Treasury 2Y yield y la Fed Funds Effective Rate. Indica qué espera el mercado de la Fed en los próximos 6-12 meses.',
+    formula: 'GS2 − DFF, expresado en bps.',
+    interpret: 'Spread negativo = mercado descuenta cuts (2Y < FF actual significa que en 12m el promedio será menor). Spread positivo = mercado descuenta hikes.',
+    thresholds: [
+      { c:'green',  t:'< -75 bps — cuts agresivos descontados' },
+      { c:'green',  t:'-75 a -25 bps — cuts moderados descontados' },
+      { c:'amber',  t:'-25 a +25 bps — hold esperado' },
+      { c:'red',    t:'> +25 bps — hikes descontados' }
+    ],
+    note: 'No es CME FedWatch literal pero captura el sentiment de tasas con datos públicos. Para probabilidades exactas usar CME FedWatch (no integrado).'
+  },
+  'vix-term': {
+    name: 'VIX Term Structure (9D / 1M / 3M)',
+    category: 'Mercado · Volatilidad',
+    source: { label: 'Yahoo · ^VIX9D, ^VIX, ^VIX3M', url: 'https://finance.yahoo.com/quote/^VIX', freq: 'Tiempo real' },
+    what: 'Estructura temporal de la volatilidad implícita: VIX a 9 días, 30 días y 3 meses.',
+    formula: 'Curva: VIX9D / VIX / VIX3M. Backwardation = VIX > VIX3M.',
+    interpret: 'Contango (VIX < VIX3M) = mercado normal, espera vol futura mayor que actual. Backwardation (VIX > VIX3M) = pánico inmediato, mercado descuenta vol cayendo después → estrés inminente.',
+    thresholds: [
+      { c:'green',  t:'VIX/VIX3M < 0.95 — Contango (normal)' },
+      { c:'amber',  t:'0.95 – 1.0 — Curva plana, alerta' },
+      { c:'red',    t:'> 1.0 — Backwardation, estrés agudo' }
+    ],
+    note: 'Backwardation persistente >5 días anticipa correcciones significativas. VIX9D > VIX > VIX3M es la lectura más bearish.'
+  },
+  'cross-asset': {
+    name: 'Cross-Asset Signals (Gold/Copper, USD/JPY)',
+    category: 'Cross-Asset · Macro',
+    source: { label: 'Yahoo · GLD, HG=F, JPY=X', url: 'https://finance.yahoo.com/quote/HG=F', freq: 'Tiempo real' },
+    what: 'Dos ratios clásicos macro: Gold/Copper (recesión vs reflación) y USD/JPY (risk-on vs risk-off global).',
+    formula: 'Gold/Copper: precio oro spot ÷ precio cobre USD/lb. USD/JPY: tipo de cambio directo.',
+    interpret: 'Gold/Copper alto = mercado descuenta recesión (oro defensivo, cobre baja por menos demanda industrial). USD/JPY alto = flujos hacia USD, JPY como financiación carry; bajar = risk-off global y flight to safety en JPY.',
+    thresholds: [
+      { c:'red',    t:'Gold/Copper > 600 — recesión descontada' },
+      { c:'amber',  t:'Gold/Copper 500-600 — defensivo' },
+      { c:'green',  t:'Gold/Copper < 400 — reflación' },
+      { c:'red',    t:'USD/JPY > 155 — USD muy fuerte (presión EM)' },
+      { c:'amber',  t:'USD/JPY 145-155 — USD fuerte' },
+      { c:'green',  t:'USD/JPY < 130 — JPY fuerte, risk-on' }
+    ],
+    note: 'Para oro spot real usar el GLD ETF × 10 como proxy (precisión ±2%).'
+  },
+  'spy-levels': {
+    name: 'Niveles Técnicos · SPY',
+    category: 'Mercado · Niveles Técnicos',
+    source: { label: 'Yahoo · SPY (calculado)', url: 'https://finance.yahoo.com/quote/SPY', freq: 'Tiempo real' },
+    what: 'Medias móviles diarias clave (50d, 100d, 200d) y rango 52 semanas.',
+    formula: 'SMA = promedio de los últimos N closes diarios. Distancia % = (precio actual / nivel − 1) × 100.',
+    interpret: 'Precio sobre todas las SMAs = uptrend confirmado. Precio cruza SMA200 hacia abajo = clásica entrada bear market. Distancia al 52W high muestra cuánto colchón hay para correcciones.',
+    thresholds: [
+      { c:'green',  t:'Precio > SMA50 > SMA100 > SMA200 — uptrend pleno' },
+      { c:'amber',  t:'Precio > SMA200 pero perdiendo SMA50 — desaceleración' },
+      { c:'red',    t:'Precio < SMA200 — riesgo bear market' }
+    ],
+    note: 'SMA200 es el divisor más vigilado por allocators institucionales. Dropping SMA200 suele triggear sell-rules sistemáticas.'
   }
 };
 
@@ -5551,12 +5896,14 @@ function _glRenderIndex() {
   }
   // Orden de categorías
   const catOrder = [
+    'Operacional · Driver Cross-Asset', 'Operacional · Tasas',
     'Howell · Liquidez', 'Howell · Estrés Repo', 'Howell · Liquidez Global', 'Howell · Composite',
     'Inflación', 'Inflación · Fed Preferred', 'Inflación · Expectativas',
     'Fidelity · Composite', 'Fidelity · Manufactura', 'Fidelity · Crecimiento', 'Fidelity · Empleo', 'Fidelity · Consumo', 'Fidelity · Sentimiento',
-    'Crédito · Estrés',
+    'Crédito · Estrés', 'Crédito · Stress',
+    'Cross-Asset · Macro',
     'Leading · Empleo', 'Leading · Manufactura', 'Leading · Housing',
-    'Régimen · Corto Plazo', 'Mercado · Volatilidad', 'Mercado · Volatilidad Inst.', 'Mercado · Tail Risk', 'Mercado · Recesión', 'Mercado · Tendencia'
+    'Régimen · Corto Plazo', 'Mercado · Volatilidad', 'Mercado · Volatilidad Inst.', 'Mercado · Tail Risk', 'Mercado · Recesión', 'Mercado · Tendencia', 'Mercado · Niveles Técnicos'
   ];
   const orderedCats = catOrder.filter(c => byCat[c]).concat(Object.keys(byCat).filter(c => !catOrder.includes(c)));
 
