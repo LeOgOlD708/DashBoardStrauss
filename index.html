@@ -901,80 +901,53 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   </div>
   <div class="g21" style="margin-bottom:10px">
 
-    <!-- Score Table -->
+    <!-- Score Table — sin acordeón, solo lo esencial -->
     <div class="card teal-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--teal)">Motor de Diagnóstico Económico</div>
-      <details class="diag-tbl-accordion">
-        <summary>Ver tabla detallada · 6 indicadores Fidelity con umbrales</summary>
-      <div style="margin:8px 0">
-        <table style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr>
-              <th class="fid-th">Indicador</th>
-              <th class="fid-th" style="text-align:center">Valor</th>
-              <th class="fid-th" style="text-align:center">Umbral</th>
-              <th class="fid-th" style="text-align:center">Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="fid-td">Prod. Manuf. (YoY) <a href="https://fred.stlouisfed.org/series/IPMAN" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-pmi-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">YoY &lt;0%→+0.5 · &lt;-2%→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-pmi-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">PIB Real QoQ <a href="https://fred.stlouisfed.org/series/A191RL1Q225SBEA" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-gdp-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">&lt;2%→+0.5 · &lt;0→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-gdp-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">Desempleo <a href="https://fred.stlouisfed.org/series/UNRATE" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-unemp-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">↑+0.2pp→+0.5 · ↑+0.5pp→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-unemp-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">Curva 10Y-2Y <a href="https://fred.stlouisfed.org/series/T10Y2Y" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-yield-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">&lt;0.5%→+0.5 · &lt;0→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-yield-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td">Ventas Minoristas <a href="https://fred.stlouisfed.org/series/RSAFS" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center" id="fid-retail-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3)">MoM &lt;0%→+0.5 · &lt;-1%→+1</td>
-              <td class="fid-td" style="text-align:center"><span class="badge b-neu" id="fid-retail-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr>
-              <td class="fid-td" style="border-bottom:none">Conf. Consumidor <a href="https://fred.stlouisfed.org/series/UMCSENT" target="_blank" class="src-link">FRED↗</a></td>
-              <td class="fid-td mono" style="text-align:center;border-bottom:none" id="fid-sent-val">—</td>
-              <td class="fid-td" style="text-align:center;font-size:12px;color:var(--text3);border-bottom:none">&lt;70→+0.5 · &lt;60→+1</td>
-              <td class="fid-td" style="text-align:center;border-bottom:none"><span class="badge b-neu" id="fid-sent-pts" style="min-width:28px;justify-content:center">—</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      </details>
-      <div style="border-top:1px solid var(--border2);padding-top:8px;margin-top:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <span class="mono" style="font-size:12px;color:var(--text3)">ECO SCORE TOTAL</span>
-          <span class="mono" style="font-size:16px;font-weight:500" id="fid-score-total">—/8</span>
+      <!-- ECO SCORE TOTAL -->
+      <div style="margin-top:10px;padding:10px 0 8px;border-bottom:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+          <span class="mono" style="font-size:12px;color:var(--text3);letter-spacing:.06em">ECO SCORE TOTAL</span>
+          <span class="mono" style="font-size:22px;font-weight:600" id="fid-score-total">—/8</span>
         </div>
-        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
+        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:8px">
           <div id="fid-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--teal);transition:width .6s,background .4s"></div>
         </div>
-        <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span></div>
+        <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:11px;padding:5px 14px">Cargando...</span></div>
       </div>
-      <!-- Mini-chart trayectoria del proxy ciclo (IPMAN YoY 24m) -->
-      <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
+      <!-- TRAYECTORIA IPMAN YoY 24m · chart Chart.js dinámico -->
+      <div style="margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">TRAYECTORIA · IPMAN YoY · 24 MESES</span>
+          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">PROD. MFG · IPMAN YoY · 24 MESES</span>
           <span class="mono" id="fid-history-trend" style="font-size:11px;color:var(--text3)">—</span>
         </div>
-        <div class="ch-wrap" style="height:80px;position:relative"><canvas id="fidHistoryMini" role="img" aria-label="Trayectoria IPMAN YoY"></canvas></div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-align:center;font-style:italic">Producción manufacturera anual — proxy de la fase del ciclo Fidelity</div>
+        <div class="ch-wrap" style="height:120px;position:relative"><canvas id="fidHistoryMini" role="img" aria-label="Trayectoria IPMAN YoY"></canvas></div>
+      </div>
+      <!-- VALORES ACTUALES · 6 indicadores con su valor + pts (reemplaza la tabla detallada) -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">INDICADORES · VALOR + PTS</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2)">Prod. Mfg YoY</span><span class="mono" id="fid-pmi-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-pmi-pts" style="font-size:10px;text-align:center">—</span>
+          </div>
+          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2)">PIB Real QoQ</span><span class="mono" id="fid-gdp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-gdp-pts" style="font-size:10px;text-align:center">—</span>
+          </div>
+          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2)">Desempleo</span><span class="mono" id="fid-unemp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-unemp-pts" style="font-size:10px;text-align:center">—</span>
+          </div>
+          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2)">Curva 10Y-2Y</span><span class="mono" id="fid-yield-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-yield-pts" style="font-size:10px;text-align:center">—</span>
+          </div>
+          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2)">V. Minoristas MoM</span><span class="mono" id="fid-retail-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-retail-pts" style="font-size:10px;text-align:center">—</span>
+          </div>
+          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2)">Conf. Consumidor</span><span class="mono" id="fid-sent-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-sent-pts" style="font-size:10px;text-align:center">—</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1094,86 +1067,37 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <!-- ── ROW 2: Motor de Diagnóstico + Fases Computadas ── -->
   <div class="g21" style="margin-bottom:10px">
 
-    <!-- Score Engine -->
+    <!-- Score Engine — sin acordeón, solo lo esencial -->
     <div class="card gold-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--gold)">Motor de Diagnóstico Howell</div>
-      <details class="diag-tbl-accordion">
-        <summary>Ver tabla de scoring detallada · 6 indicadores con umbrales y puntos</summary>
-      <div style="margin:8px 0">
-        <table style="width:100%;border-collapse:collapse">
-          <thead>
-            <tr><th style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:left;border-bottom:1px solid var(--border2)">INDICADOR</th><th style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:center;border-bottom:1px solid var(--border2)">VALOR</th><th style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:center;border-bottom:1px solid var(--border2)">UMBRAL</th><th style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);padding:3px 6px;text-align:center;border-bottom:1px solid var(--border2)">PTS</th></tr>
-          </thead>
-          <tbody>
-            <tr id="diag-sc-res-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">Reservas Fed <a href="https://fred.stlouisfed.org/series/WRBWFRBL" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('reservas-fed')" title="¿Qué es?">?</button></td>
-              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-res-val">—</td>
-              <td style="padding:5px 6px;font-size:12px;color:var(--text3);text-align:center">&lt;$3.3T→+1 · &lt;$3.0T→+2</td>
-              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-res-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr id="diag-sc-tga-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">TGA Tesoro <a href="https://fred.stlouisfed.org/series/WTREGEN" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('tga')" title="¿Qué es?">?</button></td>
-              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-tga-val">—</td>
-              <td style="padding:5px 6px;font-size:11px;color:var(--text2);text-align:center">&gt;$500B→+0.5 · &gt;$700B→+1 · &gt;$900B→+2</td>
-              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-tga-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr id="diag-sc-rrp-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">RRP Fed <a href="https://fred.stlouisfed.org/series/RRPTSYD" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('rrp')" title="¿Qué es?">?</button></td>
-              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-rrp-val">—</td>
-              <td style="padding:5px 6px;font-size:11px;color:var(--text2);text-align:center">&gt;$300B→+0.5 · &gt;$500B→+1</td>
-              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-rrp-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr id="diag-sc-sofr-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">SOFR Spread <a href="https://fred.stlouisfed.org/series/SOFR" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('sofr-spread')" title="¿Qué es?">?</button></td>
-              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-sofr-val">—</td>
-              <td style="padding:5px 6px;font-size:12px;color:var(--text3);text-align:center">&gt;5bps→+0.5 · &gt;15bps→+1</td>
-              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-sofr-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr id="diag-sc-dxy-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">DXY <a href="https://finance.yahoo.com/quote/DX-Y.NYB/" target="_blank" class="src-link">Yahoo↗</a> <button class="help-i" type="button" onclick="openGlossary('dxy')" title="¿Qué es?">?</button></td>
-              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-dxy-val">—</td>
-              <td style="padding:5px 6px;font-size:12px;color:var(--text3);text-align:center">&gt;106→+0.5 · &gt;110→+1</td>
-              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-dxy-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
-            </tr>
-            <tr id="diag-sc-cpi-row">
-              <td style="padding:5px 6px;font-size:10px;color:var(--text2)">CPI YoY <a href="https://fred.stlouisfed.org/series/CPIAUCSL" target="_blank" class="src-link">FRED↗</a> <button class="help-i" type="button" onclick="openGlossary('cpi-yoy')" title="¿Qué es?">?</button></td>
-              <td style="padding:5px 6px;font-family:'IBM Plex Mono',monospace;font-size:10px;text-align:center" id="diag-sc-cpi-val">—</td>
-              <td style="padding:5px 6px;font-size:12px;color:var(--text3);text-align:center">&gt;3%→+0.5 · &gt;3.5%→+1</td>
-              <td style="padding:5px 6px;text-align:center"><span class="badge" id="diag-sc-cpi-pts" style="font-size:10px;min-width:28px;justify-content:center">—</span></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      </details>
-      <!-- Total score (siempre visible) -->
-      <div style="border-top:1px solid var(--border2);padding-top:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <span class="mono" style="font-size:12px;color:var(--text3)">SCORE TOTAL</span>
-          <span class="mono" style="font-size:16px;font-weight:500" id="diag-score-total">—/8</span>
+      <!-- SCORE TOTAL -->
+      <div style="margin-top:10px;padding:10px 0 8px;border-bottom:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px">
+          <span class="mono" style="font-size:12px;color:var(--text3);letter-spacing:.06em">SCORE TOTAL</span>
+          <span class="mono" style="font-size:22px;font-weight:600" id="diag-score-total">—/8</span>
         </div>
-        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:6px">
+        <div style="height:8px;background:var(--border2);border-radius:4px;overflow:hidden;margin-bottom:8px">
           <div id="diag-score-bar" style="height:100%;border-radius:4px;width:0%;background:var(--text3);transition:width .6s,background .4s"></div>
         </div>
         <div style="text-align:center">
-          <span class="badge" id="diag-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span>
+          <span class="badge" id="diag-score-phase" style="font-size:11px;padding:5px 14px">Cargando...</span>
         </div>
       </div>
-      <!-- Mini-chart trayectoria histórica del score Howell (13 semanas) -->
-      <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
+      <!-- TRAYECTORIA · chart Chart.js dinámico (tooltips, hover, animación) -->
+      <div style="margin-top:12px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">TRAYECTORIA SCORE · 13 SEMANAS</span>
+          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">TRAYECTORIA · 13 SEMANAS</span>
           <span class="mono" id="diag-history-trend" style="font-size:11px;color:var(--text3)">—</span>
         </div>
-        <div class="ch-wrap" style="height:80px;position:relative"><canvas id="diagHistoryMini" role="img" aria-label="Trayectoria Score Howell 13w"></canvas></div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-align:center;font-style:italic">Score recomputado · cada punto aplica HOWELL_RULES sobre datos de esa semana</div>
+        <div class="ch-wrap" style="height:120px;position:relative"><canvas id="diagHistoryMini" role="img" aria-label="Trayectoria Score Howell 13w"></canvas></div>
       </div>
-      <!-- Breakdown del score · qué componente está dominando AHORA -->
+      <!-- COMPOSICIÓN · breakdown horizontal de pts/max por componente -->
       <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">COMPOSICIÓN DEL SCORE · QUIÉN DOMINA</span>
+          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">COMPOSICIÓN · QUIÉN DOMINA</span>
           <span class="mono" id="diag-breakdown-summary" style="font-size:11px;color:var(--text3)">—</span>
         </div>
-        <div id="diag-breakdown" style="display:flex;flex-direction:column;gap:5px"></div>
+        <div id="diag-breakdown" style="display:flex;flex-direction:column;gap:6px"></div>
       </div>
     </div>
 
@@ -2608,6 +2532,65 @@ state.charts['howellHistoryChart'] = new Chart(document.getElementById('howellHi
     }
   }
 });
+
+// ── Mini Chart.js dinámicos · Hero sparkline + Motor Howell + Motor Fidelity ──
+// Chart.js para tener tooltips on-hover, animación, interactividad nativa
+function initMiniChart(canvasId, color, tooltipFmt) {
+  const el = document.getElementById(canvasId);
+  if (!el) return null;
+  return new Chart(el, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        borderColor: color,
+        backgroundColor: color + '22',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.35,
+        pointRadius: (ctx) => ctx.dataIndex === ctx.dataset.data.length - 1 ? 4 : 0,
+        pointBackgroundColor: '#08050a',
+        pointBorderColor: color,
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        cubicInterpolationMode: 'monotone'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(8,5,10,0.95)',
+          borderColor: color,
+          borderWidth: 1,
+          titleColor: '#f8d794',
+          bodyColor: '#f0ece4',
+          padding: 8,
+          displayColors: false,
+          callbacks: {
+            title: c => c[0].label || '',
+            label: c => tooltipFmt ? tooltipFmt(c.parsed.y, c.dataIndex) : `${c.parsed.y.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: { display: false },
+        y: { display: false, beginAtZero: false }
+      }
+    }
+  });
+}
+state.charts['heroScoreMini']  = initMiniChart('heroScoreMini',  '#e6b450', (v) => `Score ${v.toFixed(1)}/8`);
+state.charts['diagHistoryMini'] = initMiniChart('diagHistoryMini', '#fbbf24', (v) => {
+  const phase = v >= 6 ? 'Fase 4' : v >= 4 ? 'Fase 3→4' : v >= 2 ? 'Fase 3' : v >= 1 ? 'Fase 2' : 'Fase 1';
+  return `Score ${v.toFixed(1)}/8 · ${phase}`;
+});
+state.charts['fidHistoryMini'] = initMiniChart('fidHistoryMini', '#2dd4bf', (v) => `IPMAN YoY: ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
 
 // 4 Termómetros Howell — estilo Phoenix
 phoenixMini('resChart', mo, Array(12).fill(null));
@@ -5350,53 +5333,7 @@ function drawSparkline(canvas, data) {
   ctx.stroke();
 }
 
-// Versión con color custom + área coloreada de fondo (para los Motor minis)
-function drawHistoryMini(canvas, data, color) {
-  if (!canvas || !data?.length) return;
-  // Resize canvas a su contenedor (CSS-driven, evita pixelado)
-  if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
-    canvas.width = canvas.clientWidth || 300;
-    canvas.height = canvas.clientHeight || 80;
-  }
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  const min = Math.min(...data), max = Math.max(...data);
-  if (!isFinite(min) || !isFinite(max)) return;
-  const range = max - min || 1;
-  // Coordenadas
-  const pts = data.map((v, i) => ({
-    x: (i / Math.max(1, data.length - 1)) * (w - 4) + 2,
-    y: h - ((v - min) / range) * (h - 6) - 3,
-  }));
-  // Fondo (área bajo la línea)
-  ctx.fillStyle = color + '22';
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x, h);
-  pts.forEach(p => ctx.lineTo(p.x, p.y));
-  ctx.lineTo(pts[pts.length-1].x, h);
-  ctx.closePath();
-  ctx.fill();
-  // Línea principal
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = 'round';
-  ctx.beginPath();
-  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
-  ctx.stroke();
-  // Punto último (highlight)
-  const last = pts[pts.length - 1];
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#08050a';
-  ctx.beginPath();
-  ctx.arc(last.x, last.y, 1.5, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-// ── Mini-charts históricos en Motor Howell + Motor Fidelity + Hero Score ──
+// ── Mini-charts históricos en Motor Howell + Motor Fidelity + Hero Score (Chart.js) ──
 // Llenan el espacio vacío cuando los acordeones están cerrados, agregando contexto histórico
 function updateMotorHistoryMinis() {
   // ── Howell history shared · usado por Hero mini + Motor mini ──
@@ -5409,17 +5346,23 @@ function updateMotorHistoryMinis() {
   // ── Howell mini · trayectoria score 13 semanas (Motor card en Z2) ──
   if (howellLast13 && howellLast13.length) {
     const last13 = howellLast13;
-    const canvas = document.getElementById('diagHistoryMini');
-    if (canvas) {
+    const chart = state.charts['diagHistoryMini'];
+    if (chart) {
       const cur = last13[last13.length - 1];
       const start = last13[0];
       const color = cur > start + 0.3 ? '#f87171' : cur < start - 0.3 ? '#4ade80' : '#fbbf24';
-      drawHistoryMini(canvas, last13, color);
+      // Etiquetas: hace 13 semanas → ahora
+      chart.data.labels = last13.map((_, i) => `Sem ${i - last13.length + 1}`).map(s => s === 'Sem 0' ? 'Hoy' : s);
+      chart.data.datasets[0].data = last13;
+      chart.data.datasets[0].borderColor = color;
+      chart.data.datasets[0].backgroundColor = color + '22';
+      chart.data.datasets[0].pointBorderColor = color;
+      chart.update('active');
     }
     const trendEl = document.getElementById('diag-history-trend');
     if (trendEl && last13.length >= 5) {
       const cur = last13[last13.length - 1];
-      const prev = last13[last13.length - 5]; // 4 semanas atrás
+      const prev = last13[last13.length - 5];
       const delta = cur - prev;
       const sign = delta >= 0 ? '+' : '';
       const txt = delta > 0.3 ? '↑ deteriora' : delta < -0.3 ? '↓ mejora' : '→ estable';
@@ -5474,16 +5417,19 @@ function updateMotorHistoryMinis() {
   } catch (e) { /* swallow */ }
 
   // ── Hero mini · sparkline score 13 semanas (columna izq del Verdict Hero) ──
-  // Versión más compacta para llenar el espacio bajo el 4.5/8 grande
   if (howellLast13 && howellLast13.length) {
     const last13 = howellLast13;
-    const canvas = document.getElementById('heroScoreMini');
-    if (canvas) {
+    const chart = state.charts['heroScoreMini'];
+    if (chart) {
       const cur = last13[last13.length - 1];
       const start = last13[0];
-      // Sparkline del Hero: dorado por default (acento Phoenix), rojo si deteriora fuerte, verde si mejora fuerte
       const color = cur > start + 0.5 ? '#f87171' : cur < start - 0.5 ? '#4ade80' : '#e6b450';
-      drawHistoryMini(canvas, last13, color);
+      chart.data.labels = last13.map((_, i) => `Sem ${i - last13.length + 1}`).map(s => s === 'Sem 0' ? 'Hoy' : s);
+      chart.data.datasets[0].data = last13;
+      chart.data.datasets[0].borderColor = color;
+      chart.data.datasets[0].backgroundColor = color + '22';
+      chart.data.datasets[0].pointBorderColor = color;
+      chart.update('active');
     }
     const trend4wEl = document.getElementById('hero-trend-4w');
     if (trend4wEl && last13.length >= 5) {
@@ -5510,12 +5456,16 @@ function updateMotorHistoryMinis() {
         if (now != null && yearAgo) yoy.push(((now / yearAgo) - 1) * 100);
       }
       yoy.reverse(); // orden cronológico: viejo izquierda → reciente derecha
-      const canvas = document.getElementById('fidHistoryMini');
-      if (canvas && yoy.length) {
+      const chart = state.charts['fidHistoryMini'];
+      if (chart && yoy.length) {
         const cur = yoy[yoy.length - 1];
-        // Verde si IPMAN YoY positivo (expansión), rojo si negativo (contracción), ámbar si cerca de cero
         const color = cur > 1 ? '#4ade80' : cur < -1 ? '#f87171' : '#fbbf24';
-        drawHistoryMini(canvas, yoy, color);
+        chart.data.labels = yoy.map((_, i) => `M-${yoy.length - i - 1}`).map(s => s === 'M-0' ? 'Hoy' : s);
+        chart.data.datasets[0].data = yoy;
+        chart.data.datasets[0].borderColor = color;
+        chart.data.datasets[0].backgroundColor = color + '22';
+        chart.data.datasets[0].pointBorderColor = color;
+        chart.update('active');
       }
       const trendEl = document.getElementById('fid-history-trend');
       if (trendEl && yoy.length >= 7) {
