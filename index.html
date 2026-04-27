@@ -2167,17 +2167,10 @@ async function loadFredData() {
     // Check for API key error
     if (d.error) throw new Error(d.error);
 
-    // Diagnostic: log what FRED returned per series (length or error)
-    const _fredSummary = Object.fromEntries(
-      Object.entries(d).map(([k, v]) => [
-        k,
-        Array.isArray(v) ? `len=${v.length}` : (v?.error ? `err=${v.error}` : typeof v)
-      ])
-    );
-    console.log('[FRED response]', _fredSummary);
+    // Light telemetry: warn only if some series came back empty/with error (no spam in normal operation)
     const _fredFailed = Object.entries(d).filter(([_,v]) => !Array.isArray(v) || v.length === 0);
     if (_fredFailed.length) {
-      console.warn('[FRED failed/empty]', _fredFailed.map(([k,v]) => `${k}=${Array.isArray(v) ? 'empty' : v?.error || '?'}`).join(' · '));
+      console.warn('[FRED] series con problema:', _fredFailed.map(([k,v]) => `${k}=${Array.isArray(v) ? 'empty' : v?.error || '?'}`).join(' · '));
     }
 
     state.data.reserves  = Array.isArray(d.WRBWFRBL)  ? d.WRBWFRBL  : null;
