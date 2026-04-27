@@ -589,17 +589,17 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div class="hcol-body">
         <div class="kb">
-          <div class="kb-lbl">Score Howell</div>
+          <div class="kb-lbl">Score Howell <button class="help-i" type="button" onclick="openGlossary('howell-score')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-largo-score"><span id="h-largo-score-num">—</span><span style="font-size:11px;color:var(--text3)">/8</span></div>
           <div class="kb-sub" id="h-largo-fase">Cargando...</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">Net Liquidity (Res − TGA − RRP)</div>
+          <div class="kb-lbl">Net Liquidity (Res − TGA − RRP) <button class="help-i" type="button" onclick="openGlossary('net-liquidity')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-largo-netliq" style="font-size:14px">—</div>
           <div class="kb-sub" id="h-largo-netliq-sub">Reservas · TGA · RRP</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">DXY · Multiplicador global</div>
+          <div class="kb-lbl">DXY · Multiplicador global <button class="help-i" type="button" onclick="openGlossary('dxy')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-largo-dxy" style="font-size:16px">—</div>
           <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 55%,var(--red) 100%)">
             <div class="thb-hdl" id="h-largo-dxy-hdl" style="left:50%"></div>
@@ -620,17 +620,17 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div class="hcol-body">
         <div class="kb">
-          <div class="kb-lbl">Score Fidelity</div>
+          <div class="kb-lbl">Score Fidelity <button class="help-i" type="button" onclick="openGlossary('fidelity-score')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-medio-score"><span id="h-medio-score-num">—</span><span style="font-size:11px;color:var(--text3)">/8</span></div>
           <div class="kb-sub" id="h-medio-fase-desc">Cargando...</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">Producción Manufactura · YoY</div>
+          <div class="kb-lbl">Producción Manufactura · YoY <button class="help-i" type="button" onclick="openGlossary('ipman-yoy')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-medio-pmi" style="font-size:16px">—</div>
           <div class="kb-sub" id="h-medio-pmi-trend">3m: —</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">HY Spreads · Estrés crediticio</div>
+          <div class="kb-lbl">HY Spreads · Estrés crediticio <button class="help-i" type="button" onclick="openGlossary('hy-spreads')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-medio-hy" style="font-size:16px">—</div>
           <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%)">
             <div class="thb-hdl" id="h-medio-hy-hdl" style="left:20%"></div>
@@ -651,12 +651,12 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       </div>
       <div class="hcol-body">
         <div class="kb">
-          <div class="kb-lbl">Régimen</div>
+          <div class="kb-lbl">Régimen <button class="help-i" type="button" onclick="openGlossary('regime-corto-plazo')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-corto-regime-label" style="font-size:14px">—</div>
           <div class="kb-sub" id="h-corto-regime-desc">Cargando...</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">VIX · Volatilidad implícita</div>
+          <div class="kb-lbl">VIX · Volatilidad implícita <button class="help-i" type="button" onclick="openGlossary('vix')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-corto-vix" style="font-size:16px">—</div>
           <div class="thb" style="background:linear-gradient(90deg,var(--green) 0%,var(--amber) 50%,var(--red) 100%)">
             <div class="thb-hdl" id="h-corto-vix-hdl" style="left:20%"></div>
@@ -664,7 +664,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <div class="kb-sub">Normal &lt;20 · Pánico &gt;35</div>
         </div>
         <div class="kb">
-          <div class="kb-lbl">SPY vs SMA100 (≈20w) · Tendencia</div>
+          <div class="kb-lbl">SPY vs SMA100 (≈20w) · Tendencia <button class="help-i" type="button" onclick="openGlossary('spy-sma20w')" title="¿Qué es?">?</button></div>
           <div class="kb-val" id="h-corto-spy" style="font-size:16px">—</div>
           <div class="kb-sub" id="h-corto-spy-sub">Cargando...</div>
         </div>
@@ -1100,7 +1100,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <div class="sh" style="margin-top:14px"><div class="sh-tag">Termómetros</div><div class="sh-title">Los 4 Termómetros de Howell — Histórico</div><div class="sh-line"></div></div>
   <div class="g4" style="margin-bottom:10px">
     <div class="card amber-a clickable" onclick="openIndicatorModal('res')"><div class="card-accent"></div>
-      <div class="lbl">① Reservas Bancarias Fed</div>
+      <div class="lbl">① Reservas Bancarias Fed<button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('reservas-fed')" title="¿Qué es?">?</button></div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-res-val">—</div><div class="mono" id="m-res-chg" style="font-size:10px">—</div></div>
       <div class="ch-wrap ch140"><canvas id="resChart" role="img" aria-label="Reservas Fed">Reservas históricas.</canvas></div>
       <div style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;padding:5px 7px;background:var(--surface2);border-radius:5px">
@@ -1110,7 +1110,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="source-badge">FRED: WRBWFRBL</div>
     </div>
     <div class="card red-a clickable" onclick="openIndicatorModal('sofr')"><div class="card-accent"></div>
-      <div class="lbl">② Spread SOFR / Fed Funds</div>
+      <div class="lbl">② Spread SOFR / Fed Funds<button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('sofr-spread')" title="¿Qué es?">?</button></div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-sofr-val">—</div><div class="mono" style="font-size:10px;color:var(--text3)">SOFR > FFR</div></div>
       <div class="ch-wrap ch140"><canvas id="sofrChart" role="img" aria-label="Spread SOFR">SOFR histórico.</canvas></div>
       <div style="margin-top:6px;padding:5px 7px;background:var(--surface2);border-radius:5px;display:flex;justify-content:space-between;align-items:center">
@@ -1120,7 +1120,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="source-badge">FRED: SOFR</div>
     </div>
     <div class="card amber-a clickable" onclick="openIndicatorModal('move')"><div class="card-accent"></div>
-      <div class="lbl">③ MOVE Index — Vol Treasuries</div>
+      <div class="lbl">③ MOVE Index — Vol Treasuries<button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('move')" title="¿Qué es?">?</button></div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono" id="m-move-chg" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch140"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
       <div style="margin-top:6px;display:flex;gap:4px">
@@ -1131,7 +1131,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="source-badge">ICE BofA MOVE</div>
     </div>
     <div class="card red-a clickable" onclick="openIndicatorModal('tga')"><div class="card-accent"></div>
-      <div class="lbl">④ TGA — Cuenta Gral del Tesoro</div>
+      <div class="lbl">④ TGA — Cuenta Gral del Tesoro<button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('tga')" title="¿Qué es?">?</button></div>
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val down" id="m-tga-val">—</div><div class="mono" id="m-tga-status" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch140"><canvas id="tgaChart" role="img" aria-label="TGA Tesoro">TGA histórico.</canvas></div>
       <div style="margin-top:6px;padding:5px 7px;background:rgba(248,113,113,.06);border-radius:5px;font-size:9px;color:var(--text2)">TGA > $1T = QT silencioso ~$250B</div>
@@ -1144,6 +1144,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <div class="g4">
     <!-- Initial Jobless Claims -->
     <div class="card"><div class="lbl">📈 Initial Claims · 4w
+      <button class="help-i" type="button" onclick="openGlossary('jobless-claims')" title="¿Qué es?">?</button>
       <a href="https://fred.stlouisfed.org/series/ICSA" target="_blank" class="src-link">FRED↗</a></div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
         <div class="mono" id="lead-claims-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
@@ -1154,6 +1155,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
     <!-- Industrial Production -->
     <div class="card"><div class="lbl">🏭 Producción Industrial · YoY
+      <button class="help-i" type="button" onclick="openGlossary('industrial-production')" title="¿Qué es?">?</button>
       <a href="https://fred.stlouisfed.org/series/INDPRO" target="_blank" class="src-link">FRED↗</a></div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
         <div class="mono" id="lead-indpro-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
@@ -1164,6 +1166,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
     <!-- Building Permits -->
     <div class="card"><div class="lbl">🏗 Building Permits · YoY
+      <button class="help-i" type="button" onclick="openGlossary('building-permits')" title="¿Qué es?">?</button>
       <a href="https://fred.stlouisfed.org/series/PERMIT" target="_blank" class="src-link">FRED↗</a></div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
         <div class="mono" id="lead-permits-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
@@ -1174,6 +1177,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     </div>
     <!-- Core PCE + 5Y5Y forward -->
     <div class="card"><div class="lbl">💵 Core PCE / Inflación Forward
+      <button class="help-i" type="button" onclick="openGlossary('core-pce')" title="¿Qué es?">?</button>
       <a href="https://fred.stlouisfed.org/series/PCEPILFE" target="_blank" class="src-link">FRED↗</a></div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
         <div class="mono" id="lead-corepce-val" style="font-size:18px;font-weight:500;color:var(--text)">—</div>
