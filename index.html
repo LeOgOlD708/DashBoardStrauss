@@ -961,6 +961,15 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         </div>
         <div style="text-align:center"><span class="badge b-teal" id="fid-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span></div>
       </div>
+      <!-- Mini-chart trayectoria del proxy ciclo (IPMAN YoY 24m) -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">TRAYECTORIA · IPMAN YoY · 24 MESES</span>
+          <span class="mono" id="fid-history-trend" style="font-size:11px;color:var(--text3)">—</span>
+        </div>
+        <div class="ch-wrap" style="height:80px;position:relative"><canvas id="fidHistoryMini" role="img" aria-label="Trayectoria IPMAN YoY"></canvas></div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-align:center;font-style:italic">Producción manufacturera anual — proxy de la fase del ciclo Fidelity</div>
+      </div>
     </div>
 
     <!-- Right: Phase card + 6 sparklines -->
@@ -1142,6 +1151,15 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div style="text-align:center">
           <span class="badge" id="diag-score-phase" style="font-size:10px;padding:4px 12px">Cargando...</span>
         </div>
+      </div>
+      <!-- Mini-chart trayectoria histórica del score Howell (13 semanas) -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid var(--border2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">TRAYECTORIA SCORE · 13 SEMANAS</span>
+          <span class="mono" id="diag-history-trend" style="font-size:11px;color:var(--text3)">—</span>
+        </div>
+        <div class="ch-wrap" style="height:80px;position:relative"><canvas id="diagHistoryMini" role="img" aria-label="Trayectoria Score Howell 13w"></canvas></div>
+        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:4px;text-align:center;font-style:italic">Score recomputado · cada punto aplica HOWELL_RULES sobre datos de esa semana</div>
       </div>
     </div>
 
@@ -5318,6 +5336,116 @@ function drawSparkline(canvas, data) {
   ctx.stroke();
 }
 
+// Versión con color custom + área coloreada de fondo (para los Motor minis)
+function drawHistoryMini(canvas, data, color) {
+  if (!canvas || !data?.length) return;
+  // Resize canvas a su contenedor (CSS-driven, evita pixelado)
+  if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+    canvas.width = canvas.clientWidth || 300;
+    canvas.height = canvas.clientHeight || 80;
+  }
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const min = Math.min(...data), max = Math.max(...data);
+  if (!isFinite(min) || !isFinite(max)) return;
+  const range = max - min || 1;
+  // Coordenadas
+  const pts = data.map((v, i) => ({
+    x: (i / Math.max(1, data.length - 1)) * (w - 4) + 2,
+    y: h - ((v - min) / range) * (h - 6) - 3,
+  }));
+  // Fondo (área bajo la línea)
+  ctx.fillStyle = color + '22';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, h);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length-1].x, h);
+  ctx.closePath();
+  ctx.fill();
+  // Línea principal
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.stroke();
+  // Punto último (highlight)
+  const last = pts[pts.length - 1];
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#08050a';
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// ── Mini-charts históricos en Motor Howell + Motor Fidelity ──
+// Llenan el espacio vacío cuando los acordeones están cerrados, agregando contexto histórico
+function updateMotorHistoryMinis() {
+  // ── Howell mini · trayectoria score 13 semanas ──
+  try {
+    const points = (typeof computeHistoricalHowell === 'function') ? computeHistoricalHowell() : [];
+    if (points.length) {
+      const last13 = points.slice(-13).map(p => p.score);
+      const canvas = document.getElementById('diagHistoryMini');
+      if (canvas && last13.length) {
+        // Color según trayectoria: verde si baja (mejora), rojo si sube (empeora)
+        const cur = last13[last13.length - 1];
+        const start = last13[0];
+        const color = cur > start + 0.3 ? '#f87171' : cur < start - 0.3 ? '#4ade80' : '#fbbf24';
+        drawHistoryMini(canvas, last13, color);
+      }
+      const trendEl = document.getElementById('diag-history-trend');
+      if (trendEl && last13.length >= 5) {
+        const cur = last13[last13.length - 1];
+        const prev = last13[last13.length - 5]; // 4 semanas atrás
+        const delta = cur - prev;
+        const sign = delta >= 0 ? '+' : '';
+        const txt = delta > 0.3 ? '↑ deteriora' : delta < -0.3 ? '↓ mejora' : '→ estable';
+        const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text3)';
+        trendEl.textContent = `4w: ${sign}${delta.toFixed(1)} · ${txt}`;
+        trendEl.style.color = col;
+      }
+    }
+  } catch (e) { /* no romper render si falla */ }
+
+  // ── Fidelity mini · IPMAN YoY últimos 24 meses (proxy del ciclo económico) ──
+  try {
+    const ipman = state.data.pmi; // IPMAN array DESC (más reciente primero)
+    if (Array.isArray(ipman) && ipman.length >= 25) {
+      const yoy = [];
+      // Genera 24 puntos YoY: para cada idx i (0=hoy, 23=hace 23 meses), value = (ipman[i]/ipman[i+12])-1
+      for (let i = 0; i < 24 && i + 12 < ipman.length; i++) {
+        const now = ipman[i]?.value;
+        const yearAgo = ipman[i + 12]?.value;
+        if (now != null && yearAgo) yoy.push(((now / yearAgo) - 1) * 100);
+      }
+      yoy.reverse(); // orden cronológico: viejo izquierda → reciente derecha
+      const canvas = document.getElementById('fidHistoryMini');
+      if (canvas && yoy.length) {
+        const cur = yoy[yoy.length - 1];
+        // Verde si IPMAN YoY positivo (expansión), rojo si negativo (contracción), ámbar si cerca de cero
+        const color = cur > 1 ? '#4ade80' : cur < -1 ? '#f87171' : '#fbbf24';
+        drawHistoryMini(canvas, yoy, color);
+      }
+      const trendEl = document.getElementById('fid-history-trend');
+      if (trendEl && yoy.length >= 7) {
+        const cur = yoy[yoy.length - 1];
+        const prev = yoy[yoy.length - 7]; // 6 meses atrás
+        const delta = cur - prev;
+        const sign = delta >= 0 ? '+' : '';
+        const txt = delta > 1 ? '↑ acelera' : delta < -1 ? '↓ desacelera' : '→ estable';
+        const col = delta > 1 ? 'var(--green)' : delta < -1 ? 'var(--red)' : 'var(--text3)';
+        trendEl.textContent = `6m: ${sign}${delta.toFixed(1)}pp · ${txt}`;
+        trendEl.style.color = col;
+      }
+    }
+  } catch (e) { /* no romper render si falla */ }
+}
+
 // ── Reglas atómicas de scoring Howell (single source of truth) ──
 // Recalibrado 2026-04-27 (régimen post-2024 Yellen TGA games + Fed pause):
 //   - TGA: banda objetivo Treasury 2024+ es $750-850B; $1T es inalcanzable salvo evento.
@@ -5637,6 +5765,7 @@ function updateHeroScore() {
   updateLeadingIndicators();
   updateHowellHistory();
   updateOperationalContext();
+  updateMotorHistoryMinis();
 
   // Alert banner
   const banner = document.getElementById('alert-banner');
