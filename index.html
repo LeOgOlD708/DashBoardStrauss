@@ -100,10 +100,11 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .zone-anatomia{background:rgba(245,236,228,.012);border-color:rgba(245,236,228,.06)}
 .zone-operativo{background:rgba(96,165,250,.02);border-color:rgba(96,165,250,.08)}
 .zone-historico{background:rgba(156,5,18,.018);border-color:rgba(156,5,18,.08)}
-/* Fix: cuando los acordeones del Motor (Howell/Fidelity) están cerrados, la columna izquierda
-   del grid g21 era corta vs la derecha (phase cards + sparklines) → mucho whitespace.
-   align-items:start hace que cada celda respete su altura natural. */
-.zone-anatomia .g21{align-items:start}
+/* Fix: los grids dentro de las zonas pueden tener cards de alturas muy distintas
+   (Motor con acordeón cerrado vs Phase cards apiladas). align-items:start hace que
+   cada celda respete su altura natural en lugar de estirarse. */
+.zone .g21,.zone .g12,.zone .g32,.zone .g4,.zone .g3,.zone .g2{align-items:start}
+.zone .g21 > *,.zone .g12 > *,.zone .g32 > *,.zone .g4 > *,.zone .g3 > *,.zone .g2 > *{align-self:start}
 /* Header de zona — Playfair grande + mono small-caps con acento por zona + lead italic dim */
 .zone-head{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border2)}
 .zone-mono{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;font-weight:500;margin-bottom:5px}
@@ -128,12 +129,12 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .diag-tbl-accordion[open] summary::before{transform:rotate(90deg)}
 .diag-tbl-accordion summary:hover{border-color:rgba(230,180,80,.4);color:var(--gold);background:rgba(230,180,80,.04)}
 .diag-tbl-accordion[open] summary{border-color:rgba(230,180,80,.3);color:var(--gold);margin-bottom:8px}
-.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.g21{display:grid;grid-template-columns:2fr 1fr;gap:10px}
-.g12{display:grid;grid-template-columns:1fr 2fr;gap:10px}
-.g32{display:grid;grid-template-columns:3fr 2fr;gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;align-items:start}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+.g21{display:grid;grid-template-columns:2fr 1fr;gap:10px;align-items:start}
+.g12{display:grid;grid-template-columns:1fr 2fr;gap:10px;align-items:start}
+.g32{display:grid;grid-template-columns:3fr 2fr;gap:10px;align-items:start}
 @media(max-width:1000px){.g4,.g3{grid-template-columns:1fr 1fr}.g21,.g12,.g32{grid-template-columns:1fr}}
 @media(max-width:600px){.g4,.g3,.g2{grid-template-columns:1fr}}
 
