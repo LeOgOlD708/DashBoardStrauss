@@ -664,6 +664,12 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-num" id="hero-score-num">—</div>
       <div class="vh-denom">/8</div>
       <div class="vh-lbl">Score Howell</div>
+      <!-- Mini sparkline trayectoria 13 semanas + delta 4w (rellena espacio en columna izq) -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px solid rgba(245,236,228,.08)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center;margin-bottom:5px">Trend 13 sem</div>
+        <div class="ch-wrap" style="height:40px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
+        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;text-align:center;margin-top:5px;color:var(--text3)">4w: —</div>
+      </div>
     </div>
     <div class="vh-mid">
       <div class="vh-phase" id="hero-phase-name">Cargando…</div>
@@ -5382,35 +5388,63 @@ function drawHistoryMini(canvas, data, color) {
   ctx.fill();
 }
 
-// ── Mini-charts históricos en Motor Howell + Motor Fidelity ──
+// ── Mini-charts históricos en Motor Howell + Motor Fidelity + Hero Score ──
 // Llenan el espacio vacío cuando los acordeones están cerrados, agregando contexto histórico
 function updateMotorHistoryMinis() {
-  // ── Howell mini · trayectoria score 13 semanas ──
+  // ── Howell history shared · usado por Hero mini + Motor mini ──
+  let howellLast13 = null;
   try {
     const points = (typeof computeHistoricalHowell === 'function') ? computeHistoricalHowell() : [];
-    if (points.length) {
-      const last13 = points.slice(-13).map(p => p.score);
-      const canvas = document.getElementById('diagHistoryMini');
-      if (canvas && last13.length) {
-        // Color según trayectoria: verde si baja (mejora), rojo si sube (empeora)
-        const cur = last13[last13.length - 1];
-        const start = last13[0];
-        const color = cur > start + 0.3 ? '#f87171' : cur < start - 0.3 ? '#4ade80' : '#fbbf24';
-        drawHistoryMini(canvas, last13, color);
-      }
-      const trendEl = document.getElementById('diag-history-trend');
-      if (trendEl && last13.length >= 5) {
-        const cur = last13[last13.length - 1];
-        const prev = last13[last13.length - 5]; // 4 semanas atrás
-        const delta = cur - prev;
-        const sign = delta >= 0 ? '+' : '';
-        const txt = delta > 0.3 ? '↑ deteriora' : delta < -0.3 ? '↓ mejora' : '→ estable';
-        const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text3)';
-        trendEl.textContent = `4w: ${sign}${delta.toFixed(1)} · ${txt}`;
-        trendEl.style.color = col;
-      }
+    if (points.length) howellLast13 = points.slice(-13).map(p => p.score);
+  } catch (e) { /* swallow */ }
+
+  // ── Howell mini · trayectoria score 13 semanas (Motor card en Z2) ──
+  if (howellLast13 && howellLast13.length) {
+    const last13 = howellLast13;
+    const canvas = document.getElementById('diagHistoryMini');
+    if (canvas) {
+      const cur = last13[last13.length - 1];
+      const start = last13[0];
+      const color = cur > start + 0.3 ? '#f87171' : cur < start - 0.3 ? '#4ade80' : '#fbbf24';
+      drawHistoryMini(canvas, last13, color);
     }
-  } catch (e) { /* no romper render si falla */ }
+    const trendEl = document.getElementById('diag-history-trend');
+    if (trendEl && last13.length >= 5) {
+      const cur = last13[last13.length - 1];
+      const prev = last13[last13.length - 5]; // 4 semanas atrás
+      const delta = cur - prev;
+      const sign = delta >= 0 ? '+' : '';
+      const txt = delta > 0.3 ? '↑ deteriora' : delta < -0.3 ? '↓ mejora' : '→ estable';
+      const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text3)';
+      trendEl.textContent = `4w: ${sign}${delta.toFixed(1)} · ${txt}`;
+      trendEl.style.color = col;
+    }
+  }
+
+  // ── Hero mini · sparkline score 13 semanas (columna izq del Verdict Hero) ──
+  // Versión más compacta para llenar el espacio bajo el 4.5/8 grande
+  if (howellLast13 && howellLast13.length) {
+    const last13 = howellLast13;
+    const canvas = document.getElementById('heroScoreMini');
+    if (canvas) {
+      const cur = last13[last13.length - 1];
+      const start = last13[0];
+      // Sparkline del Hero: dorado por default (acento Phoenix), rojo si deteriora fuerte, verde si mejora fuerte
+      const color = cur > start + 0.5 ? '#f87171' : cur < start - 0.5 ? '#4ade80' : '#e6b450';
+      drawHistoryMini(canvas, last13, color);
+    }
+    const trend4wEl = document.getElementById('hero-trend-4w');
+    if (trend4wEl && last13.length >= 5) {
+      const cur = last13[last13.length - 1];
+      const prev = last13[last13.length - 5];
+      const delta = cur - prev;
+      const sign = delta >= 0 ? '+' : '';
+      const arrow = delta > 0.3 ? '↑' : delta < -0.3 ? '↓' : '→';
+      const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text2)';
+      trend4wEl.innerHTML = `4w: <strong>${sign}${delta.toFixed(1)}</strong> ${arrow}`;
+      trend4wEl.style.color = col;
+    }
+  }
 
   // ── Fidelity mini · IPMAN YoY últimos 24 meses (proxy del ciclo económico) ──
   try {
