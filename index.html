@@ -2081,7 +2081,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTimer: null, priceTimer: null, firstLoad: true, chartRange: '1y', ycView: 'now' };
 
 // ── ETF metadata — needed early for skeleton rendering (re-declared safely below if needed) ──
-const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','SPY','QQQ','IWM','TLT','EEM'];
+const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','XLY','XLK','XLRE','SPY','QQQ','IWM','TLT','EEM'];
 const ETF_META = {
   GLD:{n:'Oro',           ph:'F3 ↑',    sig:'b-up',  sl:'↑↑ FUERTE'},
   GDX:{n:'Mineras Oro',   ph:'F3 ↑↑',   sig:'b-up',  sl:'↑↑ MUY FAV.'},
@@ -2093,6 +2093,9 @@ const ETF_META = {
   XLF:{n:'Financieros',   ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
   XLI:{n:'Industriales',  ph:'F3',      sig:'b-neu', sl:'= NEUTRAL'},
   XLC:{n:'Comunicac.',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  XLY:{n:'Cons. Discrec.',ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  XLK:{n:'Tecnología',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
+  XLRE:{n:'Real Estate',  ph:'F3/F4 ~', sig:'b-neu', sl:'= MIXTO'},
   SPY:{n:'S&P 500',       ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
   QQQ:{n:'Nasdaq 100',    ph:'F3 ↓↓',   sig:'b-dn',  sl:'↓ EVITAR'},
   IWM:{n:'Small Caps',    ph:'F3/F4 ↓↓',sig:'b-dn',  sl:'↓ VULNERABLE'},
@@ -2797,8 +2800,10 @@ function updateMarketBreadth(prices) {
   const el = document.getElementById('breadth-grid');
   if (!el) return;
 
-  const sectors    = ['XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC'];
-  const cyclicals  = ['XLF','XLI','XLB','XLE'];
+  // Universo SPDR completo (11 sectores) — antes era 8/11 omitiendo XLY/XLK/XLRE.
+  // XLY (cons. discrecional) y XLK (tech) son cíclicos clásicos; XLRE entra al universo neutral.
+  const sectors    = ['XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','XLY','XLK','XLRE'];
+  const cyclicals  = ['XLF','XLI','XLB','XLE','XLY','XLK'];
   const defensives = ['XLP','XLU','XLV'];
   const riskOn     = ['SPY','IWM','EEM'];
   const riskOff    = ['TLT','GLD'];
@@ -4247,9 +4252,9 @@ function updateFavoredAssets(prices) {
   // Bajo presión (isGoodWhenUp = false for press assets)
   applyBadge('pre-qqq-badge',  prices['QQQ']?.ytd,  false);
   applyBadge('pre-iwm-badge',  prices['IWM']?.ytd,  false);
-  // pre-hy-badge: prefer HY spread (FRED, lo actualiza updateDiagnostic). Si falta, fallback HYG YTD.
-  const hyBdg = document.getElementById('pre-hy-badge');
-  if (hyBdg && hyBdg.textContent.trim() === '— SPREADS') {
+  // pre-hy-badge: prefer HY spread (FRED, lo actualiza updateDiagnostic). Si FRED no cargó, fallback HYG YTD.
+  // Antes el flag era textContent==='— SPREADS' → race con loadFredData. Ahora chequeo state directo.
+  if (!state.data.hySpread || !state.data.hySpread.length) {
     applyBadge('pre-hy-badge', prices['HYG']?.ytd, false);
   }
 
@@ -4609,7 +4614,8 @@ function updateThreeHorizons(howellResult) {
       dxyEl.textContent = dxyVal.toFixed(2);
       dxyEl.style.color = dxyVal > 110 ? 'var(--red)' : dxyVal > 106 ? 'var(--amber)' : 'var(--green)';
     }
-    const pct = Math.min(100, Math.max(0, ((dxyVal - 85) / 35) * 100));
+    // Rango unificado con Hero (L5108): [85,125] — antes era 35 = inconsistencia visual.
+    const pct = Math.min(100, Math.max(0, ((dxyVal - 85) / 40) * 100));
     setS('h-largo-dxy-hdl', pct + '%');
   }
 
@@ -4966,14 +4972,21 @@ function computeHistoricalHowell() {
     }
     score += HOWELL_RULES.dxy(dxyVal);
 
-    // CPI YoY: necesitamos CPI[targetDate] / CPI[targetDate − 12 meses] − 1
+    // CPI YoY: necesitamos CPI[targetDate] / CPI[targetDate − 12 meses] − 1.
+    // Si la serie CPI no llega hasta yearAgo (común en puntos viejos del extremo del array),
+    // skipeamos este punto entero — sub-estimar el score corrompe la trayectoria histórica.
     let cpiYoY = null;
+    let cpiAvailable = false;
     if (Array.isArray(cpi) && cpi.length >= 13) {
       const cpiNow  = _findValueAt(cpi, targetDate);
       const yearAgo = new Date(targetDate); yearAgo.setMonth(yearAgo.getMonth() - 12);
       const cpiOld  = _findValueAt(cpi, yearAgo);
-      if (cpiNow && cpiOld) cpiYoY = ((cpiNow / cpiOld) - 1) * 100;
+      if (cpiNow && cpiOld) {
+        cpiYoY = ((cpiNow / cpiOld) - 1) * 100;
+        cpiAvailable = true;
+      }
     }
+    if (!cpiAvailable) continue;
     score += HOWELL_RULES.cpi(cpiYoY);
 
     points.push({ date: obs.date, score: +score.toFixed(2) });
@@ -5139,7 +5152,8 @@ function updateHeroScore() {
     spyLabel = `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`;
     spyPct = Math.min(100, Math.max(0, 50 + diff * 2));
   }
-  bars.push({ id:'spy', val: spyBearish ? 20 : 80,
+  // Barra SPY: usa spyPct graduado (50% = en SMA100, +diff*2 lo escala). Antes era binaria 20/80.
+  bars.push({ id:'spy', val: spyPct,
     label: spyLabel,
     color: spyBearish ? 'var(--red)' : 'var(--green)' });
 
@@ -6305,8 +6319,11 @@ function openYahooModal(title, yfTicker, unit, color, sourceLabel) {
     return;
   }
   const series = yf.dates.map((d, i) => ({ date: d, value: yf.hist[i] }));
-  if (yf.price != null) {
-    series.push({ date: new Date().toISOString().slice(0, 10), value: yf.price });
+  // Solo agregar el live price si el último día del histórico no es hoy (evita punto duplicado).
+  const today = new Date().toISOString().slice(0, 10);
+  const lastDate = yf.dates[yf.dates.length - 1];
+  if (yf.price != null && lastDate !== today) {
+    series.push({ date: today, value: yf.price });
   }
   // openFREDModal espera array reverso (más reciente primero)
   const reversed = series.slice().reverse();
