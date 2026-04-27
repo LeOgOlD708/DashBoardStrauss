@@ -1090,28 +1090,28 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap" id="fid-phase-badges"></div>
       </div>
       <div class="g2" style="gap:6px">
-        <div class="card card-sm clickable" onclick="openIndicatorModal('pmi')">
-          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">PMI Mfg <span id="fid-pmi-lbl" style="color:var(--text3)">—</span></div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('pmi')" title="Producción Manuf. (FRED:IPMAN)">
+          <div class="lbl" style="font-size:8px;display:flex;justify-content:space-between;align-items:center"><span>Prod. Mfg <span style="color:var(--text3);font-size:7px">IPMAN</span></span><span id="fid-pmi-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidPmiChart"></canvas></div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('gdp')">
-          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">PIB Real % <span id="fid-gdp-lbl" style="color:var(--text3)">—</span></div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('gdp')" title="PIB Real (FRED:A191RL1Q225SBEA)">
+          <div class="lbl" style="font-size:8px;display:flex;justify-content:space-between;align-items:center"><span>PIB Real % <span style="color:var(--text3);font-size:7px">QoQ</span></span><span id="fid-gdp-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidGdpChart"></canvas></div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('unemp')">
-          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Desempleo % <span id="fid-unemp-lbl" style="color:var(--text3)">—</span></div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('unemp')" title="Desempleo (FRED:UNRATE)">
+          <div class="lbl" style="font-size:8px;display:flex;justify-content:space-between;align-items:center"><span>Desempleo <span style="color:var(--text3);font-size:7px">UNRATE</span></span><span id="fid-unemp-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidUnempChart"></canvas></div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('yield')">
-          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Curva 10Y-2Y <span id="fid-yield-lbl" style="color:var(--text3)">—</span></div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('yield')" title="Curva 10Y-2Y (FRED:T10Y2Y)">
+          <div class="lbl" style="font-size:8px;display:flex;justify-content:space-between;align-items:center"><span>Curva 10Y-2Y <span style="color:var(--text3);font-size:7px">T10Y2Y</span></span><span id="fid-yield-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidYieldChart"></canvas></div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('retail')">
-          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">V. Minoristas <span id="fid-retail-lbl" style="color:var(--text3)">—</span></div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('retail')" title="Ventas Minoristas (FRED:RSAFS)">
+          <div class="lbl" style="font-size:8px;display:flex;justify-content:space-between;align-items:center"><span>V. Minoristas <span style="color:var(--text3);font-size:7px">RSAFS</span></span><span id="fid-retail-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidRetailChart"></canvas></div>
         </div>
-        <div class="card card-sm clickable" onclick="openIndicatorModal('sent')">
-          <div class="lbl" style="font-size:7px;display:flex;justify-content:space-between">Conf. Consumidor <span id="fid-sent-lbl" style="color:var(--text3)">—</span></div>
+        <div class="card card-sm clickable" onclick="openIndicatorModal('sent')" title="Confianza Consumidor UMich (FRED:UMCSENT)">
+          <div class="lbl" style="font-size:8px;display:flex;justify-content:space-between;align-items:center"><span>Conf. Cons. <span style="color:var(--text3);font-size:7px">UMCSENT</span></span><span id="fid-sent-lbl" style="color:var(--text3)">—</span></div>
           <div class="ch-wrap ch140"><canvas id="fidSentChart"></canvas></div>
         </div>
       </div>
