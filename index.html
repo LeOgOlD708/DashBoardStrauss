@@ -97,9 +97,13 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .zone > .zone-head + .sh{margin-top:14px}
 /* 4 tints por zona — cambio de temperatura subliminal cálido→neutro→frío→cálido */
 .zone-decision{background:linear-gradient(180deg,rgba(249,115,22,.035) 0%,transparent 75%);border-color:rgba(249,115,22,.12);box-shadow:inset 0 0 80px -30px rgba(249,115,22,.06)}
-.zone-anatomia{background:transparent;border-color:rgba(245,236,228,.04)}
+.zone-anatomia{background:rgba(245,236,228,.012);border-color:rgba(245,236,228,.06)}
 .zone-operativo{background:rgba(96,165,250,.02);border-color:rgba(96,165,250,.08)}
 .zone-historico{background:rgba(156,5,18,.018);border-color:rgba(156,5,18,.08)}
+/* Fix: cuando los acordeones del Motor (Howell/Fidelity) están cerrados, la columna izquierda
+   del grid g21 era corta vs la derecha (phase cards + sparklines) → mucho whitespace.
+   align-items:start hace que cada celda respete su altura natural. */
+.zone-anatomia .g21{align-items:start}
 /* Header de zona — Playfair grande + mono small-caps con acento por zona + lead italic dim */
 .zone-head{margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border2)}
 .zone-mono{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.2em;text-transform:uppercase;font-weight:500;margin-bottom:5px}
@@ -110,10 +114,10 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .zone-head h2{font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--text);line-height:1.15;letter-spacing:-.005em;margin:0}
 .zone-lead{font-size:13px;color:var(--text3);font-style:italic;margin-top:6px;line-height:1.55;max-width:780px}
 /* Sub-group divider dentro de zonas (TASAS & FED, VOL & CROSS-ASSET, etc.) */
-.zone-divider{display:flex;align-items:center;gap:12px;margin:22px 0 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--text3);font-weight:500}
-.zone-divider::before,.zone-divider::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--border2) 50%,transparent)}
-.zone-divider::before{background:linear-gradient(90deg,transparent,var(--border2))}
-.zone-divider::after{background:linear-gradient(90deg,var(--border2),transparent)}
+.zone-divider{display:flex;align-items:center;gap:12px;margin:22px 0 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--text2);font-weight:500}
+.zone-divider::before,.zone-divider::after{content:'';flex:1;height:1px}
+.zone-divider::before{background:linear-gradient(90deg,transparent,rgba(245,236,228,.18))}
+.zone-divider::after{background:linear-gradient(90deg,rgba(245,236,228,.18),transparent)}
 /* Mobile: aprietar padding de zona y header */
 @media(max-width:700px){.zone{padding:14px 12px 10px;margin-bottom:18px}.zone-head h2{font-size:22px}.zone-mono{font-size:10px}}
 /* Acordeón <details> para tablas detalladas (Motor Howell, Motor Fidelity) */
@@ -638,7 +642,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
   <div style="margin:-6px 0 10px;padding:7px 12px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);letter-spacing:.04em;line-height:1.65;background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.15);border-radius:5px">
     ↑ Régimen de mercado (corto plazo) · ↓ Veredicto Howell (largo plazo, liquidez global). <span style="color:var(--amber);font-weight:500">Pueden divergir</span>: el corto puede ser RISK_ON mientras el largo señala defensa preventiva.
     <div style="margin-top:5px;color:var(--text3)">
-      <strong style="color:var(--text2)">Regla de prioridad:</strong> si divergen >2 niveles → banner pesa para horizontes ≤1 mes (timing táctico), Howell pesa para ≥3 meses (sizing estructural). Nunca ignorar la divergencia: es la información más valiosa del dashboard.
+      <strong style="color:var(--text2)">Regla de prioridad:</strong> si divergen ≥2 niveles → banner pesa para horizontes ≤1 mes (timing táctico), Howell pesa para ≥3 meses (sizing estructural). Nunca ignorar la divergencia: es la información más valiosa del dashboard.
     </div>
   </div>
 
@@ -751,6 +755,90 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <h2>¿Por qué este score?</h2>
       <div class="zone-lead">Componentes que justifican el veredicto. Liquidez global, ciclo económico Fidelity y motor de scoring Howell — dónde está la presión.</div>
     </header>
+
+  <div class="zone-divider">Ventanas de Tiempo · 3 horizontes con drivers computados</div>
+
+  <!-- ── TRES VENTANAS DE TIEMPO v2 — qué mueve cada horizonte AHORA + acción + tensión ── -->
+  <div class="h3" id="three-windows" style="margin-bottom:14px">
+    <!-- CORTO PLAZO -->
+    <div class="hcol h-corto">
+      <div class="hcol-hdr">
+        <div>
+          <div class="hcol-lbl">Corto plazo</div>
+          <div class="hcol-period">≤ 1 mes · Régimen de mercado</div>
+        </div>
+        <span id="tw-corto-badge" class="badge b-neu">—</span>
+      </div>
+      <div class="hcol-body">
+        <div class="kb">
+          <div class="kb-lbl">Estado actual</div>
+          <div class="kb-val" id="tw-corto-val" style="font-size:18px">—</div>
+          <div class="kb-sub" id="tw-corto-sub">Cargando…</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Drivers que lo mueven</div>
+          <div id="tw-corto-drivers" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);line-height:1.7;margin-top:6px">—</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Acción sugerida</div>
+          <div id="tw-corto-action" style="font-size:13px;color:var(--text);font-weight:500;margin-top:6px;line-height:1.45">—</div>
+          <div id="tw-corto-tension" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);margin-top:6px">Tensión: —</div>
+        </div>
+      </div>
+    </div>
+    <!-- MEDIO PLAZO -->
+    <div class="hcol h-medio">
+      <div class="hcol-hdr">
+        <div>
+          <div class="hcol-lbl">Medio plazo</div>
+          <div class="hcol-period">1 – 6 meses · Ciclo Fidelity</div>
+        </div>
+        <span id="tw-medio-badge" class="badge b-neu">—</span>
+      </div>
+      <div class="hcol-body">
+        <div class="kb">
+          <div class="kb-lbl">Estado actual</div>
+          <div class="kb-val" id="tw-medio-val" style="font-size:18px">—</div>
+          <div class="kb-sub" id="tw-medio-sub">Cargando…</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Drivers que lo mueven</div>
+          <div id="tw-medio-drivers" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);line-height:1.7;margin-top:6px">—</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Acción sugerida</div>
+          <div id="tw-medio-action" style="font-size:13px;color:var(--text);font-weight:500;margin-top:6px;line-height:1.45">—</div>
+          <div id="tw-medio-tension" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);margin-top:6px">Tensión: —</div>
+        </div>
+      </div>
+    </div>
+    <!-- LARGO PLAZO -->
+    <div class="hcol h-largo">
+      <div class="hcol-hdr">
+        <div>
+          <div class="hcol-lbl">Largo plazo</div>
+          <div class="hcol-period">6 – 24 meses · Ciclo Howell</div>
+        </div>
+        <span id="tw-largo-badge" class="badge b-neu">—</span>
+      </div>
+      <div class="hcol-body">
+        <div class="kb">
+          <div class="kb-lbl">Estado actual</div>
+          <div class="kb-val" id="tw-largo-val" style="font-size:18px">—</div>
+          <div class="kb-sub" id="tw-largo-sub">Cargando…</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Drivers que lo mueven</div>
+          <div id="tw-largo-drivers" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);line-height:1.7;margin-top:6px">—</div>
+        </div>
+        <div class="kb">
+          <div class="kb-lbl">Acción sugerida</div>
+          <div id="tw-largo-action" style="font-size:13px;color:var(--text);font-weight:500;margin-top:6px;line-height:1.45">—</div>
+          <div id="tw-largo-tension" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--text3);margin-top:6px">Tensión: —</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="zone-divider">Liquidez Global · 70% no-Fed</div>
 
@@ -4505,6 +4593,164 @@ function updateRegimeBanner() {
   }
 }
 
+// ── Tres Ventanas de Tiempo · drilldown computado por horizonte ──
+// Cada ventana muestra: estado + score, drivers que lo mueven (top 4 con valores),
+// acción sugerida específica, y nivel de tensión (low/med/high).
+function updateThreeWindows() {
+  const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const setHTML = (id, v) => { const el = document.getElementById(id); if (el) el.innerHTML = v; };
+  const setBadge = (id, cls, txt) => {
+    const el = document.getElementById(id);
+    if (el) { el.className = 'badge ' + cls; el.textContent = txt; }
+  };
+  const setColor = (id, c) => { const el = document.getElementById(id); if (el) el.style.color = c; };
+
+  // ═══════════════════ CORTO PLAZO ═══════════════════
+  // Régimen + breadth + VIX + SPY-SMA20w
+  const reg = computeRegime();
+  const prices = state.data.prices || {};
+  const vix = prices['^VIX']?.price;
+  const spy = prices['SPY'];
+  let cortoCls = 'b-up', cortoBadge = 'RISK_ON', cortoTension = 'Baja', cortoColor = 'var(--green)';
+  if (reg.regime === 'RISK_OFF') { cortoCls = 'b-dn'; cortoBadge = 'RISK_OFF'; cortoTension = 'Alta'; cortoColor = 'var(--red)'; }
+  else if (reg.regime === 'NEUTRAL') { cortoCls = 'b-neu'; cortoBadge = 'NEUTRAL'; cortoTension = 'Media'; cortoColor = 'var(--amber)'; }
+  setBadge('tw-corto-badge', cortoCls, cortoBadge);
+  setText('tw-corto-val', cortoBadge);
+  setColor('tw-corto-val', cortoColor);
+  setText('tw-corto-sub', `${reg.riskPts} señal${reg.riskPts === 1 ? '' : 'es'} de riesgo activas`);
+
+  const cortoDrivers = [];
+  // Computar breadth 20d en el momento (simple promedio % sectores arriba)
+  const sectorTickers = ['XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','XLY','XLK','XLRE'];
+  const sectorsUp20d = sectorTickers.filter(t => {
+    const d = prices[t];
+    if (!d?.hist || d.hist.length < 21) return false;
+    const past = d.hist[d.hist.length - 21];
+    const now = d.price ?? d.hist[d.hist.length - 1];
+    return past && now && (now - past) > 0;
+  }).length;
+  const totalSectors = sectorTickers.filter(t => prices[t]?.hist?.length >= 21).length;
+  if (totalSectors > 0) {
+    const pct = (sectorsUp20d / totalSectors) * 100;
+    const col = pct >= 62 ? 'var(--green)' : pct <= 37 ? 'var(--red)' : 'var(--amber)';
+    cortoDrivers.push(`<span style="color:${col}">●</span> Breadth 20d: ${pct.toFixed(0)}% sectores ↑`);
+  }
+  if (vix != null) {
+    const col = vix < 20 ? 'var(--green)' : vix < 30 ? 'var(--amber)' : 'var(--red)';
+    cortoDrivers.push(`<span style="color:${col}">●</span> VIX ${vix.toFixed(1)} ${vix < 20 ? 'calma' : vix < 30 ? 'tensa' : 'pánico'}`);
+  }
+  if (spy?.hist?.length >= 100) {
+    const sma100 = spy.hist.slice(-100).reduce((a,b)=>a+b,0)/100;
+    const above = spy.price > sma100;
+    const diff = ((spy.price / sma100) - 1) * 100;
+    const col = above ? 'var(--green)' : 'var(--red)';
+    cortoDrivers.push(`<span style="color:${col}">●</span> SPY ${above ? '>' : '<'} SMA20w (${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%)`);
+  }
+  const yc = state.data.yieldCurve?.[0]?.value;
+  if (yc != null) {
+    const col = yc < 0 ? 'var(--red)' : yc < 0.5 ? 'var(--amber)' : 'var(--green)';
+    cortoDrivers.push(`<span style="color:${col}">●</span> Curva 10Y-2Y: ${yc >= 0 ? '+' : ''}${yc.toFixed(2)}%`);
+  }
+  setHTML('tw-corto-drivers', cortoDrivers.length ? cortoDrivers.join('<br>') : '—');
+
+  const cortoAction = reg.regime === 'RISK_ON'
+    ? 'Trade táctico habilitado. Stops normales, tamaño completo.'
+    : reg.regime === 'NEUTRAL'
+    ? 'Reducir tamaño 30-40%. Privilegiar setups limpios.'
+    : 'Capital protegido. Stops cortos, sin nuevos longs especulativos.';
+  setText('tw-corto-action', cortoAction);
+  setHTML('tw-corto-tension', `Tensión: <strong style="color:${cortoColor}">${cortoTension}</strong>`);
+
+  // ═══════════════════ MEDIO PLAZO ═══════════════════
+  // Score Fidelity + PMI YoY + UR + HY spread
+  const fid = (typeof computeFidelityScore === 'function') ? computeFidelityScore() : null;
+  const fScore = fid?.score ?? 0;
+  const fPmiYoY = fid?.pmiYoY;
+  const fUR = state.data.unrate?.[0]?.value;
+  const fUR3m = state.data.unrate?.[3]?.value;
+  const fHY = state.data.hySpread?.[0]?.value;
+  let medioCls = 'b-up', medioBadge = 'Early Cycle', medioTension = 'Baja', medioColor = 'var(--green)';
+  if (fScore >= 6) { medioCls = 'b-dn'; medioBadge = 'Recesión'; medioTension = 'Alta'; medioColor = 'var(--red)'; }
+  else if (fScore >= 4) { medioCls = 'b-dn'; medioBadge = 'Late Cycle'; medioTension = 'Media-Alta'; medioColor = 'var(--red)'; }
+  else if (fScore >= 2) { medioCls = 'b-neu'; medioBadge = 'Mid Cycle'; medioTension = 'Media'; medioColor = 'var(--amber)'; }
+  setBadge('tw-medio-badge', medioCls, medioBadge);
+  setText('tw-medio-val', medioBadge);
+  setColor('tw-medio-val', medioColor);
+  setText('tw-medio-sub', `Score Fidelity: ${fScore.toFixed(1)}/8 · ${fid ? '8 indicadores' : '—'}`);
+
+  const medioDrivers = [];
+  if (fPmiYoY != null) {
+    const col = fPmiYoY < -2 ? 'var(--red)' : fPmiYoY < 0 ? 'var(--amber)' : 'var(--green)';
+    medioDrivers.push(`<span style="color:${col}">●</span> PMI (IPMAN YoY): ${fPmiYoY >= 0 ? '+' : ''}${fPmiYoY.toFixed(1)}%`);
+  }
+  if (fUR != null) {
+    const urDelta = (fUR3m != null) ? (fUR - fUR3m) : null;
+    const col = urDelta != null && urDelta >= 0.5 ? 'var(--red)' : urDelta != null && urDelta >= 0.2 ? 'var(--amber)' : 'var(--green)';
+    medioDrivers.push(`<span style="color:${col}">●</span> Desempleo ${fUR.toFixed(1)}% ${urDelta != null ? `(${urDelta >= 0 ? '+' : ''}${urDelta.toFixed(1)}pp 3m)` : ''}`);
+  }
+  if (fHY != null) {
+    const col = fHY > 5.5 ? 'var(--red)' : fHY > 4.5 ? 'var(--amber)' : 'var(--green)';
+    medioDrivers.push(`<span style="color:${col}">●</span> HY Spread ${fHY.toFixed(2)}% ${fHY > 5.5 ? 'estrés' : fHY > 4.5 ? 'alerta' : 'comprimido'}`);
+  }
+  const fGdp = state.data.gdpReal?.[0]?.value;
+  if (fGdp != null) {
+    const col = fGdp < 0 ? 'var(--red)' : fGdp < 2 ? 'var(--amber)' : 'var(--green)';
+    medioDrivers.push(`<span style="color:${col}">●</span> PIB Real QoQ ${fGdp >= 0 ? '+' : ''}${fGdp.toFixed(1)}%`);
+  }
+  setHTML('tw-medio-drivers', medioDrivers.length ? medioDrivers.join('<br>') : '—');
+
+  const medioAction = fScore >= 6
+    ? 'Recesión activa. Cash + bonos largos + oro. Cero crédito HY.'
+    : fScore >= 4
+    ? 'Late Cycle: rotar a defensivos, reducir cíclicos, vender weakness en tech.'
+    : fScore >= 2
+    ? 'Mid Cycle: balance growth/value. Vigilar curva e HY como triggers.'
+    : 'Early Cycle: favorecer cíclicos (XLF/XLI), small-caps, growth quality.';
+  setText('tw-medio-action', medioAction);
+  setHTML('tw-medio-tension', `Tensión: <strong style="color:${medioColor}">${medioTension}</strong>`);
+
+  // ═══════════════════ LARGO PLAZO ═══════════════════
+  // Score Howell + TGA + RRP + CPI + DXY
+  const h = computeHowellScore();
+  let largoCls = 'b-up', largoBadge = 'Fase 1-2', largoTension = 'Baja', largoColor = 'var(--green)';
+  if (h.score >= 6) { largoCls = 'b-dn'; largoBadge = 'Fase 4'; largoTension = 'Crítica'; largoColor = 'var(--red)'; }
+  else if (h.score >= 4) { largoCls = 'b-dn'; largoBadge = 'Fase 3→4'; largoTension = 'Alta'; largoColor = 'var(--red)'; }
+  else if (h.score >= 2) { largoCls = 'b-neu'; largoBadge = 'Fase 3'; largoTension = 'Media'; largoColor = 'var(--amber)'; }
+  setBadge('tw-largo-badge', largoCls, largoBadge);
+  setText('tw-largo-val', largoBadge);
+  setColor('tw-largo-val', largoColor);
+  setText('tw-largo-sub', `Score Howell: ${h.score.toFixed(1)}/8 · ${h.missing.length ? `${h.missing.length} datos faltantes` : '6 indicadores OK'}`);
+
+  const largoDrivers = [];
+  if (h.tgaVal != null) {
+    const col = h.tgaVal > 900000 ? 'var(--red)' : h.tgaVal > 700000 ? 'var(--amber)' : 'var(--green)';
+    largoDrivers.push(`<span style="color:${col}">●</span> TGA $${(h.tgaVal/1e6).toFixed(2)}T ${h.tgaVal > 900000 ? 'drenaje masivo' : h.tgaVal > 700000 ? 'drenaje activo' : 'normal'}`);
+  }
+  if (h.cpiYoY != null) {
+    const col = h.cpiYoY > 3.5 ? 'var(--red)' : h.cpiYoY > 3 ? 'var(--amber)' : h.cpiYoY < 1.5 ? 'var(--amber)' : 'var(--green)';
+    largoDrivers.push(`<span style="color:${col}">●</span> CPI YoY ${h.cpiYoY.toFixed(1)}% ${h.cpiYoY > 3.5 ? 're-acelera' : h.cpiYoY > 3 ? 'sticky' : h.cpiYoY < 1.5 ? 'deflación' : 'controlado'}`);
+  }
+  if (h.dxyVal != null) {
+    const col = h.dxyVal > 107 ? 'var(--red)' : h.dxyVal > 103 ? 'var(--amber)' : 'var(--green)';
+    largoDrivers.push(`<span style="color:${col}">●</span> DXY ${h.dxyVal.toFixed(1)} ${h.dxyVal > 107 ? 'muy restrictivo' : h.dxyVal > 103 ? 'restrictivo' : 'expansivo'}`);
+  }
+  if (h.resVal != null) {
+    const col = h.resVal < 3000000 ? 'var(--red)' : h.resVal < 3300000 ? 'var(--amber)' : 'var(--green)';
+    largoDrivers.push(`<span style="color:${col}">●</span> Reservas Fed $${(h.resVal/1e6).toFixed(2)}T ${h.resVal < 3000000 ? 'crítico' : h.resVal < 3300000 ? 'alerta' : 'abundancia'}`);
+  }
+  setHTML('tw-largo-drivers', largoDrivers.length ? largoDrivers.join('<br>') : '—');
+
+  const largoAction = h.score >= 6
+    ? 'Capitulación: cash + oro físico únicamente. Salir de TODO el riesgo.'
+    : h.score >= 4
+    ? 'Defensivo selectivo: oro + commodities + quality value. Reducir exposición ≥40%.'
+    : h.score >= 2
+    ? 'Squeeze: privilegiar oro/GDX/XLE. Cuidar tech (XLK) por liquidez restringida.'
+    : 'Liquidez expansiva: tech + crypto + small-caps OK. Aprovechar el ciclo.';
+  setText('tw-largo-action', largoAction);
+  setHTML('tw-largo-tension', `Tensión: <strong style="color:${largoColor}">${largoTension}</strong>`);
+}
+
 // ── Leading Indicators — actualiza los 4 cards de indicadores adelantados ──
 function updateLeadingIndicators() {
   const { claims, indpro, permits, corePce, fwd5y5y } = state.data;
@@ -5386,6 +5632,7 @@ function updateHeroScore() {
   updateRegimeBanner();
   updateYieldCurve();
   updateThreeHorizons({ score, resVal, tgaVal, sofrAbs, dxyVal, cpiYoY, rrpVal });
+  updateThreeWindows();
   updateLeadingIndicators();
   updateHowellHistory();
   updateOperationalContext();
