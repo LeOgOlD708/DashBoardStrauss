@@ -576,7 +576,6 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div class="nt-item"><span class="nt-sym">WTI</span><span class="nt-price" id="nt-WTI-p">—</span><span class="nt-chg flat" id="nt-WTI-c">—</span></div>
   </div>
   <div class="nav-right">
-    <div class="phase-badge" id="phase-badge">FASE 3 → F4</div>
     <div class="live-dot"><div class="dot" id="live-dot-el"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
     <span id="refresh-cdown" style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.06em;padding:2px 6px;border:1px solid var(--border2);border-radius:2px" title="Próxima actualización">15:00</span>
     <button id="open-glossary-btn" onclick="openGlossary()" title="Abre glosario de indicadores">📖 Glosario</button>
@@ -1251,29 +1250,48 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         </div>
         <div style="margin-top:4px;font-size:12px;color:var(--text3)">Lectura cleaner de expectativas Fed (18m) que la curva — leading vs Fed Funds.</div>
       </div>
+      <!-- Régimen de la curva · clasificación bull/bear × steep/flat con análogos históricos -->
+      <div class="card blue-a"><div class="card-accent"></div>
+        <div class="lbl" style="color:var(--blue)">Régimen de la curva
+          <button class="help-i" type="button" onclick="openGlossary('curve-regime')" title="¿Qué es?">?</button>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-top:6px">
+          <div class="mono" id="yc-regime-name" style="font-size:18px;font-weight:600;color:var(--text)">—</div>
+        </div>
+        <div id="yc-regime-desc" style="margin-top:4px;font-size:12px;color:var(--text2);line-height:1.55">Cargando…</div>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2)">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">ANÁLOGOS HISTÓRICOS</div>
+          <div id="yc-regime-analogs" style="font-size:11px;color:var(--text2);line-height:1.5">—</div>
+        </div>
+      </div>
       <div class="card">
-        <div class="lbl">Spreads clave</div>
+        <div class="lbl">Spreads clave
+          <button class="help-i" type="button" onclick="openGlossary('yield-spreads')" title="¿Qué es?">?</button>
+        </div>
         <div style="display:flex;flex-direction:column;gap:4px;margin-top:8px">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">10Y − 2Y</span>
-            <span id="yc-sp-10y2y" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:11px">—</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px" title="10Y − 2Y · spread clásico recesión-anticipador (Powell observa)">
+            <span style="font-size:11px;color:var(--text2)">10Y − 2Y</span>
+            <span id="yc-sp-10y2y" class="mono" style="font-size:11px">—</span>
+            <span id="yc-sp-10y2y-sig" class="badge b-neu" style="font-size:10px">—</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">10Y − 6M</span>
-            <span id="yc-sp-10y6m" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:11px">—</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px" title="10Y − 6M · spread NY Fed (más sensible al cambio de Fed)">
+            <span style="font-size:11px;color:var(--text2)">10Y − 6M</span>
+            <span id="yc-sp-10y6m" class="mono" style="font-size:11px">—</span>
+            <span id="yc-sp-10y6m-sig" class="badge b-neu" style="font-size:10px">—</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px">
-            <span style="font-size:10px;color:var(--text2)">30Y − 6M</span>
-            <span id="yc-sp-30y6m" class="mono" style="font-size:10px">—</span>
-            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:11px">—</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px" title="30Y − 6M · long-end vs short-end (term premium real)">
+            <span style="font-size:11px;color:var(--text2)">30Y − 6M</span>
+            <span id="yc-sp-30y6m" class="mono" style="font-size:11px">—</span>
+            <span id="yc-sp-30y6m-sig" class="badge b-neu" style="font-size:10px">—</span>
           </div>
         </div>
       </div>
       <div class="card">
-        <div class="lbl">Interpretación</div>
-        <div id="yc-interpretation" style="font-size:10px;color:var(--text2);line-height:1.7;margin-top:5px">Cargando datos...</div>
+        <div class="lbl">Interpretación
+          <button class="help-i" type="button" onclick="openGlossary('yield-curve-interp')" title="¿Cómo leer la curva?">?</button>
+        </div>
+        <div id="yc-interpretation" style="font-size:12px;color:var(--text2);line-height:1.65;margin-top:5px">Cargando datos...</div>
+        <div id="yc-implication" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border2);font-size:11px;color:var(--text3);line-height:1.55"><strong style="color:var(--blue)">Implicación trade:</strong> <span id="yc-trade-hint">—</span></div>
       </div>
       <div class="card">
         <div class="lbl">Niveles actuales</div>
@@ -5329,6 +5347,77 @@ function updateYieldCurve() {
     if (sp10y6m != null && sp10y6m >= 0.5 && !isInverted) msgs.push('Parte larga empinada — mercado descuenta crecimiento a largo plazo.');
     if (msgs.length === 0) msgs.push('Curva con pendiente positiva normal — sin señales de estrés recesivo inmediato.');
     interpEl.innerHTML = msgs.join('<br>');
+  }
+
+  // ── Régimen de la curva · clasificación bull/bear × steep/flat (Batch B master designer) ──
+  // Compara cambio del 2Y (front) vs 10Y (long) en últimos 3M para clasificar:
+  //   Bull steepening: front cae más rápido que long → recortes anticipados (2007Q4, 2019Q3, 2020Q1)
+  //   Bear steepening: long sube más que front → inflación/term premium (2021Q4, 2024Q3)
+  //   Bull flattening: long cae más que front → flight-to-quality (2022Q1, 2023Q3)
+  //   Bear flattening: front sube más que long → Fed hawkish (2022Q2, 2023Q1)
+  const front2Y_now  = now[2];
+  const long10Y_now  = now[4];
+  const front2Y_3m   = ago3M[2];
+  const long10Y_3m   = ago3M[4];
+  const regimeNameEl = document.getElementById('yc-regime-name');
+  const regimeDescEl = document.getElementById('yc-regime-desc');
+  const regimeAnalogsEl = document.getElementById('yc-regime-analogs');
+  const tradeHintEl  = document.getElementById('yc-trade-hint');
+  if (regimeNameEl && front2Y_now != null && long10Y_now != null && front2Y_3m != null && long10Y_3m != null) {
+    const dFront = front2Y_now - front2Y_3m;
+    const dLong  = long10Y_now - long10Y_3m;
+    let regName = '—', regDesc = '—', regColor = 'var(--text)', analogs = '—', tradeHint = '—';
+    // Steepening = spread (10Y-2Y) crece. Flattening = spread cae.
+    const dSpread = dLong - dFront;
+    if (dSpread > 0.1) {
+      // Steepening: spread se amplía
+      if (dLong > 0 && dLong > Math.abs(dFront)) {
+        // Bear steepening: long sube fuerte (inflación / term premium)
+        regName = 'Bear Steepening';
+        regColor = 'var(--red)';
+        regDesc = 'El long-end sube más que el front-end. Mercado descontando inflación o más term premium. Negativo para bonds, mixto para acciones.';
+        analogs = '2021-Q4 (inflación post-COVID) · 2024-Q3 (Treasury supply concerns)';
+        tradeHint = 'Vender duración (TLT). Cuidado con tech (XLK). Real assets (XLE, GLD) suelen outperformar.';
+      } else {
+        // Bull steepening: front cae fuerte (recortes anticipados)
+        regName = 'Bull Steepening';
+        regColor = 'var(--green)';
+        regDesc = 'El front-end cae más rápido que el long-end. Mercado anticipa recortes Fed. Históricamente bullish para risk assets si llega antes de recesión.';
+        analogs = '2007-Q4 (pre-recesión) · 2019-Q3 (Fed pivot) · 2020-Q1 (COVID cuts)';
+        tradeHint = 'Long duración (TLT). Defensivos (XLP, XLU) inicialmente, luego rotar a growth si Fed cuts efectivos.';
+      }
+    } else if (dSpread < -0.1) {
+      // Flattening: spread se reduce
+      if (dFront > 0 && dFront > Math.abs(dLong)) {
+        // Bear flattening: front sube (Fed hawkish)
+        regName = 'Bear Flattening';
+        regColor = 'var(--amber)';
+        regDesc = 'El front-end sube más que el long-end. Fed subiendo tasas o señal hawkish. Reduce apetito de riesgo y comprime múltiplos.';
+        analogs = '2022-Q2 (Powell aggressive) · 2023-Q1 (CPI sticky) · 2018-Q3 (Powell pivot)';
+        tradeHint = 'Reducir cíclicos. Cash + duración corta. Esperar capitulación antes de comprar growth.';
+      } else {
+        // Bull flattening: long cae (flight-to-quality)
+        regName = 'Bull Flattening';
+        regColor = 'var(--blue)';
+        regDesc = 'El long-end cae más que el front-end. Flight-to-quality o expectativas de desinflación a largo plazo. Históricamente pre-recesión tardía.';
+        analogs = '2022-Q1 (Ucrania) · 2023-Q3 (banking stress) · 2000-Q4 (dot-com bust)';
+        tradeHint = 'Long bonds largos (ZB, TLT). Reducir small-caps (IWM). Defensivos overweight.';
+      }
+    } else {
+      regName = 'Estable';
+      regColor = 'var(--text2)';
+      regDesc = 'La curva no cambió significativamente en 3 meses. Mercado en compás de espera entre datos macro.';
+      analogs = 'Régimen de transición · esperar próximo catalizador (FOMC, NFP, CPI).';
+      tradeHint = 'Mantener postura actual. Reducir tamaño hasta próximo dato relevante.';
+    }
+    regimeNameEl.textContent = regName;
+    regimeNameEl.style.color = regColor;
+    if (regimeDescEl) regimeDescEl.textContent = regDesc;
+    if (regimeAnalogsEl) regimeAnalogsEl.textContent = analogs;
+    if (tradeHintEl) tradeHintEl.textContent = tradeHint;
+  } else if (regimeNameEl) {
+    regimeNameEl.textContent = 'Insuficientes datos';
+    if (regimeDescEl) regimeDescEl.textContent = 'Necesita ≥3 meses de histórico para clasificar.';
   }
 
   // Levels list
