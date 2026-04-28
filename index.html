@@ -3550,7 +3550,7 @@ function renderYcInvDetail(period) {
 function initYcInversionsTimeline() {
   const el = document.getElementById('ycInversionsTimeline');
   if (!el) return;
-  if (state.charts['ycInversionsTimeline']) return; // ya inicializado
+  if (state.charts?.['ycInversionsTimeline']) return; // ya inicializado (defensivo: state.charts ya está garantizado en L2347 pero usamos optional chaining por consistencia)
   const labels = YC_T10Y2Y_HISTORY.map(p => p.d);
   const values = YC_T10Y2Y_HISTORY.map(p => p.s);
   // Color por barra: rojo intenso si invertido, gris claro si no
