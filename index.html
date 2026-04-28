@@ -2573,11 +2573,25 @@ const ETF_META = {
 
 // ── Tab nav ──
 function go(id,el){
+  // ── Detectar el tab anterior antes de cambiarlo (para destruir módulos lazy) ──
+  const prevPage = document.querySelector('.page.active');
+  const prevId = prevPage ? prevPage.id.replace('tab-', '') : null;
+
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   el.classList.add('active');
   if (id === 'tecnico') initTechTab();
+
+  // ── Lifecycle Opportunity Scanner (Tab 02 ACTIVOS) — init/destroy lazy ──
+  // Solo se inicializa al entrar; se destruye al salir para liberar timers y no consumir API calls.
+  if (id === 'act' && window.OpportunityScanner && typeof OpportunityScanner.init === 'function') {
+    OpportunityScanner.init();
+  }
+  if (prevId === 'act' && id !== 'act' && window.OpportunityScanner && typeof OpportunityScanner.destroy === 'function') {
+    OpportunityScanner.destroy();
+  }
+
   setTimeout(()=>{
     document.querySelectorAll('#tab-'+id+' canvas').forEach(cv=>{
       const ch=Chart.getChart(cv);
@@ -8266,6 +8280,687 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// OPPORTUNITY SCANNER · Tab 02 ACTIVOS
+// Sistema de detección táctica de oportunidades sectoriales.
+// Filosofía: el mercado vivo manda (80%), el ciclo Howell guía (20%).
+// Cuando divergen, mostrar la divergencia — nunca ocultarla.
+//
+// Entrada: Alpha Vantage SECTOR (rendimiento 1M) + Yahoo (volumen, precio, SMA50) + Howell global.
+// Salida: heatmap 11 sectores + top 5 cards + watchlist + alerta divergencia sistémica.
+//
+// IMPORTANTE — Convención del Score Howell en este dashboard:
+//   El score /8 mide STRESS de liquidez. Score ALTO = stress alto = Contracción.
+//   Score BAJO = liquidez abundante = Expansión.
+//   (Inverso a la spec genérica de Stovall, que asumía score alto = expansión.)
+// La fase se mapea:  >=6 Contracción   |  3-5 Transición   |  <3 Expansión
+// ══════════════════════════════════════════════════════════════════════════════
+window.OpportunityScanner = (function () {
+  'use strict';
+
+  // ── Configuración: universo, mapeo Stovall por fase, nombres legibles ──
+  const config = {
+    // 11 ETFs sectoriales SPDR (van al heatmap)
+    sectors: [
+      { ticker: 'XLK',  name: 'Tecnología',       avSlug: 'Information Technology' },
+      { ticker: 'XLF',  name: 'Financials',       avSlug: 'Financials' },
+      { ticker: 'XLE',  name: 'Energía',          avSlug: 'Energy' },
+      { ticker: 'XLV',  name: 'Health Care',      avSlug: 'Health Care' },
+      { ticker: 'XLP',  name: 'Cons. Staples',    avSlug: 'Consumer Staples' },
+      { ticker: 'XLY',  name: 'Cons. Discrec.',   avSlug: 'Consumer Discretionary' },
+      { ticker: 'XLI',  name: 'Industrials',      avSlug: 'Industrials' },
+      { ticker: 'XLB',  name: 'Materials',        avSlug: 'Materials' },
+      { ticker: 'XLRE', name: 'Real Estate',      avSlug: 'Real Estate' },
+      { ticker: 'XLU',  name: 'Utilities',        avSlug: 'Utilities' },
+      { ticker: 'XLC',  name: 'Comms.',           avSlug: 'Communication Services' },
+    ],
+    // 6 macro tickers — solo en cards/watchlist, NO en heatmap
+    macros: [
+      { ticker: 'GLD', name: 'Oro' },
+      { ticker: 'GDX', name: 'Mineras Oro' },
+      { ticker: 'TLT', name: 'Treasuries 20Y+' },
+      { ticker: 'IWM', name: 'Russell 2000' },
+      { ticker: 'QQQ', name: 'Nasdaq 100' },
+      { ticker: 'SPY', name: 'S&P 500' },
+    ],
+    // Mapeo Stovall adaptado · IMPORTANTE: usa convención de FASE (no del score crudo).
+    // Para cada fase, lista de tickers ALINEADOS (suman 20 pts).
+    // Resto = neutral (10 pts). CONTRA-fase = 0 pts + flag DIVERGENCIA.
+    stovall: {
+      Expansion:    { aligned: ['XLK', 'XLY', 'XLF', 'XLI', 'XLB', 'QQQ', 'IWM'],  contra: ['XLP', 'XLU', 'TLT', 'GLD'] },
+      Transicion:   { aligned: ['XLE', 'XLV', 'GLD', 'GDX'],                       contra: ['XLY', 'XLK'] },
+      Contraccion:  { aligned: ['XLP', 'XLU', 'XLV', 'TLT', 'GLD'],                contra: ['XLY', 'XLF', 'XLB'] },
+    },
+    // Razones autogeneradas por componente dominante
+    reasons: {
+      momentum: 'Momentum relativo fuerte vs SPY',
+      volume:   'Volumen institucional detectado',
+      howell:   'Alineado con ciclo',           // se concatena con la fase
+      setup:    'Setup técnico en zona de valor',
+    },
+    // Auto-refresh cada 30 minutos
+    refreshIntervalMs: 30 * 60 * 1000,
+    // Reintentos si Yahoo cae
+    yahooRetryMs: 60 * 1000,
+    yahooMaxRetries: 3,
+  };
+
+  // ── Estado interno ──
+  const state = {
+    sectorData: null,          // {ticker → chg1m, RS}
+    yahooData: null,           // {ticker → datos Yahoo}
+    howell: null,              // {score, phase, postura}
+    scores: [],                // computados por calculateScore()
+    lastUpdate: null,          // Date
+    nextUpdate: null,          // Date
+    refreshTimer: null,
+    countdownTimer: null,
+    initialized: false,
+    fetching: false,
+    yahooRetryCount: 0,
+    yahooRetryTimer: null,
+    visibilityHandler: null,
+  };
+
+  // ──────────────────────────────────────────────────────────
+  // Helpers — DOM, formato, lectura de Howell
+  // ──────────────────────────────────────────────────────────
+  function $(id) { return document.getElementById(id); }
+  function fmtTime(d) {
+    if (!d) return '—';
+    return d.toTimeString().slice(0, 5);
+  }
+  function fmtChange(n) {
+    if (n == null || isNaN(n)) return '—';
+    const sign = n > 0 ? '+' : '';
+    return `${sign}${n.toFixed(2)}%`;
+  }
+  function classFromChange(n) {
+    if (n == null || isNaN(n)) return 'flat';
+    if (n > 0.1) return 'up';
+    if (n < -0.1) return 'down';
+    return 'flat';
+  }
+  function levelFromScore(score) {
+    if (score >= 70) return 'alto';
+    if (score >= 50) return 'medio';
+    return 'bajo';
+  }
+  function levelLabel(lvl) {
+    return lvl === 'alto' ? 'ALTO' : lvl === 'medio' ? 'MEDIO' : 'BAJO';
+  }
+
+  // Lee Score Howell del dashboard global (computeHowellScore es global).
+  // Convención: score >=6 → Contracción; 3-5 → Transición; <3 → Expansión.
+  function readHowell() {
+    try {
+      if (typeof computeHowellScore !== 'function') {
+        return { score: null, phase: 'Transicion', phaseLabel: 'Transición (no disp.)', postura: 'NEUTRAL', available: false };
+      }
+      const h = computeHowellScore();
+      const score = h?.score;
+      let phase, phaseLabel;
+      if (score == null) {
+        phase = 'Transicion'; phaseLabel = 'Transición (sin datos)';
+      } else if (score >= 6) {
+        phase = 'Contraccion'; phaseLabel = 'Contracción';
+      } else if (score >= 3) {
+        phase = 'Transicion'; phaseLabel = 'Transición';
+      } else {
+        phase = 'Expansion'; phaseLabel = 'Expansión';
+      }
+      // Postura derivada — espejo de la lógica del Verdict Hero
+      const postura = score == null ? 'NEUTRAL' : score >= 6 ? 'DEFENSIVO' : score >= 3 ? 'NEUTRAL' : 'AGRESIVO';
+      return { score, phase, phaseLabel, postura, available: score != null };
+    } catch (e) {
+      console.warn('[OpportunityScanner] readHowell error:', e);
+      return { score: null, phase: 'Transicion', phaseLabel: 'Transición (error)', postura: 'NEUTRAL', available: false };
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Fetchers
+  // ──────────────────────────────────────────────────────────
+  async function fetchSectorData() {
+    // Alpha Vantage SECTOR — rendimiento 1M de los 11 sectores S&P
+    const res = await fetch('/api/alphavantage?function=SECTOR');
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    // Alpha Vantage devuelve "Rank C: Month Performance" como objeto sector → "%"
+    const monthKey = Object.keys(data).find(k => /Month Performance/i.test(k));
+    if (!monthKey) throw new Error('Formato Alpha Vantage inesperado');
+    const monthBlock = data[monthKey] || {};
+    // Construir map por slug → percent (número)
+    const slugToPct = {};
+    Object.keys(monthBlock).forEach(slug => {
+      const raw = monthBlock[slug];
+      const num = parseFloat(String(raw).replace('%', ''));
+      if (!isNaN(num)) slugToPct[slug.toLowerCase()] = num;
+    });
+    // Mapear cada sector del universo a su rendimiento 1M
+    const sectorPerf = {};
+    config.sectors.forEach(s => {
+      const slug = s.avSlug.toLowerCase();
+      const v = slugToPct[slug];
+      if (v != null) sectorPerf[s.ticker] = v;
+    });
+    // Calcular RS vs SPY (proxy: media de los 11 sectores como benchmark)
+    // Alpha Vantage SECTOR no devuelve SPY directo en Month Performance — usamos avg sectorial como proxy
+    const vals = Object.values(sectorPerf);
+    const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    const rs = {};
+    Object.keys(sectorPerf).forEach(t => { rs[t] = sectorPerf[t] - avg; });
+    return { sectorPerf, rs, avg, raw: data };
+  }
+
+  async function fetchVolumeData() {
+    // Yahoo Finance — batch tickers con volumen, SMA50, chg1d
+    const tickers = [...config.sectors, ...config.macros].map(s => s.ticker).join(',');
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 15000);
+    try {
+      const res = await fetch(`/api/yahoo?tickers=${tickers}&range=3mo`, { signal: ctrl.signal });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return data;
+    } catch (e) {
+      clearTimeout(timeout);
+      throw e;
+    }
+  }
+
+  async function fetchAll(manual) {
+    if (state.fetching) return;
+    state.fetching = true;
+    setRefreshButtonLoading(true);
+    if (manual) showSkeleton();
+
+    // Howell viene del estado global ya cargado (no es fetch nuevo)
+    state.howell = readHowell();
+
+    // Promise.allSettled para que un fallo no rompa el otro
+    const [sectorRes, yahooRes] = await Promise.allSettled([
+      fetchSectorData(),
+      fetchVolumeData(),
+    ]);
+
+    let sectorOk = false, yahooOk = false;
+
+    if (sectorRes.status === 'fulfilled') {
+      state.sectorData = sectorRes.value;
+      sectorOk = true;
+    } else {
+      console.warn('[OpportunityScanner] Alpha Vantage falló:', sectorRes.reason?.message);
+      state.sectorData = null;
+    }
+
+    if (yahooRes.status === 'fulfilled') {
+      state.yahooData = yahooRes.value;
+      yahooOk = true;
+      state.yahooRetryCount = 0;
+      if (state.yahooRetryTimer) { clearTimeout(state.yahooRetryTimer); state.yahooRetryTimer = null; }
+    } else {
+      console.warn('[OpportunityScanner] Yahoo falló:', yahooRes.reason?.message);
+      state.yahooData = null;
+      // Reintento automático Yahoo (60s, máx 3)
+      if (state.yahooRetryCount < config.yahooMaxRetries) {
+        state.yahooRetryCount++;
+        state.yahooRetryTimer = setTimeout(() => {
+          if (state.initialized) fetchAll(false);
+        }, config.yahooRetryMs);
+      }
+    }
+
+    // Score requiere AL MENOS uno de los dos. Si ambos fallan → mensaje central.
+    if (!sectorOk && !yahooOk) {
+      renderHeader();
+      renderStatusBadges({ sectorOk, yahooOk });
+      showCriticalError();
+      state.fetching = false;
+      setRefreshButtonLoading(false);
+      return;
+    }
+
+    // Calcular scores y renderizar
+    state.scores = computeAllScores();
+    state.lastUpdate = new Date();
+    state.nextUpdate = new Date(Date.now() + config.refreshIntervalMs);
+    render();
+    renderStatusBadges({ sectorOk, yahooOk });
+
+    state.fetching = false;
+    setRefreshButtonLoading(false);
+  }
+
+  function setRefreshButtonLoading(loading) {
+    const btn = $('os-refresh-btn');
+    const icon = $('os-refresh-icon');
+    if (!btn) return;
+    btn.disabled = loading;
+    if (icon) {
+      icon.classList.toggle('is-loading', loading);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Scoring
+  // ──────────────────────────────────────────────────────────
+
+  // Componente 3 — Alineación ciclo (20 pts) + flag divergencia
+  function getHowellAlignment(ticker, phase) {
+    const map = config.stovall[phase] || config.stovall.Transicion;
+    if (map.aligned.includes(ticker))  return { score: 20, status: 'aligned',  divergence: false };
+    if (map.contra && map.contra.includes(ticker)) return { score: 0, status: 'contra', divergence: true };
+    return { score: 10, status: 'neutral', divergence: false };
+  }
+
+  // Score 0-100 con 4 componentes. Si Alpha Vantage cae → score sobre 80, normalizado a /100.
+  function calculateScore(ticker) {
+    const av = state.sectorData;
+    const yh = state.yahooData?.[ticker];
+    const howell = state.howell || readHowell();
+
+    // ── Comp 1 — Momentum Relativo (40 pts) ──
+    let comp1 = 0;
+    let momentumValue = null;
+    let avAvailable = false;
+    if (av && av.rs && av.rs[ticker] != null) {
+      avAvailable = true;
+      const rs = av.rs[ticker];
+      momentumValue = rs;
+      if (rs > 3)        comp1 = 40;
+      else if (rs > 1)   comp1 = 30;
+      else if (rs > -1)  comp1 = 15;
+      else               comp1 = 5;
+    } else if (yh && yh.chg1m != null) {
+      // Fallback: usar chg1m de Yahoo si Alpha Vantage cayó (no es RS, pero proxy útil)
+      const chg = yh.chg1m;
+      momentumValue = chg;
+      if (chg > 5)       comp1 = 30;
+      else if (chg > 1)  comp1 = 20;
+      else if (chg > -1) comp1 = 10;
+      else               comp1 = 0;
+    }
+
+    // ── Comp 2 — Volumen Anormal (30 pts) ──
+    let comp2 = 0;
+    let volRatio = null;
+    if (yh && yh.regularMarketVolume != null && yh.averageVolume != null && yh.averageVolume > 0) {
+      volRatio = yh.regularMarketVolume / yh.averageVolume;
+      if (volRatio >= 2.0)      comp2 = 30;
+      else if (volRatio >= 1.5) comp2 = 20;
+      else if (volRatio >= 1.0) comp2 = 10;
+      else                       comp2 = 0;
+    }
+
+    // ── Comp 3 — Alineación Howell (20 pts) ──
+    const align = getHowellAlignment(ticker, howell.phase);
+    const comp3 = align.score;
+
+    // ── Comp 4 — Setup Técnico vs SMA50 (10 pts) ──
+    let comp4 = 0;
+    let distSma = null;
+    if (yh && yh.regularMarketPrice != null && yh.fiftyDayAverage != null && yh.fiftyDayAverage > 0) {
+      distSma = ((yh.regularMarketPrice / yh.fiftyDayAverage) - 1) * 100;
+      if (distSma >= -5 && distSma <= 0)        comp4 = 10;
+      else if (distSma >= -10 && distSma < -5)  comp4 = 7;
+      else if (distSma > 0 && distSma <= 5)     comp4 = 5;
+      else if (distSma > 5 && distSma <= 10)    comp4 = 3;
+      else                                       comp4 = 0;
+    }
+
+    // ── Total y normalización ──
+    let total;
+    if (!avAvailable) {
+      // Alpha Vantage caído → score sobre 80 pts, normalizar a /100
+      const partial = comp1 + comp2 + comp3 + comp4;
+      total = Math.round((partial / 80) * 100);
+    } else {
+      total = comp1 + comp2 + comp3 + comp4;
+    }
+    total = Math.max(0, Math.min(100, total));
+
+    // Razón principal: la del componente con MÁS aporte relativo
+    const components = [
+      { key: 'momentum', val: comp1, max: 40 },
+      { key: 'volume',   val: comp2, max: 30 },
+      { key: 'howell',   val: comp3, max: 20 },
+      { key: 'setup',    val: comp4, max: 10 },
+    ];
+    components.forEach(c => { c.ratio = c.max > 0 ? c.val / c.max : 0; });
+    components.sort((a, b) => b.ratio - a.ratio);
+    const topComponent = components[0];
+    let reason = config.reasons[topComponent.key];
+    if (topComponent.key === 'howell') reason = `${reason} ${howell.phaseLabel}`;
+    if (topComponent.val === 0) reason = 'Sin señal dominante (datos parciales)';
+
+    return {
+      ticker,
+      total,
+      level: levelFromScore(total),
+      components: { momentum: comp1, volume: comp2, howell: comp3, setup: comp4 },
+      momentumValue,
+      volRatio,
+      distSma,
+      align,
+      divergence: align.divergence,
+      reason,
+      chg1d: yh?.chg1d ?? null,
+      price: yh?.regularMarketPrice ?? null,
+    };
+  }
+
+  function computeAllScores() {
+    const universe = [...config.sectors, ...config.macros];
+    const scores = universe.map(s => {
+      const sc = calculateScore(s.ticker);
+      sc.name = s.name;
+      sc.isMacro = !config.sectors.find(x => x.ticker === s.ticker);
+      return sc;
+    });
+    return scores;
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Render
+  // ──────────────────────────────────────────────────────────
+  function render() {
+    renderHeader();
+    renderHeatmap();
+    renderTopCards();
+    renderDivergenceAlert();
+    renderWatchlist();
+  }
+
+  function renderHeader() {
+    const sub = $('os-subtitle');
+    if (sub) {
+      const h = state.howell || readHowell();
+      const phaseTxt = h.phaseLabel || '—';
+      const sc = h.score != null ? `${h.score.toFixed(1)}/8` : 'N/D';
+      sub.textContent = `Ciclo Howell: ${phaseTxt} (${sc}) · Postura: ${h.postura}`;
+    }
+    const ts = $('os-timestamp');
+    if (ts) ts.textContent = `Última actualización: ${fmtTime(state.lastUpdate)}`;
+    updateCountdown();
+  }
+
+  function updateCountdown() {
+    const cd = $('os-countdown');
+    if (!cd || !state.nextUpdate) { if (cd) cd.textContent = 'Próxima en —'; return; }
+    const ms = state.nextUpdate - Date.now();
+    if (ms <= 0) { cd.textContent = 'Actualizando...'; return; }
+    const min = Math.floor(ms / 60000);
+    const sec = Math.floor((ms % 60000) / 1000);
+    cd.textContent = `Próxima en ${min}:${String(sec).padStart(2, '0')}`;
+  }
+
+  function renderStatusBadges(s) {
+    const wrap = $('os-status');
+    if (!wrap) return;
+    const badges = [];
+    if (s.sectorOk)  badges.push('<span class="os-status-badge os-status-ok">Alpha Vantage · OK</span>');
+    else             badges.push('<span class="os-status-badge os-status-warn">Datos sectoriales no disponibles · score parcial</span>');
+    if (s.yahooOk)   badges.push('<span class="os-status-badge os-status-ok">Yahoo · OK</span>');
+    else             badges.push(`<span class="os-status-badge os-status-err">Precios no disponibles. Reintentando (${state.yahooRetryCount}/${config.yahooMaxRetries})</span>`);
+    if (state.howell?.available) badges.push('<span class="os-status-badge os-status-ok">Howell · live</span>');
+    else                          badges.push('<span class="os-status-badge os-status-warn">Howell · no disponible</span>');
+    wrap.innerHTML = badges.join('');
+  }
+
+  function renderHeatmap() {
+    const grid = $('os-heatmap');
+    if (!grid) return;
+    // Solo sectores en heatmap (no macros)
+    const sectorScores = state.scores.filter(s => !s.isMacro);
+    grid.innerHTML = sectorScores.map((s, i) => {
+      const lvl = s.level;
+      const arrow = s.chg1d > 0.1 ? '↑' : s.chg1d < -0.1 ? '↓' : '→';
+      const arrowCls = classFromChange(s.chg1d);
+      const tooltip = `
+        <div class="os-cell-tooltip" role="tooltip">
+          <div class="os-cell-tooltip-row"><span>Momentum vs SPY</span><span class="v">${s.components.momentum}/40</span></div>
+          <div class="os-cell-tooltip-row"><span>Volumen anormal</span><span class="v">${s.components.volume}/30</span></div>
+          <div class="os-cell-tooltip-row"><span>Alineación Howell</span><span class="v">${s.components.howell}/20</span></div>
+          <div class="os-cell-tooltip-row"><span>Setup técnico</span><span class="v">${s.components.setup}/10</span></div>
+        </div>`;
+      return `
+        <div class="os-cell lvl-${lvl}" style="animation-delay:${i * 50}ms" title="${escapeAttr(s.name)} · ${s.total}/100">
+          ${s.divergence ? '<div class="os-cell-diverge">⚠ DIV</div>' : ''}
+          <div class="os-cell-head">
+            <div class="os-cell-ticker">${s.ticker}</div>
+            <div class="os-cell-arrow ${arrowCls}">${arrow}</div>
+          </div>
+          <div class="os-cell-name">${escapeAttr(s.name)}</div>
+          <div class="os-cell-score">${s.total}<span class="os-cell-score-suffix">/100</span></div>
+          <div class="os-cell-bar"><div class="os-cell-bar-fill lvl-${lvl}" style="width:${s.total}%"></div></div>
+          ${tooltip}
+        </div>`;
+    }).join('');
+  }
+
+  function renderTopCards() {
+    const wrap = $('os-cards');
+    if (!wrap) return;
+    const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+    wrap.innerHTML = top5.map((s, i) => {
+      const rank = String(i + 1).padStart(2, '0');
+      const lvl = s.level;
+      const chgCls = classFromChange(s.chg1d);
+      const alignTxt = s.divergence
+        ? '⚠ DIVERGENCIA'
+        : (s.align.status === 'aligned' ? '✓ CONFIRMA ciclo' : '○ Neutral');
+      const alignCls = s.divergence ? 'diverge' : (s.align.status === 'aligned' ? 'confirma' : '');
+      const divNote = s.divergence
+        ? '<div class="os-card-diverge-note">El mercado supera al ciclo en este sector</div>'
+        : '';
+      return `
+        <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
+          <div class="os-card-rank lvl-${lvl}">${rank}</div>
+          <div class="os-card-id">
+            <div class="os-card-ticker">${s.ticker}</div>
+            <div class="os-card-sector">${escapeAttr(s.name)}</div>
+          </div>
+          <div class="os-card-score">
+            <div class="os-card-score-row">
+              <div class="os-card-score-val">${s.total}<span class="os-card-score-suf">/100</span></div>
+              <span class="os-card-level lvl-${lvl}">${levelLabel(lvl)}</span>
+            </div>
+            <div class="os-card-progress"><div class="os-card-progress-fill lvl-${lvl}" style="width:${s.total}%"></div></div>
+            <div class="os-card-chg ${chgCls}">${fmtChange(s.chg1d)} hoy</div>
+          </div>
+          <div class="os-card-reason">
+            <div class="os-card-reason-text">${escapeAttr(s.reason)}</div>
+            <div class="os-card-align ${alignCls}">${alignTxt}</div>
+            ${divNote}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderDivergenceAlert() {
+    const alert = $('os-divergence-alert');
+    if (!alert) return;
+    const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+    const divCount = top5.filter(s => s.divergence).length;
+    alert.style.display = divCount >= 3 ? 'block' : 'none';
+  }
+
+  function renderWatchlist() {
+    const wrap = $('os-watchlist');
+    if (!wrap) return;
+    const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+    wrap.innerHTML = top5.map((s, i) => {
+      const lvl = s.level;
+      const chgCls = classFromChange(s.chg1d);
+      return `
+        <div class="os-wl-row lvl-${lvl}">
+          <div class="os-wl-rank">#${i + 1}</div>
+          <div class="os-wl-tk">${s.ticker}</div>
+          <div class="os-wl-score">${s.total}/100</div>
+          <div class="os-wl-lvl lvl-${lvl}">${levelLabel(lvl)}</div>
+          <div class="os-wl-chg ${chgCls}">${fmtChange(s.chg1d)}</div>
+        </div>`;
+    }).join('');
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Skeleton & error states
+  // ──────────────────────────────────────────────────────────
+  function showSkeleton() {
+    const grid = $('os-heatmap');
+    if (grid) grid.innerHTML = Array.from({ length: 11 }).map(() => '<div class="os-skel os-skel-cell"></div>').join('');
+    const cards = $('os-cards');
+    if (cards) cards.innerHTML = Array.from({ length: 5 }).map(() => '<div class="os-skel os-skel-card"></div>').join('');
+    const wl = $('os-watchlist');
+    if (wl) wl.innerHTML = Array.from({ length: 5 }).map(() => '<div class="os-skel os-skel-row"></div>').join('');
+  }
+
+  function showCriticalError() {
+    const grid = $('os-heatmap');
+    if (grid) grid.innerHTML = `
+      <div style="grid-column:1/-1;padding:24px;text-align:center;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.25);border-radius:6px">
+        <div style="font-size:13px;color:var(--red);margin-bottom:8px">Sin conexión a datos de mercado</div>
+        <div style="font-size:10px;color:var(--text2);margin-bottom:12px">Alpha Vantage y Yahoo Finance no respondieron.</div>
+        <button class="os-btn" type="button" onclick="OpportunityScanner.fetchAll(true)">Reintentar manualmente</button>
+      </div>`;
+    const cards = $('os-cards');
+    if (cards) cards.innerHTML = '';
+    const wl = $('os-watchlist');
+    if (wl) wl.innerHTML = '';
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Auto-refresh + visibility
+  // ──────────────────────────────────────────────────────────
+  function startAutoRefresh() {
+    stopAutoRefresh();
+    state.refreshTimer = setInterval(() => {
+      // Solo si el tab está visible y el usuario sigue en Tab 02
+      if (document.hidden) return;
+      const actActive = document.getElementById('tab-act')?.classList.contains('active');
+      if (!actActive) return;
+      fetchAll(false);
+    }, config.refreshIntervalMs);
+  }
+
+  function stopAutoRefresh() {
+    if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
+  }
+
+  function startCountdown() {
+    stopCountdown();
+    state.countdownTimer = setInterval(() => {
+      if (document.hidden) return; // pausa al ocultar
+      updateCountdown();
+    }, 1000);
+  }
+
+  function stopCountdown() {
+    if (state.countdownTimer) { clearInterval(state.countdownTimer); state.countdownTimer = null; }
+  }
+
+  function onVisibilityChange() {
+    if (!state.initialized) return;
+    if (document.hidden) {
+      // Al ocultar — pausa implícita (los timers chequean document.hidden)
+      return;
+    }
+    // Al volver — si hace tiempo del último update, refrescar
+    if (state.lastUpdate) {
+      const ago = Date.now() - state.lastUpdate.getTime();
+      if (ago > config.refreshIntervalMs) fetchAll(false);
+    }
+    updateCountdown();
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Watchlist clipboard
+  // ──────────────────────────────────────────────────────────
+  function copyWatchlist() {
+    try {
+      const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+      const tickers = top5.map(s => s.ticker).join(', ');
+      if (!tickers) return;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(tickers).then(() => flashCopyBtn('OK'));
+      } else {
+        // Fallback antiguo
+        const ta = document.createElement('textarea');
+        ta.value = tickers; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        flashCopyBtn('OK');
+      }
+    } catch (e) {
+      console.warn('[OpportunityScanner] copyWatchlist error:', e);
+      flashCopyBtn('Error');
+    }
+  }
+
+  function flashCopyBtn(msg) {
+    const btn = $('os-copy-btn');
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.innerHTML = msg === 'OK' ? '✓ Copiado' : '⚠ Error';
+    setTimeout(() => { btn.innerHTML = orig; }, 1500);
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Lifecycle
+  // ──────────────────────────────────────────────────────────
+  function init() {
+    if (state.initialized) {
+      // Re-entrar al tab — refrescar countdown y posiblemente datos viejos
+      if (state.lastUpdate) {
+        const ago = Date.now() - state.lastUpdate.getTime();
+        if (ago > config.refreshIntervalMs) fetchAll(false);
+      }
+      updateCountdown();
+      return;
+    }
+    state.initialized = true;
+    showSkeleton();
+    state.howell = readHowell();
+    renderHeader();
+    fetchAll(false);
+    startAutoRefresh();
+    startCountdown();
+    state.visibilityHandler = onVisibilityChange;
+    document.addEventListener('visibilitychange', state.visibilityHandler);
+  }
+
+  function destroy() {
+    stopAutoRefresh();
+    stopCountdown();
+    if (state.yahooRetryTimer) { clearTimeout(state.yahooRetryTimer); state.yahooRetryTimer = null; }
+    if (state.visibilityHandler) {
+      document.removeEventListener('visibilitychange', state.visibilityHandler);
+      state.visibilityHandler = null;
+    }
+    state.initialized = false;
+    state.fetching = false;
+  }
+
+  // API pública
+  return {
+    state, config,
+    init, destroy, fetchAll,
+    fetchSectorData, fetchVolumeData,
+    getHowellAlignment, calculateScore,
+    render, renderHeatmap, renderTopCards, renderDivergenceAlert, renderWatchlist, renderHeader,
+    showSkeleton, copyWatchlist,
+    startAutoRefresh, startCountdown,
+  };
+})();
 
 </script>
 
