@@ -469,6 +469,10 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .vh-desc{font-size:14px;color:var(--text2);line-height:1.55}
 .vh-veredicto{font-size:13px;color:var(--text2);line-height:1.6;padding:8px 11px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:5px}
 .vh-bars{display:flex;flex-direction:column;gap:4px}
+/* Fase C · Badges visuales [CORE] / [CONFIRMACIÓN] al inicio de cada grupo de barras */
+.vh-bars-badge{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;letter-spacing:.12em;text-transform:uppercase;font-weight:500;line-height:1.4;margin:2px 0 4px;align-self:flex-start}
+.vh-bars-badge.core{background:rgba(249,115,22,.12);color:var(--phoenix-amber);border:1px solid rgba(249,115,22,.25)}
+.vh-bars-badge.conf{background:rgba(96,165,250,.10);color:var(--blue);border:1px solid rgba(96,165,250,.20)}
 .vhb{display:grid;grid-template-columns:95px 1fr 70px;align-items:center;gap:8px;padding:3px 5px;border-radius:3px;transition:background .15s;cursor:pointer}
 .vhb:hover{background:rgba(201,168,76,.06)}
 .vhb-name{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -719,6 +723,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div id="hero-data-status" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);padding:5px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:4px;line-height:1.4"></div>
     </div>
     <div class="vh-bars">
+      <span class="vh-bars-badge core" title="Componentes que SUMAN al Score Howell (6 inputs · max 8 pts)">[CORE]</span>
       <div class="vhb" onclick="openGlossary('reservas-fed')" title="Reservas Fed (FRED:WRBWFRBL) — click para ver detalle">
         <span class="vhb-name">Reservas Fed</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-res" style="width:0%;background:var(--amber)"></div></div>
@@ -749,7 +754,10 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div class="vhb-track"><div class="vhb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
         <span class="vhb-val" id="hbar-cpi-v">—</span>
       </div>
-      <div style="margin:5px 0 3px;padding:2px 4px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center" title="Estas barras NO suman al Score Howell — son confirmaciones del régimen general">↓ Confirmación · no suma</div>
+      <div style="margin:8px 0 2px;padding-top:6px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px">
+        <span class="vh-bars-badge conf" title="Componentes que NO suman al Score Howell — son confirmaciones del régimen general">[CONFIRMACIÓN]</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.08em;text-transform:uppercase">no suma · valida régimen</span>
+      </div>
       <div class="vhb" onclick="openGlossary('yield-curve-10y2y')" title="Curva 10Y-2Y (FRED:T10Y2Y) — click para ver detalle">
         <span class="vhb-name">Curva 10Y-2Y</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
