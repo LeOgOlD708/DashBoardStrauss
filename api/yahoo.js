@@ -29,11 +29,13 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
 
   const timestamps = result.timestamp || [];
   const closes     = result.indicators?.quote?.[0]?.close || [];
+  const volumes    = result.indicators?.quote?.[0]?.volume || [];
 
   const rows = timestamps
     .map((ts, i) => ({
-      date:  new Date(ts * 1000).toISOString().slice(0, 10),
-      close: closes[i],
+      date:   new Date(ts * 1000).toISOString().slice(0, 10),
+      close:  closes[i],
+      volume: volumes[i],
     }))
     .filter(r => r.close != null && !isNaN(r.close) && r.close > 0);
 
@@ -50,6 +52,22 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
   // Return up to 252 data points (1 year of daily data)
   const histFull = rows.slice(-252);
 
+  // ── Volumen — para Opportunity Scanner (Tab 02) ──
+  // regularMarketVolume: volumen del día actual (último de la serie)
+  // averageVolume: media de los últimos 20 días hábiles
+  // fiftyDayAverage: media simple del precio últimos 50 días (setup técnico)
+  const last20Vols = rows.slice(-20).map(r => r.volume).filter(v => v != null && !isNaN(v) && v > 0);
+  const averageVolume = last20Vols.length > 0
+    ? Math.round(last20Vols.reduce((a, b) => a + b, 0) / last20Vols.length)
+    : null;
+  const lastRow = rows[rows.length - 1];
+  const regularMarketVolume = (lastRow.volume != null && !isNaN(lastRow.volume)) ? lastRow.volume : null;
+
+  const last50Closes = rows.slice(-50).map(r => r.close);
+  const fiftyDayAverage = last50Closes.length > 0
+    ? parseFloat((last50Closes.reduce((a, b) => a + b, 0) / last50Closes.length).toFixed(2))
+    : null;
+
   return {
     price:  parseFloat(price.toFixed(2)),
     chg1d:  parseFloat(((price / prevClose    - 1) * 100).toFixed(2)),
@@ -59,6 +77,12 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     ytd:    parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
     hist:   histFull.map(r => parseFloat(r.close.toFixed(2))),
     dates:  histFull.map(r => r.date),
+    // Campos nuevos para Opportunity Scanner — additivos, no rompen callers existentes
+    regularMarketVolume,
+    averageVolume,
+    fiftyDayAverage,
+    regularMarketChangePercent: parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
+    regularMarketPrice: parseFloat(price.toFixed(2)),
   };
 }
 

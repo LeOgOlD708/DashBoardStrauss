@@ -585,6 +585,117 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 /* Header glossary button */
 #open-glossary-btn{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,rgba(230,180,80,.08),rgba(249,115,22,.06));border:1px solid rgba(230,180,80,.3);color:var(--gold);font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;padding:6px 12px;border-radius:5px;cursor:pointer;transition:all .2s;text-transform:uppercase;box-shadow:0 0 14px -6px rgba(230,180,80,0.35)}
 #open-glossary-btn:hover{background:linear-gradient(135deg,rgba(230,180,80,.16),rgba(249,115,22,.1));border-color:rgba(249,115,22,.5);color:var(--gold2);box-shadow:0 0 22px -6px rgba(249,115,22,0.5)}
+
+/* ══════════════════════════════════════════════════
+   OPPORTUNITY SCANNER — Tab 02 ACTIVOS
+   Diseño nativo Phoenix · namespace de clases .os-*
+══════════════════════════════════════════════════ */
+/* Botón refresh / acción del scanner — usa estilo Phoenix */
+.os-btn{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--gold);background:linear-gradient(135deg,rgba(230,180,80,.06),rgba(249,115,22,.04));border:1px solid rgba(230,180,80,.3);padding:5px 10px;border-radius:4px;cursor:pointer;transition:all .2s;text-transform:uppercase}
+.os-btn:hover{border-color:rgba(249,115,22,.5);color:var(--gold2);background:linear-gradient(135deg,rgba(230,180,80,.12),rgba(249,115,22,.08))}
+.os-btn:disabled{opacity:.4;cursor:not-allowed}
+.os-btn.is-loading{animation:os-spin 1s linear infinite;display:inline-block}
+
+/* Badges de estado de fuentes (Alpha Vantage / Yahoo / Howell) */
+.os-status-badge{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em;padding:2px 7px;border-radius:3px;text-transform:uppercase;border:1px solid transparent}
+.os-status-ok{background:rgba(74,222,128,.08);color:var(--green);border-color:rgba(74,222,128,.2)}
+.os-status-warn{background:rgba(249,115,22,.08);color:var(--phoenix-amber);border-color:rgba(249,115,22,.3)}
+.os-status-err{background:rgba(248,113,113,.08);color:var(--red);border-color:rgba(248,113,113,.2)}
+
+/* Heatmap grid 4-4-3 responsive (4 columnas en desktop) */
+.os-heatmap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+@media(max-width:900px){.os-heatmap-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.os-heatmap-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* Celda individual del heatmap */
+.os-cell{position:relative;padding:10px 10px 8px;border-radius:5px;background:var(--surface2);border:1px solid var(--border2);cursor:default;transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;animation:os-fadeIn .35s ease-out backwards;overflow:hidden}
+.os-cell:hover{transform:scale(1.02);box-shadow:0 0 14px -4px rgba(249,115,22,.3)}
+.os-cell.lvl-alto{border-color:rgba(34,197,94,.35);background:linear-gradient(180deg,rgba(34,197,94,.08),var(--surface2))}
+.os-cell.lvl-medio{border-color:rgba(234,179,8,.3);background:linear-gradient(180deg,rgba(234,179,8,.06),var(--surface2))}
+.os-cell.lvl-bajo{border-color:rgba(239,68,68,.3);background:linear-gradient(180deg,rgba(239,68,68,.06),var(--surface2))}
+.os-cell-head{display:flex;justify-content:space-between;align-items:flex-start;gap:4px;margin-bottom:4px}
+.os-cell-ticker{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:var(--text);letter-spacing:.02em}
+.os-cell-arrow{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:700;line-height:1}
+.os-cell-arrow.up{color:#22c55e}
+.os-cell-arrow.down{color:#ef4444}
+.os-cell-arrow.flat{color:var(--text3)}
+.os-cell-name{font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3);letter-spacing:.05em;margin-bottom:6px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.os-cell-score{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;line-height:1;color:var(--text)}
+.os-cell-score-suffix{font-size:10px;color:var(--text3);font-weight:400;margin-left:1px}
+.os-cell-bar{margin-top:6px;height:4px;background:var(--surface3);border-radius:2px;overflow:hidden}
+.os-cell-bar-fill{height:100%;border-radius:2px;transition:width .4s ease}
+.os-cell-bar-fill.lvl-alto{background:#22c55e}
+.os-cell-bar-fill.lvl-medio{background:#eab308}
+.os-cell-bar-fill.lvl-bajo{background:#ef4444}
+.os-cell-diverge{position:absolute;top:4px;right:4px;font-size:9px;color:var(--phoenix-amber);font-family:'IBM Plex Mono',monospace;letter-spacing:.05em}
+.os-cell-tooltip{position:absolute;left:50%;bottom:calc(100% + 6px);transform:translateX(-50%);background:var(--surface3);border:1px solid var(--border2);border-radius:5px;padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text2);white-space:nowrap;opacity:0;visibility:hidden;transition:opacity .15s,visibility .15s;z-index:50;box-shadow:0 4px 14px -4px rgba(0,0,0,.6);pointer-events:none}
+.os-cell:hover .os-cell-tooltip{opacity:1;visibility:visible}
+.os-cell-tooltip-row{display:flex;justify-content:space-between;gap:14px;line-height:1.6}
+.os-cell-tooltip-row .v{color:var(--text)}
+
+/* Top 5 Cards horizontales */
+.os-card{display:grid;grid-template-columns:auto 1.4fr 1fr 1.6fr;gap:14px;align-items:center;padding:12px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;animation:os-fadeInUp .35s ease-out backwards;transition:border-color .2s,box-shadow .2s}
+.os-card:hover{border-color:rgba(230,180,80,.35);box-shadow:0 0 18px -8px rgba(249,115,22,.4)}
+.os-card.has-divergence{border-left:3px solid var(--phoenix-amber)}
+@media(max-width:780px){.os-card{grid-template-columns:1fr 1fr;gap:8px}.os-card-rank{grid-column:1/-1}.os-card-reason{grid-column:1/-1}}
+.os-card-rank{font-family:'Playfair Display',serif;font-size:30px;font-weight:700;line-height:1;letter-spacing:-1px}
+.os-card-rank.lvl-alto{color:#22c55e}
+.os-card-rank.lvl-medio{color:#eab308}
+.os-card-rank.lvl-bajo{color:#ef4444}
+.os-card-id{display:flex;flex-direction:column;gap:3px}
+.os-card-ticker{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--text);letter-spacing:.02em}
+.os-card-sector{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+.os-card-score{display:flex;flex-direction:column;gap:5px}
+.os-card-score-row{display:flex;align-items:baseline;gap:8px}
+.os-card-score-val{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:var(--text);line-height:1}
+.os-card-score-suf{font-size:10px;color:var(--text3)}
+.os-card-level{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.12em;padding:2px 8px;border-radius:3px;text-transform:uppercase;font-weight:600;display:inline-block;width:fit-content}
+.os-card-level.lvl-alto{background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.3)}
+.os-card-level.lvl-medio{background:rgba(234,179,8,.1);color:#eab308;border:1px solid rgba(234,179,8,.3)}
+.os-card-level.lvl-bajo{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.os-card-progress{height:5px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.os-card-progress-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.os-card-progress-fill.lvl-alto{background:#22c55e}
+.os-card-progress-fill.lvl-medio{background:#eab308}
+.os-card-progress-fill.lvl-bajo{background:#ef4444}
+.os-card-chg{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600}
+.os-card-chg.up{color:#22c55e}
+.os-card-chg.down{color:#ef4444}
+.os-card-chg.flat{color:var(--text3)}
+.os-card-reason{display:flex;flex-direction:column;gap:5px}
+.os-card-reason-text{font-size:11px;color:var(--text2);line-height:1.4}
+.os-card-align{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em}
+.os-card-align.confirma{color:#22c55e}
+.os-card-align.diverge{color:var(--phoenix-amber)}
+.os-card-diverge-note{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--phoenix-amber);font-style:italic}
+
+/* Watchlist (top 5 simple lista) */
+.os-wl-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:12px;align-items:center;padding:6px 10px;background:var(--surface2);border-left:3px solid var(--text3);border-radius:0 4px 4px 0;font-family:'IBM Plex Mono',monospace;font-size:11px}
+.os-wl-row.lvl-alto{border-left-color:#22c55e}
+.os-wl-row.lvl-medio{border-left-color:#eab308}
+.os-wl-row.lvl-bajo{border-left-color:#ef4444}
+.os-wl-rank{font-size:9px;color:var(--text3);width:18px}
+.os-wl-tk{font-weight:700;color:var(--text)}
+.os-wl-score{color:var(--text2)}
+.os-wl-lvl{font-size:8px;letter-spacing:.1em;padding:1px 6px;border-radius:2px}
+.os-wl-lvl.lvl-alto{background:rgba(34,197,94,.12);color:#22c55e}
+.os-wl-lvl.lvl-medio{background:rgba(234,179,8,.1);color:#eab308}
+.os-wl-lvl.lvl-bajo{background:rgba(239,68,68,.1);color:#ef4444}
+.os-wl-chg.up{color:#22c55e}
+.os-wl-chg.down{color:#ef4444}
+.os-wl-chg.flat{color:var(--text3)}
+
+/* Skeleton loading */
+.os-skel{background:linear-gradient(90deg,var(--surface2) 0%,var(--surface3) 50%,var(--surface2) 100%);background-size:200% 100%;animation:os-pulse 1.5s ease-in-out infinite;border-radius:4px}
+.os-skel-cell{height:90px;border-radius:5px}
+.os-skel-card{height:64px;border-radius:6px}
+.os-skel-row{height:30px;border-radius:4px}
+
+/* Animaciones */
+@keyframes os-fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes os-fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes os-pulse{0%,100%{background-position:200% 0}50%{background-position:-200% 0}}
+@keyframes os-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -1735,6 +1846,76 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
      03 · ACTIVOS
 ══════════════════════════════════════════════════ -->
 <div id="tab-act" class="page">
+
+  <!-- ══════════════════════════════════════════════════
+       OPPORTUNITY SCANNER · Tab 02 ACTIVOS
+       Sistema de detección de oportunidades sectoriales
+       Filosofía: Mercado vivo (80%) + Ciclo Howell (20%)
+       Spec: raw/opportunity-scanner-prompt-maestro.md
+  ══════════════════════════════════════════════════ -->
+  <div class="sh"><div class="sh-tag">Scanner</div><div class="sh-title">Opportunity Scanner — Detección Táctica de Sectores</div><div class="sh-line"></div></div>
+
+  <!-- HEADER del Scanner: ciclo, postura, timestamp, countdown, botón refresh -->
+  <div id="os-root" class="card" style="margin-bottom:10px;border-color:rgba(249,115,22,.2)">
+    <div class="card-accent" style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--phoenix-amber),var(--gold))"></div>
+    <div id="os-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <div class="lbl" style="color:var(--phoenix-amber);margin-bottom:0">Opportunity Scanner</div>
+        <div id="os-subtitle" class="mono" style="font-size:10px;color:var(--text2)">Inicializando ciclo Howell...</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <div id="os-timestamp" class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.05em">Última actualización: —</div>
+        <div id="os-countdown" class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.05em">Próxima en —</div>
+        <button id="os-refresh-btn" class="os-btn" type="button" onclick="window.OpportunityScanner && OpportunityScanner.fetchAll(true)" title="Forzar actualización">
+          <span id="os-refresh-icon">↻</span> ACTUALIZAR
+        </button>
+      </div>
+    </div>
+    <!-- Badges de estado de fuentes -->
+    <div id="os-status" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+  </div>
+
+  <!-- BLOQUE 3 · Alerta de Divergencia Sistémica (oculto por defecto) -->
+  <div id="os-divergence-alert" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.35);border-left:4px solid var(--phoenix-amber);border-radius:5px">
+    <div class="mono" style="font-size:10px;color:var(--phoenix-amber);letter-spacing:.1em;margin-bottom:4px">⚠ DIVERGENCIA SISTÉMICA</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.6">El mercado está favoreciendo sectores fuera del prior del ciclo Howell. Prioriza la señal real sobre el modelo — la divergencia es información valiosa, no un error.</div>
+  </div>
+
+  <!-- BLOQUE 1 · Heatmap Sectorial 11 celdas -->
+  <div class="card" style="margin-bottom:10px"><div class="card-accent" style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="lbl">Heatmap Scanner — 11 Sectores SPDR (score /100)</div>
+      <span class="mono" style="font-size:8px;color:var(--text3)">Hover · desglose 4 componentes</span>
+    </div>
+    <div id="os-heatmap" class="os-heatmap-grid"></div>
+    <div style="margin-top:8px;display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#22c55e"></div>ALTO ≥70</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#eab308"></div>MEDIO ≥50</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text3)"><div style="width:10px;height:10px;border-radius:2px;background:#ef4444"></div>BAJO &lt;50</div>
+      <div style="display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--phoenix-amber)"><div style="width:10px;height:10px;border-radius:2px;background:#f97316"></div>DIVERGENCIA</div>
+    </div>
+  </div>
+
+  <!-- BLOQUE 2 · Top 5 Opportunity Cards -->
+  <div class="card" style="margin-bottom:10px"><div class="card-accent" style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold)"></div>
+    <div class="lbl">Top 5 — Mejores Oportunidades del Universo (sectoriales + macro)</div>
+    <div id="os-cards" class="os-cards-list" style="margin-top:10px;display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+
+  <!-- BLOQUE 4 · Watchlist Dinámica -->
+  <div class="card" style="margin-bottom:10px"><div class="card-accent" style="position:absolute;top:0;left:0;right:0;height:2px;background:var(--gold)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="lbl">Watchlist Activa — Top 5 del Scanner</div>
+      <button id="os-copy-btn" class="os-btn" type="button" onclick="window.OpportunityScanner && OpportunityScanner.copyWatchlist()" title="Copiar tickers al portapapeles">📋 Copiar watchlist</button>
+    </div>
+    <div id="os-watchlist" class="os-watchlist-list" style="display:flex;flex-direction:column;gap:4px"></div>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border2);font-size:9px;color:var(--text3);font-style:italic">Basada en datos de mercado + ciclo Howell. No es recomendación de inversión.</div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       FIN del Opportunity Scanner — sigue contenido legacy
+  ══════════════════════════════════════════════════ -->
+
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
 
   <!-- RANGE SELECTOR -->
