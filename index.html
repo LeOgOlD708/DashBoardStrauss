@@ -948,7 +948,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
        Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
        DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
 
-  <div class="zone-divider">Posicionamiento · Equity Risk Premium</div>
+  <div class="zone-divider">Posicionamiento · Equity Risk Premium + Sentimiento</div>
 
   <!-- ── ERP CARD — Equity Risk Premium (SPY trailing EY − DFII10) ── -->
   <div class="card blue-a" style="margin-bottom:10px"><div class="card-accent"></div>
@@ -965,6 +965,34 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <span>10Y Real: <span id="erp-real-yield" class="mono">—</span></span>
     </div>
     <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.4" id="erp-interpretation">—</div>
+  </div>
+
+  <!-- ── POSITIONING STRIP — AAII bull-bear + NAAIM exposure + Put/Call 21d ── -->
+  <div class="card" style="border-color:rgba(167,139,250,.2);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
+    <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
+      <span>📊 Posicionamiento · Contrarian Signals <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('positioning-strip')">?</button></span>
+      <span id="pos-updated-ts" style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-weight:400">refresh weekly</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px">
+      <!-- AAII Bull-Bear -->
+      <div style="padding:8px;background:var(--surface2);border-radius:6px">
+        <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:3px;display:flex;align-items:center;gap:5px">AAII Bull-Bear <button class="help-i" type="button" style="font-size:10px;padding:1px 4px" onclick="event.stopPropagation();openGlossary('aaii-bull-bear')">?</button></div>
+        <div class="mono" id="pos-aaii" style="font-size:18px;font-weight:500">—</div>
+        <div id="pos-aaii-int" style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.3">—</div>
+      </div>
+      <!-- NAAIM Exposure -->
+      <div style="padding:8px;background:var(--surface2);border-radius:6px">
+        <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:3px;display:flex;align-items:center;gap:5px">NAAIM Exposure <button class="help-i" type="button" style="font-size:10px;padding:1px 4px" onclick="event.stopPropagation();openGlossary('naaim-exposure')">?</button></div>
+        <div class="mono" id="pos-naaim" style="font-size:18px;font-weight:500">—</div>
+        <div id="pos-naaim-int" style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.3">—</div>
+      </div>
+      <!-- Put/Call CBOE 21d -->
+      <div style="padding:8px;background:var(--surface2);border-radius:6px">
+        <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:3px;display:flex;align-items:center;gap:5px">Put/Call 21d <button class="help-i" type="button" style="font-size:10px;padding:1px 4px" onclick="event.stopPropagation();openGlossary('put-call-21d')">?</button></div>
+        <div class="mono" id="pos-pcc" style="font-size:18px;font-weight:500">—</div>
+        <div id="pos-pcc-int" style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.3">—</div>
+      </div>
+    </div>
   </div>
 
   <div class="zone-divider">Ciclo Económico · Modelo Fidelity</div>
@@ -3268,6 +3296,41 @@ const ERP_THRESHOLDS = {
            interp: 'Equity caro vs renta fija real. Cautela — condición histórica que precede underperformance prolongado.' }
 };
 
+// Positioning indicators (contrarian signals)
+// Refresh weekly. Sources:
+//   AAII Bull-Bear: https://www.aaii.com/sentimentsurvey
+//   NAAIM Exposure: https://www.naaim.org/programs/naaim-exposure-index/
+//   Put/Call 21d:    https://www.cboe.com/us/options/market_statistics/historical_data/
+const POSITIONING_DATA = {
+  updated: '2026-04-27',  // ⚠ refrescar weekly antes del lunes
+  aaii:  { bullBear: -12.5, bullPct: 28.5, bearPct: 41.0 },  // % bulls - % bears (range típico -40 a +40)
+  naaim: { exposure:  62.0 },                                 // % equity exposure (range 0-200%)
+  putCall: { pcc21d:   1.08 }                                 // 21-day MA of total CBOE put/call ratio
+};
+
+// Single source of truth: thresholds + interpretación contrarian para los 3 indicadores.
+const POSITIONING_INTERPRETERS = {
+  aaii: (v) => {
+    if (v == null) return { col: 'var(--text3)', txt: '—' };
+    if (v < -15) return { col: 'var(--green)', txt: 'Pesimismo extremo · contrarian bullish' };
+    if (v >  15) return { col: 'var(--red)',   txt: 'Optimismo elevado · contrarian bearish' };
+    return       { col: 'var(--text2)',        txt: 'Equilibrado' };
+  },
+  naaim: (v) => {
+    if (v == null) return { col: 'var(--text3)', txt: '—' };
+    if (v < 30)   return { col: 'var(--green)', txt: 'Asesores defensivos · capitulación posible' };
+    if (v > 100)  return { col: 'var(--red)',   txt: 'Apalancamiento alto · mean-reversion risk' };
+    if (v >  80)  return { col: 'var(--amber)', txt: 'Asesores fully invested · euforia' };
+    return        { col: 'var(--text2)',        txt: 'Exposición moderada' };
+  },
+  putCall: (v) => {
+    if (v == null) return { col: 'var(--text3)', txt: '—' };
+    if (v < 0.85) return { col: 'var(--red)',   txt: 'Complacencia · contrarian bearish' };
+    if (v > 1.10) return { col: 'var(--green)', txt: 'Pesimismo · contrarian bullish' };
+    return        { col: 'var(--text2)',        txt: 'Neutral' };
+  }
+};
+
 function matchConsensus(name) {
   if (!name) return null;
   const n = name.toLowerCase();
@@ -5231,6 +5294,34 @@ function updateERP() {
   if (interpEl) interpEl.textContent = tier.interp;
 }
 
+// ── Positioning Strip — AAII bull-bear · NAAIM exposure · Put/Call 21d ──
+// Datos hardcoded actualizables manualmente (ver POSITIONING_DATA · refresh weekly).
+function updatePositioning() {
+  const data = POSITIONING_DATA;
+  const setVal = (id, val, fmt) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = (val == null) ? '—' : fmt(val);
+  };
+  const setInt = (id, interp) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = interp.txt;
+    el.style.color = interp.col;
+  };
+
+  setVal('pos-aaii',  data.aaii?.bullBear, v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%');
+  setVal('pos-naaim', data.naaim?.exposure, v => v.toFixed(0) + '%');
+  setVal('pos-pcc',   data.putCall?.pcc21d, v => v.toFixed(2));
+
+  setInt('pos-aaii-int',  POSITIONING_INTERPRETERS.aaii(data.aaii?.bullBear));
+  setInt('pos-naaim-int', POSITIONING_INTERPRETERS.naaim(data.naaim?.exposure));
+  setInt('pos-pcc-int',   POSITIONING_INTERPRETERS.putCall(data.putCall?.pcc21d));
+
+  const tsEl = document.getElementById('pos-updated-ts');
+  if (tsEl && data.updated) tsEl.textContent = `actualizado ${data.updated}`;
+}
+
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
 // Recibe howellResult para no volver a llamar computeHowellScore (ya ejecutado en updateHeroScore)
 function updateThreeHorizons(howellResult) {
@@ -6176,6 +6267,7 @@ function updateHeroScore() {
   updateHowellHistory();
   updateOperationalContext();
   updateERP();
+  updatePositioning();
   updateMotorHistoryMinis();
 
   // Alert banner
@@ -7118,6 +7210,58 @@ const INDICATORS_GLOSSARY = {
       { c:'red',   t:'< 1% — Prima baja/negativa, equity caro vs renta fija real' }
     ],
     note: 'SPY EY se actualiza manualmente desde multpl.com (refresh mensual). El indicador no captura cambios intra-mes en P/E. DFII10 es daily. Trampa conceptual: ERP es nivel, no señal de timing — mercados pueden permanecer con ERP bajo por años antes de comprimir.'
+  },
+  'positioning-strip': {
+    name: 'Posicionamiento · Contrarian Signals (composite)',
+    category: 'Macro · Posicionamiento',
+    source: { label: 'AAII + NAAIM + CBOE', url: 'https://www.aaii.com/sentimentsurvey', freq: 'Semanal (manual)' },
+    what: 'Strip horizontal con 3 indicadores de sentimiento/posicionamiento usados como contrarian signals: cuándo todos están extremos en la misma dirección, suele coincidir con punto de inflexión.',
+    formula: 'AAII Bull-Bear (% bulls − % bears) · NAAIM Exposure (% equity exposure de asesores RIA) · CBOE Put/Call 21d MA.',
+    interpret: 'Tres lecturas extremas alineadas (ej. AAII <-15, NAAIM <30, P/C >1.10) suelen coincidir con bottoms. Tres extremos opuestos (AAII >+15, NAAIM >100, P/C <0.85) suelen marcar tops. Indicador de contexto, NO de timing — un sentimiento extremo puede persistir semanas.',
+    note: 'Datos hardcoded actualizables manualmente en POSITIONING_DATA. Refresh weekly antes del lunes (ver source URLs en código).'
+  },
+  'aaii-bull-bear': {
+    name: 'AAII Bull-Bear Spread',
+    category: 'Macro · Posicionamiento',
+    source: { label: 'AAII Sentiment Survey', url: 'https://www.aaii.com/sentimentsurvey', freq: 'Semanal (jueves)' },
+    what: 'Encuesta semanal de la American Association of Individual Investors. Mide el sentimiento del retail.',
+    formula: '% Bullish − % Bearish. Range típico: -40 a +40.',
+    interpret: 'Contrarian indicator: retail tiende a estar más bullish en tops y más bearish en bottoms. Lecturas extremas (más de 1 desv std) suelen preceder reversiones, pero el timing es impreciso — el extremo puede persistir varias semanas.',
+    thresholds: [
+      { c:'green', t:'< −15 — Pesimismo extremo (contrarian bullish)' },
+      { c:'amber', t:'−15 a +15 — Equilibrado' },
+      { c:'red',   t:'> +15 — Optimismo elevado (contrarian bearish)' }
+    ],
+    note: 'AAII captura retail; NAAIM captura institucional. Cuando ambos divergen (retail eufórico + asesores defensivos), es señal más fuerte que cualquiera por sí solo.'
+  },
+  'naaim-exposure': {
+    name: 'NAAIM Exposure Index',
+    category: 'Macro · Posicionamiento',
+    source: { label: 'NAAIM (asesores RIA)', url: 'https://www.naaim.org/programs/naaim-exposure-index/', freq: 'Semanal (miércoles)' },
+    what: 'Índice de exposición equity de los asesores activos miembros de NAAIM. Mide cuánto del portafolio bajo manejo está invertido en equity.',
+    formula: 'Average exposure de respondents. Range: 0% (totalmente cash) a 200% (apalancado 2x equity).',
+    interpret: 'Cuando asesores institucionales activos están fully invested o apalancados (>100), suele coincidir con tops. Cuando están defensivos (<30), suele coincidir con bottoms. Más predictivo que AAII para timing táctico.',
+    thresholds: [
+      { c:'green', t:'< 30 — Asesores defensivos (capitulación posible · contrarian bullish)' },
+      { c:'amber', t:'30 – 80 — Exposición moderada' },
+      { c:'amber', t:'80 – 100 — Asesores fully invested (euforia)' },
+      { c:'red',   t:'> 100 — Apalancamiento alto (mean-reversion risk)' }
+    ],
+    note: 'NAAIM captura el flujo institucional con menos ruido que retail surveys. >100 sostenido es históricamente raro y típicamente precede correcciones >5%.'
+  },
+  'put-call-21d': {
+    name: 'CBOE Put/Call Ratio · 21d MA',
+    category: 'Macro · Posicionamiento',
+    source: { label: 'CBOE Total Put/Call', url: 'https://www.cboe.com/us/options/market_statistics/historical_data/', freq: 'Diaria' },
+    what: 'Ratio total CBOE de volumen de puts vs calls, suavizado con media móvil 21 días (≈ 1 mes de trading).',
+    formula: 'MA21(volume_puts / volume_calls). 21d filtra ruido diario y captura sentimiento estructural mensual.',
+    interpret: 'Contrarian: cuando el mercado compra muchos calls relativos a puts (ratio bajo), suele indicar complacencia. Cuando se compran muchos puts (ratio alto), suele indicar pánico. Históricamente lecturas extremas marcan inflexiones.',
+    thresholds: [
+      { c:'red',   t:'< 0.85 — Complacencia (contrarian bearish)' },
+      { c:'amber', t:'0.85 – 1.10 — Neutral' },
+      { c:'green', t:'> 1.10 — Pesimismo (contrarian bullish)' }
+    ],
+    note: 'Usar 21d MA filtra el ruido diario que hace al P/C ratio raw poco interpretable. Para timing intradía existen versiones index-only y equity-only que no se mostraron aquí.'
   }
 };
 
