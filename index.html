@@ -160,7 +160,15 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .g21{display:grid;grid-template-columns:2fr 1fr;gap:10px;align-items:start}
 .g12{display:grid;grid-template-columns:1fr 2fr;gap:10px;align-items:start}
 .g32{display:grid;grid-template-columns:3fr 2fr;gap:10px;align-items:start}
-@media(max-width:1000px){.g4,.g3{grid-template-columns:1fr 1fr}.g21,.g12,.g32{grid-template-columns:1fr}}
+@media(max-width:1000px){
+  .g4,.g3{grid-template-columns:1fr 1fr}
+  .g21,.g12,.g32{grid-template-columns:1fr}
+  /* Fase C · Z1 stack vertical: el Verdict Hero pasa a 1 columna en tablets */
+  .vh{grid-template-columns:1fr}
+  /* Fase C · Breadth strip: 5 sectores → 3 cols (3 arriba + 2 abajo) */
+  #breadth-grid{grid-template-columns:repeat(3,1fr) !important}
+  /* Fase C · Termómetros 2x2 ya cubierto por la regla .g4 → 1fr 1fr arriba */
+}
 @media(max-width:600px){.g4,.g3,.g2{grid-template-columns:1fr}}
 
 /* ── CARDS ── */
