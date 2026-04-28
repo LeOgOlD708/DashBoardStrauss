@@ -1873,7 +1873,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div class="card-accent" style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--phoenix-amber),var(--gold))"></div>
     <div id="os-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:6px">
       <div style="display:flex;flex-direction:column;gap:3px">
-        <div class="lbl" style="color:var(--phoenix-amber);margin-bottom:0">Opportunity Scanner</div>
+        <div class="lbl" style="color:var(--phoenix-amber);margin-bottom:0">Opportunity Scanner <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('opportunity-scanner')" title="¿Qué es Opportunity Scanner?">?</button></div>
         <div id="os-subtitle" class="mono" style="font-size:10px;color:var(--text2)">Inicializando ciclo Howell...</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -1890,7 +1890,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 
   <!-- BLOQUE 3 · Alerta de Divergencia Sistémica (oculto por defecto) -->
   <div id="os-divergence-alert" style="display:none;margin-bottom:10px;padding:10px 14px;background:rgba(249,115,22,.08);border:1px solid rgba(249,115,22,.35);border-left:4px solid var(--phoenix-amber);border-radius:5px">
-    <div class="mono" style="font-size:10px;color:var(--phoenix-amber);letter-spacing:.1em;margin-bottom:4px">⚠ DIVERGENCIA SISTÉMICA</div>
+    <div class="mono" style="font-size:10px;color:var(--phoenix-amber);letter-spacing:.1em;margin-bottom:4px">⚠ DIVERGENCIA SISTÉMICA <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('divergencia-mercado-ciclo')" title="¿Qué es Divergencia Mercado-vs-Ciclo?">?</button></div>
     <div style="font-size:11px;color:var(--text2);line-height:1.6">El mercado está favoreciendo sectores fuera del prior del ciclo Howell. Prioriza la señal real sobre el modelo — la divergencia es información valiosa, no un error.</div>
   </div>
 
@@ -7889,6 +7889,126 @@ const INDICATORS_GLOSSARY = {
       { c:'green', t:'> 1.10 — Pesimismo (contrarian bullish)' }
     ],
     note: 'Usar 21d MA filtra el ruido diario que hace al P/C ratio raw poco interpretable. Para timing intradía existen versiones index-only y equity-only que no se mostraron aquí.'
+  },
+  // ══════════════════════════════════════════════════
+  // ── OPPORTUNITY SCANNER · Tab 02 ACTIVOS ──
+  // ══════════════════════════════════════════════════
+  'opportunity-scanner': {
+    name: 'Opportunity Scanner',
+    category: 'Tab 02 · Sector Hunter',
+    source: { label: 'DashBoardStrauss · Tab 02 ACTIVOS (módulo propio)', url: 'https://github.com/LeOgOlD708/DashBoardStrauss', freq: 'Refresh 30 min · auto' },
+    what: 'Scanner de oportunidades sectoriales que combina señales de mercado vivo (80%) con prior del ciclo Howell (20%). Devuelve score 0-100 por sector con clasificación ALTO/MEDIO/BAJO.',
+    formula: 'score = Momentum(40) + Volumen(30) + Howell-Stovall(20) + Setup Técnico(10). Modifiers v1.1: aceleración (±10 en momentum), distance 52w (±2/-3 en setup).',
+    interpret: 'Filosofía: el ciclo Howell guía, el mercado manda. Cuando divergen (3+ sectores contra-fase del prior), banner de Divergencia Sistémica activa — prioridad a la señal real sobre el modelo macro.',
+    thresholds: [
+      { c:'green', t:'ALTO ≥ 70 (verde)' },
+      { c:'amber', t:'MEDIO ≥ 50 (ámbar)' },
+      { c:'red',   t:'BAJO < 50 (rojo)' }
+    ],
+    note: 'Universo: 11 ETFs sectoriales SPDR (heatmap) + 6 macro tickers (cards/watchlist). Cada componente tiene su propio botón ? para profundizar.'
+  },
+  'momentum-relativo-rs': {
+    name: 'Momentum Relativo (RS)',
+    category: 'Opportunity Scanner · Componente 1',
+    source: { label: 'Yahoo Finance (chg1m del sector vs SPY)', url: 'https://finance.yahoo.com/quote/SPY', freq: 'Tiempo real' },
+    what: 'Diferencial de retorno 1M del sector vs SPY (Relative Strength). Mide si el sector está liderando o rezagándose vs el mercado general.',
+    formula: 'RS = sector.chg1m − SPY.chg1m. Fallback en cascada: Yahoo SPY → Alpha Vantage media sectorial → chg1m absoluto.',
+    interpret: 'Outperformance persistente vs SPY indica capital rotando hacia el sector. Es el principal indicador de leadership sectorial. Modificado por aceleración (componente 1 puede llegar a 50 con bonus, clamp a 40).',
+    thresholds: [
+      { c:'green', t:'RS > +3% → 40 pts' },
+      { c:'green', t:'+1 a +3% → 30 pts' },
+      { c:'amber', t:'-1 a +1% → 15 pts' },
+      { c:'red',   t:'< -1% → 5 pts' }
+    ],
+    note: 'Si SPY no está disponible, fallback usa promedio de los 11 sectores SPDR como benchmark (aproximación).'
+  },
+  'volumen-anormal': {
+    name: 'Volumen Anormal',
+    category: 'Opportunity Scanner · Componente 2',
+    source: { label: 'Yahoo Finance (regularMarketVolume / averageVolume 20d)', url: 'https://finance.yahoo.com/', freq: 'Tiempo real' },
+    what: 'Ratio del volumen de hoy vs el promedio de las últimas 20 sesiones. Detecta acumulación institucional (volumen anormal alto antes que el precio se mueva fuerte).',
+    formula: 'ratio = regularMarketVolume / averageVolume (window 20d)',
+    interpret: 'Tradición Wyckoff/O\'Neil: el volumen precede al precio. Volumen >2x promedio en sectores sin noticias = smart money entrando silenciosamente. CAN SLIM y Wyckoff lo usan como señal primaria.',
+    thresholds: [
+      { c:'green', t:'≥ 2.0 → 30 pts (acumulación fuerte)' },
+      { c:'green', t:'1.5 – 2.0 → 20 pts (acumulación moderada)' },
+      { c:'amber', t:'1.0 – 1.5 → 10 pts (normal)' },
+      { c:'red',   t:'< 1.0 → 0 pts (distribución)' }
+    ],
+    note: 'Volumen es información de fluencia institucional — el ratio compensa por sectores naturalmente más líquidos (XLF) vs menos líquidos (XLU).'
+  },
+  'alineacion-howell-stovall': {
+    name: 'Alineación Howell × Stovall',
+    category: 'Opportunity Scanner · Componente 3',
+    source: { label: 'Sam Stovall (CFRA Research) · adaptado al ciclo Howell', url: 'https://www.cfraresearch.com/', freq: 'Tiempo real (deriva de Score Howell)' },
+    what: 'Verifica si el sector está alineado con el prior teórico de la fase Howell vigente. Modelo Stovall mapea sectores favorables a cada fase del ciclo.',
+    formula: 'phase = score≥6 ? Contracción : score≥3 ? Transición : Expansión. Sector favorecido por fase = 20 pts; neutral = 10 pts; contra-fase = 0 + flag DIVERGENCIA.',
+    interpret: 'Modelo Stovall original asume ciclos NBER. La adaptación Howell reemplaza ciclo NBER por pulso de liquidez global. Convención del dashboard: score Howell alto = squeeze severo = Contracción (inverso a Stovall genérico).',
+    thresholds: [
+      { c:'green', t:'Expansión (<3): XLK XLY XLF XLI XLB' },
+      { c:'amber', t:'Transición (3-5.99): XLE XLV GLD GDX' },
+      { c:'red',   t:'Contracción (≥6): XLP XLU TLT GLD' }
+    ],
+    note: 'Cuando el sector está contra-fase, el componente otorga 0 pts y dispara el flag DIVERGENCIA — input al banner de Divergencia Sistémica.'
+  },
+  'setup-tecnico-sma50': {
+    name: 'Setup Técnico vs SMA50',
+    category: 'Opportunity Scanner · Componente 4',
+    source: { label: 'Yahoo Finance (fiftyDayAverage)', url: 'https://finance.yahoo.com/', freq: 'Tiempo real' },
+    what: 'Distancia del precio actual a la media móvil de 50 días. Identifica zonas de valor (cerca del SMA50 sin estar oversold) vs extendido.',
+    formula: 'distSMA = (price − SMA50) / SMA50. Modifier v1.1: distance from 52w high (≥-3% → +2; ≤-25% → -3).',
+    interpret: 'Stage Analysis (Stan Weinstein) recomienda comprar en zona valor SMA50 que esté cerca del 52w high (breakout setup limpio). Zona valor SMA50 lejos del 52w high suele ser bear market rally — el modifier penaliza.',
+    thresholds: [
+      { c:'green', t:'Zona valor (0 a -5%) → 10 pts' },
+      { c:'amber', t:'Oversold leve (-5 a -10%) → 7 pts' },
+      { c:'amber', t:'Extendido moderado (5 a 10%) → 5 pts' },
+      { c:'red',   t:'Oversold profundo (<-10%) → 4 pts' },
+      { c:'red',   t:'Sobrecomprado (>10%) → 2 pts' }
+    ],
+    note: 'El modifier 52w high evita que un sector en bear market rally se confunda con un breakout setup limpio.'
+  },
+  'aceleracion-momentum': {
+    name: 'Aceleración de Momentum',
+    category: 'Opportunity Scanner · Modifier v1.1',
+    source: { label: 'Cálculo propio · ratio chg1w/chg1m anualizado', url: '', freq: 'Tiempo real' },
+    what: 'Detecta si el momentum del sector está acelerando (institucionales recién entrando) o desacelerando (rebote agotándose). Es la mejor proxy a "antes de subir" fuerte.',
+    formula: 'ratio = (chg1w × 4) / chg1m. Si momentum trivial (|chg1m| < 0.5%) → null.',
+    interpret: 'Un sector con +5% mensual donde +3% ocurrió la última semana = ratio (3·4)/5 = 2.4 = acelerando fuerte. Un sector con +5% mensual y -1% última semana = momentum agotándose. Académicos lo llaman "momentum acceleration" o "rate of change of return".',
+    thresholds: [
+      { c:'green', t:'≥ 1.5 → +10 pts (acelerando fuerte)' },
+      { c:'green', t:'≥ 1.0 → +5 pts (acelerando)' },
+      { c:'amber', t:'0.5 – 1.0 → 0 pts (estable)' },
+      { c:'red',   t:'< 0.5 → −5 pts (desacelerando)' }
+    ],
+    note: 'Modifier al componente Momentum (clamp [0, 40]). El badge UI en el heatmap y cards muestra el estado: ↑↑ ACELERANDO / ↑ Acelerando / → Estable / ↓ Desacelerando.'
+  },
+  'distance-52w-high': {
+    name: 'Distance from 52w High',
+    category: 'Opportunity Scanner · Modifier v1.1',
+    source: { label: 'Yahoo Finance · max(hist[-252])', url: 'https://finance.yahoo.com/', freq: 'Tiempo real' },
+    what: 'Cuán lejos del máximo de 52 semanas está el precio actual. Combinado con zona valor SMA50 distingue "breakout setup" (cerca del máximo) de "bear market rally" (lejos del máximo).',
+    formula: 'dist52w = (price − max52w) / max52w × 100. Siempre ≤ 0.',
+    interpret: 'Stan Weinstein Stage 2 (uptrend confirmado): precio cerca del 52w high con momentum positivo y volumen creciente. Stage 4 (downtrend): precio muy lejos del 52w high. La métrica desambigua entre los dos estados.',
+    thresholds: [
+      { c:'green', t:'< 5% del máximo (cerca, breakout) · modifier setup +2' },
+      { c:'amber', t:'5 – 25% del máximo' },
+      { c:'red',   t:'> 25% del máximo (probable bear) · modifier setup -3' }
+    ],
+    note: 'Modifier al componente Setup Técnico. La pill en cards Top 5 visualiza el % directo, con color por banda.'
+  },
+  'divergencia-mercado-ciclo': {
+    name: 'Divergencia Mercado-vs-Ciclo',
+    category: 'Opportunity Scanner · Señal sistémica',
+    source: { label: 'Concepto propio · ver wiki Cerebro principal', url: '', freq: 'Tiempo real (deriva de Top 5)' },
+    what: 'Activa cuando 3+ de los top 5 sectores están outperformando contra el prior teórico de la fase Howell. Significa que el mercado está descontando un cambio de fase antes que el modelo macro lo registre.',
+    formula: 'count(top5 con flag DIVERGENCIA) ≥ 3 → banner naranja activa',
+    interpret: 'Ocultar la divergencia es traicionar al trader. El sistema la muestra explícitamente. Cuando el banner activa, prioridad a la señal real sobre el modelo Howell — el mercado va adelante en cambios de régimen. Filosofía "Howell guía 20%, mercado manda 80%" del módulo.',
+    thresholds: [
+      { c:'green', t:'0 sectores divergen → señal coherente' },
+      { c:'amber', t:'1-2 sectores divergen → ruido normal' },
+      { c:'red',   t:'3+ sectores divergen → alerta sistémica' }
+    ],
+    note: 'El flag DIVERGENCIA por sector se computa en el componente 3 (Howell-Stovall): un sector contra-fase es 0 pts + flag. El banner agrega los flags del Top 5.'
   }
 };
 
@@ -8852,15 +8972,15 @@ window.OpportunityScanner = (function () {
         : '';
       const tooltip = `
         <div class="os-cell-tooltip" role="tooltip">
-          <div class="os-cell-tooltip-row"><span>Momentum vs SPY</span><span class="v">${s.components.momentum}/40</span></div>
+          <div class="os-cell-tooltip-row"><span>Momentum vs SPY <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('momentum-relativo-rs')">?</button></span><span class="v">${s.components.momentum}/40</span></div>
           <div class="os-cell-tooltip-row"><span>1M absoluto</span><span class="v">${chg1mTxt}</span></div>
           ${rsLine}
           ${avExtraLine}
-          <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M</span><span class="v os-accel-${accelB.cls}">${accelB.label}</span></div>
-          <div class="os-cell-tooltip-row"><span>Volumen anormal</span><span class="v">${s.components.volume}/30</span></div>
-          <div class="os-cell-tooltip-row"><span>Alineación Howell</span><span class="v">${s.components.howell}/20</span></div>
-          <div class="os-cell-tooltip-row"><span>Setup técnico</span><span class="v">${s.components.setup}/10</span></div>
-          ${s.dist52w != null ? `<div class="os-cell-tooltip-row"><span>Dist. máx. 52w</span><span class="v">${Math.abs(s.dist52w).toFixed(1)}%</span></div>` : ''}
+          <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('aceleracion-momentum')">?</button></span><span class="v os-accel-${accelB.cls}">${accelB.label}</span></div>
+          <div class="os-cell-tooltip-row"><span>Volumen anormal <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('volumen-anormal')">?</button></span><span class="v">${s.components.volume}/30</span></div>
+          <div class="os-cell-tooltip-row"><span>Alineación Howell <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('alineacion-howell-stovall')">?</button></span><span class="v">${s.components.howell}/20</span></div>
+          <div class="os-cell-tooltip-row"><span>Setup técnico <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('setup-tecnico-sma50')">?</button></span><span class="v">${s.components.setup}/10</span></div>
+          ${s.dist52w != null ? `<div class="os-cell-tooltip-row"><span>Dist. máx. 52w <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('distance-52w-high')">?</button></span><span class="v">${Math.abs(s.dist52w).toFixed(1)}%</span></div>` : ''}
         </div>`;
       return `
         <div class="os-cell lvl-${lvl}" style="animation-delay:${i * 50}ms" title="${escapeAttr(s.name)} · ${s.total}/100">
@@ -8895,10 +9015,10 @@ window.OpportunityScanner = (function () {
       const accelB = accelerationBadge(s.acceleration);
       const accelBadgeHtml = accelB.cls === 'none'
         ? ''
-        : `<span class="os-accel-badge os-accel-${accelB.cls}" title="Aceleración 1W/1M: ${accelB.txt}">${accelB.label}</span>`;
+        : `<span class="os-accel-badge os-accel-${accelB.cls}" title="Aceleración 1W/1M: ${accelB.txt}">${accelB.label}</span><button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('aceleracion-momentum')" title="¿Qué es Aceleración de Momentum?">?</button>`;
       const pill52 = dist52wPill(s.dist52w);
       const pill52Html = pill52
-        ? `<span class="os-52w-pill os-52w-${pill52.cls}" title="Distancia al máximo de las últimas 52 semanas">${pill52.txt}</span>`
+        ? `<span class="os-52w-pill os-52w-${pill52.cls}" title="Distancia al máximo de las últimas 52 semanas">${pill52.txt}</span><button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('distance-52w-high')" title="¿Qué es Distance from 52w High?">?</button>`
         : '';
       return `
         <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
