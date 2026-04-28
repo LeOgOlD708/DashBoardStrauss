@@ -948,6 +948,25 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
        Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
        DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
 
+  <div class="zone-divider">Posicionamiento · Equity Risk Premium</div>
+
+  <!-- ── ERP CARD — Equity Risk Premium (SPY trailing EY − DFII10) ── -->
+  <div class="card blue-a" style="margin-bottom:10px"><div class="card-accent"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div class="lbl">ERP · Equity Risk Premium <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('erp')">?</button></div>
+      <span id="erp-signal-badge" class="badge b-neu" style="font-size:10px">—</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:10px;margin-top:6px">
+      <div class="mono" id="erp-value" style="font-size:28px;font-weight:500;letter-spacing:-.02em">—</div>
+      <div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">SPY EY − 10Y Real</div>
+    </div>
+    <div id="erp-breakdown" style="margin-top:6px;display:flex;gap:12px;font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">
+      <span>SPY EY: <span id="erp-spy-ey" class="mono">—</span></span>
+      <span>10Y Real: <span id="erp-real-yield" class="mono">—</span></span>
+    </div>
+    <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.4" id="erp-interpretation">—</div>
+  </div>
+
   <div class="zone-divider">Ciclo Económico · Modelo Fidelity</div>
 
   <!-- ── CICLO ECONÓMICO FIDELITY ── -->
@@ -3227,6 +3246,28 @@ const CONSENSUS_MAP = [
 ];
 const CONSENSUS_UPDATED = '2026-04-26'; // refrescar weekly
 
+// SPY Trailing Earnings Yield (S&P 500 trailing E/P)
+// Source: https://www.multpl.com/s-p-500-earnings-yield  (refresh manually each month)
+// S&P trailing P/E ~26 → EY ~3.85% (April 2026)
+const SPY_TRAILING_EY = {
+  value: 3.85,           // % — actualizar mensualmente desde multpl.com
+  updated: '2026-04-27',
+  source: 'multpl.com / S&P Global'
+};
+
+// ERP thresholds (Druckenmiller-style: equity vs treasuries reales)
+// Single source of truth — usado por updateERP() e INDICATORS_GLOSSARY['erp'].
+const ERP_THRESHOLDS = {
+  high:  { min: 4.0,  cls: 'b-up',  col: 'var(--green)', label: 'Prima alta',
+           interp: 'Equity ofrece prima generosa vs treasuries reales. Históricamente compresión próxima.' },
+  mod:   { min: 2.5,  cls: 'b-neu', col: 'var(--text)',  label: 'Prima moderada',
+           interp: 'Equity competitivo pero no barato. Risk-reward balanceado.' },
+  tight: { min: 1.0,  cls: 'b-neu', col: 'var(--amber)', label: 'Prima ajustada',
+           interp: 'Risk-reward asimétrico vs renta fija. Asignaciones marginales a bonos pueden tener mejor sharpe.' },
+  neg:   { min: -999, cls: 'b-dn',  col: 'var(--red)',   label: 'Prima negativa',
+           interp: 'Equity caro vs renta fija real. Cautela — condición histórica que precede underperformance prolongado.' }
+};
+
 function matchConsensus(name) {
   if (!name) return null;
   const n = name.toLowerCase();
@@ -5154,6 +5195,42 @@ function updateOperationalContext() {
   }
 }
 
+// ── ERP — Equity Risk Premium (SPY trailing EY − DFII10) ──
+// Druckenmiller-style: cuán generosamente compensa el equity vs treasuries reales.
+function updateERP() {
+  const ry = state.data.realYield10?.[0]?.value;
+  const ey = SPY_TRAILING_EY.value;
+  const valEl = document.getElementById('erp-value');
+  const eyEl  = document.getElementById('erp-spy-ey');
+  const ryEl  = document.getElementById('erp-real-yield');
+  const badgeEl = document.getElementById('erp-signal-badge');
+  const interpEl = document.getElementById('erp-interpretation');
+  if (!valEl) return; // card no inyectado (defensa)
+
+  if (ey != null) eyEl.textContent = ey.toFixed(2) + '%';
+  if (ry != null) ryEl.textContent = (ry >= 0 ? '+' : '') + ry.toFixed(2) + '%';
+
+  if (ey == null || ry == null) {
+    valEl.textContent = '—';
+    valEl.style.color = '';
+    if (badgeEl) { badgeEl.className = 'badge b-neu'; badgeEl.textContent = 'Sin datos'; }
+    if (interpEl) interpEl.textContent = 'Falta DFII10 o SPY EY — no se puede calcular ERP.';
+    return;
+  }
+
+  const erp = ey - ry;
+  // Pick threshold bucket — primer bucket cuyo .min ≤ erp.
+  const tier = erp >= ERP_THRESHOLDS.high.min  ? ERP_THRESHOLDS.high
+             : erp >= ERP_THRESHOLDS.mod.min   ? ERP_THRESHOLDS.mod
+             : erp >= ERP_THRESHOLDS.tight.min ? ERP_THRESHOLDS.tight
+             :                                   ERP_THRESHOLDS.neg;
+  const sign = erp >= 0 ? '+' : '';
+  valEl.textContent = sign + erp.toFixed(2) + '%';
+  valEl.style.color = tier.col;
+  if (badgeEl)  { badgeEl.className = 'badge ' + tier.cls; badgeEl.textContent = tier.label; }
+  if (interpEl) interpEl.textContent = tier.interp;
+}
+
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
 // Recibe howellResult para no volver a llamar computeHowellScore (ya ejecutado en updateHeroScore)
 function updateThreeHorizons(howellResult) {
@@ -6098,6 +6175,7 @@ function updateHeroScore() {
   updateLeadingIndicators();
   updateHowellHistory();
   updateOperationalContext();
+  updateERP();
   updateMotorHistoryMinis();
 
   // Alert banner
@@ -7024,6 +7102,22 @@ const INDICATORS_GLOSSARY = {
       { c:'red',    t:'Precio < SMA200 — riesgo bear market' }
     ],
     note: 'SMA200 es el divisor más vigilado por allocators institucionales. Dropping SMA200 suele triggear sell-rules sistemáticas.'
+  },
+  // ── Macro · Posicionamiento ──
+  'erp': {
+    name: 'ERP · Equity Risk Premium',
+    category: 'Macro · Posicionamiento',
+    source: { label: 'multpl.com (SPY EY) + FRED · DFII10', url: 'https://www.multpl.com/s-p-500-earnings-yield', freq: 'Mensual (manual) + Diaria' },
+    what: 'Prima que ofrece el equity sobre los treasuries reales. Métrica clave Druckenmiller-style para evaluar cuán generosamente compensa el equity vs renta fija real.',
+    formula: 'ERP = SPY trailing earnings yield − DFII10 (10Y TIPS yield). Earnings yield = 1 / P/E trailing.',
+    interpret: 'ERP alto = equity barato vs treasuries reales (prima generosa). ERP cercano a cero o negativo = equity caro, treasuries reales son competitivos. Druckenmiller usa ERP <1% como condición histórica de cautela: cuando inversores no son compensados por asumir riesgo equity, los retornos forward son típicamente mediocres.',
+    thresholds: [
+      { c:'green', t:'> 4% — Prima alta, equity ofrece colchón generoso' },
+      { c:'amber', t:'2.5 – 4% — Prima moderada, balance equity/bonds' },
+      { c:'amber', t:'1 – 2.5% — Prima ajustada, asimetría favorece bonds' },
+      { c:'red',   t:'< 1% — Prima baja/negativa, equity caro vs renta fija real' }
+    ],
+    note: 'SPY EY se actualiza manualmente desde multpl.com (refresh mensual). El indicador no captura cambios intra-mes en P/E. DFII10 es daily. Trampa conceptual: ERP es nivel, no señal de timing — mercados pueden permanecer con ERP bajo por años antes de comprimir.'
   }
 };
 
@@ -7098,7 +7192,7 @@ function _glRenderIndex() {
     'Inflación', 'Inflación · Fed Preferred', 'Inflación · Expectativas',
     'Fidelity · Composite', 'Fidelity · Manufactura', 'Fidelity · Crecimiento', 'Fidelity · Empleo', 'Fidelity · Consumo', 'Fidelity · Sentimiento',
     'Crédito · Estrés', 'Crédito · Stress',
-    'Cross-Asset · Macro',
+    'Cross-Asset · Macro', 'Macro · Posicionamiento',
     'Leading · Empleo', 'Leading · Manufactura', 'Leading · Housing',
     'Régimen · Corto Plazo', 'Mercado · Volatilidad', 'Mercado · Volatilidad Inst.', 'Mercado · Tail Risk', 'Mercado · Recesión', 'Mercado · Tendencia', 'Mercado · Niveles Técnicos'
   ];
