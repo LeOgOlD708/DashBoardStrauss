@@ -422,10 +422,12 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #regime-banner{padding:14px 20px}
 .regime-label{font-size:20px}
 /* Verdict Hero */
-.vh{display:grid;grid-template-columns:200px 1fr 280px;gap:24px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
+.vh{display:grid;grid-template-columns:200px 1fr 280px;gap:24px;align-items:stretch;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
 .vh::before{content:'';position:absolute;top:0;right:0;width:40%;height:100%;background:radial-gradient(ellipse at top right,rgba(249,115,22,0.05) 0%,transparent 60%);pointer-events:none}
 .vh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
-.vh-score{text-align:center}
+.vh-score{text-align:center;display:flex;flex-direction:column}
+.vh-score-spark{flex:1;display:flex;flex-direction:column;justify-content:flex-end;min-height:0}
+.vh-score-spark .ch-wrap{flex:1;min-height:120px}
 .vh-num{font-family:'IBM Plex Mono',monospace;font-size:64px;font-weight:700;line-height:1;letter-spacing:-3px}
 .vh-denom{font-family:'IBM Plex Mono',monospace;font-size:16px;color:var(--text3)}
 .vh-lbl{font-size:12px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
@@ -665,11 +667,11 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-num" id="hero-score-num">—</div>
       <div class="vh-denom">/8</div>
       <div class="vh-lbl">Score Howell</div>
-      <!-- Mini sparkline trayectoria 13 semanas + delta 4w (rellena espacio en columna izq) -->
-      <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(245,236,228,.1)">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;text-align:center;margin-bottom:10px">Trend 13 sem</div>
-        <div class="ch-wrap" style="height:140px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
-        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-align:center;margin-top:10px;color:var(--text3)">4w: —</div>
+      <!-- Sparkline trayectoria 13 semanas + delta 4w (flex:1 para usar TODO el espacio vertical) -->
+      <div class="vh-score-spark" style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(245,236,228,.1)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;text-align:center;margin-bottom:8px">Trend 13 sem</div>
+        <div class="ch-wrap" style="position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
+        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-align:center;margin-top:8px;color:var(--text3)">4w: —</div>
       </div>
     </div>
     <div class="vh-mid">
@@ -939,23 +941,23 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
           <span class="mono" style="font-size:11px;color:var(--text3);letter-spacing:.06em">INDICADORES · VALOR + PTS</span>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2)">Prod. Mfg YoY</span><span class="mono" id="fid-pmi-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-pmi-pts" style="font-size:10px;text-align:center">—</span>
+          <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Prod. Mfg YoY <button class="help-i" type="button" onclick="openGlossary('ipman-yoy')" title="¿Qué es?">?</button></span><span class="mono" id="fid-pmi-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-pmi-pts" style="font-size:10px;text-align:center">—</span>
           </div>
-          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2)">PIB Real QoQ</span><span class="mono" id="fid-gdp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-gdp-pts" style="font-size:10px;text-align:center">—</span>
+          <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">PIB Real QoQ <button class="help-i" type="button" onclick="openGlossary('pib-real')" title="¿Qué es?">?</button></span><span class="mono" id="fid-gdp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-gdp-pts" style="font-size:10px;text-align:center">—</span>
           </div>
-          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2)">Desempleo</span><span class="mono" id="fid-unemp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-unemp-pts" style="font-size:10px;text-align:center">—</span>
+          <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Desempleo <button class="help-i" type="button" onclick="openGlossary('unrate')" title="¿Qué es?">?</button></span><span class="mono" id="fid-unemp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-unemp-pts" style="font-size:10px;text-align:center">—</span>
           </div>
-          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2)">Curva 10Y-2Y</span><span class="mono" id="fid-yield-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-yield-pts" style="font-size:10px;text-align:center">—</span>
+          <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Curva 10Y-2Y <button class="help-i" type="button" onclick="openGlossary('yield-curve-10y2y')" title="¿Qué es?">?</button></span><span class="mono" id="fid-yield-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-yield-pts" style="font-size:10px;text-align:center">—</span>
           </div>
-          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2)">V. Minoristas MoM</span><span class="mono" id="fid-retail-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-retail-pts" style="font-size:10px;text-align:center">—</span>
+          <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">V. Minoristas MoM <button class="help-i" type="button" onclick="openGlossary('retail-sales')" title="¿Qué es?">?</button></span><span class="mono" id="fid-retail-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-retail-pts" style="font-size:10px;text-align:center">—</span>
           </div>
-          <div style="display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2)">Conf. Consumidor</span><span class="mono" id="fid-sent-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-sent-pts" style="font-size:10px;text-align:center">—</span>
+          <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Conf. Consumidor <button class="help-i" type="button" onclick="openGlossary('umcsent')" title="¿Qué es?">?</button></span><span class="mono" id="fid-sent-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-sent-pts" style="font-size:10px;text-align:center">—</span>
           </div>
         </div>
       </div>
@@ -5446,12 +5448,12 @@ function updateMotorHistoryMinis() {
     const container = document.getElementById('diag-breakdown');
     if (h && container) {
       const items = [
-        { label: 'Reservas Fed', pts: h.resScore,  max: 2, val: h.resVal != null ? '$'+(h.resVal/1e6).toFixed(2)+'T' : '—' },
-        { label: 'TGA Tesoro',   pts: h.tgaScore,  max: 2, val: h.tgaVal != null ? '$'+(h.tgaVal/1e6).toFixed(2)+'T' : '—' },
-        { label: 'RRP Fed',      pts: h.rrpScore,  max: 1, val: h.rrpVal != null ? '$'+(h.rrpVal/1000).toFixed(0)+'B' : '—' },
-        { label: 'SOFR Spread',  pts: h.sofrScore, max: 1, val: h.sofrAbs != null ? h.sofrAbs.toFixed(1)+' bps' : '—' },
-        { label: 'DXY',          pts: h.dxyScore,  max: 1, val: h.dxyVal != null ? h.dxyVal.toFixed(2) : '—' },
-        { label: 'CPI YoY',      pts: h.cpiScore,  max: 1, val: h.cpiYoY != null ? h.cpiYoY.toFixed(1)+'%' : '—' },
+        { label: 'Reservas Fed', glossKey: 'reservas-fed', pts: h.resScore,  max: 2, val: h.resVal != null ? '$'+(h.resVal/1e6).toFixed(2)+'T' : '—' },
+        { label: 'TGA Tesoro',   glossKey: 'tga',          pts: h.tgaScore,  max: 2, val: h.tgaVal != null ? '$'+(h.tgaVal/1e6).toFixed(2)+'T' : '—' },
+        { label: 'RRP Fed',      glossKey: 'rrp',          pts: h.rrpScore,  max: 1, val: h.rrpVal != null ? '$'+(h.rrpVal/1000).toFixed(0)+'B' : '—' },
+        { label: 'SOFR Spread',  glossKey: 'sofr-spread',  pts: h.sofrScore, max: 1, val: h.sofrAbs != null ? h.sofrAbs.toFixed(1)+' bps' : '—' },
+        { label: 'DXY',          glossKey: 'dxy',          pts: h.dxyScore,  max: 1, val: h.dxyVal != null ? h.dxyVal.toFixed(2) : '—' },
+        { label: 'CPI YoY',      glossKey: 'cpi-yoy',      pts: h.cpiScore,  max: 1, val: h.cpiYoY != null ? h.cpiYoY.toFixed(1)+'%' : '—' },
       ];
       // Ordenar de mayor a menor contribución relativa (pts/max)
       items.sort((a, b) => (b.pts / b.max) - (a.pts / a.max));
@@ -5462,13 +5464,13 @@ function updateMotorHistoryMinis() {
                      ratio >= 0.5 ? '<span style="color:var(--amber);font-size:10px;margin-left:6px">◐ parcial</span>' : '';
         return `
           <div style="display:flex;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="flex:0 0 95px;color:var(--text2)">${it.label}</span>
+            <span style="flex:0 0 110px;color:var(--text2);display:flex;align-items:center;gap:5px">${it.label}<button class="help-i" type="button" onclick="openGlossary('${it.glossKey}')" title="¿Qué es ${it.label}?">?</button></span>
             <div style="flex:1;height:6px;background:var(--border2);border-radius:3px;overflow:hidden">
               <div style="height:100%;border-radius:3px;background:${color};width:${(ratio * 100).toFixed(0)}%;transition:width .5s"></div>
             </div>
-            <span style="flex:0 0 70px;text-align:right;color:var(--text3)">${it.pts.toFixed(1)}/${it.max}</span>
+            <span style="flex:0 0 65px;text-align:right;color:var(--text3)">${it.pts.toFixed(1)}/${it.max}</span>
             <span style="flex:0 0 70px;text-align:right;color:var(--text2)">${it.val}</span>
-          </div>${flag ? `<div style="margin-left:105px;line-height:1">${flag}</div>` : ''}`;
+          </div>${flag ? `<div style="margin-left:120px;line-height:1">${flag}</div>` : ''}`;
       }).join('');
       // Summary: top driver
       const top = items[0];
