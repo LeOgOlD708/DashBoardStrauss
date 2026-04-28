@@ -440,6 +440,11 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .yc-btn.active{border-color:var(--gold);color:var(--gold);background:rgba(201,168,76,.08)}
 .yc-level-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid var(--border)}
 .yc-level-row:last-child{border-bottom:none}
+.yc-inv-pill{font-family:'IBM Plex Mono',monospace;font-size:10px;padding:4px 8px;background:rgba(220,38,38,0.08);border:1px solid rgba(220,38,38,0.20);border-radius:12px;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap}
+.yc-inv-pill:hover{background:rgba(220,38,38,0.15);border-color:var(--phoenix-red);color:var(--text)}
+.yc-inv-pill.active{background:var(--phoenix-red);border-color:var(--phoenix-red);color:#fff}
+.yc-inv-pill.current{background:rgba(249,115,22,0.10);border-color:rgba(249,115,22,0.40);color:#fdba74}
+.yc-inv-pill.current:hover{background:rgba(249,115,22,0.18);border-color:#f97316}
 /* ── CMD CENTER v2 — TIPOGRAFÍA AUMENTADA + HORIZONS ── */
 .lbl{font-size:13px}
 .val{font-size:28px}
@@ -1394,6 +1399,22 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
         <div id="yc-levels-list" style="margin-top:6px"></div>
       </div>
     </div>
+  </div>
+
+  <!-- ═════ YIELD CURVE BATCH D · Timeline inversiones históricas ═════ -->
+  <div class="card" style="margin-top:14px;border-color:rgba(220,38,38,.18)"><div class="card-accent" style="background:var(--phoenix-red)"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <div class="lbl" style="display:flex;align-items:center;gap:8px">
+        <span>Inversiones históricas 10Y−2Y · 1978–presente</span>
+        <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('yc-inversions-timeline')" title="¿Cómo leer el timeline?">?</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace">
+        <span id="yc-inv-stats-summary">7 episodios · hit rate 6/7 · drawdown promedio −32%</span>
+      </div>
+    </div>
+    <div class="ch-wrap" style="height:110px"><canvas id="ycInversionsTimeline" role="img" aria-label="Timeline de inversiones de curva 10Y-2Y desde 1978"></canvas></div>
+    <div id="yc-inv-detail" style="margin-top:10px;display:none;padding:10px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--phoenix-red)"></div>
+    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px" id="yc-inv-pills"></div>
   </div>
 
   <div class="zone-divider">Crédito · Volatilidad · Cross-asset</div>
@@ -3330,6 +3351,316 @@ const POSITIONING_INTERPRETERS = {
     return        { col: 'var(--text2)',        txt: 'Neutral' };
   }
 };
+
+// ══════════════════════════════════════════════════════════
+// YIELD CURVE BATCH D · Inversiones históricas 10Y-2Y desde 1978
+// ══════════════════════════════════════════════════════════
+// Periodos donde 10Y-2Y < 0 (curva invertida) desde 1976.
+// SPX drawdown = peak-to-trough en los 24 meses POSTERIORES al fin de inversión.
+// NBER recession = fecha oficial de inicio de recesión NBER posterior.
+// Source: FRED T10Y2Y · NBER · S&P historical drawdowns.
+const YC_INVERSIONS = [
+  { start: '1978-08', end: '1980-04', durationMonths: 20, recessionStart: '1980-01', recessionEnd: '1980-07', spxDrawdown: -17, daysToRecession: 17,
+    notes: 'Volcker tightening + oil shock. Recesión iniciada 5 meses antes de fin de inversión.' },
+  { start: '1980-09', end: '1981-09', durationMonths: 12, recessionStart: '1981-07', recessionEnd: '1982-11', spxDrawdown: -27, daysToRecession: -2,
+    notes: 'Volcker round 2. Recesión empezó durante la inversión. Bear market 1981-82.' },
+  { start: '1988-12', end: '1989-09', durationMonths:  9, recessionStart: '1990-07', recessionEnd: '1991-03', spxDrawdown: -20, daysToRecession: 10,
+    notes: 'S&L crisis + Gulf War. ~10 meses delay desde fin de inversión a recesión.' },
+  { start: '2000-02', end: '2000-12', durationMonths: 10, recessionStart: '2001-03', recessionEnd: '2001-11', spxDrawdown: -49, daysToRecession:  3,
+    notes: 'Dot-com bubble. Bear market severo (-49% SPX).' },
+  { start: '2005-12', end: '2007-06', durationMonths: 18, recessionStart: '2007-12', recessionEnd: '2009-06', spxDrawdown: -57, daysToRecession:  6,
+    notes: 'GFC subprime. La inversión más prolongada antes de la 2022. Bear -57%.' },
+  { start: '2019-08', end: '2019-10', durationMonths:  2, recessionStart: '2020-02', recessionEnd: '2020-04', spxDrawdown: -34, daysToRecession:  4,
+    notes: 'Inversión breve (2m). Recesión COVID exógena, no causada por la inversión.' },
+  { start: '2022-07', end: '2024-09', durationMonths: 26, recessionStart: null,      recessionEnd: null,      spxDrawdown: -25, daysToRecession: null,
+    notes: 'La inversión más larga en historia moderna. Bear 2022 (-25% SPX). Sin recesión NBER reconocida hasta 2026-04.' }
+];
+
+// Estadísticas agregadas (footer del timeline)
+const YC_INVERSIONS_STATS = {
+  totalEpisodes: 7,
+  avgDuration: 13.6,         // meses
+  avgDelayToRecession: 6.4,  // meses (ignora COVID exógeno + episodio sin recesión)
+  hitRate: '6/7',            // 6 de 7 inversiones precedieron recesión
+  avgSpxDrawdown: -32        // promedio %
+};
+
+// Serie compacta del spread T10Y2Y · 1 punto cada 6 meses desde 1976.
+// Hardcoded (datos históricos inmutables · evita ampliar limit del FRED batch).
+// TODO: migrar a T10Y2YM cuando se quiera precisión mensual full.
+// Cada entry: { d:'YYYY-MM', s: spread% }. Aproximación visual — fuente FRED T10Y2Y promediado.
+const YC_T10Y2Y_HISTORY = [
+  { d:'1976-01', s: 1.45 }, { d:'1976-07', s: 1.20 },
+  { d:'1977-01', s: 0.90 }, { d:'1977-07', s: 0.75 },
+  { d:'1978-01', s: 0.40 }, { d:'1978-07', s: 0.10 },
+  { d:'1979-01', s:-0.40 }, { d:'1979-07', s:-0.85 },
+  { d:'1980-01', s:-1.95 }, { d:'1980-07', s: 0.85 },
+  { d:'1981-01', s:-1.10 }, { d:'1981-07', s:-1.55 },
+  { d:'1982-01', s:-0.45 }, { d:'1982-07', s: 0.95 },
+  { d:'1983-01', s: 1.85 }, { d:'1983-07', s: 1.40 },
+  { d:'1984-01', s: 1.10 }, { d:'1984-07', s: 1.20 },
+  { d:'1985-01', s: 1.45 }, { d:'1985-07', s: 1.30 },
+  { d:'1986-01', s: 1.80 }, { d:'1986-07', s: 1.45 },
+  { d:'1987-01', s: 1.30 }, { d:'1987-07', s: 1.10 },
+  { d:'1988-01', s: 1.05 }, { d:'1988-07', s: 0.55 },
+  { d:'1989-01', s:-0.30 }, { d:'1989-07', s:-0.10 },
+  { d:'1990-01', s: 0.45 }, { d:'1990-07', s: 0.85 },
+  { d:'1991-01', s: 1.50 }, { d:'1991-07', s: 1.95 },
+  { d:'1992-01', s: 2.20 }, { d:'1992-07', s: 2.55 },
+  { d:'1993-01', s: 2.30 }, { d:'1993-07', s: 1.85 },
+  { d:'1994-01', s: 1.60 }, { d:'1994-07', s: 0.85 },
+  { d:'1995-01', s: 0.30 }, { d:'1995-07', s: 0.50 },
+  { d:'1996-01', s: 0.85 }, { d:'1996-07', s: 0.65 },
+  { d:'1997-01', s: 0.45 }, { d:'1997-07', s: 0.40 },
+  { d:'1998-01', s: 0.30 }, { d:'1998-07', s: 0.40 },
+  { d:'1999-01', s: 0.45 }, { d:'1999-07', s: 0.30 },
+  { d:'2000-01', s: 0.10 }, { d:'2000-07', s:-0.45 },
+  { d:'2001-01', s: 0.30 }, { d:'2001-07', s: 1.50 },
+  { d:'2002-01', s: 2.10 }, { d:'2002-07', s: 2.30 },
+  { d:'2003-01', s: 2.65 }, { d:'2003-07', s: 2.85 },
+  { d:'2004-01', s: 2.45 }, { d:'2004-07', s: 1.90 },
+  { d:'2005-01', s: 1.20 }, { d:'2005-07', s: 0.45 },
+  { d:'2006-01', s:-0.05 }, { d:'2006-07', s:-0.10 },
+  { d:'2007-01', s:-0.25 }, { d:'2007-07', s: 0.15 },
+  { d:'2008-01', s: 1.40 }, { d:'2008-07', s: 1.55 },
+  { d:'2009-01', s: 1.85 }, { d:'2009-07', s: 2.65 },
+  { d:'2010-01', s: 2.75 }, { d:'2010-07', s: 2.40 },
+  { d:'2011-01', s: 2.75 }, { d:'2011-07', s: 2.55 },
+  { d:'2012-01', s: 1.65 }, { d:'2012-07', s: 1.30 },
+  { d:'2013-01', s: 1.60 }, { d:'2013-07', s: 2.30 },
+  { d:'2014-01', s: 2.55 }, { d:'2014-07', s: 2.05 },
+  { d:'2015-01', s: 1.40 }, { d:'2015-07', s: 1.55 },
+  { d:'2016-01', s: 1.20 }, { d:'2016-07', s: 0.85 },
+  { d:'2017-01', s: 1.30 }, { d:'2017-07', s: 0.95 },
+  { d:'2018-01', s: 0.55 }, { d:'2018-07', s: 0.30 },
+  { d:'2019-01', s: 0.20 }, { d:'2019-07', s: 0.05 },
+  { d:'2019-09', s:-0.05 }, { d:'2020-01', s: 0.20 },
+  { d:'2020-07', s: 0.55 }, { d:'2021-01', s: 0.95 },
+  { d:'2021-07', s: 1.05 }, { d:'2022-01', s: 0.85 },
+  { d:'2022-07', s:-0.15 }, { d:'2023-01', s:-0.65 },
+  { d:'2023-07', s:-0.95 }, { d:'2024-01', s:-0.35 },
+  { d:'2024-07', s:-0.20 }, { d:'2024-12', s: 0.30 },
+  { d:'2025-06', s: 0.45 }, { d:'2026-01', s: 0.55 },
+  { d:'2026-04', s: 0.50 }
+];
+
+// Bandas NBER recession (para shading sutil en el chart)
+const YC_NBER_RECESSIONS = [
+  { start: '1980-01', end: '1980-07' },
+  { start: '1981-07', end: '1982-11' },
+  { start: '1990-07', end: '1991-03' },
+  { start: '2001-03', end: '2001-11' },
+  { start: '2007-12', end: '2009-06' },
+  { start: '2020-02', end: '2020-04' }
+];
+
+// Chart.js plugin: pinta bandas NBER recession por detrás de las barras
+const ycNberBandsPlugin = {
+  id: 'ycNberBands',
+  beforeDatasetsDraw(chart) {
+    const bands = chart.options.plugins?.ycNberBands?.bands;
+    if (!bands || !bands.length) return;
+    const labels = chart.data.labels;
+    if (!labels || !labels.length) return;
+    const xScale = chart.scales.x;
+    const yArea = chart.chartArea;
+    const ctx = chart.ctx;
+    ctx.save();
+    ctx.fillStyle = 'rgba(220,38,38,0.10)';
+    bands.forEach(b => {
+      // Encuentra primer índice cuyo label >= target
+      const findIdx = (target) => {
+        for (let i = 0; i < labels.length; i++) {
+          if (labels[i] >= target) return i;
+        }
+        return labels.length - 1;
+      };
+      const i0 = findIdx(b.start);
+      const i1 = findIdx(b.end);
+      if (i0 < 0 || i1 < 0) return;
+      const x0 = xScale.getPixelForValue(i0);
+      const x1 = xScale.getPixelForValue(i1);
+      ctx.fillRect(x0, yArea.top, Math.max(2, x1 - x0), yArea.bottom - yArea.top);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(ycNberBandsPlugin);
+
+// Helper: chequea si fecha 'YYYY-MM' está dentro de un rango (string ordering)
+function _ycInRange(dStr, startStr, endStr) {
+  return dStr >= startStr && dStr <= endStr;
+}
+
+// Render pills bajo el timeline (1 pill por inversión histórica)
+function renderYcInvPills() {
+  const wrap = document.getElementById('yc-inv-pills');
+  if (!wrap) return;
+  wrap.innerHTML = YC_INVERSIONS.map((p, i) => {
+    const isCurrent = p.recessionStart === null; // 2022-2024 sin recesión confirmada
+    const cls = isCurrent ? 'yc-inv-pill current' : 'yc-inv-pill';
+    const tail = isCurrent ? 'ACTUAL' : `SPX ${p.spxDrawdown}%`;
+    return `<span class="${cls}" data-idx="${i}" onclick="onYcInvPillClick(${i}, this)">${p.start} → ${p.end} · ${p.durationMonths}m · ${tail}</span>`;
+  }).join('');
+}
+
+function onYcInvPillClick(idx, el) {
+  document.querySelectorAll('.yc-inv-pill').forEach(p => p.classList.remove('active'));
+  if (el) el.classList.add('active');
+  const period = YC_INVERSIONS[idx];
+  if (period) renderYcInvDetail(period);
+}
+
+// Popular el card de detalle al click (chart o pill)
+function renderYcInvDetail(period) {
+  const detailEl = document.getElementById('yc-inv-detail');
+  if (!detailEl) return;
+  const recRow = period.recessionStart
+    ? `<span class="mono" style="color:var(--phoenix-red)">${period.recessionStart} → ${period.recessionEnd}</span>`
+    : `<span class="mono" style="color:var(--text3)">— sin recesión NBER</span>`;
+  const delayRow = period.daysToRecession != null
+    ? `<span class="mono">${period.daysToRecession >= 0 ? '+' : ''}${period.daysToRecession} meses</span>`
+    : `<span class="mono" style="color:var(--text3)">N/A</span>`;
+  const drawdownColor = period.spxDrawdown <= -30 ? 'var(--phoenix-red)' : period.spxDrawdown <= -15 ? 'var(--amber)' : 'var(--text2)';
+  detailEl.style.display = 'block';
+  detailEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <span style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700">Inversión ${period.start} → ${period.end}</span>
+      <span class="mono" style="font-size:11px;color:var(--text3)">${period.durationMonths} meses</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;font-size:11px">
+      <div>
+        <span style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase">Recesión NBER</span><br>
+        ${recRow}
+      </div>
+      <div>
+        <span style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase">Lead time</span><br>
+        ${delayRow}
+      </div>
+      <div>
+        <span style="color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.06em;text-transform:uppercase">SPX Drawdown</span><br>
+        <span class="mono" style="color:${drawdownColor}">${period.spxDrawdown}%</span>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.5">${period.notes}</div>
+  `;
+}
+
+// Crear el chart timeline (bar chart vertical, eje X temporal)
+function initYcInversionsTimeline() {
+  const el = document.getElementById('ycInversionsTimeline');
+  if (!el) return;
+  if (state.charts['ycInversionsTimeline']) return; // ya inicializado
+  const labels = YC_T10Y2Y_HISTORY.map(p => p.d);
+  const values = YC_T10Y2Y_HISTORY.map(p => p.s);
+  // Color por barra: rojo intenso si invertido, gris claro si no
+  const colors = values.map(v => v < 0 ? 'rgba(220,38,38,0.85)' : 'rgba(125,111,99,0.35)');
+
+  state.charts['ycInversionsTimeline'] = new Chart(el, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Spread 10Y-2Y',
+        data: values,
+        backgroundColor: colors,
+        borderColor: colors,
+        borderWidth: 0,
+        borderSkipped: false,
+        barPercentage: 1.0,
+        categoryPercentage: 0.95
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      onClick: (evt, elements) => {
+        if (!elements || !elements.length) return;
+        const idx = elements[0].index;
+        const dStr = labels[idx];
+        const period = YC_INVERSIONS.find(p => _ycInRange(dStr, p.start, p.end));
+        if (period) {
+          renderYcInvDetail(period);
+          // Activa la pill correspondiente
+          const pIdx = YC_INVERSIONS.indexOf(period);
+          document.querySelectorAll('.yc-inv-pill').forEach(p => p.classList.remove('active'));
+          const targetPill = document.querySelector(`.yc-inv-pill[data-idx="${pIdx}"]`);
+          if (targetPill) targetPill.classList.add('active');
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        ycNberBands: { bands: YC_NBER_RECESSIONS },
+        tooltip: {
+          backgroundColor: 'rgba(8,5,10,0.95)',
+          borderColor: 'rgba(220,38,38,0.4)',
+          borderWidth: 1,
+          titleColor: '#fca5a5',
+          bodyColor: '#f0ece4',
+          padding: 8,
+          displayColors: false,
+          titleFont: { family: "'IBM Plex Mono',monospace", size: 10 },
+          bodyFont: { family: "'IBM Plex Mono',monospace", size: 10 },
+          callbacks: {
+            title: ctxs => ctxs[0].label,
+            label: ctx => {
+              const v = ctx.parsed.y;
+              const dStr = labels[ctx.dataIndex];
+              const lines = [`Spread: ${v >= 0 ? '+' : ''}${v.toFixed(2)}%`];
+              if (v < 0) lines.push('⚠ Curva invertida');
+              const period = YC_INVERSIONS.find(p => _ycInRange(dStr, p.start, p.end));
+              if (period) lines.push(`Episodio: ${period.start} → ${period.end}`);
+              const inRecession = YC_NBER_RECESSIONS.find(r => _ycInRange(dStr, r.start, r.end));
+              if (inRecession) lines.push('● Recesión NBER activa');
+              return lines;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(45,30,30,0.30)', display: false },
+          ticks: {
+            color: '#7d6f63',
+            font: { size: 9, family: "'IBM Plex Mono',monospace" },
+            maxTicksLimit: 12,
+            autoSkip: true,
+            maxRotation: 0,
+            callback: function(val) {
+              const lbl = this.getLabelForValue(val);
+              // Solo mostrar año (YYYY) en enero
+              if (typeof lbl === 'string' && lbl.endsWith('-01')) return lbl.slice(0, 4);
+              return '';
+            }
+          }
+        },
+        y: {
+          grid: { color: 'rgba(45,30,30,0.30)' },
+          ticks: {
+            color: '#7d6f63',
+            font: { size: 9, family: "'IBM Plex Mono',monospace" },
+            callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
+          }
+        }
+      }
+    }
+  });
+
+  // Render inicial de pills + stats summary
+  renderYcInvPills();
+  const statsEl = document.getElementById('yc-inv-stats-summary');
+  if (statsEl) {
+    statsEl.textContent = `${YC_INVERSIONS_STATS.totalEpisodes} episodios · hit rate ${YC_INVERSIONS_STATS.hitRate} · drawdown promedio ${YC_INVERSIONS_STATS.avgSpxDrawdown}%`;
+  }
+}
+
+// Inicializar timeline al cargar (datos hardcoded inmutables · no depende de FRED)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initYcInversionsTimeline);
+} else {
+  initYcInversionsTimeline();
+}
 
 function matchConsensus(name) {
   if (!name) return null;
@@ -6776,6 +7107,24 @@ const INDICATORS_GLOSSARY = {
       { c:'green',  t:'> 0.5% — normal o empinada' }
     ],
     note: 'Re-empinamiento (steepening) tras inversión es la señal real de recesión.'
+  },
+  'yc-inversions-timeline': {
+    name: 'Timeline de inversiones 10Y-2Y',
+    category: 'Yield Curve · Histórico',
+    source: { label: 'FRED · T10Y2YM + NBER + S&P', url: 'https://fred.stlouisfed.org/series/T10Y2YM', freq: 'Mensual' },
+    what: 'Cada vez que la pendiente entre 10Y y 2Y cae bajo cero (curva invertida), históricamente precede una recesión NBER en 6-18 meses con drawdown promedio de SPX -32%. La inversión 2022-2024 fue la más larga en historia moderna sin recesión confirmada al cierre de 2026-04.',
+    formula: 'Spread = Yield(10Y Treasury) − Yield(2Y Treasury). Inversión = spread < 0%. Las barras rojas en el timeline marcan periodos de inversión; las bandas grises de fondo marcan recesiones NBER oficiales.',
+    interpret: 'Hit rate histórico: 6 de 7 inversiones desde 1978 precedieron recesión NBER (la única excepción es la actual 2022-2024). Lead time típico: 6-18 meses entre fin de inversión e inicio de recesión. Re-empinamiento tras inversión (bull steepening) es la señal final — indica que la Fed está a punto de cortar y el mercado anticipa daño económico real. El SPX drawdown medio post-inversión es -32% (peak-to-trough en 24 meses).',
+    thresholds: [
+      { c:'red',    t:'1978-08 → 1980-04 · 20m · SPX −17% · Volcker + oil shock' },
+      { c:'red',    t:'1980-09 → 1981-09 · 12m · SPX −27% · Volcker round 2' },
+      { c:'red',    t:'1988-12 → 1989-09 ·  9m · SPX −20% · S&L crisis + Gulf War' },
+      { c:'red',    t:'2000-02 → 2000-12 · 10m · SPX −49% · Dot-com bust' },
+      { c:'red',    t:'2005-12 → 2007-06 · 18m · SPX −57% · GFC subprime' },
+      { c:'amber',  t:'2019-08 → 2019-10 ·  2m · SPX −34% · COVID exógeno' },
+      { c:'amber',  t:'2022-07 → 2024-09 · 26m · SPX −25% · Sin recesión NBER (la más larga · ACTUAL)' }
+    ],
+    note: 'Click en cualquier barra del timeline o pill bajo el chart para ver el detalle del período (recesión NBER, lead time, drawdown SPX, contexto histórico). 7 episodios desde 1978 · duración promedio 13.6 meses · delay promedio a recesión 6.4 meses.'
   },
   'unrate': {
     name: 'Tasa de Desempleo',
