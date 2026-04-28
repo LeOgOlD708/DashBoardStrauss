@@ -5636,6 +5636,22 @@ function updateERP() {
   }
 
   const erp = ey - ry;
+  // Cap defensivo: si ERP cae fuera del rango razonable [-30%, +30%],
+  // probable dato sucio de FRED (DFII10 raro o SPY EY hardcoded incorrecto).
+  // Previene mostrar interpretaciones absurdas (ej "Equity caro" con ERP=-996%).
+  if (Math.abs(erp) > 30) {
+    valEl.textContent = erp.toFixed(1) + '%';
+    valEl.style.color = 'var(--phoenix-amber)';
+    if (badgeEl) {
+      // b-neu es amber-themed en este codebase (ver L234 .b-neu) — consistente con ERP_THRESHOLDS.tight
+      badgeEl.className = 'badge b-neu';
+      badgeEl.textContent = '⚠ Verificar';
+    }
+    if (interpEl) {
+      interpEl.textContent = `ERP fuera de rango razonable (>${30}%). Verificar DFII10 en FRED o SPY_TRAILING_EY hardcoded.`;
+    }
+    return;
+  }
   // Pick threshold bucket — primer bucket cuyo .min ≤ erp.
   const tier = erp >= ERP_THRESHOLDS.high.min  ? ERP_THRESHOLDS.high
              : erp >= ERP_THRESHOLDS.mod.min   ? ERP_THRESHOLDS.mod
@@ -5676,8 +5692,35 @@ function updatePositioning() {
   setInt('pos-naaim-int', POSITIONING_INTERPRETERS.naaim(data.naaim?.exposure));
   setInt('pos-pcc-int',   POSITIONING_INTERPRETERS.putCall(data.putCall?.pcc21d));
 
+  // Stale indicator: si POSITIONING_DATA.updated > 7 días, mostrar warning visual.
+  // Edge case: si updated falta o no parsea a Date, mostrar "⚠ Sin fecha".
   const tsEl = document.getElementById('pos-updated-ts');
-  if (tsEl && data.updated) tsEl.textContent = `actualizado ${data.updated}`;
+  if (tsEl) {
+    if (!data.updated) {
+      tsEl.textContent = '⚠ Sin fecha';
+      tsEl.style.color = 'var(--phoenix-amber)';
+      tsEl.style.fontWeight = '500';
+    } else {
+      const updatedDate = new Date(data.updated);
+      if (isNaN(updatedDate.getTime())) {
+        tsEl.textContent = '⚠ Sin fecha';
+        tsEl.style.color = 'var(--phoenix-amber)';
+        tsEl.style.fontWeight = '500';
+      } else {
+        const daysSinceUpdate = Math.floor((Date.now() - updatedDate.getTime()) / (1000 * 60 * 60 * 24));
+        const isStale = daysSinceUpdate > 7;
+        if (isStale) {
+          tsEl.textContent = `actualizado ${data.updated} ⚠ STALE (${daysSinceUpdate}d)`;
+          tsEl.style.color = 'var(--phoenix-amber)';
+          tsEl.style.fontWeight = '500';
+        } else {
+          tsEl.textContent = `actualizado ${data.updated}`;
+          tsEl.style.color = '';
+          tsEl.style.fontWeight = '';
+        }
+      }
+    }
+  }
 }
 
 // ── Three Horizons — popula los KPI de los 3 paneles del CMD Center v2 ──
