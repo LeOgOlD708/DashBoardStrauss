@@ -5592,7 +5592,12 @@ function updateOperationalContext() {
 // ── ERP — Equity Risk Premium (SPY trailing EY − DFII10) ──
 // Druckenmiller-style: cuán generosamente compensa el equity vs treasuries reales.
 function updateERP() {
-  const ry = state.data.realYield10?.[0]?.value;
+  // Validar explícitamente que realYield10 es array antes de indexar (audit hotfix):
+  // si la API devuelve null/objeto/string, el ?.[0] anterior daba `undefined`
+  // silenciosamente y `ey - undefined = NaN`, rompiendo el render.
+  const ryArr = Array.isArray(state.data.realYield10) ? state.data.realYield10 : null;
+  const ryRaw = ryArr?.[0]?.value;
+  const ry = (typeof ryRaw === 'number' && isFinite(ryRaw)) ? ryRaw : null;
   const ey = SPY_TRAILING_EY.value;
   const valEl = document.getElementById('erp-value');
   const eyEl  = document.getElementById('erp-spy-ey');
@@ -5603,6 +5608,7 @@ function updateERP() {
 
   if (ey != null) eyEl.textContent = ey.toFixed(2) + '%';
   if (ry != null) ryEl.textContent = (ry >= 0 ? '+' : '') + ry.toFixed(2) + '%';
+  else if (ryEl) ryEl.textContent = '—';
 
   if (ey == null || ry == null) {
     valEl.textContent = '—';
