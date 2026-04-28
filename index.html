@@ -687,6 +687,18 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-breadth-mixed{background:rgba(234,179,8,.08);color:#eab308;border-color:rgba(234,179,8,.28)}
 .os-breadth-weak{background:rgba(239,68,68,.08);color:#ef4444;border-color:rgba(239,68,68,.28)}
 .os-breadth-none{background:rgba(148,163,184,.07);color:var(--text3);border-color:rgba(148,163,184,.18)}
+/* Botón Catalysts LLM (Feature B v1.5 — brief de noticias 7d via Gemini) */
+.os-catalysts-btn{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.04em;padding:2px 7px;border-radius:3px;background:rgba(249,115,22,.08);color:var(--phoenix-amber);border:1px solid rgba(249,115,22,.32);cursor:pointer;font-weight:600;transition:background .15s,border-color .15s}
+.os-catalysts-btn:hover{background:rgba(249,115,22,.16);border-color:rgba(249,115,22,.55)}
+.os-catalysts-btn[disabled]{opacity:.6;cursor:wait}
+.os-catalysts-modal-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.04em;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.os-catalysts-modal-body{font-size:13px;color:var(--text);line-height:1.65;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace}
+.os-catalysts-modal-loader{display:flex;align-items:center;gap:10px;padding:30px 6px;color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px}
+.os-catalysts-modal-spinner{width:14px;height:14px;border:2px solid rgba(249,115,22,.25);border-top-color:var(--phoenix-amber);border-radius:50%;animation:os-spin .8s linear infinite}
+.os-catalysts-modal-error{color:var(--red);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:18px 6px;display:flex;flex-direction:column;gap:10px}
+.os-catalysts-modal-retry{align-self:flex-start;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.4);color:var(--phoenix-amber);padding:5px 12px;border-radius:4px;font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;letter-spacing:.04em}
+.os-catalysts-modal-retry:hover{background:rgba(249,115,22,.18)}
+@keyframes os-spin{to{transform:rotate(360deg)}}
 
 /* Watchlist (top 5 simple lista) */
 .os-wl-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:12px;align-items:center;padding:6px 10px;background:var(--surface2);border-left:3px solid var(--text3);border-radius:0 4px 4px 0;font-family:'IBM Plex Mono',monospace;font-size:11px}
@@ -8016,6 +8028,20 @@ const INDICATORS_GLOSSARY = {
     ],
     note: 'Top 5 holdings hardcodeados (refrescar trimestralmente, próximo: 2026-07-01). Si un constituyente falla en Yahoo, se calcula breadth con los que sí volvieron. Solo aplica a sectores SPDR (no macros).'
   },
+  'catalysts-llm': {
+    name: 'Catalysts Sectoriales (LLM)',
+    category: 'Opportunity Scanner · Narrativa v1.5',
+    source: { label: 'Gemini 2.5 Flash · síntesis de noticias 7d', url: 'https://ai.google.dev/gemini-api/docs/models/gemini', freq: 'On-demand · cache localStorage 3h por ticker' },
+    what: 'Brief generado por LLM (3 bullets, ~150 chars c/u) que explica qué eventos de los últimos 7 días movieron al sector: datos económicos, decisiones de bancos centrales, earnings sorpresa, M&A, geopolítica, flujos. Contextualiza el score numérico con narrativa accionable.',
+    formula: 'POST /api/gemini con {ticker, sectorName, holdings, score} → prompt estructurado a gemini-2.5-flash (temperature 0.3, maxOutputTokens 350). Cache localStorage `os_catalysts_<TICKER>` con TTL 3h: hit cache evita re-llamar al LLM. Sin streaming, respuesta sincrónica.',
+    interpret: 'El score sin catalysts es un número descontextualizado. Con catalysts, el trader sabe si un sector con score 80 sube por earnings sólidos (sostenible) o por short squeeze (frágil). Score alto + catalysts confirmatorios = convicción; score alto + catalysts ausentes/débiles = posible movimiento técnico/noise. Filosofía: el LLM es asistente de contextualización, no fuente de verdad — el trader valida.',
+    thresholds: [
+      { c:'green', t:'Catalysts macro/corporativos sólidos · score y narrativa alineados' },
+      { c:'amber', t:'Catalysts mixtos o ambiguos · validar con fuentes primarias' },
+      { c:'red',   t:'Sin catalysts claros · movimiento posiblemente técnico (rotación, squeeze)' }
+    ],
+    note: 'On-demand: el botón "📰 Catalysts" en cada card Top 5 dispara la llamada. Cache 3h evita consumo innecesario de quota Gemini. Si la API falla, banner rojo con botón "Reintentar" (no reintento automático). Latencia típica 2-5s.'
+  },
   'divergencia-mercado-ciclo': {
     name: 'Divergencia Mercado-vs-Ciclo',
     category: 'Opportunity Scanner · Señal sistémica',
@@ -9060,6 +9086,11 @@ window.OpportunityScanner = (function () {
       const mag7Html = s.mag7Trap
         ? `<span class="os-breadth-pill os-breadth-weak" title="Volumen anormal alto pero solo 0-1 de 5 holdings principales sobre SMA50 — el rally puede estar concentrado en pocos nombres (Mag7 trap)">⚠ Mag7 trap</span>`
         : '';
+      // Botón Catalysts (Feature B v1.5) — solo sectores SPDR con holdings configurados
+      const hasHoldings = !!config.sectorConstituents?.[s.ticker];
+      const catalystsHtml = hasHoldings
+        ? `<button class="os-catalysts-btn" type="button" onclick="event.stopPropagation();window.OpportunityScanner&&OpportunityScanner.showCatalysts('${s.ticker}')" title="Brief de catalysts 7d (LLM Gemini)">📰 Catalysts</button><button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('catalysts-llm')" title="¿Qué son los Catalysts LLM?">?</button>`
+        : '';
       return `
         <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
           <div class="os-card-rank lvl-${lvl}">${rank}</div>
@@ -9078,7 +9109,7 @@ window.OpportunityScanner = (function () {
           <div class="os-card-reason">
             <div class="os-card-reason-text">${escapeAttr(s.reason)}</div>
             <div class="os-card-align ${alignCls}">${alignTxt}</div>
-            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}${breadthHtml}${mag7Html}</div>
+            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}${breadthHtml}${mag7Html}${catalystsHtml}</div>
             ${divNote}
           </div>
         </div>`;
@@ -9252,6 +9283,126 @@ window.OpportunityScanner = (function () {
     state.fetching = false;
   }
 
+  // ──────────────────────────────────────────────────────────
+  // Feature B v1.5 — Catalysts LLM (Gemini brief 7d, on-demand, cache 3h)
+  // ──────────────────────────────────────────────────────────
+  const CATALYSTS_CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 horas
+  const CATALYSTS_CACHE_PREFIX = 'os_catalysts_';
+
+  function _readCatalystsCache(ticker) {
+    try {
+      const raw = localStorage.getItem(CATALYSTS_CACHE_PREFIX + ticker);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj.timestamp !== 'number' || !obj.reply) return null;
+      if (Date.now() - obj.timestamp > CATALYSTS_CACHE_TTL_MS) {
+        localStorage.removeItem(CATALYSTS_CACHE_PREFIX + ticker);
+        return null;
+      }
+      return obj;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function _writeCatalystsCache(ticker, reply, score) {
+    try {
+      localStorage.setItem(
+        CATALYSTS_CACHE_PREFIX + ticker,
+        JSON.stringify({ reply, score, timestamp: Date.now() })
+      );
+    } catch (e) { /* quota — silencioso */ }
+  }
+
+  function _renderCatalystsModal(ticker, sectorName, content) {
+    const titleEl = document.getElementById('modal-title');
+    const body    = document.getElementById('modal-body');
+    const modal   = document.getElementById('tv-modal');
+    if (!titleEl || !body || !modal) return;
+    titleEl.textContent = `📰 ${ticker} · Catalysts 7d — ${sectorName}`;
+    body.innerHTML = content;
+    modal.classList.add('active');
+  }
+
+  function _catalystsLoadingHtml() {
+    return `<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div><div>Analizando catalysts de los últimos 7 días con Gemini...</div></div>`;
+  }
+
+  function _catalystsErrorHtml(ticker, message) {
+    const safeMsg = String(message || 'Error desconocido').replace(/</g, '&lt;');
+    return `<div class="os-catalysts-modal-error"><div>⚠ Catalysts no disponibles · ${safeMsg}</div><button class="os-catalysts-modal-retry" type="button" onclick="window.OpportunityScanner&&OpportunityScanner.showCatalysts('${ticker}', true)">Reintentar</button></div>`;
+  }
+
+  function _catalystsContentHtml(reply, timestamp, fromCache) {
+    const dt = new Date(timestamp);
+    const hh = String(dt.getHours()).padStart(2, '0');
+    const mm = String(dt.getMinutes()).padStart(2, '0');
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mo = String(dt.getMonth() + 1).padStart(2, '0');
+    const cacheTag = fromCache ? '<span style="color:var(--text3)">· cacheado</span>' : '<span style="color:#22c55e">· nuevo</span>';
+    const safeReply = String(reply || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return `
+      <div class="os-catalysts-modal-meta">
+        <span>Análisis ${dd}/${mo} ${hh}:${mm} ${cacheTag}</span>
+        <span style="color:var(--text3)">Gemini 2.5 Flash · cache 3h</span>
+      </div>
+      <div class="os-catalysts-modal-body">${safeReply}</div>
+      <div style="margin-top:14px;font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;line-height:1.5;border-top:1px solid var(--border2);padding-top:10px">
+        Asistente de contextualización · validar con fuentes primarias antes de operar.
+      </div>`;
+  }
+
+  async function showCatalysts(ticker, forceRefresh) {
+    if (!ticker) return;
+    const sectorCfg = config.sectors.find(s => s.ticker === ticker);
+    if (!sectorCfg) {
+      console.warn('[OpportunityScanner] showCatalysts: ticker no es sector SPDR:', ticker);
+      return;
+    }
+    const sectorName = sectorCfg.name;
+    const scoreObj = state.scores.find(s => s.ticker === ticker);
+    const score = scoreObj?.total ?? null;
+    const holdings = config.sectorConstituents?.[ticker] || [];
+
+    // 1. Cache hit (si no es refresh forzado)
+    if (!forceRefresh) {
+      const cached = _readCatalystsCache(ticker);
+      if (cached) {
+        _renderCatalystsModal(ticker, sectorName, _catalystsContentHtml(cached.reply, cached.timestamp, true));
+        return;
+      }
+    }
+
+    // 2. Loading state
+    _renderCatalystsModal(ticker, sectorName, _catalystsLoadingHtml());
+
+    // 3. Fetch /api/gemini
+    try {
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 20000);
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticker, sectorName, holdings, score }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const reply = data.reply || 'Sin respuesta de Gemini.';
+      const ts = Date.now();
+      _writeCatalystsCache(ticker, reply, score);
+      _renderCatalystsModal(ticker, sectorName, _catalystsContentHtml(reply, ts, false));
+    } catch (e) {
+      const msg = e.name === 'AbortError' ? 'timeout (20s)' : (e.message || 'error de red');
+      console.warn('[OpportunityScanner] showCatalysts error:', msg);
+      _renderCatalystsModal(ticker, sectorName, _catalystsErrorHtml(ticker, msg));
+    }
+  }
+
   // API pública
   return {
     state, config,
@@ -9261,6 +9412,7 @@ window.OpportunityScanner = (function () {
     render, renderHeatmap, renderTopCards, renderDivergenceAlert, renderWatchlist, renderHeader,
     showSkeleton, copyWatchlist,
     startAutoRefresh, startCountdown,
+    showCatalysts,
   };
 })();
 
