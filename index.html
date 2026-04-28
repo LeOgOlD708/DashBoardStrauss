@@ -61,7 +61,7 @@ body::before{
 .serif{font-family:'Playfair Display',serif}
 
 /* ── NAV ── */
-nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:200}
+nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 20px;display:flex;align-items:center;justify-content:space-between;height:54px;position:sticky;top:0;z-index:200;will-change:transform}
 .brand{display:flex;align-items:center;gap:10px}
 .brand-logo{width:28px;height:28px;filter:drop-shadow(0 0 8px rgba(249,115,22,0.3))}
 .brand-name{font-family:'Playfair Display',serif;font-size:19px;font-weight:900;letter-spacing:-0.02em;color:var(--text)}
@@ -77,7 +77,12 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 #nav-mini-score .nms-val{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;line-height:1;color:var(--gold);letter-spacing:-.5px}
 #nav-mini-score .nms-phase{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--text2);text-transform:uppercase;line-height:1.2;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #nav-mini-score .nms-meta{display:flex;flex-direction:column;gap:3px}
-@media(max-width:900px){#nav-mini-score .nms-phase{display:none}}
+@media(max-width:900px){
+  #nav-mini-score{gap:6px;padding:3px 8px 3px 10px}
+  #nav-mini-score .nms-phase{display:none}
+  /* Sin .nms-phase, el flex column de .nms-meta sólo aloja .nms-lbl — reducir gap evita espacio fantasma */
+  #nav-mini-score .nms-meta{gap:0}
+}
 .live-dot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em}
 .live-dot .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -160,6 +165,8 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .g21{display:grid;grid-template-columns:2fr 1fr;gap:10px;align-items:start}
 .g12{display:grid;grid-template-columns:1fr 2fr;gap:10px;align-items:start}
 .g32{display:grid;grid-template-columns:3fr 2fr;gap:10px;align-items:start}
+/* Positioning Strip — extraído de inline para permitir media query limpia */
+.pos-strip-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;align-items:start}
 @media(max-width:1000px){
   .g4,.g3{grid-template-columns:1fr 1fr}
   .g21,.g12,.g32{grid-template-columns:1fr}
@@ -168,6 +175,9 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
   /* Fase C · Breadth strip: 5 sectores → 3 cols (3 arriba + 2 abajo) */
   #breadth-grid{grid-template-columns:repeat(3,1fr) !important}
   /* Fase C · Termómetros 2x2 ya cubierto por la regla .g4 → 1fr 1fr arriba */
+  /* Polish post-audit · Positioning Strip 3→1 col (interpretaciones largas necesitan width) */
+  .pos-strip-grid{grid-template-columns:1fr;gap:8px}
+  /* ERP card hereda .card layout — su flex-baseline interno se mantiene legible <1000px */
 }
 @media(max-width:600px){.g4,.g3,.g2{grid-template-columns:1fr}}
 
@@ -978,7 +988,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <span>📊 Posicionamiento · Contrarian Signals <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('positioning-strip')">?</button></span>
       <span id="pos-updated-ts" style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-weight:400">refresh weekly</span>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px">
+    <div class="pos-strip-grid" style="margin-top:8px">
       <!-- AAII Bull-Bear -->
       <div style="padding:8px;background:var(--surface2);border-radius:6px">
         <div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-bottom:3px;display:flex;align-items:center;gap:5px">AAII Bull-Bear <button class="help-i" type="button" style="font-size:10px;padding:1px 4px" onclick="event.stopPropagation();openGlossary('aaii-bull-bear')">?</button></div>
@@ -3333,8 +3343,9 @@ const POSITIONING_DATA = {
 const POSITIONING_INTERPRETERS = {
   aaii: (v) => {
     if (v == null) return { col: 'var(--text3)', txt: '—' };
-    if (v < -15) return { col: 'var(--green)', txt: 'Pesimismo extremo · contrarian bullish' };
-    if (v >  15) return { col: 'var(--red)',   txt: 'Optimismo elevado · contrarian bearish' };
+    // Thresholds ±25 = ~1 std dev histórico (AAII research). ±15 generaba demasiados falsos extremos (~0.5σ).
+    if (v < -25) return { col: 'var(--green)', txt: 'Pesimismo extremo · contrarian bullish' };
+    if (v >  25) return { col: 'var(--red)',   txt: 'Optimismo elevado · contrarian bearish' };
     return       { col: 'var(--text2)',        txt: 'Equilibrado' };
   },
   naaim: (v) => {
@@ -3346,8 +3357,9 @@ const POSITIONING_INTERPRETERS = {
   },
   putCall: (v) => {
     if (v == null) return { col: 'var(--text3)', txt: '—' };
+    // Threshold >1.18 (~1.5σ) captura solo pánico real. >1.10 era ~1σ = volatilidad normal.
     if (v < 0.85) return { col: 'var(--red)',   txt: 'Complacencia · contrarian bearish' };
-    if (v > 1.10) return { col: 'var(--green)', txt: 'Pesimismo · contrarian bullish' };
+    if (v > 1.18) return { col: 'var(--green)', txt: 'Pesimismo extremo · contrarian bullish' };
     return        { col: 'var(--text2)',        txt: 'Neutral' };
   }
 };
@@ -3458,6 +3470,7 @@ const YC_NBER_RECESSIONS = [
 const ycNberBandsPlugin = {
   id: 'ycNberBands',
   beforeDatasetsDraw(chart) {
+    if (!chart.scales || !chart.scales.x) return; // guard: scales aún no inicializadas
     const bands = chart.options.plugins?.ycNberBands?.bands;
     if (!bands || !bands.length) return;
     const labels = chart.data.labels;
@@ -3548,6 +3561,10 @@ function renderYcInvDetail(period) {
 
 // Crear el chart timeline (bar chart vertical, eje X temporal)
 function initYcInversionsTimeline() {
+  if (typeof Chart === 'undefined') {
+    console.warn('[YC Timeline] Chart.js no disponible — skip render');
+    return;
+  }
   const el = document.getElementById('ycInversionsTimeline');
   if (!el) return;
   if (state.charts?.['ycInversionsTimeline']) return; // ya inicializado (defensivo: state.charts ya está garantizado en L2347 pero usamos optional chaining por consistencia)
@@ -5635,6 +5652,10 @@ function updateERP() {
 // Datos hardcoded actualizables manualmente (ver POSITIONING_DATA · refresh weekly).
 function updatePositioning() {
   const data = POSITIONING_DATA;
+  if (!data || !data.aaii || !data.naaim || !data.putCall) {
+    console.warn('[Positioning] Datos faltantes — skip render');
+    return;
+  }
   const setVal = (id, val, fmt) => {
     const el = document.getElementById(id);
     if (!el) return;
