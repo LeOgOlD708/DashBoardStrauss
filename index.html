@@ -8584,28 +8584,50 @@ window.OpportunityScanner = (function () {
                        return { label: '↓ Desacelerando', cls: 'down', txt: 'desacelerando' };
   }
 
-  // Score 0-100 con 4 componentes. Si Alpha Vantage cae → score sobre 80, normalizado a /100.
+  // Score 0-100 con 4 componentes. Si la fuente RS principal cae → score sobre 80, normalizado a /100.
   function calculateScore(ticker) {
     const av = state.sectorData;
     const yh = state.yahooData?.[ticker];
+    const spy = state.yahooData?.['SPY'];
     const howell = state.howell || readHowell();
 
-    // ── Comp 1 — Momentum Relativo (40 pts) ──
+    // ── Comp 1 — Momentum Relativo vs SPY (40 pts) ──
+    // Mejora B v1.1: RS exacto = sector.chg1m − SPY.chg1m (Yahoo).
+    // La aproximación con media sectorial de Alpha Vantage queda como fallback secundario.
     let comp1 = 0;
-    let momentumValue = null;
-    let avAvailable = false;
+    let momentumValue = null;          // valor de RS final usado para los thresholds (en pp)
+    let momentumSource = null;         // 'spy' | 'avg-sectorial' | 'chg1m-absoluto' | null
+    let avAvailable = false;           // sigue gateando la normalización /80→/100 cuando falla
+    let avSectorRS = null;             // info adicional para el tooltip ("AV avg-sectorial: …")
+
     if (av && av.rs && av.rs[ticker] != null) {
+      avSectorRS = av.rs[ticker];
       avAvailable = true;
-      const rs = av.rs[ticker];
+    }
+
+    // Fuente PRIMARIA: Yahoo SPY directo
+    if (yh && yh.chg1m != null && spy && spy.chg1m != null) {
+      const rs = yh.chg1m - spy.chg1m;
       momentumValue = rs;
-      if (rs > 3)        comp1 = 40;
-      else if (rs > 1)   comp1 = 30;
+      momentumSource = 'spy';
+      if (rs >  3)       comp1 = 40;
+      else if (rs >  1)  comp1 = 30;
+      else if (rs > -1)  comp1 = 15;
+      else               comp1 = 5;
+    } else if (avAvailable) {
+      // Fallback 1: aproximación Alpha Vantage (media sectorial como benchmark)
+      const rs = avSectorRS;
+      momentumValue = rs;
+      momentumSource = 'avg-sectorial';
+      if (rs >  3)       comp1 = 40;
+      else if (rs >  1)  comp1 = 30;
       else if (rs > -1)  comp1 = 15;
       else               comp1 = 5;
     } else if (yh && yh.chg1m != null) {
-      // Fallback: usar chg1m de Yahoo si Alpha Vantage cayó (no es RS, pero proxy útil)
+      // Fallback 2: chg1m absoluto sin benchmark (no es RS verdadero, solo proxy)
       const chg = yh.chg1m;
       momentumValue = chg;
+      momentumSource = 'chg1m-absoluto';
       if (chg > 5)       comp1 = 30;
       else if (chg > 1)  comp1 = 20;
       else if (chg > -1) comp1 = 10;
@@ -8653,9 +8675,11 @@ window.OpportunityScanner = (function () {
     }
 
     // ── Total y normalización ──
+    // Si NO conseguimos un RS verdadero (ni SPY ni avg-sectorial), normalizamos /80→/100
+    // porque el componente Momentum quedó capeado en 30 pts (chg1m absoluto) en lugar de 40.
+    const hasRealRS = momentumSource === 'spy' || momentumSource === 'avg-sectorial';
     let total;
-    if (!avAvailable) {
-      // Alpha Vantage caído → score sobre 80 pts, normalizar a /100
+    if (!hasRealRS) {
       const partial = comp1 + comp2 + comp3 + comp4;
       total = Math.round((partial / 80) * 100);
     } else {
@@ -8674,6 +8698,10 @@ window.OpportunityScanner = (function () {
     components.sort((a, b) => b.ratio - a.ratio);
     const topComponent = components[0];
     let reason = config.reasons[topComponent.key];
+    // Mejora B v1.1: si el componente Momentum domina y RS-vs-SPY es alto, frase específica
+    if (topComponent.key === 'momentum' && momentumSource === 'spy' && momentumValue != null && momentumValue > 3) {
+      reason = `Liderazgo claro vs SPY (${momentumValue >= 0 ? '+' : ''}${momentumValue.toFixed(1)}%)`;
+    }
     if (topComponent.key === 'howell') reason = `${reason} ${howell.phaseLabel}`;
     if (topComponent.val === 0) reason = 'Sin señal dominante (datos parciales)';
 
@@ -8683,6 +8711,8 @@ window.OpportunityScanner = (function () {
       level: levelFromScore(total),
       components: { momentum: comp1, volume: comp2, howell: comp3, setup: comp4 },
       momentumValue,
+      momentumSource,        // 'spy' | 'avg-sectorial' | 'chg1m-absoluto' | null
+      avSectorRS,            // RS aproximado vía media sectorial (info adicional)
       volRatio,
       distSma,
       align,
@@ -8764,9 +8794,24 @@ window.OpportunityScanner = (function () {
       const arrow = s.chg1d > 0.1 ? '↑' : s.chg1d < -0.1 ? '↓' : '→';
       const arrowCls = classFromChange(s.chg1d);
       const accelB = accelerationBadge(s.acceleration);
+      // Sub-líneas detalle: 1M absoluto · RS vs SPY (Mejora B v1.1) · AV avg-sectorial
+      const chg1mTxt = s.chg1m != null ? `${s.chg1m >= 0 ? '+' : ''}${s.chg1m.toFixed(1)}%` : '—';
+      let rsLine = '';
+      if (s.momentumSource === 'spy' && s.momentumValue != null) {
+        rsLine = `<div class="os-cell-tooltip-row"><span>vs SPY (RS)</span><span class="v">${s.momentumValue >= 0 ? '+' : ''}${s.momentumValue.toFixed(1)}%</span></div>`;
+      } else if (s.momentumSource === 'avg-sectorial' && s.momentumValue != null) {
+        rsLine = `<div class="os-cell-tooltip-row"><span>vs avg-sectorial (fallback)</span><span class="v">${s.momentumValue >= 0 ? '+' : ''}${s.momentumValue.toFixed(1)}%</span></div>`;
+      }
+      // Info adicional: si RS principal viene de SPY pero AV también existe, mostrar AV como referencia secundaria
+      const avExtraLine = (s.momentumSource === 'spy' && s.avSectorRS != null)
+        ? `<div class="os-cell-tooltip-row"><span>AlphaVantage avg</span><span class="v">${s.avSectorRS >= 0 ? '+' : ''}${s.avSectorRS.toFixed(1)}%</span></div>`
+        : '';
       const tooltip = `
         <div class="os-cell-tooltip" role="tooltip">
           <div class="os-cell-tooltip-row"><span>Momentum vs SPY</span><span class="v">${s.components.momentum}/40</span></div>
+          <div class="os-cell-tooltip-row"><span>1M absoluto</span><span class="v">${chg1mTxt}</span></div>
+          ${rsLine}
+          ${avExtraLine}
           <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M</span><span class="v os-accel-${accelB.cls}">${accelB.label}</span></div>
           <div class="os-cell-tooltip-row"><span>Volumen anormal</span><span class="v">${s.components.volume}/30</span></div>
           <div class="os-cell-tooltip-row"><span>Alineación Howell</span><span class="v">${s.components.howell}/20</span></div>
