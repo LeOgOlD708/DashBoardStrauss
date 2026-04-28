@@ -5424,7 +5424,15 @@ function updateYieldCurve() {
   const gs2DEl = document.getElementById('yc-2y-delta');
   if (gs2El && gs2Now != null) {
     gs2El.textContent = gs2Now.toFixed(2) + '%';
-    gs2El.style.color = gs2Now > 4.5 ? 'var(--red)' : gs2Now > 3 ? 'var(--amber)' : 'var(--green)';
+    // Fase C · Color-coding 4 bandas según postura Fed implícita en el 2Y
+    //   >5.0%  → red    (Fed muy hawkish, restrictivo extremo)
+    //   4.0-5  → amber  (zona neutral-restrictiva)
+    //   3.0-4  → text   (neutral)
+    //   <3.0%  → green  (Fed cutting / dovish)
+    gs2El.style.color = gs2Now > 5.0 ? 'var(--red)'
+                       : gs2Now >= 4.0 ? 'var(--amber)'
+                       : gs2Now >= 3.0 ? 'var(--text)'
+                       : 'var(--green)';
   }
   if (gs2DEl && gs2Now != null && gs2_1y != null) {
     const d = gs2Now - gs2_1y;
