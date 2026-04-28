@@ -422,7 +422,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 #regime-banner{padding:14px 20px}
 .regime-label{font-size:20px}
 /* Verdict Hero */
-.vh{display:grid;grid-template-columns:170px 1fr 240px;gap:22px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
+.vh{display:grid;grid-template-columns:200px 1fr 280px;gap:24px;align-items:start;background:linear-gradient(135deg,var(--surface) 0%,rgba(26,15,18,.95) 100%);border:1px solid var(--border);border-radius:var(--r2);padding:22px 28px;margin-bottom:12px;position:relative;overflow:hidden;box-shadow:0 0 40px -20px rgba(249,115,22,0.15)}
 .vh::before{content:'';position:absolute;top:0;right:0;width:40%;height:100%;background:radial-gradient(ellipse at top right,rgba(249,115,22,0.05) 0%,transparent 60%);pointer-events:none}
 .vh::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--gold)}
 .vh-score{text-align:center}
@@ -433,12 +433,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .vh-phase{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;line-height:1.2}
 .vh-desc{font-size:14px;color:var(--text2);line-height:1.55}
 .vh-veredicto{font-size:13px;color:var(--text2);line-height:1.6;padding:8px 11px;background:rgba(201,168,76,.04);border:1px solid rgba(201,168,76,.12);border-radius:5px}
-.vh-bars{display:flex;flex-direction:column;gap:6px}
-.vhb{display:flex;flex-direction:column;gap:2px;padding:1px 4px;border-radius:3px;transition:background .15s}
-.vhb:hover{background:rgba(201,168,76,.05)}
-.vhb-lbl{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);display:flex;justify-content:space-between;gap:4px}
-.vhb-track{height:4px;border-radius:2px;background:var(--border2);overflow:hidden}
-.vhb-fill{height:100%;border-radius:2px;transition:width .5s}
+.vh-bars{display:flex;flex-direction:column;gap:4px}
+.vhb{display:grid;grid-template-columns:95px 1fr 70px;align-items:center;gap:8px;padding:3px 5px;border-radius:3px;transition:background .15s;cursor:pointer}
+.vhb:hover{background:rgba(201,168,76,.06)}
+.vhb-name{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vhb-val{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);text-align:right;white-space:nowrap}
+.vhb-track{height:5px;border-radius:3px;background:var(--border2);overflow:hidden}
+.vhb-fill{height:100%;border-radius:3px;transition:width .5s,background .3s}
 /* Three-horizon grid */
 .h3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
 .hcol{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;display:flex;flex-direction:column}
@@ -466,7 +467,7 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 /* Phase cards inside horizons — slightly taller */
 .pc{padding:16px}
 .pc-ghost{font-size:60px}
-@media(max-width:1100px){.h3{grid-template-columns:1fr 1fr}.vh{grid-template-columns:140px 1fr}}
+@media(max-width:1100px){.h3{grid-template-columns:1fr 1fr}.vh{grid-template-columns:160px 1fr}}
 @media(max-width:700px){.h3{grid-template-columns:1fr}.vh{grid-template-columns:1fr}}
 /* ── CHAT IA PHOENIX ── */
 #chat-bubble{position:fixed;bottom:24px;right:24px;z-index:9100;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 30% 30%,var(--phoenix-cream) 0%,var(--phoenix-orange) 50%,var(--phoenix-red) 100%);display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 24px -4px rgba(249,115,22,0.5);transition:transform .2s,box-shadow .2s}
@@ -665,10 +666,10 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-denom">/8</div>
       <div class="vh-lbl">Score Howell</div>
       <!-- Mini sparkline trayectoria 13 semanas + delta 4w (rellena espacio en columna izq) -->
-      <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(245,236,228,.1)">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;text-align:center;margin-bottom:8px">Trend 13 sem</div>
-        <div class="ch-wrap" style="height:110px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
-        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-align:center;margin-top:8px;color:var(--text3)">4w: —</div>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(245,236,228,.1)">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;text-align:center;margin-bottom:10px">Trend 13 sem</div>
+        <div class="ch-wrap" style="height:140px;position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
+        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-align:center;margin-top:10px;color:var(--text3)">4w: —</div>
       </div>
     </div>
     <div class="vh-mid">
@@ -678,42 +679,51 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div id="hero-data-status" style="display:none;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);padding:5px 10px;background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:4px;line-height:1.4"></div>
     </div>
     <div class="vh-bars">
-      <div class="vhb" onclick="openGlossary('reservas-fed')" style="cursor:pointer" title="Reservas Fed (FRED:WRBWFRBL) — click para ver detalle">
-        <div class="vhb-lbl"><span>Reservas Fed</span><span id="hbar-res-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('reservas-fed')" title="Reservas Fed (FRED:WRBWFRBL) — click para ver detalle">
+        <span class="vhb-name">Reservas Fed</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-res" style="width:0%;background:var(--amber)"></div></div>
+        <span class="vhb-val" id="hbar-res-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('tga')" style="cursor:pointer" title="TGA Tesoro (FRED:WTREGEN) — click para ver detalle">
-        <div class="vhb-lbl"><span>TGA Tesoro</span><span id="hbar-tga-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('tga')" title="TGA Tesoro (FRED:WTREGEN) — click para ver detalle">
+        <span class="vhb-name">TGA Tesoro</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-tga" style="width:0%;background:var(--red)"></div></div>
+        <span class="vhb-val" id="hbar-tga-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('rrp')" style="cursor:pointer" title="RRP Fed (FRED:RRPTSYD) — click para ver detalle">
-        <div class="vhb-lbl"><span>RRP Fed</span><span id="hbar-rrp-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('rrp')" title="RRP Fed (FRED:RRPTSYD) — click para ver detalle">
+        <span class="vhb-name">RRP Fed</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-rrp" style="width:0%;background:var(--green)"></div></div>
+        <span class="vhb-val" id="hbar-rrp-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('sofr-spread')" style="cursor:pointer" title="SOFR Spread (FRED:SOFR/FEDFUNDS) — click para ver detalle">
-        <div class="vhb-lbl"><span>SOFR Spread</span><span id="hbar-sofr-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('sofr-spread')" title="SOFR Spread (FRED:SOFR/FEDFUNDS) — click para ver detalle">
+        <span class="vhb-name">SOFR</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-sofr" style="width:0%;background:var(--green)"></div></div>
+        <span class="vhb-val" id="hbar-sofr-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('dxy')" style="cursor:pointer" title="DXY (Yahoo:DX-Y.NYB) — click para ver detalle">
-        <div class="vhb-lbl"><span>DXY</span><span id="hbar-dxy-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('dxy')" title="DXY (Yahoo:DX-Y.NYB) — click para ver detalle">
+        <span class="vhb-name">DXY</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-dxy" style="width:0%;background:var(--green)"></div></div>
+        <span class="vhb-val" id="hbar-dxy-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('cpi-yoy')" style="cursor:pointer" title="CPI YoY (FRED:CPIAUCSL) — click para ver detalle">
-        <div class="vhb-lbl"><span>CPI YoY</span><span id="hbar-cpi-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('cpi-yoy')" title="CPI YoY (FRED:CPIAUCSL) — click para ver detalle">
+        <span class="vhb-name">CPI YoY</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-cpi" style="width:0%;background:var(--green)"></div></div>
+        <span class="vhb-val" id="hbar-cpi-v">—</span>
       </div>
-      <div style="margin-top:6px;padding:3px 4px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center" title="Estas barras NO suman al Score Howell — son confirmaciones del régimen general">↓ Confirmación · no suma al score</div>
-      <div class="vhb" onclick="openGlossary('yield-curve-10y2y')" style="cursor:pointer" title="Curva 10Y-2Y (FRED:T10Y2Y) — click para ver detalle">
-        <div class="vhb-lbl"><span>Curva 10Y-2Y</span><span id="hbar-yc-v">—</span></div>
+      <div style="margin:5px 0 3px;padding:2px 4px;border-top:1px solid var(--border);font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;text-align:center" title="Estas barras NO suman al Score Howell — son confirmaciones del régimen general">↓ Confirmación · no suma</div>
+      <div class="vhb" onclick="openGlossary('yield-curve-10y2y')" title="Curva 10Y-2Y (FRED:T10Y2Y) — click para ver detalle">
+        <span class="vhb-name">Curva 10Y-2Y</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-yc" style="width:0%;background:var(--amber)"></div></div>
+        <span class="vhb-val" id="hbar-yc-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('unrate')" style="cursor:pointer" title="Desempleo (FRED:UNRATE) — click para ver detalle">
-        <div class="vhb-lbl"><span>Desempleo</span><span id="hbar-ur-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('unrate')" title="Desempleo (FRED:UNRATE) — click para ver detalle">
+        <span class="vhb-name">Desempleo</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-ur" style="width:0%;background:var(--green)"></div></div>
+        <span class="vhb-val" id="hbar-ur-v">—</span>
       </div>
-      <div class="vhb" onclick="openGlossary('spy-sma20w')" style="cursor:pointer" title="SPY vs SMA20w (Yahoo:SPY) — click para ver detalle">
-        <div class="vhb-lbl"><span>SPY vs SMA20w</span><span id="hbar-spy-v">—</span></div>
+      <div class="vhb" onclick="openGlossary('spy-sma20w')" title="SPY vs SMA20w (Yahoo:SPY) — click para ver detalle">
+        <span class="vhb-name">SPY vs SMA20w</span>
         <div class="vhb-track"><div class="vhb-fill" id="hbar-spy" style="width:0%;background:var(--green)"></div></div>
+        <span class="vhb-val" id="hbar-spy-v">—</span>
       </div>
     </div>
   </div>
