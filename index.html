@@ -668,6 +668,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-card-align.confirma{color:#22c55e}
 .os-card-align.diverge{color:var(--phoenix-amber)}
 .os-card-diverge-note{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--phoenix-amber);font-style:italic}
+/* Badge de aceleración de momentum (modifier 1W/1M, Mejora A v1.1) */
+.os-accel-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.04em;padding:2px 6px;border-radius:3px;border:1px solid transparent;display:inline-block;width:fit-content;font-weight:600}
+.os-accel-fast{background:rgba(34,197,94,.14);color:#22c55e;border-color:rgba(34,197,94,.35)}
+.os-accel-up{background:rgba(34,197,94,.07);color:#4ade80;border-color:rgba(34,197,94,.22)}
+.os-accel-flat{background:rgba(148,163,184,.07);color:var(--text3);border-color:rgba(148,163,184,.18)}
+.os-accel-down{background:rgba(248,113,113,.08);color:#f87171;border-color:rgba(248,113,113,.25)}
+.os-accel-none{color:var(--text3)}
 
 /* Watchlist (top 5 simple lista) */
 .os-wl-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:12px;align-items:center;padding:6px 10px;background:var(--surface2);border-left:3px solid var(--text3);border-radius:0 4px 4px 0;font-family:'IBM Plex Mono',monospace;font-size:11px}
@@ -8559,6 +8566,24 @@ window.OpportunityScanner = (function () {
     return { score: 10, status: 'neutral', divergence: false };
   }
 
+  // ── Aceleración de momentum (1W vs 1M) ──
+  // Ratio chg1w*4 / chg1m: >1 = mayor parte del retorno mensual ocurrió la última semana (acelerando);
+  // <0.5 = la última semana frenó/revirtió. Si chg1m es trivial (<0.5%) no aplica.
+  function calcAcceleration(chg1w, chg1m) {
+    if (chg1w == null || chg1m == null) return null;
+    if (Math.abs(chg1m) < 0.5) return null; // momentum trivial — descartado
+    return (chg1w * 4) / chg1m;
+  }
+
+  // Etiqueta visual de aceleración (badge UI). null si no aplica.
+  function accelerationBadge(accel) {
+    if (accel == null) return { label: '—', cls: 'none', txt: 'sin dato' };
+    if (accel >= 1.5)  return { label: '↑↑ ACELERANDO', cls: 'fast', txt: 'acelerando fuerte' };
+    if (accel >= 1.0)  return { label: '↑ Acelerando',  cls: 'up',   txt: 'acelerando' };
+    if (accel >= 0.5)  return { label: '→ Estable',      cls: 'flat', txt: 'estable' };
+                       return { label: '↓ Desacelerando', cls: 'down', txt: 'desacelerando' };
+  }
+
   // Score 0-100 con 4 componentes. Si Alpha Vantage cae → score sobre 80, normalizado a /100.
   function calculateScore(ticker) {
     const av = state.sectorData;
@@ -8585,6 +8610,19 @@ window.OpportunityScanner = (function () {
       else if (chg > 1)  comp1 = 20;
       else if (chg > -1) comp1 = 10;
       else               comp1 = 0;
+    }
+
+    // Modifier: aceleración 1W/1M (puede sumar o restar al componente Momentum).
+    // Solo aplicamos si Yahoo dio chg1w + chg1m. No depende de Alpha Vantage.
+    const accel = (yh && yh.chg1w != null && yh.chg1m != null)
+      ? calcAcceleration(yh.chg1w, yh.chg1m)
+      : null;
+    if (accel != null) {
+      if (accel >= 1.5)        comp1 += 10; // acelerando fuerte
+      else if (accel >= 1.0)   comp1 += 5;  // acelerando
+      else if (accel < 0.5)    comp1 -= 5;  // desacelerando
+      // 0.5 ≤ accel < 1.0 → estable, sin modifier
+      comp1 = Math.max(0, Math.min(40, comp1)); // clamp [0, 40]
     }
 
     // ── Comp 2 — Volumen Anormal (30 pts) ──
@@ -8651,6 +8689,9 @@ window.OpportunityScanner = (function () {
       divergence: align.divergence,
       reason,
       chg1d: yh?.chg1d ?? null,
+      chg1w: yh?.chg1w ?? null,
+      chg1m: yh?.chg1m ?? null,
+      acceleration: accel,
       price: yh?.regularMarketPrice ?? null,
     };
   }
@@ -8722,9 +8763,11 @@ window.OpportunityScanner = (function () {
       const lvl = s.level;
       const arrow = s.chg1d > 0.1 ? '↑' : s.chg1d < -0.1 ? '↓' : '→';
       const arrowCls = classFromChange(s.chg1d);
+      const accelB = accelerationBadge(s.acceleration);
       const tooltip = `
         <div class="os-cell-tooltip" role="tooltip">
           <div class="os-cell-tooltip-row"><span>Momentum vs SPY</span><span class="v">${s.components.momentum}/40</span></div>
+          <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M</span><span class="v os-accel-${accelB.cls}">${accelB.label}</span></div>
           <div class="os-cell-tooltip-row"><span>Volumen anormal</span><span class="v">${s.components.volume}/30</span></div>
           <div class="os-cell-tooltip-row"><span>Alineación Howell</span><span class="v">${s.components.howell}/20</span></div>
           <div class="os-cell-tooltip-row"><span>Setup técnico</span><span class="v">${s.components.setup}/10</span></div>
@@ -8759,6 +8802,10 @@ window.OpportunityScanner = (function () {
       const divNote = s.divergence
         ? '<div class="os-card-diverge-note">El mercado supera al ciclo en este sector</div>'
         : '';
+      const accelB = accelerationBadge(s.acceleration);
+      const accelBadgeHtml = accelB.cls === 'none'
+        ? ''
+        : `<span class="os-accel-badge os-accel-${accelB.cls}" title="Aceleración 1W/1M: ${accelB.txt}">${accelB.label}</span>`;
       return `
         <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
           <div class="os-card-rank lvl-${lvl}">${rank}</div>
@@ -8777,6 +8824,7 @@ window.OpportunityScanner = (function () {
           <div class="os-card-reason">
             <div class="os-card-reason-text">${escapeAttr(s.reason)}</div>
             <div class="os-card-align ${alignCls}">${alignTxt}</div>
+            ${accelBadgeHtml}
             ${divNote}
           </div>
         </div>`;
