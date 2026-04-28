@@ -675,6 +675,12 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-accel-flat{background:rgba(148,163,184,.07);color:var(--text3);border-color:rgba(148,163,184,.18)}
 .os-accel-down{background:rgba(248,113,113,.08);color:#f87171;border-color:rgba(248,113,113,.25)}
 .os-accel-none{color:var(--text3)}
+/* Pill distancia al máximo 52w (Mejora C v1.1) */
+.os-card-pills{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.os-52w-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.04em;padding:2px 6px;border-radius:3px;border:1px solid transparent;display:inline-block;width:fit-content;font-weight:600}
+.os-52w-near{background:rgba(34,197,94,.10);color:#22c55e;border-color:rgba(34,197,94,.28)}
+.os-52w-mid{background:rgba(234,179,8,.08);color:#eab308;border-color:rgba(234,179,8,.28)}
+.os-52w-far{background:rgba(239,68,68,.08);color:#ef4444;border-color:rgba(239,68,68,.28)}
 
 /* Watchlist (top 5 simple lista) */
 .os-wl-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:12px;align-items:center;padding:6px 10px;background:var(--surface2);border-left:3px solid var(--text3);border-radius:0 4px 4px 0;font-family:'IBM Plex Mono',monospace;font-size:11px}
@@ -8566,6 +8572,18 @@ window.OpportunityScanner = (function () {
     return { score: 10, status: 'neutral', divergence: false };
   }
 
+  // ── Distance from 52w high (Mejora C v1.1) ──
+  // Calcula la distancia % entre el precio actual y el máximo de las últimas ~252 sesiones.
+  // Resultado en pp (0 = en el máximo, negativo = debajo del máximo).
+  function calc52wDistance(hist, currentPrice) {
+    if (!Array.isArray(hist) || hist.length === 0) return null;
+    if (currentPrice == null || isNaN(currentPrice)) return null;
+    // Filtrar non-finite por defensa (data poco confiable)
+    const max52w = Math.max.apply(null, hist.filter(v => Number.isFinite(v)));
+    if (!Number.isFinite(max52w) || max52w <= 0) return null;
+    return ((currentPrice - max52w) / max52w) * 100;
+  }
+
   // ── Aceleración de momentum (1W vs 1M) ──
   // Ratio chg1w*4 / chg1m: >1 = mayor parte del retorno mensual ocurrió la última semana (acelerando);
   // <0.5 = la última semana frenó/revirtió. Si chg1m es trivial (<0.5%) no aplica.
@@ -8582,6 +8600,18 @@ window.OpportunityScanner = (function () {
     if (accel >= 1.0)  return { label: '↑ Acelerando',  cls: 'up',   txt: 'acelerando' };
     if (accel >= 0.5)  return { label: '→ Estable',      cls: 'flat', txt: 'estable' };
                        return { label: '↓ Desacelerando', cls: 'down', txt: 'desacelerando' };
+  }
+
+  // Pill 52w high (Mejora C v1.1). Verde <5% del máximo · ámbar 5-25% · rojo >25%.
+  function dist52wPill(dist52w) {
+    if (dist52w == null) return null;
+    const abs = Math.abs(dist52w);
+    const txt = `${abs.toFixed(1)}% del máximo`;
+    let cls;
+    if (abs < 5)       cls = 'near';   // cerca del máximo
+    else if (abs <= 25) cls = 'mid';   // moderado
+    else                cls = 'far';   // lejos
+    return { txt, cls, abs };
   }
 
   // Score 0-100 con 4 componentes. Si la fuente RS principal cae → score sobre 80, normalizado a /100.
@@ -8662,16 +8692,29 @@ window.OpportunityScanner = (function () {
     const align = getHowellAlignment(ticker, howell.phase);
     const comp3 = align.score;
 
-    // ── Comp 4 — Setup Técnico vs SMA50 (10 pts) ──
+    // ── Comp 4 — Setup Técnico vs SMA50 + 52w high (10 pts) ──
+    // Mejora C v1.1: la distancia al máximo 52w refina el setup. Cerca del máximo = breakout limpio;
+    // muy lejos = posible bear market rally (setup más débil).
     let comp4 = 0;
     let distSma = null;
+    let dist52w = null;
     if (yh && yh.regularMarketPrice != null && yh.fiftyDayAverage != null && yh.fiftyDayAverage > 0) {
       distSma = ((yh.regularMarketPrice / yh.fiftyDayAverage) - 1) * 100;
-      if (distSma >= -5 && distSma <= 0)        comp4 = 10;
-      else if (distSma >= -10 && distSma < -5)  comp4 = 7;
-      else if (distSma > 0 && distSma <= 5)     comp4 = 5;
-      else if (distSma > 5 && distSma <= 10)    comp4 = 3;
-      else                                       comp4 = 0;
+
+      // Base por distancia a SMA50 (rangos refinados respecto a v1.0)
+      if      (distSma >=  0 && distSma <=  5)  comp4 = 10; // valor sobre SMA50
+      else if (distSma >= -5 && distSma <   0)  comp4 = 10; // zona valor justo debajo
+      else if (distSma >= -10)                  comp4 = 7;  // oversold leve (-10 a -5)
+      else if (distSma >  5  && distSma <= 10)  comp4 = 5;  // extendido moderado
+      else if (distSma >  10)                   comp4 = 2;  // muy extendido / sobrecomprado
+      else                                       comp4 = 4;  // distSma < -10 (oversold profundo)
+
+      // Modifier por distancia al máximo 52w (usa hist[] de Yahoo, ~252 sesiones)
+      dist52w = calc52wDistance(yh.hist, yh.regularMarketPrice);
+      if (dist52w != null) {
+        if (dist52w >= -3)        comp4 = Math.min(10, comp4 + 2);  // cerca del máximo: setup limpio
+        else if (dist52w <= -25)  comp4 = Math.max(0, comp4 - 3);   // muy lejos: probable bear
+      }
     }
 
     // ── Total y normalización ──
@@ -8715,6 +8758,7 @@ window.OpportunityScanner = (function () {
       avSectorRS,            // RS aproximado vía media sectorial (info adicional)
       volRatio,
       distSma,
+      dist52w,
       align,
       divergence: align.divergence,
       reason,
@@ -8816,6 +8860,7 @@ window.OpportunityScanner = (function () {
           <div class="os-cell-tooltip-row"><span>Volumen anormal</span><span class="v">${s.components.volume}/30</span></div>
           <div class="os-cell-tooltip-row"><span>Alineación Howell</span><span class="v">${s.components.howell}/20</span></div>
           <div class="os-cell-tooltip-row"><span>Setup técnico</span><span class="v">${s.components.setup}/10</span></div>
+          ${s.dist52w != null ? `<div class="os-cell-tooltip-row"><span>Dist. máx. 52w</span><span class="v">${Math.abs(s.dist52w).toFixed(1)}%</span></div>` : ''}
         </div>`;
       return `
         <div class="os-cell lvl-${lvl}" style="animation-delay:${i * 50}ms" title="${escapeAttr(s.name)} · ${s.total}/100">
@@ -8851,6 +8896,10 @@ window.OpportunityScanner = (function () {
       const accelBadgeHtml = accelB.cls === 'none'
         ? ''
         : `<span class="os-accel-badge os-accel-${accelB.cls}" title="Aceleración 1W/1M: ${accelB.txt}">${accelB.label}</span>`;
+      const pill52 = dist52wPill(s.dist52w);
+      const pill52Html = pill52
+        ? `<span class="os-52w-pill os-52w-${pill52.cls}" title="Distancia al máximo de las últimas 52 semanas">${pill52.txt}</span>`
+        : '';
       return `
         <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
           <div class="os-card-rank lvl-${lvl}">${rank}</div>
@@ -8869,7 +8918,7 @@ window.OpportunityScanner = (function () {
           <div class="os-card-reason">
             <div class="os-card-reason-text">${escapeAttr(s.reason)}</div>
             <div class="os-card-align ${alignCls}">${alignTxt}</div>
-            ${accelBadgeHtml}
+            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}</div>
             ${divNote}
           </div>
         </div>`;
