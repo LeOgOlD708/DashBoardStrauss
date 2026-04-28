@@ -2543,10 +2543,28 @@ state.charts['howellHistoryChart'] = new Chart(document.getElementById('howellHi
   }
 });
 
-// ── Mini Chart.js dinámicos · Hero sparkline + Motor Howell + Motor Fidelity ──
-// Chart.js para tooltips on-hover, animación, interactividad nativa
-// opts.showAxes:true → ejes con grilla y números visibles (charts grandes)
-//                false → sparkline puro sin ejes (Hero columna izq)
+// ── Plugin genérico de bandas de fondo (regiones de scoring) ──
+const miniBandsPlugin = {
+  id: 'miniBands',
+  beforeDatasetsDraw(chart) {
+    const opts = chart.options?.plugins?.miniBands;
+    if (!opts || !opts.bands || !opts.bands.length) return;
+    const { ctx, chartArea, scales: { y } } = chart;
+    if (!chartArea) return;
+    ctx.save();
+    opts.bands.forEach(b => {
+      const yTop = y.getPixelForValue(b.to);
+      const yBot = y.getPixelForValue(b.from);
+      ctx.fillStyle = b.color;
+      ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBot - yTop);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(miniBandsPlugin);
+
+// ── Mini Chart.js · estilo Phoenix (mismo nivel que howellHistoryChart) ──
+// opts: showAxes, yMin, yMax, yFormatter, bands [{from, to, color}]
 function initMiniChart(canvasId, color, tooltipFmt, opts = {}) {
   const el = document.getElementById(canvasId);
   if (!el) return null;
@@ -2561,29 +2579,29 @@ function initMiniChart(canvasId, color, tooltipFmt, opts = {}) {
       datasets: [{
         data: [],
         borderColor: color,
-        backgroundColor: color + '22',
-        borderWidth: 2,
+        backgroundColor: phoenixBgFactory({ topAlpha: 0.32, midAlpha: 0.12 }),
+        borderWidth: 2.5,
         fill: true,
         tension: 0.35,
-        pointRadius: (ctx) => ctx.dataIndex === ctx.dataset.data.length - 1 ? 4 : 0,
-        pointBackgroundColor: '#08050a',
+        pointRadius: (ctx) => ctx.dataIndex === ctx.dataset.data.length - 1 ? (showAxes ? 6 : 5) : 0,
+        pointBackgroundColor: phoenixCream,
         pointBorderColor: color,
         pointBorderWidth: 2,
-        pointHoverRadius: 6,
+        pointHoverRadius: 7,
         cubicInterpolationMode: 'monotone'
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 700, easing: 'easeOutQuart' },
+      animation: { duration: 800, easing: 'easeOutQuart' },
       interaction: { mode: 'index', intersect: false },
-      layout: { padding: showAxes ? { left: 4, right: 8, top: 6, bottom: 0 } : 0 },
+      layout: { padding: showAxes ? { left: 4, right: 8, top: 6, bottom: 0 } : { top: 4, right: 4, bottom: 4, left: 4 } },
       plugins: {
         legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(8,5,10,0.95)',
-          borderColor: color,
+          borderColor: 'rgba(249,115,22,0.4)',
           borderWidth: 1,
           titleColor: '#f8d794',
           bodyColor: '#f0ece4',
@@ -2593,35 +2611,59 @@ function initMiniChart(canvasId, color, tooltipFmt, opts = {}) {
             title: c => c[0].label || '',
             label: c => tooltipFmt ? tooltipFmt(c.parsed.y, c.dataIndex) : `${c.parsed.y.toFixed(2)}`
           }
-        }
+        },
+        phoenixGlow: { enabled: true, color: 'rgba(249,115,22,0.4)', blur: 8 },
+        miniBands: { bands: opts.bands || null }
       },
       scales: {
         x: showAxes ? {
           display: true,
-          grid: { color: 'rgba(45,30,30,0.25)', drawBorder: false },
+          grid: { color: 'rgba(45,30,30,0.3)', drawBorder: false },
           ticks: { color: '#7d6f63', font: { size: 9, family: "'IBM Plex Mono', monospace" }, maxTicksLimit: 6, autoSkip: true, maxRotation: 0 }
         } : { display: false },
         y: showAxes ? {
           display: true,
           min: yMin, max: yMax, beginAtZero: false,
-          grid: { color: 'rgba(45,30,30,0.25)', drawBorder: false },
+          grid: { color: 'rgba(45,30,30,0.35)', drawBorder: false },
           ticks: { color: '#7d6f63', font: { size: 9, family: "'IBM Plex Mono', monospace" }, maxTicksLimit: 5, callback: v => yFormatter(v) }
         } : { display: false, beginAtZero: false }
       }
     }
   });
 }
-// Hero sparkline · sin ejes (40px alto, sería ruido)
-state.charts['heroScoreMini']  = initMiniChart('heroScoreMini',  '#e6b450', (v) => `Score ${v.toFixed(1)}/8`);
-// Motor Howell · escala Y 0→8 en formato "X/8"
-state.charts['diagHistoryMini'] = initMiniChart('diagHistoryMini', '#fbbf24', (v) => {
+
+// Bandas de fase Howell (idénticas al chart 52w grande)
+const HOWELL_BANDS = [
+  { from: 0, to: 2, color: 'rgba(74,222,128,0.06)' },
+  { from: 2, to: 4, color: 'rgba(251,191,36,0.07)' },
+  { from: 4, to: 6, color: 'rgba(249,115,22,0.08)' },
+  { from: 6, to: 8, color: 'rgba(220,38,38,0.08)' }
+];
+// Bandas IPMAN YoY (ciclo económico): contracción → expansión
+const IPMAN_BANDS = [
+  { from: -10, to: -2, color: 'rgba(220,38,38,0.08)' },
+  { from: -2, to:  0,  color: 'rgba(249,115,22,0.07)' },
+  { from:  0, to:  2,  color: 'rgba(251,191,36,0.07)' },
+  { from:  2, to:  10, color: 'rgba(74,222,128,0.06)' }
+];
+
+// Hero sparkline · sin ejes pero con bandas Howell + estilo Phoenix
+state.charts['heroScoreMini'] = initMiniChart('heroScoreMini', phoenixOrange, (v) => {
   const phase = v >= 6 ? 'Fase 4' : v >= 4 ? 'Fase 3→4' : v >= 2 ? 'Fase 3' : v >= 1 ? 'Fase 2' : 'Fase 1';
   return `Score ${v.toFixed(1)}/8 · ${phase}`;
-}, { showAxes: true, yMin: 0, yMax: 8, yFormatter: v => v + '/8' });
-// Motor Fidelity · escala Y dinámica con formato porcentaje
-state.charts['fidHistoryMini'] = initMiniChart('fidHistoryMini', '#2dd4bf',
-  (v) => `IPMAN YoY: ${v >= 0 ? '+' : ''}${v.toFixed(1)}%`,
-  { showAxes: true, yFormatter: v => (v >= 0 ? '+' : '') + v.toFixed(0) + '%' });
+}, { yMin: 0, yMax: 8, bands: HOWELL_BANDS });
+// Motor Howell · escala Y 0→8 con bandas Phoenix
+state.charts['diagHistoryMini'] = initMiniChart('diagHistoryMini', phoenixOrange, (v) => {
+  const phase = v >= 6 ? 'Fase 4' : v >= 4 ? 'Fase 3→4' : v >= 2 ? 'Fase 3' : v >= 1 ? 'Fase 2' : 'Fase 1';
+  return `Score ${v.toFixed(1)}/8 · ${phase}`;
+}, { showAxes: true, yMin: 0, yMax: 8, yFormatter: v => v + '/8', bands: HOWELL_BANDS });
+// Motor Fidelity · IPMAN YoY con bandas de ciclo económico
+state.charts['fidHistoryMini'] = initMiniChart('fidHistoryMini', phoenixOrange,
+  (v) => {
+    const cycle = v < -2 ? 'Recesión' : v < 0 ? 'Contracción' : v < 2 ? 'Mid Cycle' : 'Expansión';
+    return `IPMAN YoY: ${v >= 0 ? '+' : ''}${v.toFixed(1)}% · ${cycle}`;
+  },
+  { showAxes: true, yFormatter: v => (v >= 0 ? '+' : '') + v.toFixed(0) + '%', bands: IPMAN_BANDS });
 
 // 4 Termómetros Howell — estilo Phoenix
 phoenixMini('resChart', mo, Array(12).fill(null));
@@ -5379,15 +5421,9 @@ function updateMotorHistoryMinis() {
     const last13 = howellLast13;
     const chart = state.charts['diagHistoryMini'];
     if (chart) {
-      const cur = last13[last13.length - 1];
-      const start = last13[0];
-      const color = cur > start + 0.3 ? '#f87171' : cur < start - 0.3 ? '#4ade80' : '#fbbf24';
-      // Etiquetas: hace 13 semanas → ahora
+      // Etiquetas: hace 13 semanas → ahora (color phoenix fix, bands hablan del régimen)
       chart.data.labels = last13.map((_, i) => `Sem ${i - last13.length + 1}`).map(s => s === 'Sem 0' ? 'Hoy' : s);
       chart.data.datasets[0].data = last13;
-      chart.data.datasets[0].borderColor = color;
-      chart.data.datasets[0].backgroundColor = color + '22';
-      chart.data.datasets[0].pointBorderColor = color;
       chart.update('active');
     }
     const trendEl = document.getElementById('diag-history-trend');
@@ -5452,14 +5488,8 @@ function updateMotorHistoryMinis() {
     const last13 = howellLast13;
     const chart = state.charts['heroScoreMini'];
     if (chart) {
-      const cur = last13[last13.length - 1];
-      const start = last13[0];
-      const color = cur > start + 0.5 ? '#f87171' : cur < start - 0.5 ? '#4ade80' : '#e6b450';
       chart.data.labels = last13.map((_, i) => `Sem ${i - last13.length + 1}`).map(s => s === 'Sem 0' ? 'Hoy' : s);
       chart.data.datasets[0].data = last13;
-      chart.data.datasets[0].borderColor = color;
-      chart.data.datasets[0].backgroundColor = color + '22';
-      chart.data.datasets[0].pointBorderColor = color;
       chart.update('active');
     }
     const trend4wEl = document.getElementById('hero-trend-4w');
@@ -5489,13 +5519,8 @@ function updateMotorHistoryMinis() {
       yoy.reverse(); // orden cronológico: viejo izquierda → reciente derecha
       const chart = state.charts['fidHistoryMini'];
       if (chart && yoy.length) {
-        const cur = yoy[yoy.length - 1];
-        const color = cur > 1 ? '#4ade80' : cur < -1 ? '#f87171' : '#fbbf24';
         chart.data.labels = yoy.map((_, i) => `M-${yoy.length - i - 1}`).map(s => s === 'M-0' ? 'Hoy' : s);
         chart.data.datasets[0].data = yoy;
-        chart.data.datasets[0].borderColor = color;
-        chart.data.datasets[0].backgroundColor = color + '22';
-        chart.data.datasets[0].pointBorderColor = color;
         chart.update('active');
       }
       const trendEl = document.getElementById('fid-history-trend');
