@@ -7912,7 +7912,7 @@ const INDICATORS_GLOSSARY = {
     category: 'Opportunity Scanner · Componente 1',
     source: { label: 'Yahoo Finance (chg1m del sector vs SPY)', url: 'https://finance.yahoo.com/quote/SPY', freq: 'Tiempo real' },
     what: 'Diferencial de retorno 1M del sector vs SPY (Relative Strength). Mide si el sector está liderando o rezagándose vs el mercado general.',
-    formula: 'RS = sector.chg1m − SPY.chg1m. Fallback en cascada: Yahoo SPY → Alpha Vantage media sectorial → chg1m absoluto.',
+    formula: 'RS = sector.chg1m − SPY.chg1m. Cascada de 2 niveles: Yahoo SPY directo → chg1m absoluto (último recurso, normaliza /80→/100).',
     interpret: 'Outperformance persistente vs SPY indica capital rotando hacia el sector. Es el principal indicador de leadership sectorial. Modificado por aceleración (componente 1 puede llegar a 50 con bonus, clamp a 40).',
     thresholds: [
       { c:'green', t:'RS > +3% → 40 pts' },
@@ -7920,7 +7920,7 @@ const INDICATORS_GLOSSARY = {
       { c:'amber', t:'-1 a +1% → 15 pts' },
       { c:'red',   t:'< -1% → 5 pts' }
     ],
-    note: 'Si SPY no está disponible, fallback usa promedio de los 11 sectores SPDR como benchmark (aproximación).'
+    note: 'Si SPY de Yahoo no está disponible, el fallback usa chg1m absoluto del sector sin benchmark (no es RS verdadero) y el score se normaliza /80→/100.'
   },
   'volumen-anormal': {
     name: 'Volumen Anormal',
@@ -8436,17 +8436,17 @@ window.OpportunityScanner = (function () {
   const config = {
     // 11 ETFs sectoriales SPDR (van al heatmap)
     sectors: [
-      { ticker: 'XLK',  name: 'Tecnología',       avSlug: 'Information Technology' },
-      { ticker: 'XLF',  name: 'Financials',       avSlug: 'Financials' },
-      { ticker: 'XLE',  name: 'Energía',          avSlug: 'Energy' },
-      { ticker: 'XLV',  name: 'Health Care',      avSlug: 'Health Care' },
-      { ticker: 'XLP',  name: 'Cons. Staples',    avSlug: 'Consumer Staples' },
-      { ticker: 'XLY',  name: 'Cons. Discrec.',   avSlug: 'Consumer Discretionary' },
-      { ticker: 'XLI',  name: 'Industrials',      avSlug: 'Industrials' },
-      { ticker: 'XLB',  name: 'Materials',        avSlug: 'Materials' },
-      { ticker: 'XLRE', name: 'Real Estate',      avSlug: 'Real Estate' },
-      { ticker: 'XLU',  name: 'Utilities',        avSlug: 'Utilities' },
-      { ticker: 'XLC',  name: 'Comms.',           avSlug: 'Communication Services' },
+      { ticker: 'XLK',  name: 'Tecnología' },
+      { ticker: 'XLF',  name: 'Financials' },
+      { ticker: 'XLE',  name: 'Energía' },
+      { ticker: 'XLV',  name: 'Health Care' },
+      { ticker: 'XLP',  name: 'Cons. Staples' },
+      { ticker: 'XLY',  name: 'Cons. Discrec.' },
+      { ticker: 'XLI',  name: 'Industrials' },
+      { ticker: 'XLB',  name: 'Materials' },
+      { ticker: 'XLRE', name: 'Real Estate' },
+      { ticker: 'XLU',  name: 'Utilities' },
+      { ticker: 'XLC',  name: 'Comms.' },
     ],
     // 6 macro tickers — solo en cards/watchlist, NO en heatmap
     macros: [
@@ -8481,7 +8481,6 @@ window.OpportunityScanner = (function () {
 
   // ── Estado interno ──
   const state = {
-    sectorData: null,          // {ticker → chg1m, RS}
     yahooData: null,           // {ticker → datos Yahoo}
     howell: null,              // {score, phase, postura}
     scores: [],                // computados por calculateScore()
@@ -8555,40 +8554,10 @@ window.OpportunityScanner = (function () {
   // ──────────────────────────────────────────────────────────
   // Fetchers
   // ──────────────────────────────────────────────────────────
-  async function fetchSectorData() {
-    // Alpha Vantage SECTOR — rendimiento 1M de los 11 sectores S&P
-    const res = await fetch('/api/alphavantage?function=SECTOR');
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    // Alpha Vantage devuelve "Rank C: Month Performance" como objeto sector → "%"
-    const monthKey = Object.keys(data).find(k => /Month Performance/i.test(k));
-    if (!monthKey) throw new Error('Formato Alpha Vantage inesperado');
-    const monthBlock = data[monthKey] || {};
-    // Construir map por slug → percent (número)
-    const slugToPct = {};
-    Object.keys(monthBlock).forEach(slug => {
-      const raw = monthBlock[slug];
-      const num = parseFloat(String(raw).replace('%', ''));
-      if (!isNaN(num)) slugToPct[slug.toLowerCase()] = num;
-    });
-    // Mapear cada sector del universo a su rendimiento 1M
-    const sectorPerf = {};
-    config.sectors.forEach(s => {
-      const slug = s.avSlug.toLowerCase();
-      const v = slugToPct[slug];
-      if (v != null) sectorPerf[s.ticker] = v;
-    });
-    // Calcular RS vs SPY (proxy: media de los 11 sectores como benchmark)
-    // Alpha Vantage SECTOR no devuelve SPY directo en Month Performance — usamos avg sectorial como proxy
-    const vals = Object.values(sectorPerf);
-    const avg = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-    const rs = {};
-    Object.keys(sectorPerf).forEach(t => { rs[t] = sectorPerf[t] - avg; });
-    return { sectorPerf, rs, avg, raw: data };
-  }
+  // NOTA: fetchSectorData() (Alpha Vantage SECTOR) fue eliminado: el endpoint
+  // fue deprecado por el proveedor (devuelve {} en vez de datos). El RS exacto
+  // ya se calcula con Yahoo SPY directo (ver Mejora B v1.1 en calculateScore).
+  // El proxy /api/alphavantage queda inerte para uso futuro con otros endpoints.
 
   async function fetchVolumeData() {
     // Yahoo Finance — batch tickers con volumen, SMA50, chg1d
@@ -8616,29 +8585,15 @@ window.OpportunityScanner = (function () {
     // Howell viene del estado global ya cargado (no es fetch nuevo)
     state.howell = readHowell();
 
-    // Promise.allSettled para que un fallo no rompa el otro
-    const [sectorRes, yahooRes] = await Promise.allSettled([
-      fetchSectorData(),
-      fetchVolumeData(),
-    ]);
-
-    let sectorOk = false, yahooOk = false;
-
-    if (sectorRes.status === 'fulfilled') {
-      state.sectorData = sectorRes.value;
-      sectorOk = true;
-    } else {
-      console.warn('[OpportunityScanner] Alpha Vantage falló:', sectorRes.reason?.message);
-      state.sectorData = null;
-    }
-
-    if (yahooRes.status === 'fulfilled') {
-      state.yahooData = yahooRes.value;
+    // Yahoo es la única fuente de datos del scanner (Alpha Vantage SECTOR fue deprecado).
+    let yahooOk = false;
+    try {
+      state.yahooData = await fetchVolumeData();
       yahooOk = true;
       state.yahooRetryCount = 0;
       if (state.yahooRetryTimer) { clearTimeout(state.yahooRetryTimer); state.yahooRetryTimer = null; }
-    } else {
-      console.warn('[OpportunityScanner] Yahoo falló:', yahooRes.reason?.message);
+    } catch (e) {
+      console.warn('[OpportunityScanner] Yahoo falló:', e?.message);
       state.yahooData = null;
       // Reintento automático Yahoo (60s, máx 3)
       if (state.yahooRetryCount < config.yahooMaxRetries) {
@@ -8649,10 +8604,10 @@ window.OpportunityScanner = (function () {
       }
     }
 
-    // Score requiere AL MENOS uno de los dos. Si ambos fallan → mensaje central.
-    if (!sectorOk && !yahooOk) {
+    // Sin Yahoo no hay scoring posible → mensaje central.
+    if (!yahooOk) {
       renderHeader();
-      renderStatusBadges({ sectorOk, yahooOk });
+      renderStatusBadges({ yahooOk });
       showCriticalError();
       state.fetching = false;
       setRefreshButtonLoading(false);
@@ -8664,7 +8619,7 @@ window.OpportunityScanner = (function () {
     state.lastUpdate = new Date();
     state.nextUpdate = new Date(Date.now() + config.refreshIntervalMs);
     render();
-    renderStatusBadges({ sectorOk, yahooOk });
+    renderStatusBadges({ yahooOk });
 
     state.fetching = false;
     setRefreshButtonLoading(false);
@@ -8736,24 +8691,16 @@ window.OpportunityScanner = (function () {
 
   // Score 0-100 con 4 componentes. Si la fuente RS principal cae → score sobre 80, normalizado a /100.
   function calculateScore(ticker) {
-    const av = state.sectorData;
     const yh = state.yahooData?.[ticker];
     const spy = state.yahooData?.['SPY'];
     const howell = state.howell || readHowell();
 
     // ── Comp 1 — Momentum Relativo vs SPY (40 pts) ──
     // Mejora B v1.1: RS exacto = sector.chg1m − SPY.chg1m (Yahoo).
-    // La aproximación con media sectorial de Alpha Vantage queda como fallback secundario.
+    // Cascada de 2 niveles: Yahoo SPY directo → chg1m absoluto (último recurso).
     let comp1 = 0;
     let momentumValue = null;          // valor de RS final usado para los thresholds (en pp)
-    let momentumSource = null;         // 'spy' | 'avg-sectorial' | 'chg1m-absoluto' | null
-    let avAvailable = false;           // sigue gateando la normalización /80→/100 cuando falla
-    let avSectorRS = null;             // info adicional para el tooltip ("AV avg-sectorial: …")
-
-    if (av && av.rs && av.rs[ticker] != null) {
-      avSectorRS = av.rs[ticker];
-      avAvailable = true;
-    }
+    let momentumSource = null;         // 'spy' | 'chg1m-absoluto' | null
 
     // Fuente PRIMARIA: Yahoo SPY directo
     if (yh && yh.chg1m != null && spy && spy.chg1m != null) {
@@ -8764,17 +8711,8 @@ window.OpportunityScanner = (function () {
       else if (rs >  1)  comp1 = 30;
       else if (rs > -1)  comp1 = 15;
       else               comp1 = 5;
-    } else if (avAvailable) {
-      // Fallback 1: aproximación Alpha Vantage (media sectorial como benchmark)
-      const rs = avSectorRS;
-      momentumValue = rs;
-      momentumSource = 'avg-sectorial';
-      if (rs >  3)       comp1 = 40;
-      else if (rs >  1)  comp1 = 30;
-      else if (rs > -1)  comp1 = 15;
-      else               comp1 = 5;
     } else if (yh && yh.chg1m != null) {
-      // Fallback 2: chg1m absoluto sin benchmark (no es RS verdadero, solo proxy)
+      // Fallback: chg1m absoluto sin benchmark (no es RS verdadero, solo proxy)
       const chg = yh.chg1m;
       momentumValue = chg;
       momentumSource = 'chg1m-absoluto';
@@ -8838,9 +8776,9 @@ window.OpportunityScanner = (function () {
     }
 
     // ── Total y normalización ──
-    // Si NO conseguimos un RS verdadero (ni SPY ni avg-sectorial), normalizamos /80→/100
+    // Si NO conseguimos un RS verdadero (Yahoo SPY directo), normalizamos /80→/100
     // porque el componente Momentum quedó capeado en 30 pts (chg1m absoluto) en lugar de 40.
-    const hasRealRS = momentumSource === 'spy' || momentumSource === 'avg-sectorial';
+    const hasRealRS = momentumSource === 'spy';
     let total;
     if (!hasRealRS) {
       const partial = comp1 + comp2 + comp3 + comp4;
@@ -8874,8 +8812,7 @@ window.OpportunityScanner = (function () {
       level: levelFromScore(total),
       components: { momentum: comp1, volume: comp2, howell: comp3, setup: comp4 },
       momentumValue,
-      momentumSource,        // 'spy' | 'avg-sectorial' | 'chg1m-absoluto' | null
-      avSectorRS,            // RS aproximado vía media sectorial (info adicional)
+      momentumSource,        // 'spy' | 'chg1m-absoluto' | null
       volRatio,
       distSma,
       dist52w,
@@ -8939,8 +8876,6 @@ window.OpportunityScanner = (function () {
     const wrap = $('os-status');
     if (!wrap) return;
     const badges = [];
-    if (s.sectorOk)  badges.push('<span class="os-status-badge os-status-ok">Alpha Vantage · OK</span>');
-    else             badges.push('<span class="os-status-badge os-status-warn">Datos sectoriales no disponibles · score parcial</span>');
     if (s.yahooOk)   badges.push('<span class="os-status-badge os-status-ok">Yahoo · OK</span>');
     else             badges.push(`<span class="os-status-badge os-status-err">Precios no disponibles. Reintentando (${state.yahooRetryCount}/${config.yahooMaxRetries})</span>`);
     if (state.howell?.available) badges.push('<span class="os-status-badge os-status-ok">Howell · live</span>');
@@ -8958,24 +8893,17 @@ window.OpportunityScanner = (function () {
       const arrow = s.chg1d > 0.1 ? '↑' : s.chg1d < -0.1 ? '↓' : '→';
       const arrowCls = classFromChange(s.chg1d);
       const accelB = accelerationBadge(s.acceleration);
-      // Sub-líneas detalle: 1M absoluto · RS vs SPY (Mejora B v1.1) · AV avg-sectorial
+      // Sub-líneas detalle: 1M absoluto · RS vs SPY (Mejora B v1.1)
       const chg1mTxt = s.chg1m != null ? `${s.chg1m >= 0 ? '+' : ''}${s.chg1m.toFixed(1)}%` : '—';
       let rsLine = '';
       if (s.momentumSource === 'spy' && s.momentumValue != null) {
         rsLine = `<div class="os-cell-tooltip-row"><span>vs SPY (RS)</span><span class="v">${s.momentumValue >= 0 ? '+' : ''}${s.momentumValue.toFixed(1)}%</span></div>`;
-      } else if (s.momentumSource === 'avg-sectorial' && s.momentumValue != null) {
-        rsLine = `<div class="os-cell-tooltip-row"><span>vs avg-sectorial (fallback)</span><span class="v">${s.momentumValue >= 0 ? '+' : ''}${s.momentumValue.toFixed(1)}%</span></div>`;
       }
-      // Info adicional: si RS principal viene de SPY pero AV también existe, mostrar AV como referencia secundaria
-      const avExtraLine = (s.momentumSource === 'spy' && s.avSectorRS != null)
-        ? `<div class="os-cell-tooltip-row"><span>AlphaVantage avg</span><span class="v">${s.avSectorRS >= 0 ? '+' : ''}${s.avSectorRS.toFixed(1)}%</span></div>`
-        : '';
       const tooltip = `
         <div class="os-cell-tooltip" role="tooltip">
           <div class="os-cell-tooltip-row"><span>Momentum vs SPY <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('momentum-relativo-rs')">?</button></span><span class="v">${s.components.momentum}/40</span></div>
           <div class="os-cell-tooltip-row"><span>1M absoluto</span><span class="v">${chg1mTxt}</span></div>
           ${rsLine}
-          ${avExtraLine}
           <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('aceleracion-momentum')">?</button></span><span class="v os-accel-${accelB.cls}">${accelB.label}</span></div>
           <div class="os-cell-tooltip-row"><span>Volumen anormal <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('volumen-anormal')">?</button></span><span class="v">${s.components.volume}/30</span></div>
           <div class="os-cell-tooltip-row"><span>Alineación Howell <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('alineacion-howell-stovall')">?</button></span><span class="v">${s.components.howell}/20</span></div>
@@ -9216,7 +9144,7 @@ window.OpportunityScanner = (function () {
   return {
     state, config,
     init, destroy, fetchAll,
-    fetchSectorData, fetchVolumeData,
+    fetchVolumeData,
     getHowellAlignment, calculateScore,
     render, renderHeatmap, renderTopCards, renderDivergenceAlert, renderWatchlist, renderHeader,
     showSkeleton, copyWatchlist,
