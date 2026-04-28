@@ -666,11 +666,10 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
       <div class="vh-num" id="hero-score-num">—</div>
       <div class="vh-denom">/8</div>
       <div class="vh-lbl">Score Howell</div>
-      <!-- Sparkline trayectoria 13 semanas + delta 4w (flex:1 para usar TODO el espacio vertical) -->
-      <div class="vh-score-spark" style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(245,236,228,.1)">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;text-align:center;margin-bottom:8px">Trend 13 sem</div>
-        <div class="ch-wrap" style="position:relative"><canvas id="heroScoreMini" role="img" aria-label="Sparkline score Howell 13w"></canvas></div>
-        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-align:center;margin-top:8px;color:var(--text3)">4w: —</div>
+      <!-- Delta 4w como texto solo (el sparkline anterior se eliminó por feedback del usuario) -->
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(245,236,228,.1);text-align:center">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px">Cambio 4 semanas</div>
+        <div id="hero-trend-4w" style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;color:var(--text3)">—</div>
       </div>
     </div>
     <div class="vh-mid">
@@ -1214,11 +1213,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div class="card blue-a"><div class="card-accent"></div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <div class="lbl" id="yc-shape-label" style="color:var(--blue)">Curva de tipos</div>
-        <div style="display:flex;gap:4px">
-          <button class="yc-btn active" onclick="setYcView('now',this)">Ahora</button>
-          <button class="yc-btn" onclick="setYcView('3m',this)">−3M</button>
-          <button class="yc-btn" onclick="setYcView('1y',this)">−1A</button>
-          <button class="yc-btn" onclick="setYcView('both',this)">Comparar</button>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="yc-btn active" onclick="setYcView('now',this)" title="Curva actual (snapshot)">Ahora</button>
+          <button class="yc-btn" onclick="setYcView('3m',this)" title="Curva hace 3 meses">−3M</button>
+          <button class="yc-btn" onclick="setYcView('1y',this)" title="Curva hace 1 año">−1A</button>
+          <button class="yc-btn" onclick="setYcView('both',this)" title="Comparar Ahora vs −3M / −1A">Comparar</button>
+          <button class="yc-btn" onclick="setYcView('delta3m',this)" title="Δ 3M · cuánto cambió cada tenor (bull/bear movement)">Δ 3M</button>
+          <button class="yc-btn" onclick="setYcView('fwd',this)" title="Forward 1Y · expectativas implícitas del mercado para dentro de 1 año">FW 1Y</button>
         </div>
       </div>
       <div class="ch-wrap" style="height:200px"><canvas id="yieldCurveChart" role="img" aria-label="Curva de tipos del Tesoro USA"></canvas></div>
@@ -2667,11 +2668,8 @@ const IPMAN_BANDS = [
   { from:  2, to:  10, color: 'rgba(74,222,128,0.06)' }
 ];
 
-// Hero sparkline · sin ejes pero con bandas Howell + estilo Phoenix
-state.charts['heroScoreMini'] = initMiniChart('heroScoreMini', phoenixOrange, (v) => {
-  const phase = v >= 6 ? 'Fase 4' : v >= 4 ? 'Fase 3→4' : v >= 2 ? 'Fase 3' : v >= 1 ? 'Fase 2' : 'Fase 1';
-  return `Score ${v.toFixed(1)}/8 · ${phase}`;
-}, { yMin: 0, yMax: 8, bands: HOWELL_BANDS });
+// Hero sparkline ELIMINADO (feedback del usuario: "el gráfico mini no quedaba")
+// Solo se conserva el delta 4w como texto en el Hero columna izq
 // Motor Howell · escala Y 0→8 con bandas Phoenix
 state.charts['diagHistoryMini'] = initMiniChart('diagHistoryMini', phoenixOrange, (v) => {
   const phase = v >= 6 ? 'Fase 4' : v >= 4 ? 'Fase 3→4' : v >= 2 ? 'Fase 3' : v >= 1 ? 'Fase 2' : 'Fase 1';
@@ -5276,24 +5274,79 @@ function updateYieldCurve() {
   const ago1Y = TENORS.map(t => t.data?.[12]?.value ?? null);
 
   const view = state.ycView || 'now';
-
-  chart.data.datasets[0].data = now;
   const isInverted = now[0] != null && now[4] != null && now[0] > now[4];
-  chart.data.datasets[0].borderColor = isInverted ? '#f87171' : '#4ade80';
 
-  const cmpData = view === '1y' ? ago1Y : ago3M;
-  const cmpLabel = view === '1y' ? 'Hace 1A' : 'Hace 3M';
-  chart.data.datasets[1].data   = cmpData;
-  chart.data.datasets[1].label  = cmpLabel;
-  chart.data.datasets[1].hidden = (view === 'now');
+  // Reset axis options + label si vuelve a vistas standard
+  if (chart.options.scales.y.suggestedMin !== undefined) {
+    delete chart.options.scales.y.suggestedMin;
+    delete chart.options.scales.y.suggestedMax;
+  }
+
+  if (view === 'delta3m') {
+    // ── Δ 3M · bar chart con cuánto cambió cada tenor (bps) ──
+    const delta = now.map((v, i) => v != null && ago3M[i] != null ? Math.round((v - ago3M[i]) * 100) : null);
+    chart.data.datasets[0].data = delta;
+    chart.data.datasets[0].label = 'Δ vs hace 3M (bps)';
+    chart.data.datasets[0].borderColor = '#fb923c';
+    chart.data.datasets[0].pointBackgroundColor = (ctx) => {
+      const v = ctx.parsed?.y;
+      return v == null ? '#7d6f63' : v >= 0 ? '#f87171' : '#4ade80';
+    };
+    chart.data.datasets[0].pointRadius = 7;
+    chart.data.datasets[1].hidden = true;
+    // Y axis centrado en 0 con suggestedMin/Max para mostrar bien negativos/positivos
+    chart.options.scales.y.suggestedMin = -50;
+    chart.options.scales.y.suggestedMax = 50;
+  } else if (view === 'fwd') {
+    // ── Forward 1Y implícito · rate del año t+1 según la curva spot ──
+    // f(t,t+1) ≈ (y(t+1) * τ(t+1) − y(t) * τ(t)) / (τ(t+1) − τ(t))
+    const TAUS = [0.5, 1, 2, 5, 10, 20, 30];
+    const fwd = TAUS.map((tau, i) => {
+      if (i === TAUS.length - 1 || now[i] == null || now[i+1] == null) return null;
+      return (now[i+1] * TAUS[i+1] - now[i] * tau) / (TAUS[i+1] - tau);
+    });
+    chart.data.datasets[0].data = fwd;
+    chart.data.datasets[0].label = 'Forward 1Y implícito';
+    chart.data.datasets[0].borderColor = '#a78bfa';
+    chart.data.datasets[0].pointBackgroundColor = '#a78bfa';
+    chart.data.datasets[0].pointRadius = (ctx) => ctx.dataIndex === ctx.dataset.data.length - 1 ? 6 : 4;
+    chart.data.datasets[1].data = now;
+    chart.data.datasets[1].label = 'Spot actual';
+    chart.data.datasets[1].borderColor = isInverted ? '#f87171' : '#4ade80';
+    chart.data.datasets[1].borderDash = [4, 4];
+    chart.data.datasets[1].hidden = false;
+  } else {
+    // Vista normal (Ahora / -3M / -1A / Comparar)
+    chart.data.datasets[0].data = now;
+    chart.data.datasets[0].label = 'Ahora';
+    chart.data.datasets[0].borderColor = isInverted ? '#f87171' : '#4ade80';
+    chart.data.datasets[0].pointBackgroundColor = '#08050a';
+    chart.data.datasets[0].pointRadius = (ctx) => ctx.dataIndex === ctx.dataset.data.length - 1 ? 5 : 3;
+    chart.data.datasets[1].borderDash = undefined;
+    const cmpData = view === '1y' ? ago1Y : ago3M;
+    const cmpLabel = view === '1y' ? 'Hace 1A' : 'Hace 3M';
+    chart.data.datasets[1].data   = cmpData;
+    chart.data.datasets[1].label  = cmpLabel;
+    chart.data.datasets[1].hidden = (view === 'now');
+  }
 
   chart.update('none');
 
-  // Legend
+  // Legend dinámica
   const legendCmp = document.getElementById('yc-legend-cmp');
   const legendLbl = document.getElementById('yc-legend-cmp-lbl');
-  if (legendCmp) legendCmp.style.display = view !== 'now' ? 'inline' : 'none';
-  if (legendLbl) legendLbl.textContent = cmpLabel;
+  if (legendCmp && legendLbl) {
+    if (view === 'delta3m') {
+      legendCmp.style.display = 'inline';
+      legendLbl.textContent = 'rojo=sube · verde=baja (bps)';
+    } else if (view === 'fwd') {
+      legendCmp.style.display = 'inline';
+      legendLbl.textContent = 'morado=forward 1Y · línea spot punteada';
+    } else {
+      legendCmp.style.display = view !== 'now' ? 'inline' : 'none';
+      legendLbl.textContent = view === '1y' ? 'Hace 1A' : 'Hace 3M';
+    }
+  }
 
   // 2Y destacado · Fed Pricing (lectura cleaner de expectativas Fed 18m)
   const gs2Now  = state.data.yc2y?.[0]?.value;
@@ -5574,24 +5627,19 @@ function updateMotorHistoryMinis() {
     }
   } catch (e) { /* swallow */ }
 
-  // ── Hero mini · sparkline score 13 semanas (columna izq del Verdict Hero) ──
-  if (howellLast13 && howellLast13.length) {
+  // ── Hero · solo delta 4w como texto (sparkline eliminado por feedback usuario) ──
+  if (howellLast13 && howellLast13.length >= 5) {
     const last13 = howellLast13;
-    const chart = state.charts['heroScoreMini'];
-    if (chart) {
-      chart.data.labels = last13.map((_, i) => `Sem ${i - last13.length + 1}`).map(s => s === 'Sem 0' ? 'Hoy' : s);
-      chart.data.datasets[0].data = last13;
-      chart.update('active');
-    }
     const trend4wEl = document.getElementById('hero-trend-4w');
-    if (trend4wEl && last13.length >= 5) {
+    if (trend4wEl) {
       const cur = last13[last13.length - 1];
       const prev = last13[last13.length - 5];
       const delta = cur - prev;
       const sign = delta >= 0 ? '+' : '';
       const arrow = delta > 0.3 ? '↑' : delta < -0.3 ? '↓' : '→';
+      const txt = delta > 0.3 ? 'deteriora' : delta < -0.3 ? 'mejora' : 'estable';
       const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text2)';
-      trend4wEl.innerHTML = `4w: <strong>${sign}${delta.toFixed(1)}</strong> ${arrow}`;
+      trend4wEl.innerHTML = `${sign}${delta.toFixed(1)} ${arrow} <span style="font-size:11px;color:var(--text3);font-weight:400">${txt}</span>`;
       trend4wEl.style.color = col;
     }
   }
