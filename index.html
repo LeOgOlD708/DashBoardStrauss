@@ -681,6 +681,12 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-52w-near{background:rgba(34,197,94,.10);color:#22c55e;border-color:rgba(34,197,94,.28)}
 .os-52w-mid{background:rgba(234,179,8,.08);color:#eab308;border-color:rgba(234,179,8,.28)}
 .os-52w-far{background:rgba(239,68,68,.08);color:#ef4444;border-color:rgba(239,68,68,.28)}
+/* Breadth pill (Feature A v1.4 — % Top 5 holdings sobre SMA50 por sector) */
+.os-breadth-pill{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.04em;padding:2px 6px;border-radius:3px;border:1px solid transparent;display:inline-block;width:fit-content;font-weight:600}
+.os-breadth-strong{background:rgba(34,197,94,.10);color:#22c55e;border-color:rgba(34,197,94,.28)}
+.os-breadth-mixed{background:rgba(234,179,8,.08);color:#eab308;border-color:rgba(234,179,8,.28)}
+.os-breadth-weak{background:rgba(239,68,68,.08);color:#ef4444;border-color:rgba(239,68,68,.28)}
+.os-breadth-none{background:rgba(148,163,184,.07);color:var(--text3);border-color:rgba(148,163,184,.18)}
 
 /* Watchlist (top 5 simple lista) */
 .os-wl-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:12px;align-items:center;padding:6px 10px;background:var(--surface2);border-left:3px solid var(--text3);border-radius:0 4px 4px 0;font-family:'IBM Plex Mono',monospace;font-size:11px}
@@ -7996,6 +8002,20 @@ const INDICATORS_GLOSSARY = {
     ],
     note: 'Modifier al componente Setup Técnico. La pill en cards Top 5 visualiza el % directo, con color por banda.'
   },
+  'sector-breadth': {
+    name: 'Breadth del Sector',
+    category: 'Opportunity Scanner · Modifier v1.4',
+    source: { label: 'Yahoo Finance · Top 5 holdings por SPDR sectorial', url: 'https://www.sectorspdrs.com/sectorspdr/sector/xlk/holdings', freq: 'Tiempo real (constituyentes refrescados trimestralmente)' },
+    what: '% de los top 5 holdings de cada SPDR sectorial cuyo precio cotiza por encima de su SMA50. Distingue rallies con liderazgo amplio (3-5 de 5 holdings sobre SMA50) de trampas concentradas tipo Mag7 (1-2 holdings traccionan al sector entero).',
+    formula: '(holdings del Top 5 con price > SMA50) / 5 × 100. Si breadth ≥60% + volScore >25 → +1.5 pts a Volumen (acumulación corroborada por amplitud). Si breadth <40% + volScore >20 → flag Mag7 trap (info pura, no penaliza).',
+    interpret: 'Tradición de breadth (advance/decline, % stocks > 200d): el ancho del rally importa tanto como su intensidad. Un sector con +3% mensual donde sólo 1-2 nombres lo sostienen es frágil. Un sector con +1% mensual y 5 de 5 holdings sobre SMA50 tiene tracción institucional real. Esta métrica cierra el gap entre el momentum del ETF y la salud interna del sector.',
+    thresholds: [
+      { c:'green', t:'≥ 60% (3-5 de 5) → liderazgo confirmado · +1.5 pts si vol fuerte' },
+      { c:'amber', t:'40 – 60% (2 de 5) → amplitud mixta' },
+      { c:'red',   t:'< 40% (0-1 de 5) + vol alto → flag Mag7 trap' }
+    ],
+    note: 'Top 5 holdings hardcodeados (refrescar trimestralmente, próximo: 2026-07-01). Si un constituyente falla en Yahoo, se calcula breadth con los que sí volvieron. Solo aplica a sectores SPDR (no macros).'
+  },
   'divergencia-mercado-ciclo': {
     name: 'Divergencia Mercado-vs-Ciclo',
     category: 'Opportunity Scanner · Señal sistémica',
@@ -8477,6 +8497,23 @@ window.OpportunityScanner = (function () {
     // Reintentos si Yahoo cae
     yahooRetryMs: 60 * 1000,
     yahooMaxRetries: 3,
+    // ── Feature A v1.4 — Sector Breadth Interno ──
+    // Top 5 holdings por sector SPDR (refrescar trimestralmente, junto con CONSENSUS_MAP).
+    // Detecta liderazgo real (≥60% sobre SMA50) vs trampa Mag7 (sector sube por <2 holdings).
+    // Última verificación: 2026-04-27.
+    sectorConstituents: {
+      XLK:  ['AAPL', 'MSFT', 'NVDA', 'GOOG', 'META'],
+      XLF:  ['BRK-B', 'JPM', 'V', 'MA', 'BAC'],
+      XLY:  ['AMZN', 'MCD', 'TSLA', 'NKE', 'HD'],
+      XLE:  ['XOM', 'CVX', 'COP', 'EOG', 'MPC'],
+      XLI:  ['BA', 'CAT', 'GE', 'UBER', 'PG'],
+      XLU:  ['NEE', 'DUK', 'SO', 'EXC', 'AEP'],
+      XLV:  ['JNJ', 'UNH', 'PFE', 'ABBV', 'MRK'],
+      XLP:  ['WMT', 'PG', 'KO', 'COST', 'MO'],
+      XLB:  ['LIN', 'APD', 'SHW', 'DOW', 'ALB'],
+      XLC:  ['META', 'GOOG', 'NFLX', 'DIS', 'CMCSA'],
+      XLRE: ['AMT', 'PLD', 'EQIX', 'ARE', 'WELL'],
+    },
   };
 
   // ── Estado interno ──
@@ -8561,11 +8598,17 @@ window.OpportunityScanner = (function () {
 
   async function fetchVolumeData() {
     // Yahoo Finance — batch tickers con volumen, SMA50, chg1d
-    const tickers = [...config.sectors, ...config.macros].map(s => s.ticker).join(',');
+    // Incluye constituyentes (Feature A v1.4): mismo batch para no duplicar latencia.
+    const baseTickers = [...config.sectors, ...config.macros].map(s => s.ticker);
+    const constituentSet = new Set();
+    Object.values(config.sectorConstituents || {}).forEach(arr => arr.forEach(t => constituentSet.add(t)));
+    // Evitar redundancia con baseTickers (PG, GOOG, META, etc. ya estén)
+    baseTickers.forEach(t => constituentSet.delete(t));
+    const allTickers = [...baseTickers, ...constituentSet].join(',');
     const ctrl = new AbortController();
     const timeout = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const res = await fetch(`/api/yahoo?tickers=${tickers}&range=3mo`, { signal: ctrl.signal });
+      const res = await fetch(`/api/yahoo?tickers=${allTickers}&range=3mo`, { signal: ctrl.signal });
       clearTimeout(timeout);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -8639,6 +8682,33 @@ window.OpportunityScanner = (function () {
   // Scoring
   // ──────────────────────────────────────────────────────────
 
+  // ── Feature A v1.4 — Sector Breadth Interno ──
+  // Cuenta cuántos holdings (Top 5) cotizan sobre su SMA50. Detecta liderazgo real
+  // (≥60% = 3-5 de 5) vs trampa Mag7 (sector sube por momentum de 1-2 nombres).
+  // Devuelve { count, total, pct, status: 'strong'|'mixed'|'weak'|'none', label }.
+  function computeBreadth(ticker) {
+    const constituents = config.sectorConstituents?.[ticker];
+    if (!constituents || !state.yahooData) return null;
+    let count = 0;
+    let valid = 0;
+    constituents.forEach(stock => {
+      const y = state.yahooData[stock];
+      if (!y || y.error) return;
+      const px = y.regularMarketPrice ?? y.price;
+      const sma = y.fiftyDayAverage;
+      if (px == null || sma == null || sma <= 0) return;
+      valid++;
+      if (px > sma) count++;
+    });
+    if (valid === 0) return { count: 0, total: 0, pct: null, status: 'none', label: 'BR n/d' };
+    const pct = (count / valid) * 100;
+    let status;
+    if (pct >= 60)      status = 'strong';   // 3+ de 5 holdings sobre SMA50 → liderazgo confirmado
+    else if (pct >= 40) status = 'mixed';    // 2 de 5 → mixto
+    else                status = 'weak';     // 0-1 de 5 → posible Mag7 trap si vol >25
+    return { count, total: valid, pct, status, label: `BR ${count}/${valid}` };
+  }
+
   // Componente 3 — Alineación ciclo (20 pts) + flag divergencia
   function getHowellAlignment(ticker, phase) {
     const map = config.stovall[phase] || config.stovall.Transicion;
@@ -8675,6 +8745,20 @@ window.OpportunityScanner = (function () {
     if (accel >= 1.0)  return { label: '↑ Acelerando',  cls: 'up',   txt: 'acelerando' };
     if (accel >= 0.5)  return { label: '→ Estable',      cls: 'flat', txt: 'estable' };
                        return { label: '↓ Desacelerando', cls: 'down', txt: 'desacelerando' };
+  }
+
+  // Helper UI breadth (Feature A v1.4) — devuelve {label, cls, tooltip} o null
+  function breadthBadge(breadth) {
+    if (!breadth) return null;
+    if (breadth.status === 'none' || breadth.pct == null) {
+      return { label: 'BR n/d', cls: 'none', tooltip: 'Datos de holdings no disponibles' };
+    }
+    const tip = `${breadth.count} de ${breadth.total} holdings principales sobre SMA50 — ${
+      breadth.status === 'strong' ? 'liderazgo confirmado' :
+      breadth.status === 'mixed'  ? 'amplitud mixta' :
+                                    'amplitud débil (posible Mag7 trap si volumen alto)'
+    }`;
+    return { label: breadth.label, cls: breadth.status, tooltip: tip };
   }
 
   // Pill 52w high (Mejora C v1.1). Verde <5% del máximo · ámbar 5-25% · rojo >25%.
@@ -8744,6 +8828,21 @@ window.OpportunityScanner = (function () {
       else if (volRatio >= 1.5) comp2 = 20;
       else if (volRatio >= 1.0) comp2 = 10;
       else                       comp2 = 0;
+    }
+
+    // ── Modifier Breadth (Feature A v1.4) — solo aplica a sectores SPDR ──
+    // breadth ≥60% + volScore >25 → +1.5 pts (acumulación confirmada por amplitud)
+    // breadth <40% + volScore >20 → flag Mag7-trap (vol pero solo 0-1 de 5 holdings sobre SMA50)
+    const breadth = computeBreadth(ticker);
+    let breadthModifier = 0;
+    let mag7Trap = false;
+    if (breadth && breadth.pct != null) {
+      if (breadth.pct >= 60 && comp2 > 25) {
+        breadthModifier = 1.5;  // acumulación corroborada por amplitud
+        comp2 = Math.min(30, comp2 + breadthModifier);
+      } else if (breadth.pct < 40 && comp2 > 20) {
+        mag7Trap = true;        // info pura — no penaliza score, dispara nota en UI
+      }
     }
 
     // ── Comp 3 — Alineación Howell (20 pts) ──
@@ -8824,6 +8923,9 @@ window.OpportunityScanner = (function () {
       chg1m: yh?.chg1m ?? null,
       acceleration: accel,
       price: yh?.regularMarketPrice ?? null,
+      breadth,               // Feature A v1.4: { count, total, pct, status, label } | null
+      breadthModifier,       // pts agregados a comp2 vía breadth (≥60% + vol fuerte)
+      mag7Trap,              // bool: vol fuerte pero <40% holdings sobre SMA50
     };
   }
 
@@ -8909,6 +9011,8 @@ window.OpportunityScanner = (function () {
           <div class="os-cell-tooltip-row"><span>Alineación Howell <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('alineacion-howell-stovall')">?</button></span><span class="v">${s.components.howell}/20</span></div>
           <div class="os-cell-tooltip-row"><span>Setup técnico <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('setup-tecnico-sma50')">?</button></span><span class="v">${s.components.setup}/10</span></div>
           ${s.dist52w != null ? `<div class="os-cell-tooltip-row"><span>Dist. máx. 52w <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('distance-52w-high')">?</button></span><span class="v">${Math.abs(s.dist52w).toFixed(1)}%</span></div>` : ''}
+          ${s.breadth ? `<div class="os-cell-tooltip-row"><span>Breadth interno <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('sector-breadth')">?</button></span><span class="v">${s.breadth.label}${s.breadth.pct != null ? ` (${Math.round(s.breadth.pct)}%)` : ''}</span></div>` : ''}
+          ${s.mag7Trap ? `<div class="os-cell-tooltip-row" style="color:var(--phoenix-amber)"><span>⚠ Mag7 trap</span><span class="v">vol alto + breadth bajo</span></div>` : ''}
         </div>`;
       return `
         <div class="os-cell lvl-${lvl}" style="animation-delay:${i * 50}ms" title="${escapeAttr(s.name)} · ${s.total}/100">
@@ -8948,6 +9052,14 @@ window.OpportunityScanner = (function () {
       const pill52Html = pill52
         ? `<span class="os-52w-pill os-52w-${pill52.cls}" title="Distancia al máximo de las últimas 52 semanas">${pill52.txt}</span><button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('distance-52w-high')" title="¿Qué es Distance from 52w High?">?</button>`
         : '';
+      // Breadth pill (Feature A v1.4) — solo sectores, no macros
+      const brB = breadthBadge(s.breadth);
+      const breadthHtml = brB
+        ? `<span class="os-breadth-pill os-breadth-${brB.cls}" title="${escapeAttr(brB.tooltip)}">${brB.label}</span><button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('sector-breadth')" title="¿Qué es Breadth del Sector?">?</button>`
+        : '';
+      const mag7Html = s.mag7Trap
+        ? `<span class="os-breadth-pill os-breadth-weak" title="Volumen anormal alto pero solo 0-1 de 5 holdings principales sobre SMA50 — el rally puede estar concentrado en pocos nombres (Mag7 trap)">⚠ Mag7 trap</span>`
+        : '';
       return `
         <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
           <div class="os-card-rank lvl-${lvl}">${rank}</div>
@@ -8966,7 +9078,7 @@ window.OpportunityScanner = (function () {
           <div class="os-card-reason">
             <div class="os-card-reason-text">${escapeAttr(s.reason)}</div>
             <div class="os-card-align ${alignCls}">${alignTxt}</div>
-            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}</div>
+            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}${breadthHtml}${mag7Html}</div>
             ${divNote}
           </div>
         </div>`;
