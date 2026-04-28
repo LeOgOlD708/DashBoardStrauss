@@ -69,6 +69,15 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .brand-tagline{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--text3);text-transform:uppercase;line-height:1;margin-top:2px}
 .nav-pill{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--bg);background:linear-gradient(135deg,var(--gold) 0%,var(--phoenix-orange) 100%);padding:4px 9px;letter-spacing:0.1em;border-radius:3px;box-shadow:0 0 10px -3px rgba(249,115,22,0.4)}
 .nav-right{display:flex;align-items:center;gap:16px}
+/* Mini-score sticky · aparece cuando se scrollea fuera del Verdict Hero */
+#nav-mini-score{display:none;align-items:center;gap:8px;padding:4px 10px 4px 12px;border-left:2px solid var(--phoenix-amber);background:linear-gradient(90deg,rgba(249,115,22,.05) 0%,transparent 100%);border-radius:0 4px 4px 0;cursor:pointer;transition:background .2s,border-color .2s;user-select:none}
+#nav-mini-score.visible{display:inline-flex}
+#nav-mini-score:hover{background:linear-gradient(90deg,rgba(249,115,22,.1) 0%,rgba(249,115,22,.02) 100%);border-left-color:var(--phoenix-orange)}
+#nav-mini-score .nms-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.16em;color:var(--text3);text-transform:uppercase;line-height:1}
+#nav-mini-score .nms-val{font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:700;line-height:1;color:var(--gold);letter-spacing:-.5px}
+#nav-mini-score .nms-phase{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--text2);text-transform:uppercase;line-height:1.2;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#nav-mini-score .nms-meta{display:flex;flex-direction:column;gap:3px}
+@media(max-width:900px){#nav-mini-score .nms-phase{display:none}}
 .live-dot{display:flex;align-items:center;gap:5px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.1em}
 .live-dot .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -574,6 +583,13 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
     <div class="nt-item"><span class="nt-sym">DXY</span><span class="nt-price" id="nt-DXY-p">—</span><span class="nt-chg flat" id="nt-DXY-c">—</span></div>
     <div class="nt-item"><span class="nt-sym">VIX</span><span class="nt-price" id="nt-VIX-p">—</span><span class="nt-chg flat" id="nt-VIX-c">—</span></div>
     <div class="nt-item"><span class="nt-sym">WTI</span><span class="nt-price" id="nt-WTI-p">—</span><span class="nt-chg flat" id="nt-WTI-c">—</span></div>
+  </div>
+  <div id="nav-mini-score" onclick="document.getElementById('z1-decision')?.scrollIntoView({behavior:'smooth',block:'start'})" title="Score Howell · click para ir al Verdict Hero">
+    <div class="nms-meta">
+      <span class="nms-lbl">Score</span>
+      <span class="nms-phase" id="nav-mini-score-phase">—</span>
+    </div>
+    <span class="nms-val" id="nav-mini-score-val">—</span>
   </div>
   <div class="nav-right">
     <div class="live-dot"><div class="dot" id="live-dot-el"></div><span id="nav-status" style="color:var(--text3)">Sin datos</span></div>
@@ -2878,6 +2894,27 @@ function initDashboard() {
   setNavStatus('Conectando...', '#fbbf24');
   updateCycleMonth();
   bootData();
+  initStickyMiniScore();
+}
+
+// Fase C · Sticky mini-score: aparece en el topbar al scrollear fuera del Verdict Hero
+function initStickyMiniScore() {
+  const miniEl = document.getElementById('nav-mini-score');
+  if (!miniEl) return;
+  let ticking = false;
+  function check() {
+    const vh = document.querySelector('.vh');
+    if (!vh) { miniEl.classList.remove('visible'); ticking = false; return; }
+    const rect = vh.getBoundingClientRect();
+    // Mostrar cuando el bottom del Verdict Hero pasó arriba del nav (54px alto)
+    const shouldShow = rect.bottom < 60;
+    miniEl.classList.toggle('visible', shouldShow);
+    ticking = false;
+  }
+  window.addEventListener('scroll', () => {
+    if (!ticking) { requestAnimationFrame(check); ticking = true; }
+  }, { passive: true });
+  check();
 }
 
 function updateCycleMonth() {
@@ -5897,6 +5934,14 @@ function updateHeroScore() {
   // Color the number by urgency
   numEl.style.color = score >= 5 ? 'var(--red)' : score >= 4 ? 'var(--amber)' : score >= 2 ? 'var(--gold)' : 'var(--green)';
 
+  // Mini-score sticky en topbar (Fase C): mismo número, misma lógica de color por fase
+  const miniValEl = document.getElementById('nav-mini-score-val');
+  const miniPhaseEl = document.getElementById('nav-mini-score-phase');
+  if (miniValEl) {
+    miniValEl.textContent = Number.isInteger(score) ? score : score.toFixed(1);
+    miniValEl.style.color = score >= 5 ? 'var(--red)' : score >= 4 ? 'var(--amber)' : score >= 2 ? 'var(--gold)' : 'var(--green)';
+  }
+
   // Score parcial: cuando faltan inputs, el divisor /8 es engañoso (componentes null suman 0).
   // Mostrar flag honesto con la lista y un score normalizado al max disponible.
   if (statusEl) {
@@ -5923,6 +5968,12 @@ function updateHeroScore() {
   const phase = phases.find(p => score >= p.min && score < p.max) || phases[phases.length - 1];
   nameEl.textContent = phase.name;
   descEl.textContent = phase.desc;
+
+  // Mini-score phase label (Fase C topbar): versión corta sin "·" para que entre en mono 9px
+  if (miniPhaseEl) {
+    const shortPhase = phase.name.replace(/^Fase\s+/i, 'F').split('·')[0].trim();
+    miniPhaseEl.textContent = shortPhase;
+  }
 
   // Postura (aligned with updateTesisAuto 4-level system)
   const postura = score >= 5 ? 'MÁXIMA CAUTELA' : score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'DEFENSIVO SELECTIVO' : score >= 1 ? 'SELECTIVO' : 'VIGILANCIA';
