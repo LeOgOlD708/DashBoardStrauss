@@ -727,9 +727,77 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 @keyframes os-fadeInUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes os-pulse{0%,100%{background-position:200% 0}50%{background-position:-200% 0}}
 @keyframes os-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* ── AUTH GATE ── */
+#auth-gate{position:fixed;inset:0;z-index:99999;background:var(--bg);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Sans',sans-serif}
+#auth-gate::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 80% 50% at 92% -8%, rgba(249,115,22,0.08) 0%, rgba(249,115,22,0) 55%),radial-gradient(ellipse 60% 40% at 5% 110%, rgba(156,5,18,0.08) 0%, rgba(156,5,18,0) 55%)}
+html.auth-ok #auth-gate{display:none}
+.auth-box{position:relative;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r2);padding:36px 40px;max-width:380px;width:90%;box-shadow:var(--glow-gold)}
+.auth-brand{font-family:'Playfair Display',serif;font-size:26px;font-weight:900;color:var(--text);text-align:center;letter-spacing:-0.02em;line-height:1.1}
+.auth-brand span{color:var(--gold);font-style:italic}
+.auth-tagline{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.18em;color:var(--text3);text-transform:uppercase;text-align:center;margin-top:6px;margin-bottom:28px}
+.auth-label{display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.12em;color:var(--text2);text-transform:uppercase;margin-bottom:8px}
+.auth-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:12px 14px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s}
+.auth-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(230,180,80,.15)}
+.auth-btn{width:100%;margin-top:14px;background:linear-gradient(135deg,var(--gold) 0%,var(--phoenix-orange) 100%);color:var(--bg);border:none;border-radius:var(--r);padding:12px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:filter .15s,transform .05s}
+.auth-btn:hover{filter:brightness(1.1)}
+.auth-btn:active{transform:translateY(1px)}
+.auth-error{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--red);margin-top:12px;min-height:14px;text-align:center;letter-spacing:.04em}
 </style>
+<script>
+(function(){
+  var EXPECTED='9d5a7b722ba9edfea57b22bf1a0ac271c3cdf67cf31832adfaa20691c3e661ab';
+  var KEY='rc_auth_ok';
+  if(sessionStorage.getItem(KEY)===EXPECTED){
+    document.documentElement.classList.add('auth-ok');
+    return;
+  }
+  function init(){
+    var input=document.getElementById('auth-pwd');
+    var btn=document.getElementById('auth-submit');
+    var err=document.getElementById('auth-error');
+    if(!input||!btn) return;
+    async function sha256(s){
+      var buf=new TextEncoder().encode(s);
+      var hash=await crypto.subtle.digest('SHA-256',buf);
+      return Array.from(new Uint8Array(hash)).map(function(b){return b.toString(16).padStart(2,'0')}).join('');
+    }
+    async function tryAuth(){
+      err.textContent='';
+      if(!input.value){err.textContent='Ingresá la clave';return;}
+      var h=await sha256(input.value);
+      if(h===EXPECTED){
+        sessionStorage.setItem(KEY,EXPECTED);
+        document.documentElement.classList.add('auth-ok');
+      } else {
+        err.textContent='Clave incorrecta';
+        input.value='';
+        input.focus();
+      }
+    }
+    btn.addEventListener('click',tryAuth);
+    input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();tryAuth();}});
+    setTimeout(function(){input.focus();},50);
+  }
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded',init);
+  } else { init(); }
+})();
+</script>
 </head>
 <body>
+
+<!-- AUTH GATE -->
+<div id="auth-gate" role="dialog" aria-modal="true" aria-labelledby="auth-gate-title">
+  <div class="auth-box">
+    <div class="auth-brand" id="auth-gate-title">Rebirth <span>Capital</span></div>
+    <div class="auth-tagline">Macro Intelligence</div>
+    <label class="auth-label" for="auth-pwd">Acceso restringido</label>
+    <input class="auth-input" type="password" id="auth-pwd" autocomplete="current-password">
+    <button class="auth-btn" type="button" id="auth-submit">Ingresar</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
 
 <!-- ALERT BANNER -->
 <div id="alert-banner"></div>
