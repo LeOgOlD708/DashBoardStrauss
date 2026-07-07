@@ -747,7 +747,7 @@ html.auth-ok #auth-gate{display:none}
 </style>
 <script>
 (function(){
-  var EXPECTED='9d5a7b722ba9edfea57b22bf1a0ac271c3cdf67cf31832adfaa20691c3e661ab';
+  var EXPECTED='258e1695b93d920019eb2407977897430d526c6110af855ec5e21c40fee749d4';
   var KEY='rc_auth_ok';
   if(sessionStorage.getItem(KEY)===EXPECTED){
     document.documentElement.classList.add('auth-ok');
@@ -2102,10 +2102,9 @@ html.auth-ok #auth-gate{display:none}
     <div class="card amber-a"><div class="card-accent"></div>
       <div class="lbl">PBOC — China · Fase 1 del Ciclo</div>
       <div class="g2" style="gap:6px;margin:8px 0">
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Inyecciones</div><div class="val-sm" style="font-size:13px;color:var(--text3)">~$1T USD</div><div style="font-size:7px;color:var(--text3);font-family:'IBM Plex Mono',monospace;margin-top:2px">ANÁLISIS</div></div>
+        <!-- Regla "100% automático" 2026-07-07: removidas cards manuales Inyecciones ~$1T /
+             PMI China / Reservas oro (sin API gratuita — nunca se poblaron). Queda lo calculado. -->
         <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Oro en CNY</div><div class="val-sm" id="m-gold-cny-val">—</div><div style="font-size:9px;color:var(--text3)">GLD × USD/CNY</div></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">PMI China</div><div class="val-sm" id="m-pmi-val" style="font-size:13px;color:var(--text3)">—</div><a href="https://tradingeconomics.com/china/manufacturing-pmi" target="_blank" style="font-size:7px;color:var(--gold);font-family:'IBM Plex Mono',monospace;text-decoration:none;display:block;margin-top:3px">Ver fuente →</a></div>
-        <div style="padding:8px;background:var(--surface2);border-radius:6px;text-align:center"><div class="lbl" style="margin-bottom:3px">Reservas oro</div><div class="val-sm" id="m-pboc-gold-val" style="font-size:13px;color:var(--text3)">—</div><a href="https://www.gold.org/goldhub/data/gold-reserves-by-country" target="_blank" style="font-size:7px;color:var(--gold);font-family:'IBM Plex Mono',monospace;text-decoration:none;display:block;margin-top:3px">Ver fuente →</a></div>
       </div>
       <div class="ch-wrap ch160"><canvas id="chinaChart" role="img" aria-label="Oro en CNY">CNY gold chart.</canvas></div>
       <div style="margin-top:8px;padding:8px;background:rgba(251,191,36,.05);border:1px solid rgba(251,191,36,.12);border-radius:5px;font-size:10px;color:var(--text2)">
@@ -2244,9 +2243,8 @@ html.auth-ok #auth-gate{display:none}
 <div id="tab-vol" class="page">
   <div class="sh">
     <div class="sh-tag" style="color:var(--teal);border-color:rgba(45,212,191,.3);background:rgba(45,212,191,.05)">Volatilidad</div>
-    <div class="sh-title">Flujos · Opciones · Gamma · CTAs</div>
+    <div class="sh-title">Volatilidad · Term Structure · Divergencias</div>
     <div class="sh-line"></div>
-    <div class="badge b-teal">JJ. Montoya</div>
   </div>
 
   <!-- VIX ROW -->
@@ -2293,14 +2291,15 @@ html.auth-ok #auth-gate{display:none}
     </div>
   </div>
 
-  <!-- VIX CHART + DIVERGENCE -->
-  <div class="g21" style="margin-bottom:10px">
+  <!-- VIX CHART + DIVERGENCE (banner ahora COMPUTADO — antes era texto fijo "SEÑAL ACTIVA" siempre) -->
+  <div style="margin-bottom:10px">
     <div class="card teal-a"><div class="card-accent"></div>
       <div class="lbl">VIX vs VVIX — Búsqueda de Divergencias</div>
-      <div style="padding:7px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.15);border-radius:5px;margin-bottom:8px">
+      <div id="vix-divergence-banner" style="display:none;padding:7px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.15);border-radius:5px;margin-bottom:8px">
         <div class="mono" style="font-size:8px;color:var(--red);letter-spacing:.1em">SEÑAL ACTIVA — DIVERGENCIA DETECTADA</div>
-        <div style="font-size:10px;color:var(--text2);margin-top:3px">VIX cayendo → aparente calma · VVIX subiendo → institucionales comprando protección de cola. Señal de cautela sofisticada.</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:3px" id="vix-divergence-detail">VIX cayendo · VVIX subiendo → institucionales comprando protección de cola. Cautela sofisticada.</div>
       </div>
+      <div id="vix-no-divergence" style="padding:7px;background:var(--surface2);border-radius:5px;margin-bottom:8px;font-size:10px;color:var(--text3)">Sin divergencia VIX/VVIX activa (calculado sobre variación 5 días).</div>
       <div class="range-bar" style="margin-bottom:6px">
         <span class="range-lbl">RANGO:</span>
         <button class="range-btn vix-range-btn" data-range="1d" onclick="setChartRange('1d')">1D</button>
@@ -2311,59 +2310,10 @@ html.auth-ok #auth-gate{display:none}
       </div>
       <div class="ch-wrap ch200"><canvas id="vixChart" role="img" aria-label="VIX histórico">VIX chart.</canvas></div>
     </div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <div class="card purple-a"><div class="card-accent"></div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <div class="lbl" style="margin-bottom:0">Señal JJ. Montoya</div>
-          <span style="font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--purple);background:rgba(167,139,250,.08);padding:2px 6px;border-radius:2px;border:1px solid rgba(167,139,250,.2)">LECTURA MANUAL</span>
-        </div>
-        <div class="signal-block">
-          <div class="signal-title">Estructura de volatilidad</div>
-          <div class="signal-text" id="vix-divergence-text">VVIX al alza mientras VIX cae = <strong>institucionales posicionando protección de cola</strong> antes de que el VIX reaccione. Señal de cautela avanzada.</div>
-        </div>
-        <div class="signal-block">
-          <div class="signal-title">Gamma exposure S&P</div>
-          <div class="signal-text" id="jj-gamma-text" contenteditable="true" spellcheck="false" style="outline:none;cursor:text;border-bottom:1px dashed rgba(167,139,250,.2)" title="Haz clic para editar · Se guarda automáticamente"></div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:6px;border-top:1px solid var(--border)">
-          <div style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Fuente: jjmontoya.substack.com</div>
-          <a href="https://jjmontoya.substack.com" target="_blank" style="font-size:8px;color:var(--purple);font-family:'IBM Plex Mono',monospace;text-decoration:none;border:1px solid rgba(167,139,250,.25);padding:2px 7px;border-radius:3px">Abrir →</a>
-        </div>
-      </div>
-    </div>
   </div>
-
-  <!-- FLUJOS INSTITUCIONALES -->
-  <div class="sh"><div class="sh-tag">Flujos</div><div class="sh-title">Posicionamiento Institucional</div><div class="sh-line"></div></div>
-  <div class="g3">
-    <div class="card"><div class="card-accent amber-a" style="position:relative;height:2px;background:var(--amber)"></div>
-      <div class="lbl">CTAs — Trend Following</div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
-        <div class="flow-row"><span class="flow-label">Posición S&P</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
-        <div class="flow-row"><span class="flow-label">Flujo proyectado</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val down" style="font-size:11px">—</span></div>
-        <div class="flow-row"><span class="flow-label">Sesgo semana</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val down" style="font-size:11px">Venta</span></div>
-      </div>
-      <div style="margin-top:8px;padding:6px;background:rgba(248,113,113,.06);border-radius:4px;font-size:9px;color:var(--text2)">Si vol diaria > 1% durante 3 días seguidos → venta automática de $18B adicionales.</div>
-    </div>
-    <div class="card">
-      <div class="lbl">Vol Control Funds</div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
-        <div class="flow-row"><span class="flow-label">Vol realizada 1M</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
-        <div class="flow-row"><span class="flow-label">Umbral de ajuste</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
-        <div class="flow-row"><span class="flow-label">Exposición equity</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">Neutral</span></div>
-      </div>
-      <div style="margin-top:8px;padding:6px;background:rgba(251,191,36,.06);border-radius:4px;font-size:9px;color:var(--text2)">Cerca del umbral. Si cruza, los fondos reducen exposición automáticamente.</div>
-    </div>
-    <div class="card">
-      <div class="lbl">Gamma Dealers</div>
-      <div style="display:flex;flex-direction:column;gap:5px;margin-top:8px">
-        <div class="flow-row"><span class="flow-label">Gamma total</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val down" style="font-size:11px">—</span></div>
-        <div class="flow-row"><span class="flow-label">Put wall (soporte)</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val neu" style="font-size:11px">—</span></div>
-        <div class="flow-row"><span class="flow-label">Call wall (resist.)</span><div class="flow-bar-wrap"><div class="flow-fill" style="width:0%;background:var(--border2)"></div></div><span class="flow-val up" style="font-size:11px">—</span></div>
-      </div>
-      <div style="margin-top:8px;padding:6px;background:rgba(248,113,113,.06);border-radius:4px;font-size:9px;color:var(--text2)">Gamma negativa → dealers amplifican movimientos. Break de 4,700 = caída acelerada.</div>
-    </div>
-  </div>
+  <!-- Regla "100% automático" 2026-07-07: removidos bloque "Señal JJ. Montoya" (lectura
+       manual editable) y sección "Flujos Institucionales" (CTAs / Vol Control / Gamma —
+       sin API gratuita, cards siempre en "—" con narrativas fijas de abril). -->
 </div>
 
 
@@ -3574,27 +3524,24 @@ function updateMarketBreadth(prices) {
 // ── Economic Calendar (FRED Releases) ──
 // Consensus map: top releases macro USA — actualizar weekly antes del lunes.
 // Matching por keyword en el `name` del release que devuelve FRED.
+// Regla "100% automático" 2026-07-07: removidos cons/prev (estimaciones manuales que
+// caducaban semanalmente — llevaban congeladas desde abril). Se preserva el mapeo de
+// nombres largos FRED → etiqueta corta, que es estático y no caduca.
 const CONSENSUS_MAP = [
-  // Inflación
-  { keys: ['Consumer Price Index'], short: 'CPI', cons: '+2.6% YoY · +0.2% MoM', prev: '+2.7% YoY · +0.3% MoM' },
-  { keys: ['Personal Income and Outlays', 'Personal Consumption Expenditures'], short: 'PCE', cons: 'Core +2.8% YoY', prev: 'Core +2.9% YoY' },
-  { keys: ['Producer Price Index'], short: 'PPI', cons: '+2.4% YoY · +0.2% MoM', prev: '+2.5% YoY · +0.4% MoM' },
-  // Empleo
-  { keys: ['Employment Situation'], short: 'NFP', cons: '+170k · UR 4.1%', prev: '+150k · UR 4.1%' },
-  { keys: ['Job Openings and Labor Turnover'], short: 'JOLTS', cons: '7.6M openings', prev: '7.5M openings' },
-  { keys: ['Unemployment Insurance Weekly Claims'], short: 'Initial Claims', cons: '215K', prev: '220K' },
-  { keys: ['ADP National Employment'], short: 'ADP', cons: '+155k', prev: '+140k' },
-  // Crecimiento
-  { keys: ['Gross Domestic Product'], short: 'GDP', cons: '+2.1% QoQ ann.', prev: '+2.4% QoQ ann.' },
-  { keys: ['Advance Monthly Sales for Retail Trade', 'Retail Sales'], short: 'Retail Sales', cons: '+0.3% MoM', prev: '+0.6% MoM' },
-  { keys: ['Industrial Production'], short: 'IP', cons: '+0.2% MoM', prev: '+0.4% MoM' },
-  { keys: ['New Residential Construction', 'Housing Starts'], short: 'Housing Starts', cons: '1.36M SAAR', prev: '1.42M SAAR' },
-  // Sentiment
-  { keys: ['Surveys of Consumers', 'University of Michigan'], short: 'U-Mich', cons: '67.5', prev: '69.1' },
-  // Fed
-  { keys: ['FOMC', 'Federal Open Market Committee'], short: 'FOMC', cons: 'Hold 4.25-4.50%', prev: 'Hold 4.25-4.50%' },
+  { keys: ['Consumer Price Index'], short: 'CPI' },
+  { keys: ['Personal Income and Outlays', 'Personal Consumption Expenditures'], short: 'PCE' },
+  { keys: ['Producer Price Index'], short: 'PPI' },
+  { keys: ['Employment Situation'], short: 'NFP' },
+  { keys: ['Job Openings and Labor Turnover'], short: 'JOLTS' },
+  { keys: ['Unemployment Insurance Weekly Claims'], short: 'Initial Claims' },
+  { keys: ['ADP National Employment'], short: 'ADP' },
+  { keys: ['Gross Domestic Product'], short: 'GDP' },
+  { keys: ['Advance Monthly Sales for Retail Trade', 'Retail Sales'], short: 'Retail Sales' },
+  { keys: ['Industrial Production'], short: 'IP' },
+  { keys: ['New Residential Construction', 'Housing Starts'], short: 'Housing Starts' },
+  { keys: ['Surveys of Consumers', 'University of Michigan'], short: 'U-Mich' },
+  { keys: ['FOMC', 'Federal Open Market Committee'], short: 'FOMC' },
 ];
-const CONSENSUS_UPDATED = '2026-04-26'; // refrescar weekly
 
 // SPY Trailing Earnings Yield (S&P 500 trailing E/P)
 // Source: https://www.multpl.com/s-p-500-earnings-yield  (refresh manually each month)
@@ -4029,8 +3976,8 @@ function renderEconCalendar(data) {
       const dotColor = e.impact === 'high' ? 'var(--red)' : e.impact === 'med' ? 'var(--amber)' : 'var(--green)';
       const c = matchConsensus(e.name);
       const labelText = c ? c.short : e.name;
-      const consBadge = c ? `<div style="font-size:11px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding-left:11px;line-height:1.45;letter-spacing:.02em">cons <span style="color:var(--gold)">${c.cons}</span><br>prev ${c.prev}</div>` : '';
-      const titleText = c ? `${e.name} · cons: ${c.cons} · prev: ${c.prev} (est. ${CONSENSUS_UPDATED})` : (e.desc || e.name);
+      const consBadge = ''; // cons/prev removidos (regla 100% automático — eran manuales de abril)
+      const titleText = e.desc || e.name;
       return `<div style="padding:3px 0" title="${titleText}">
         <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text)">
           <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${dotColor};flex-shrink:0"></span>
@@ -4544,12 +4491,19 @@ function updateVolatility(prices) {
     }
 
     if (vvix) {
+      // Banner de divergencia COMPUTADO (antes había un banner estático "SEÑAL ACTIVA" fijo)
       const divergence = vvix.chg1m > 5 && vix.chg1m < 0;
-      const divEl = document.getElementById('vix-divergence-text');
-      if (divEl) {
-        divEl.innerHTML = divergence
-          ? `VVIX al alza (+${vvix.chg1m}%) mientras VIX cae (${vix.chg1m}%) = <strong>institucionales posicionando protección de cola</strong> antes de que el VIX reaccione. Señal de cautela avanzada.`
-          : `VIX ${vix.chg1m >= 0 ? '+' : ''}${vix.chg1m}% · VVIX ${vvix.chg1m >= 0 ? '+' : ''}${vvix.chg1m}% (1 mes) — sin divergencia activa.`;
+      const bannerEl = document.getElementById('vix-divergence-banner');
+      const noneEl   = document.getElementById('vix-no-divergence');
+      if (bannerEl && noneEl) {
+        bannerEl.style.display = divergence ? 'block' : 'none';
+        noneEl.style.display   = divergence ? 'none'  : 'block';
+        if (divergence) {
+          const det = document.getElementById('vix-divergence-detail');
+          if (det) det.innerHTML = `VVIX al alza (+${vvix.chg1m}%) mientras VIX cae (${vix.chg1m}%) → institucionales comprando protección de cola antes de que el VIX reaccione.`;
+        } else {
+          noneEl.textContent = `Sin divergencia VIX/VVIX activa · VIX ${vix.chg1m >= 0 ? '+' : ''}${vix.chg1m}% · VVIX ${vvix.chg1m >= 0 ? '+' : ''}${vvix.chg1m}% (1 mes).`;
+        }
       }
     }
   }
@@ -7119,17 +7073,6 @@ function updateNextEvents() {
   if (pmiEl) pmiEl.textContent = `${pmi.getDate()} ${MES[pmi.getMonth()]}`;
 }
 updateNextEvents();
-
-// ── JJ Montoya — texto gamma editable (guarda en localStorage) ──
-(function() {
-  const el  = document.getElementById('jj-gamma-text');
-  if (!el) return;
-  const KEY = 'jj-gamma-v1';
-  const DEFAULT_HTML = 'Dealers con <strong>gamma negativa</strong> en zona clave. Si SPX rompe el soporte, los dealers se ven forzados a vender. <em style="color:var(--purple);font-size:8px">· Clic para actualizar nivel</em>';
-  el.innerHTML = localStorage.getItem(KEY) || DEFAULT_HTML;
-  el.addEventListener('blur',    () => localStorage.setItem(KEY, el.innerHTML));
-  el.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); el.blur(); } });
-})();
 
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {

@@ -201,11 +201,12 @@ module.exports = async (req, res) => {
       // FRED API: release_id va como QUERY PARAM, no en el path.
       // include_release_dates_with_no_data=true devuelve fechas futuras programadas.
       // sort_order=asc para tener primero las fechas más cercanas.
-      // BUG FIX 2026-07-07: era sort_order=desc → traía las 8 fechas MÁS LEJANAS del
-      // schedule (realtime_start default = hoy), dejando fuera las próximas 2 semanas
-      // en releases semanales. asc = las 8 más cercanas desde hoy (lo que dice el comentario).
+      // BUG FIX 2026-07-07 (definitivo): sin realtime_* explícitos, FRED release/dates
+      // devuelve fechas desde el inicio del año/histórico — ni asc ni desc caían en la
+      // ventana próxima y el calendario vivía 100% del static. Ventana explícita:
       const url = `${FRED_BASE}?release_id=${rel.id}&api_key=${apiKey}&file_type=json`
-        + `&include_release_dates_with_no_data=true&sort_order=asc&limit=8`;
+        + `&include_release_dates_with_no_data=true&sort_order=asc&limit=15`
+        + `&realtime_start=${todayStr}&realtime_end=${futureStr}`;
       const response = await fetchWithTimeout(url);
       if (!response.ok) {
         errors.push(`${rel.name}=HTTP ${response.status}`);
