@@ -149,7 +149,7 @@ const STATIC_EVENTS = [
   { date: '2026-12-23', name: 'PCE Nov',            tag: 'inflation', impact: 'high', desc: 'PCE Price Index Nov (Fed preferred)' },
   { date: '2026-12-23', name: 'Initial Claims',     tag: 'employ',    impact: 'med',  desc: 'Weekly Claims (adelantado por Navidad)' },
 ];
-const STATIC_EVENTS_UPDATED = '2026-04-27'; // refrescar trimestralmente
+const STATIC_EVENTS_UPDATED = '2026-07-07'; // refrescar trimestralmente (próximo: 2026-10-01)
 
 const FETCH_TIMEOUT_MS = 6000;
 
@@ -189,8 +189,14 @@ module.exports = async (req, res) => {
   const tStart = Date.now();
   const errors = [];
 
-  // Procesa todos los releases en paralelo (12 releases, OK en límite FRED)
-  await Promise.all(RELEASES.map(async (rel) => {
+  // Procesa releases en lotes de 6 (12 simultáneos disparaban throttling FRED →
+  // "operation was aborted" en 2-3 releases por request. Mismo patrón que api/fred.js)
+  const CHUNK = 6;
+  const chunks = [];
+  for (let i = 0; i < RELEASES.length; i += CHUNK) chunks.push(RELEASES.slice(i, i + CHUNK));
+  for (const [ci, chunk] of chunks.entries()) {
+    if (ci > 0) await new Promise(r => setTimeout(r, 400));
+    await Promise.all(chunk.map(async (rel) => {
     try {
       // FRED API: release_id va como QUERY PARAM, no en el path.
       // include_release_dates_with_no_data=true devuelve fechas futuras programadas.
@@ -232,7 +238,8 @@ module.exports = async (req, res) => {
       errors.push(`${rel.name}=${e.message}`);
       console.warn(`[FRED-Cal] release ${rel.id} (${rel.name}) error: ${e.message}`);
     }
-  }));
+    }));
+  }
 
   // Marcar source de los eventos FRED
   results.forEach(r => { r.source = 'fred'; });
