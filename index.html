@@ -2016,6 +2016,29 @@ html.auth-ok #auth-gate{display:none}
        FIN del Opportunity Scanner — sigue contenido legacy
   ══════════════════════════════════════════════════ -->
 
+  <!-- ══════════════════════════════════════════════════
+       ROTACION DE CAPITAL · RRG (Relative Rotation Graph)
+       100% automatico: computado del hist Yahoo ya cargado (11 sectores vs SPY).
+       Eje X: fuerza relativa vs su tendencia de 26 semanas (RS-Ratio, centro 100)
+       Eje Y: momentum de esa fuerza a 4 semanas (RS-Momentum, centro 100)
+       Estela: 6 semanas. Agregado 2026-07-07.
+  ══════════════════════════════════════════════════ -->
+  <div class="sh"><div class="sh-tag">Rotación</div><div class="sh-title">Rotación de Capital — ¿Hacia dónde se mueve el dinero?</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('rotacion-capital')" title="¿Qué es esto?">?</button></div>
+  <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
+    <div id="rot-signal" style="padding:8px 10px;background:var(--surface2);border-radius:6px;margin-bottom:10px;font-size:11px;color:var(--text2);line-height:1.6">Calculando rotación sectorial…</div>
+    <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;align-items:start" id="rot-grid">
+      <div>
+        <div style="position:relative"><div class="ch-wrap" style="height:400px"><canvas id="rotationChart" role="img" aria-label="Cuadrante de rotación sectorial">RRG chart.</canvas></div></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace">
+          <span style="color:#4ade80">■ LÍDER (fuerte y acelerando)</span>
+          <span style="color:#fbbf24">■ DEBILITÁNDOSE (fuerte, frenando)</span>
+          <span style="color:#f87171">■ REZAGADO (débil, frenando)</span>
+          <span style="color:#2dd4bf">■ MEJORANDO (débil, acelerando)</span>
+        </div>
+      </div>
+      <div id="rot-table"></div>
+    </div>
+  </div>
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
 
   <!-- RANGE SELECTOR -->
@@ -2629,6 +2652,7 @@ function go(id,el){
   el.classList.add('active');
   if (id === 'tecnico') initTechTab();
   if (id === 'tesis') generateTesisIA();
+  if (id === 'act') setTimeout(renderCapitalRotation, 60);
 
   // ── Lifecycle Opportunity Scanner (Tab 02 ACTIVOS) — init/destroy lazy ──
   // Solo se inicializa al entrar; se destruye al salir para liberar timers y no consumir API calls.
@@ -4304,6 +4328,7 @@ function sortETFTable(col) {
     if (arrow) arrow.textContent = _etfSort.dir === 'desc' ? ' ▼' : ' ▲';
   }
   if (state.data.prices) updateETFTable(state.data.prices);
+  if (state.charts.rotation && document.getElementById('tab-act')?.classList.contains('active')) renderCapitalRotation();
 }
 
 function _getSortedTickers(prices) {
@@ -7367,10 +7392,190 @@ function updateTechSignals(ticker) {
 }
 
 // ══════════════════════════════════
+// ROTACION DE CAPITAL (RRG) — 100% computado del hist Yahoo (2026-07-07)
+// RS-Ratio = 100 * (ratio sector/SPY) / SMA26sem(ratio) · RS-Mom = 100 * RSR / RSR[4sem atras]
+// ══════════════════════════════════
+const ROT_SECTORS = { XLK:'Tecnología', XLF:'Financieros', XLV:'Salud', XLE:'Energía', XLP:'Consumo Básico', XLU:'Utilities', XLB:'Materiales', XLI:'Industriales', XLC:'Comunicaciones', XLY:'Cons. Discrec.', XLRE:'Real Estate' };
+const ROT_GROUPS  = { defensivo:['XLP','XLU','XLV'], ciclico:['XLK','XLY','XLC','XLF','XLI'], lateCiclo:['XLE','XLB'] };
+
+function computeRotation() {
+  const prices = state.data.prices || {};
+  const spy = prices.SPY;
+  if (!spy?.hist?.length) return null;
+  const WEEK = 5, SMA_W = 26, MOM_W = 4, TAIL = 6;
+  const out = [];
+  for (const [tk, name] of Object.entries(ROT_SECTORS)) {
+    const sec = prices[tk];
+    if (!sec?.hist?.length) continue;
+    const n = Math.min(sec.hist.length, spy.hist.length);
+    if (n < WEEK * (SMA_W + MOM_W + TAIL)) continue; // ~180 barras minimo
+    const sH = sec.hist.slice(-n), pH = spy.hist.slice(-n);
+    // muestreo semanal desde el final
+    const ratio = [];
+    for (let i = n - 1; i >= 0; i -= WEEK) {
+      if (pH[i] > 0) ratio.unshift(sH[i] / pH[i]);
+    }
+    if (ratio.length < SMA_W + MOM_W + 2) continue;
+    // RS-Ratio: ratio vs su SMA de 26 muestras semanales
+    const rsr = [];
+    for (let i = SMA_W - 1; i < ratio.length; i++) {
+      let sum = 0;
+      for (let j = i - SMA_W + 1; j <= i; j++) sum += ratio[j];
+      const sma = sum / SMA_W;
+      rsr.push(sma > 0 ? 100 * ratio[i] / sma : 100);
+    }
+    // RS-Momentum: RSR vs RSR de hace 4 semanas
+    const pts = [];
+    for (let i = MOM_W; i < rsr.length; i++) {
+      if (rsr[i - MOM_W] > 0) pts.push({ x: rsr[i], y: 100 * rsr[i] / rsr[i - MOM_W] });
+    }
+    if (pts.length < 2) continue;
+    const tail = pts.slice(-TAIL);
+    const last = tail[tail.length - 1];
+    const quad = last.x >= 100 && last.y >= 100 ? 'lider'
+               : last.x >= 100 && last.y <  100 ? 'debilitandose'
+               : last.x <  100 && last.y >= 100 ? 'mejorando' : 'rezagado';
+    out.push({ tk, name, tail, last, quad });
+  }
+  return out.length ? out : null;
+}
+
+const ROT_QUAD_META = {
+  lider:         { col: '#4ade80', lbl: 'LÍDER' },
+  debilitandose: { col: '#fbbf24', lbl: 'DEBILITÁNDOSE' },
+  rezagado:      { col: '#f87171', lbl: 'REZAGADO' },
+  mejorando:     { col: '#2dd4bf', lbl: 'MEJORANDO' }
+};
+
+const rotQuadrantPlugin = {
+  id: 'rotQuadrants',
+  beforeDraw(chart) {
+    const { ctx, chartArea: a, scales: { x, y } } = chart;
+    if (!a) return;
+    const cx = x.getPixelForValue(100), cy = y.getPixelForValue(100);
+    const tint = (x0, y0, x1, y1, color) => { ctx.fillStyle = color; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); };
+    tint(cx, a.top, a.right, cy, 'rgba(74,222,128,.045)');   // lider
+    tint(cx, cy, a.right, a.bottom, 'rgba(251,191,36,.045)'); // debilitandose
+    tint(a.left, cy, cx, a.bottom, 'rgba(248,113,113,.045)'); // rezagado
+    tint(a.left, a.top, cx, cy, 'rgba(45,212,191,.045)');     // mejorando
+    ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx, a.top); ctx.lineTo(cx, a.bottom); ctx.moveTo(a.left, cy); ctx.lineTo(a.right, cy); ctx.stroke();
+  },
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    ctx.font = "9px 'IBM Plex Mono', monospace";
+    chart.data.datasets.forEach((ds, i) => {
+      if (!ds._rotTicker) return;
+      const meta = chart.getDatasetMeta(i);
+      const el = meta.data[meta.data.length - 1];
+      if (!el) return;
+      ctx.fillStyle = ds.borderColor;
+      ctx.fillText(ds._rotTicker, el.x + 7, el.y - 6);
+    });
+  }
+};
+
+function renderCapitalRotation() {
+  const data = computeRotation();
+  const sigEl = document.getElementById('rot-signal');
+  const cv = document.getElementById('rotationChart');
+  if (!cv) return;
+  if (!data) { if (sigEl) sigEl.textContent = 'Datos insuficientes para computar rotación (requiere ~9 meses de histórico Yahoo).'; return; }
+
+  // rango simetrico alrededor de 100
+  let span = 0;
+  data.forEach(d => d.tail.forEach(pt => { span = Math.max(span, Math.abs(pt.x - 100), Math.abs(pt.y - 100)); }));
+  span = Math.max(span * 1.25, 2);
+
+  const datasets = data.map(d => ({
+    label: d.name, _rotTicker: d.tk,
+    data: d.tail,
+    showLine: true, borderWidth: 1.5, tension: .3,
+    borderColor: ROT_QUAD_META[d.quad].col,
+    backgroundColor: ROT_QUAD_META[d.quad].col,
+    pointRadius: d.tail.map((_, i) => i === d.tail.length - 1 ? 5 : 2),
+    pointHoverRadius: 6,
+    segment: { borderColor: c => ROT_QUAD_META[d.quad].col + '88' }
+  }));
+
+  if (state.charts.rotation) { state.charts.rotation.destroy(); }
+  state.charts.rotation = new Chart(cv, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+      scales: {
+        x: { min: 100 - span, max: 100 + span, grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 } }, title: { display: true, text: 'RS-Ratio · fuerza relativa vs SPY (100 = en tendencia)', color: '#7a716a', font: { size: 9 } } },
+        y: { min: 100 - span, max: 100 + span, grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 } }, title: { display: true, text: 'RS-Momentum · aceleración 4 sem', color: '#7a716a', font: { size: 9 } } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => {
+          const d = data[ctx.datasetIndex];
+          return `${d.name} (${d.tk}) · RS ${ctx.parsed.x.toFixed(1)} · Mom ${ctx.parsed.y.toFixed(1)} · ${ROT_QUAD_META[d.quad].lbl}`;
+        } } }
+      }
+    },
+    plugins: [rotQuadrantPlugin]
+  });
+
+  // ── tabla lateral ordenada por "hacia donde va el dinero" ──
+  const order = { mejorando: 0, lider: 1, debilitandose: 2, rezagado: 3 };
+  const sorted = [...data].sort((a, b) => order[a.quad] - order[b.quad] || b.last.y - a.last.y);
+  const tbl = document.getElementById('rot-table');
+  if (tbl) {
+    tbl.innerHTML = '<div class="lbl" style="margin-bottom:6px">Sectores por cuadrante</div>' + sorted.map(d => {
+      const m = ROT_QUAD_META[d.quad];
+      const flow = d.quad === 'mejorando' || d.quad === 'lider' ? '→ entra' : '← sale';
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:2px solid ${m.col}">
+        <span style="font-size:10px;color:var(--text)">${d.tk} <span style="color:var(--text3);font-size:9px">${d.name}</span></span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${m.col}">${m.lbl} ${flow}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── señal integrada con el ciclo (Howell/Stovall) ──
+  if (sigEl) {
+    const inQuad = (grp, quads) => ROT_GROUPS[grp].filter(t => { const d = data.find(x => x.tk === t); return d && quads.includes(d.quad); }).length;
+    const defIn  = inQuad('defensivo', ['mejorando', 'lider']);
+    const cycIn  = inQuad('ciclico',   ['mejorando', 'lider']);
+    const cycOut = inQuad('ciclico',   ['debilitandose', 'rezagado']);
+    const lateIn = inQuad('lateCiclo', ['mejorando', 'lider']);
+    const fase = document.getElementById('hero-phase-name')?.textContent || '';
+    const faseDefensiva = /3|4|Squeeze|Contracci/i.test(fase);
+    let head, detail, coherencia = '';
+    if (defIn >= 2 && cycOut >= 3) {
+      head = 'ROTACIÓN DEFENSIVA EN CURSO';
+      detail = `${defIn}/3 defensivos (XLP·XLU·XLV) recibiendo capital mientras ${cycOut}/5 cíclicos lo pierden.`;
+      coherencia = faseDefensiva ? ' <span style="color:var(--green)">✓ CONFIRMA la fase de ciclo actual (' + fase + ').</span>' : ' <span style="color:var(--amber)">⚠ DIVERGE de la fase de ciclo (' + fase + ') — vigilar.</span>';
+    } else if (cycIn >= 3) {
+      head = 'ROTACIÓN PRO-RIESGO';
+      detail = `${cycIn}/5 cíclicos-growth captando capital.`;
+      coherencia = faseDefensiva ? ' <span style="color:var(--amber)">⚠ DIVERGE de la fase defensiva del ciclo (' + fase + ') — el mercado desafía al macro.</span>' : ' <span style="color:var(--green)">✓ Coherente con la fase del ciclo.</span>';
+    } else if (lateIn >= 2) {
+      head = 'ROTACIÓN LATE-CYCLE';
+      detail = 'Energía y Materiales captando capital — patrón típico de final de ciclo/inflación.';
+    } else {
+      head = 'SIN ROTACIÓN DOMINANTE';
+      detail = 'El capital no muestra una dirección sectorial clara esta semana.';
+    }
+    sigEl.innerHTML = `<span class="mono" style="font-size:9px;letter-spacing:.08em;color:var(--gold)">${head}</span><br>${detail}${coherencia} <span style="color:var(--text3);font-size:9px">· Computado en vivo: RS vs SPY 26 sem + momentum 4 sem, estela 6 sem.</span>`;
+  }
+}
+
+// ══════════════════════════════════
 // GLOSARIO DE INDICADORES (scope global)
 // Cada entry: name, category, source, formula, interpretation, thresholds[], note
 // ══════════════════════════════════
 const INDICATORS_GLOSSARY = {
+  'rotacion-capital': {
+    name: 'Rotación de Capital (RRG)', category: 'Sectores',
+    source: { label: 'Computado: Yahoo Finance (11 SPDRs vs SPY)', url: 'https://finance.yahoo.com', freq: 'Diario' },
+    formula: 'RS-Ratio = 100 × (sector/SPY) ÷ SMA 26 sem del ratio · RS-Momentum = 100 × RS-Ratio ÷ RS-Ratio de hace 4 sem',
+    interpretation: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
+    thresholds: ['X>100 & Y>100 → Líder', 'X<100 & Y>100 → Mejorando (dinero entrando)', 'X>100 & Y<100 → Debilitándose (dinero saliendo)', 'X<100 & Y<100 → Rezagado'],
+    note: 'La estela muestra 6 semanas de trayectoria. Señal integrada: se cruza con la fase Howell — rotación defensiva + fase Squeeze/Contracción = confirmación macro.'
+  },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {
     name: 'Reservas Bancarias Fed',
