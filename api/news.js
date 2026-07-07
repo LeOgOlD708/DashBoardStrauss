@@ -85,7 +85,6 @@ function getSource(feedUrl) {
   if (feedUrl.includes('coindesk'))    return 'CoinDesk';
   if (feedUrl.includes('cointelegraph')) return 'CoinTelegraph';
   if (feedUrl.includes('fxstreet'))    return 'FXStreet';
-  if (feedUrl.includes('seekingalpha')) return 'Seeking Alpha';
   return 'News';
 }
 

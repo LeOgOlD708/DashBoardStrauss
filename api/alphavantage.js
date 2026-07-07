@@ -19,6 +19,16 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'ALPHA_VANTAGE_KEY no configurada en Vercel' });
   }
 
+  // Whitelist: sin esto el endpoint era un proxy abierto a TODA la API de Alpha Vantage
+  // con nuestra key (cualquiera podía quemar la cuota). Ampliar solo si se usa otra función.
+  const ALLOWED_FUNCTIONS = ['SECTOR', 'ETF_PROFILE'];
+  if (!ALLOWED_FUNCTIONS.includes(func)) {
+    return res.status(400).json({ error: `Función no permitida: ${func}` });
+  }
+  if (symbol && !/^[A-Za-z.\-]{1,10}$/.test(symbol)) {
+    return res.status(400).json({ error: 'symbol inválido' });
+  }
+
   // Construir URL según la función solicitada
   let url = `https://www.alphavantage.co/query?function=${func}&apikey=${apiKey}`;
   if (symbol) url += `&symbol=${symbol}`;

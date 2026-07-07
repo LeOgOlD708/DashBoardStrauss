@@ -11,8 +11,13 @@ module.exports = async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY no configurada en Vercel' });
 
-  const { message, history = [], systemPrompt = '' } = req.body || {};
-  if (!message) return res.status(400).json({ error: 'Falta el campo message' });
+  const body = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
+  const { message, history = [], systemPrompt = '' } = body;
+  if (!message || typeof message !== 'string') return res.status(400).json({ error: 'Falta el campo message' });
+  // Límites anti-abuso: el endpoint es público (auth es client-side) y quema cuota Gemini
+  if (message.length > 5000) return res.status(400).json({ error: 'message: máximo 5000 caracteres' });
+  if (!Array.isArray(history) || history.length > 20) return res.status(400).json({ error: 'history: máximo 20 turnos' });
+  if (typeof systemPrompt === 'string' && systemPrompt.length > 8000) return res.status(400).json({ error: 'systemPrompt demasiado largo' });
 
   // Build multi-turn contents array (last 10 turns max to control tokens)
   const recentHistory = history.slice(-10);
@@ -30,6 +35,7 @@ module.exports = async (req, res) => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(8000), // Vercel free mata la función a ~10s: fallar con mensaje claro antes
         body: JSON.stringify({
           contents,
           ...(systemPrompt && { systemInstruction: { parts: [{ text: systemPrompt }] } }),

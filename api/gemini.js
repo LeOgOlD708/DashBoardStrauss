@@ -17,6 +17,13 @@ module.exports = async (req, res) => {
   if (!ticker || !sectorName) {
     return res.status(400).json({ error: 'Faltan campos: ticker y sectorName son obligatorios' });
   }
+  // Límites anti-abuso: endpoint público que quema cuota Gemini
+  if (String(ticker).length > 10 || String(sectorName).length > 100) {
+    return res.status(400).json({ error: 'ticker/sectorName exceden longitud permitida' });
+  }
+  if (!Array.isArray(holdings) || holdings.length > 20 || holdings.some(h => String(h).length > 12)) {
+    return res.status(400).json({ error: 'holdings: máximo 20 items de 12 chars' });
+  }
 
   const holdingsTxt = Array.isArray(holdings) && holdings.length
     ? holdings.join(', ')
@@ -39,6 +46,7 @@ Formato exigido: 3 líneas que comiencen con "• " y nada más.`;
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(8000), // Vercel free mata a ~10s: fallar claro antes
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: { maxOutputTokens: 350, temperature: 0.3 }

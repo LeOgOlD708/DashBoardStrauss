@@ -112,8 +112,10 @@ module.exports = async (req, res) => {
     });
   }
 
-  const { series, limit = '52' } = req.query;
+  const { series } = req.query;
   if (!series) return res.status(400).json({ error: 'Falta el parámetro ?series=' });
+  // limit numérico acotado 1-200 (si llega basura → default 52 en vez del error opaco de FRED)
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 52, 1), 200);
 
   const seriesList = series.split(',').map(s => s.trim()).filter(Boolean);
   const cacheKey = [...seriesList].sort().join(',') + '|' + limit;
