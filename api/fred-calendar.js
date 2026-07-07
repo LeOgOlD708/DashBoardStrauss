@@ -189,11 +189,20 @@ module.exports = async (req, res) => {
   const tStart = Date.now();
   const errors = [];
 
-  // Procesa releases en lotes de 6 (12 simultáneos disparaban throttling FRED →
-  // "operation was aborted" en 2-3 releases por request. Mismo patrón que api/fred.js)
+  // ARQUITECTURA 2026-07-07 (v2): STATIC-PRIMERO, FRED COMO FAILSAFE POR TAG.
+  // Verificado empíricamente: fred/release/dates con realtime window devuelve vintages
+  // ("FOMC" el 7-9 jul cuando la reunión real es 28-29; "IP" 3 días seguidos siendo
+  // mensual) y nombres que rompen el dedup ("CPI" vs "CPI Jun" → duplicado visible).
+  // El STATIC curado trae fechas OFICIALES (PFEI/BLS/Fed) → manda. FRED solo cubre
+  // tags sin cobertura static en la ventana (failsafe si el static queda stale).
+  const staticInWindow = STATIC_EVENTS.filter(e => e.date >= todayStr && e.date <= futureStr);
+  const staticTags = new Set(staticInWindow.map(e => e.tag));
+  const releasesToFetch = RELEASES.filter(r => !staticTags.has(r.tag));
+
+  // Procesa releases en lotes de 6 (12 simultáneos disparaban throttling FRED)
   const CHUNK = 6;
   const chunks = [];
-  for (let i = 0; i < RELEASES.length; i += CHUNK) chunks.push(RELEASES.slice(i, i + CHUNK));
+  for (let i = 0; i < releasesToFetch.length; i += CHUNK) chunks.push(releasesToFetch.slice(i, i + CHUNK));
   for (const [ci, chunk] of chunks.entries()) {
     if (ci > 0) await new Promise(r => setTimeout(r, 400));
     await Promise.all(chunk.map(async (rel) => {
@@ -220,11 +229,12 @@ module.exports = async (req, res) => {
         return;
       }
       const dates = data.release_dates || [];
-      // Filtrar a la ventana hoy → +14 días, quedarnos con las próximas
+      // Filtrar a la ventana hoy → +14 días. Máximo 2 por release (guard anti-ruido:
+      // los vintages diarios de FRED inflan releases mensuales a 3+ fechas seguidas)
       const upcoming = dates
         .filter(d => d.date >= todayStr && d.date <= futureStr)
         .sort((a, b) => a.date.localeCompare(b.date))
-        .slice(0, 3);
+        .slice(0, 2);
       upcoming.forEach(d => {
         results.push({
           date: d.date,
@@ -242,22 +252,13 @@ module.exports = async (req, res) => {
     }));
   }
 
-  // Marcar source de los eventos FRED
+  // Marcar source de los eventos FRED (solo tags SIN cobertura static — cero solapamiento)
   results.forEach(r => { r.source = 'fred'; });
 
-  // Merge con STATIC_EVENTS — solo agregar los que NO están ya en FRED.
-  // Dedup por (date + name normalizado) — si FRED ya lo trajo, prevalece.
-  const fredKeys = new Set(results.map(r => `${r.date}|${r.name.toLowerCase().trim()}`));
-  const staticInWindow = STATIC_EVENTS.filter(e =>
-    e.date >= todayStr && e.date <= futureStr
-  );
   let staticAdded = 0;
   for (const ev of staticInWindow) {
-    const key = `${ev.date}|${ev.name.toLowerCase().trim()}`;
-    if (!fredKeys.has(key)) {
-      results.push({ ...ev, source: 'static' });
-      staticAdded++;
-    }
+    results.push({ ...ev, source: 'static' });
+    staticAdded++;
   }
 
   // Ordenar por fecha ascendente

@@ -7132,43 +7132,50 @@ function updateChecklist() {
   }
 }
 
-// ── Próximos eventos clave — fechas auto-calculadas ──
-const FOMC_DATES = [
-  new Date(2026, 4, 7), new Date(2026, 5, 17), new Date(2026, 6, 29),
-  new Date(2026, 8, 16), new Date(2026, 10, 4), new Date(2026, 11, 16),
-  new Date(2027, 0, 27), new Date(2027, 2, 17), new Date(2027, 4, 5),
-];
-const CPI_DATES = [
-  new Date(2026, 4, 13), new Date(2026, 5, 11), new Date(2026, 6, 15),
-  new Date(2026, 7, 12), new Date(2026, 8, 10), new Date(2026, 9, 15),
-  new Date(2026, 10, 13), new Date(2026, 11, 10),
-];
-function updateNextEvents() {
-  const now  = new Date();
+// ── Próximos eventos clave — leídos del calendario API (single source of truth) ──
+// BUG FIX 2026-07-07: había arrays FOMC_DATES/CPI_DATES propios con fechas ERRÓNEAS
+// (CPI 15-jul vs real 14-jul; FOMC 4-nov/16-dic vs reales 28-oct/9-dic). Ahora lee
+// /api/fred-calendar (mismo dato que el calendario del CMD). Fallback: fechas
+// oficiales verificadas (Fed calendar + BLS PFEI CY2026).
+const FOMC_FALLBACK = ['2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09', '2027-01-27'];
+const CPI_FALLBACK  = ['2026-07-14', '2026-08-12', '2026-09-11', '2026-10-14', '2026-11-10', '2026-12-10'];
+async function updateNextEvents() {
   const MES  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
-  const fmt  = d => `${DIAS[d.getDay()].charAt(0).toUpperCase()+DIAS[d.getDay()].slice(1)} ${d.getDate()} ${MES[d.getMonth()]}`;
+  const fmt  = iso => { const d = new Date(iso + 'T12:00:00'); return `${DIAS[d.getDay()].charAt(0).toUpperCase()+DIAS[d.getDay()].slice(1)} ${d.getDate()} ${MES[d.getMonth()]}`; };
+  const todayIso = new Date().toISOString().slice(0, 10);
 
-  // Reservas Fed: cada jueves (H.4.1)
-  const thu = new Date(now);
+  // Reservas Fed: cada jueves (H.4.1) — determinístico
+  const thu = new Date();
   const daysToThu = ((4 - thu.getDay()) + 7) % 7 || 7;
   thu.setDate(thu.getDate() + daysToThu);
-
-  // PMI China: último día del mes actual o siguiente si ya pasó
-  const eom = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  const pmi = eom > now ? eom : new Date(now.getFullYear(), now.getMonth() + 2, 0);
-
-  const nextFOMC = FOMC_DATES.find(d => d > now);
-  const nextCPI  = CPI_DATES.find(d => d > now);
-
   const resEl = document.getElementById('evt-res');
+  if (resEl) resEl.textContent = `${DIAS[thu.getDay()].charAt(0).toUpperCase()+DIAS[thu.getDay()].slice(1)} ${thu.getDate()} ${MES[thu.getMonth()]}`;
+
+  let nextCPI = null, nextFOMC = null, nextPCE = null;
+  try {
+    const r = await fetch('/api/fred-calendar');
+    if (r.ok) {
+      const evs = (await r.json()).events || [];
+      nextCPI  = evs.find(e => e.date >= todayIso && /CPI/i.test(e.name))?.date || null;
+      nextFOMC = evs.find(e => e.date >= todayIso && e.tag === 'fed')?.date || null;
+      nextPCE  = evs.find(e => e.date >= todayIso && /PCE/i.test(e.name))?.date || null;
+    }
+  } catch (e) { /* fallback abajo */ }
+  if (!nextCPI)  nextCPI  = CPI_FALLBACK.find(d => d >= todayIso) || null;
+  if (!nextFOMC) nextFOMC = FOMC_FALLBACK.find(d => d >= todayIso) || null;
+
   const cpiEl = document.getElementById('evt-cpi');
   const fedEl = document.getElementById('evt-fed');
   const pmiEl = document.getElementById('evt-pmi');
-  if (resEl) resEl.textContent = fmt(thu);
   if (cpiEl) cpiEl.textContent = nextCPI  ? fmt(nextCPI)  : '—';
-  if (fedEl) fedEl.textContent = nextFOMC ? `${nextFOMC.getDate()} ${MES[nextFOMC.getMonth()]} ${nextFOMC.getFullYear()}` : '—';
-  if (pmiEl) pmiEl.textContent = `${pmi.getDate()} ${MES[pmi.getMonth()]}`;
+  if (fedEl) fedEl.textContent = nextFOMC ? fmt(nextFOMC) : '—';
+  // Fila reciclada: antes "PMI China" (indicador removido) → ahora PCE (Fed preferred)
+  if (pmiEl) {
+    const lbl = pmiEl.parentElement?.querySelector('span');
+    if (lbl && /PMI China/i.test(lbl.textContent)) lbl.textContent = 'PCE (Fed pref.)';
+    pmiEl.textContent = nextPCE ? fmt(nextPCE) : '—';
+  }
 }
 updateNextEvents();
 
