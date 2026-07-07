@@ -2161,38 +2161,38 @@ html.auth-ok #auth-gate{display:none}
     </div>
   </div>
 
+  <!-- Regla "100% automatico" 2026-07-07: narrativas hardcoded (Hormuz/Muro deuda/ciclo 2027,
+       texto de abril) reemplazadas por generacion IA diaria desde los datos en vivo. -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+    <span class="mono" style="font-size:9px;color:var(--text3)" id="tesis-ia-status">Narrativa IA: pendiente</span>
+    <button onclick="generateTesisIA(true)" style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--gold);background:rgba(230,180,80,.08);border:1px solid rgba(230,180,80,.25);padding:3px 10px;border-radius:4px;cursor:pointer">&#8635; Regenerar</button>
+  </div>
   <div class="g3" style="margin-bottom:12px">
     <div class="card red-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--red)">Corto Plazo — 1-4 semanas</div>
-      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px">Crisis Hormuz domina</div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.7">Petróleo $100-104 · Fed paralizada · Mercado solo descuenta inflación — NO el shock de crecimiento que viene. <strong style="color:var(--text)">Ese es el próximo zapato.</strong></div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px" id="tesis-corto-titulo">Generando…</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7" id="tesis-corto-cuerpo">La narrativa se genera con IA a partir de los scores, régimen y precios en vivo.</div>
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px">
         <div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:2px">VIGILAR</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Apertura / cierre Hormuz</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• CPI próximo dato</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Reservas Fed jueves</div>
+        <div id="tesis-corto-bullets"></div>
       </div>
     </div>
     <div class="card amber-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--amber)">Medio Plazo — 1-3 meses</div>
-      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px">La bomba de presión</div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.7">Muro de deuda 2026-2028 + Fed paralizada = refinanciamiento sin soporte. <strong style="color:var(--text)">Cada pump de Trump acumula más presión, no la alivia.</strong></div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px" id="tesis-medio-titulo">Generando…</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7" id="tesis-medio-cuerpo"></div>
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px">
         <div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:2px">RIESGOS</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Muro deuda $40T venciendo</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Desarme basis trade</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Default HY relevante</div>
+        <div id="tesis-medio-bullets"></div>
       </div>
     </div>
     <div class="card green-a"><div class="card-accent"></div>
       <div class="lbl" style="color:var(--green)">Largo Plazo — 6-18 meses</div>
-      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px">El reset y próximo ciclo</div>
-      <div style="font-size:11px;color:var(--text2);line-height:1.7">Fed hará QE forzado. Inflación monetaria permanente. <strong style="color:var(--text)">El próximo ciclo alcista de Howell inicia ~2027.</strong> Oro y Bitcoin serán los activos del nuevo ciclo.</div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-weight:700;margin-bottom:8px" id="tesis-largo-titulo">Generando…</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7" id="tesis-largo-cuerpo"></div>
       <div style="margin-top:10px;display:flex;flex-direction:column;gap:3px">
         <div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:2px">POSICIONAMIENTO</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Acumular oro en caídas</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• BTC: próximo ciclo F1</div>
-        <div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">• Vigilar próximo QE Fed</div>
+        <div id="tesis-largo-bullets"></div>
       </div>
     </div>
   </div>
@@ -2628,6 +2628,7 @@ function go(id,el){
   document.getElementById('tab-'+id).classList.add('active');
   el.classList.add('active');
   if (id === 'tecnico') initTechTab();
+  if (id === 'tesis') generateTesisIA();
 
   // ── Lifecycle Opportunity Scanner (Tab 02 ACTIVOS) — init/destroy lazy ──
   // Solo se inicializa al entrar; se destruye al salir para liberar timers y no consumir API calls.
@@ -3163,26 +3164,80 @@ hmTickers.forEach(([t,n])=>{
   </div>`;
 });
 
-// ── Triggers ──
-const triggers=[
-  {icon:'🛢️',cls:'t-red',name:'Hormuz se normaliza → petróleo < $80',desc:'Inflación cede. Fed puede recortar tasas. Liquidez global se expande.',impact:'IMPACTO: MUY ALTO — cambiaría diagnóstico a positivo',ic:'up'},
-  {icon:'💰',cls:'t-red',name:'Reservas Fed < $2.9T',desc:'Estrés sistémico de repo. Aceleración hacia Fase 4.',impact:'IMPACTO: CRÍTICO — Fase 4 inminente',ic:'dn'},
-  {icon:'⚡',cls:'t-red',name:'Default relevante en HY / Private Credit',desc:'Rompe cadena de colateral. Correlaciones van a 1.',impact:'IMPACTO: SISTÉMICO — activar máxima defensiva',ic:'dn'},
-  {icon:'📊',cls:'t-amber',name:'Fed anuncia pausa en QT o QE emergencia',desc:'Giro de ciclo. Bonos largos y tech son los primeros en reaccionar.',impact:'IMPACTO: ALTO — inicio potencial de nuevo ciclo',ic:'up'},
-  {icon:'🇨🇳',cls:'t-amber',name:'PBOC pausa compras de oro',desc:'Presión bajista sobre GLD. Reduce el soporte del canal 2 chino.',impact:'IMPACTO: MODERADO — revisar posiciones en GLD',ic:'neu'},
-  {icon:'🗳️',cls:'t-green',name:'Acuerdo paz Irán-USA + apertura Hormuz',desc:'Petróleo a $70-75. Fed queda libre para actuar.',impact:'IMPACTO: ALTO — cambio de narrativa inmediato',ic:'up'},
-];
-const td=document.getElementById('triggers');
-triggers.forEach(({icon,cls,name,desc,impact,ic})=>{
-  td.innerHTML+=`<div class="trigger-item">
+// ── Triggers — generados por IA junto con la tesis (regla 100% automatico 2026-07-07;
+//    antes: array hardcoded con narrativas de abril "Hormuz", "PBOC oro", etc.) ──
+function renderTriggersIA(list) {
+  const td = document.getElementById('triggers');
+  if (!td) return;
+  if (!Array.isArray(list) || !list.length) {
+    td.innerHTML = '<div style="font-size:10px;color:var(--text3);padding:8px">Triggers IA no disponibles — usa el boton Regenerar arriba.</div>';
+    return;
+  }
+  td.innerHTML = list.map(t => {
+    const dir  = t.dir === 'up' ? 'up' : t.dir === 'down' ? 'dn' : 'neu';
+    const cls  = dir === 'up' ? 't-green' : dir === 'dn' ? 't-red' : 't-amber';
+    const icon = dir === 'up' ? '&#128200;' : dir === 'dn' ? '&#128201;' : '&#9878;';
+    return `<div class="trigger-item">
     <div class="trigger-icon ${cls}">${icon}</div>
     <div class="trigger-content">
-      <div class="trigger-name">${name}</div>
-      <div class="trigger-desc">${desc}</div>
-      <div class="trigger-impact"><span class="badge b-${ic==='up'?'up':ic==='dn'?'dn':'neu'}" style="font-size:7px">${impact}</span></div>
+      <div class="trigger-name">${t.name || ''}</div>
+      <div class="trigger-desc">${t.desc || ''}</div>
+      <div class="trigger-impact"><span class="badge b-${dir}" style="font-size:7px">${t.impact || ''}</span></div>
     </div>
   </div>`;
-});
+  }).join('');
+}
+renderTriggersIA(null); // placeholder hasta que la IA genere
+
+// ── Tesis IA — 3 horizontes + triggers desde los datos en vivo · cache 24h ──
+async function generateTesisIA(force = false) {
+  const KEY = 'tesis-ia-v2';
+  const today = new Date().toISOString().slice(0, 10);
+  const status = t => setEl('tesis-ia-status', t);
+  if (!force) {
+    try {
+      const c = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (c && c.date === today && c.data) { renderTesisIA(c.data, c.date); return; }
+    } catch (e) {}
+  }
+  status('Generando narrativa con IA…');
+  try {
+    const ctx = typeof getDashboardContext === 'function' ? getDashboardContext() : '';
+    const sys = 'Eres el estratega macro del dashboard Rebirth Capital. Responde SOLO un JSON valido, sin markdown ni backticks, con esta forma exacta: '
+      + '{"corto":{"titulo":"...","cuerpo":"...","vigilar":["...","...","..."]},'
+      + '"medio":{"titulo":"...","cuerpo":"...","riesgos":["...","...","..."]},'
+      + '"largo":{"titulo":"...","cuerpo":"...","posicionamiento":["...","...","..."]},'
+      + '"triggers":[{"name":"...","desc":"...","impact":"IMPACTO: ALTO — ...","dir":"up"}]} '
+      + 'Reglas: titulos maximo 5 palabras; cuerpo maximo 220 caracteres; bullets maximo 7 palabras; '
+      + 'exactamente 4 triggers (eventos verificables que cambiarian el diagnostico) con dir up/down/neu. '
+      + 'Todo en espanol, derivado SOLO del contexto numerico provisto. No inventes eventos geopoliticos especificos.';
+    const resp = await fetch('/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'Genera la tesis de 3 horizontes y 4 triggers para HOY.' + String.fromCharCode(10) + 'CONTEXTO DEL DASHBOARD:' + String.fromCharCode(10) + ctx, systemPrompt: sys })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const { reply } = await resp.json();
+    const raw = (reply || '').replace(/```json|```/g, '');
+    const data = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
+    localStorage.setItem(KEY, JSON.stringify({ date: today, data }));
+    renderTesisIA(data, today);
+  } catch (e) {
+    status('IA no disponible (' + (e.message || 'error') + ') — reintenta con Regenerar');
+  }
+}
+function renderTesisIA(d, dateStr) {
+  const bullets = arr => (arr || []).slice(0, 3).map(b =>
+    `<div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">&bull; ${b}</div>`).join('');
+  const fill = (key, listKey) => {
+    setEl(`tesis-${key}-titulo`, (d[key] && d[key].titulo) || '—');
+    setEl(`tesis-${key}-cuerpo`, (d[key] && d[key].cuerpo) || '');
+    const be = document.getElementById(`tesis-${key}-bullets`);
+    if (be) be.innerHTML = bullets(d[key] && d[key][listKey]);
+  };
+  fill('corto', 'vigilar'); fill('medio', 'riesgos'); fill('largo', 'posicionamiento');
+  renderTriggersIA(d.triggers);
+  setEl('tesis-ia-status', 'Generado por IA (Gemini) · ' + (dateStr || '') + ' · fuente: datos numericos del dashboard');
+}
 
 // ── Checklist — populated dynamically by updateChecklist() after data loads ──
 const checklistDefs=[
@@ -3551,6 +3606,20 @@ const SPY_TRAILING_EY = {
   updated: '2026-07-07',
   source: 'multpl.com / S&P Global'
 };
+
+// EY automatico (regla 100% automatico 2026-07-07): scrape multpl via /api/multpl.
+// SPY_TRAILING_EY queda solo como FALLBACK si el endpoint falla.
+(async () => {
+  try {
+    const r = await fetch('/api/multpl');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d && typeof d.ey === 'number' && d.ey > 1 && d.ey < 20) {
+      window.__spyEY = d.ey;
+      if (typeof updateERP === 'function') { try { updateERP(); } catch (e) {} }
+    }
+  } catch (e) { /* fallback silencioso a SPY_TRAILING_EY */ }
+})();
 
 // ERP thresholds (Druckenmiller-style: equity vs treasuries reales)
 // Single source of truth — usado por updateERP() e INDICATORS_GLOSSARY['erp'].
@@ -5861,7 +5930,7 @@ function updateERP() {
   const ryArr = Array.isArray(state.data.realYield10) ? state.data.realYield10 : null;
   const ryRaw = ryArr?.[0]?.value;
   const ry = (typeof ryRaw === 'number' && isFinite(ryRaw)) ? ryRaw : null;
-  const ey = SPY_TRAILING_EY.value;
+  const ey = (typeof window.__spyEY === 'number' ? window.__spyEY : SPY_TRAILING_EY.value); // auto via /api/multpl, fallback constante
   const valEl = document.getElementById('erp-value');
   const eyEl  = document.getElementById('erp-spy-ey');
   const ryEl  = document.getElementById('erp-real-yield');
@@ -7276,20 +7345,20 @@ function updateTechSignals(ticker) {
     else                    { momEl.className='badge b-dn'; momEl.textContent='↓↓ '+p.chg1m+'%'; }
   }
 
-  // Phase-aligned setup text
+  // Setup text COMPUTADO de los datos vivos (regla 100% automático 2026-07-07 —
+  // antes: textos fijos que asumían "Fase 3/4" y narrativas de abril como Hormuz)
   const setupEl = document.getElementById('tv-setup-text');
-  if (setupEl) {
-    const phase34setups = {
-      GLD: 'Oro en Fase 3/4: <strong style="color:var(--gold)">COMPRAR en soporte SMA20 semanal</strong>. Setup de acumulación mientras DXY < 106. Objetivo: máximos históricos.',
-      GDX: 'Mineras (GDX) siguen al oro con beta ~1.5x. <strong style="color:var(--gold)">Entradas en correcciones > 8%</strong> del último máximo. Mayor riesgo, mayor retorno.',
-      XLE: 'Energía presionada por petróleo + Hormuz. <strong style="color:var(--amber)">Setup swing corto</strong> si WTI > $100. Long si hay resolución geopolítica.',
-      SPY: 'SPY en presión Fase 3. <strong style="color:var(--red)">Cautela larga</strong>. Put spreads o cortos en rebotes al 200SMA. Evitar nuevas posiciones largas especulativas.',
-      QQQ: 'Tech bajo presión máxima Fase 3/4. <strong style="color:var(--red)">Short en rebotes</strong> o hedge con puts. QQQ seguirá dxY y tasas reales.',
-      TLT: 'TLT sensible a expectativas Fed. <strong style="color:var(--blue)">Solo largo</strong> si Fed pivota. Actualmente en zona de compresión.',
-      IWM: 'Small caps = activo más vulnerable en F3/4. <strong style="color:var(--red)">Evitar o short</strong>. Primero en capitular en stress de liquidez.',
-      XLV: 'Salud = defensivo F3/4. <strong style="color:var(--green)">Mantener si YTD > 0</strong> como hedge de cartera.',
-    };
-    setupEl.innerHTML = phase34setups[ticker] || `<strong style="color:var(--text)">${ticker}</strong>: Analizar estructura técnica en chart TradingView. Comparar con ciclo macro Fase 3/4.`;
+  if (setupEl && p) {
+    const fase = document.getElementById('hero-phase-name')?.textContent || 'ciclo actual';
+    const sobre50 = (p.fiftyDayAverage && p.price) ? ((p.price / p.fiftyDayAverage - 1) * 100) : null;
+    const trendTxt = sobre50 == null ? '' : sobre50 > 2 ? `cotiza <strong style="color:var(--green)">+${sobre50.toFixed(1)}% sobre su SMA50</strong> (tendencia intacta)` : sobre50 < -2 ? `cotiza <strong style="color:var(--red)">${sobre50.toFixed(1)}% bajo su SMA50</strong> (tendencia dañada)` : `pegado a su SMA50 (<strong style="color:var(--amber)">zona de decisión</strong>)`;
+    const momTxt = p.chg1m == null ? '' : p.chg1m > 3 ? `momentum 1M <strong style="color:var(--green)">+${p.chg1m}%</strong>` : p.chg1m < -3 ? `momentum 1M <strong style="color:var(--red)">${p.chg1m}%</strong>` : `momentum 1M plano (${p.chg1m >= 0 ? '+' : ''}${p.chg1m}%)`;
+    const sesgo = (sobre50 != null && p.chg1m != null)
+      ? (sobre50 > 2 && p.chg1m > 0 ? '<strong style="color:var(--green)">favorece continuación</strong> — pullbacks a SMA50 son zona de interés'
+        : sobre50 < -2 && p.chg1m < 0 ? '<strong style="color:var(--red)">presión vigente</strong> — rebotes a resistencia son zona de riesgo'
+        : '<strong style="color:var(--amber)">mixto</strong> — esperar resolución de la estructura')
+      : 'analizar estructura en el chart';
+    setupEl.innerHTML = `<strong style="color:var(--text)">${ticker}</strong> en ${fase}: ${trendTxt}${trendTxt && momTxt ? ' · ' : ''}${momTxt}. Sesgo: ${sesgo}.`;
   }
 }
 
