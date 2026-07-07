@@ -25,7 +25,9 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
 
   const meta      = result.meta;
   const price     = meta.regularMarketPrice;
-  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+  // BUG FIX 2026-07-07: chartPreviousClose con range=1y es el cierre PREVIO AL RANGO
+  // (hace ~1 año), NO el de ayer. chg1d salía como cambio anual (+19% en vez de -1%).
+  // El cierre previo real se deriva del penúltimo cierre del histórico (ver abajo).
 
   const timestamps = result.timestamp || [];
   const closes     = result.indicators?.quote?.[0]?.close || [];
@@ -40,6 +42,10 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     .filter(r => r.close != null && !isNaN(r.close) && r.close > 0);
 
   if (rows.length < 2) return { error: 'Datos insuficientes' };
+
+  // Cierre del día hábil previo = penúltima barra del histórico (la última barra es
+  // la sesión actual/más reciente, cuyo close coincide con regularMarketPrice).
+  const prevClose = rows[rows.length - 2].close;
 
   const monthAgo     = rows[Math.max(0, rows.length - 22)].close;
   const fiveDaysAgo  = rows[Math.max(0, rows.length - 5)].close;
@@ -93,9 +99,12 @@ async function fetchPriceOnly(ticker) {
   const json = await res.json();
   const result = json?.chart?.result?.[0];
   if (!result) return { error: 'Sin datos' };
-  const meta      = result.meta;
-  const price     = meta.regularMarketPrice;
-  const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? price;
+  const meta  = result.meta;
+  const price = meta.regularMarketPrice;
+  // BUG FIX 2026-07-07: chartPreviousClose con range=5d es el cierre previo AL RANGO
+  // (~6 días hábiles atrás), no el de ayer. Derivar del penúltimo cierre real.
+  const closes = (result.indicators?.quote?.[0]?.close || []).filter(c => c != null && !isNaN(c) && c > 0);
+  const prevClose = closes.length >= 2 ? closes[closes.length - 2] : (meta.previousClose ?? price);
   return {
     price:  parseFloat(price.toFixed(2)),
     chg1d:  parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
