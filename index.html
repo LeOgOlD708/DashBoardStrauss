@@ -3604,8 +3604,8 @@ const CONSENSUS_UPDATED = '2026-04-26'; // refrescar weekly
 // Source: https://www.multpl.com/s-p-500-earnings-yield  (refresh manually each month)
 // S&P trailing P/E ~26 → EY ~3.85% (April 2026)
 const SPY_TRAILING_EY = {
-  value: 3.85,           // % — actualizar mensualmente desde multpl.com
-  updated: '2026-04-27',
+  value: 3.93,           // % — actualizar mensualmente desde multpl.com (P/E trailing 25.44 → 1/25.44)
+  updated: '2026-07-07',
   source: 'multpl.com / S&P Global'
 };
 
@@ -3628,10 +3628,10 @@ const ERP_THRESHOLDS = {
 //   NAAIM Exposure: https://www.naaim.org/programs/naaim-exposure-index/
 //   Put/Call 21d:    https://www.cboe.com/us/options/market_statistics/historical_data/
 const POSITIONING_DATA = {
-  updated: '2026-04-27',  // ⚠ refrescar weekly antes del lunes
-  aaii:  { bullBear: -12.5, bullPct: 28.5, bearPct: 41.0 },  // % bulls - % bears (range típico -40 a +40)
-  naaim: { exposure:  62.0 },                                 // % equity exposure (range 0-200%)
-  putCall: { pcc21d:   1.08 }                                 // 21-day MA of total CBOE put/call ratio
+  updated: '2026-07-07',  // ⚠ refrescar weekly antes del lunes
+  aaii:  { bullBear: -10.9, bullPct: 31.4, bearPct: 42.3 },  // % bulls - % bears · survey 2026-07-02 (range típico -40 a +40)
+  naaim: { exposure:  84.69 },                                // % equity exposure · semana 2026-07-01 (range 0-200%)
+  putCall: { pcc21d:   1.09 }                                 // 21-day MA equity CBOE put/call · ~2026-07-03
 };
 
 // Single source of truth: thresholds + interpretación contrarian para los 3 indicadores.
