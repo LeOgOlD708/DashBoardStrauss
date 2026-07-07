@@ -3201,6 +3201,7 @@ async function generateTesisIA(force = false) {
     } catch (e) {}
   }
   status('Generando narrativa con IA…');
+  for (let intento = 1; intento <= 2; intento++) {
   try {
     const ctx = typeof getDashboardContext === 'function' ? getDashboardContext() : '';
     const sys = 'Eres el estratega macro del dashboard Rebirth Capital. Responde SOLO un JSON valido, sin markdown ni backticks, con esta forma exacta: '
@@ -3221,8 +3222,11 @@ async function generateTesisIA(force = false) {
     const data = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
     localStorage.setItem(KEY, JSON.stringify({ date: today, data }));
     renderTesisIA(data, today);
+    return;
   } catch (e) {
-    status('IA no disponible (' + (e.message || 'error') + ') — reintenta con Regenerar');
+    if (intento === 2) status('IA no disponible (' + (e.message || 'error') + ') — reintenta con Regenerar');
+    else status('Reintentando generación…');
+  }
   }
 }
 function renderTesisIA(d, dateStr) {

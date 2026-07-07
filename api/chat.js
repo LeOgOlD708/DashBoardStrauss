@@ -39,7 +39,9 @@ module.exports = async (req, res) => {
         body: JSON.stringify({
           contents,
           ...(systemPrompt && { systemInstruction: { parts: [{ text: systemPrompt }] } }),
-          generationConfig: { maxOutputTokens: 1024, temperature: 0.6 }
+          // 2048: gemini-2.5 consume parte del budget en thinking; 1024 truncaba
+          // los JSON largos de la Tesis IA ("Unexpected end of JSON input")
+          generationConfig: { maxOutputTokens: 2048, temperature: 0.6 }
         })
       }
     );
