@@ -8431,7 +8431,7 @@ function getDashboardContext() {
   const dxy = latest(d.dxy);
   const vix = d.prices?.['^VIX']?.price ?? null;
   const gld = d.prices?.['GLD']?.price ?? null;
-  const wti = d.prices?.['WTI']?.price ?? null;
+  const wti = latest(d.wti); // BUG FIX 2026-07-07: era prices['WTI'] (inexistente) — WTI viene de FRED DCOILWTICO
   const spy = d.prices?.['SPY']?.price ?? null;
 
   const scoreEl = document.getElementById('diag-score-total');
@@ -8450,8 +8450,8 @@ MARCO ANALÍTICO — Modelo Howell de ciclos de liquidez:
 
 DATOS DEL DASHBOARD (actualizados hace ${mins} min):
 • Score Howell: ${score} — Fase: ${phase}
-• Reservas Fed: ${reserves ? '$' + (reserves / 1e9).toFixed(2) + 'T' : '—'} (umbral crítico < $3.0T)
-• TGA (Treasury): ${tga ? '$' + (tga / 1e9).toFixed(0) + 'B' : '—'} (> $700B = drenaje moderado)
+• Reservas Fed: ${reserves ? '$' + (reserves / 1e6).toFixed(2) + 'T' : '—'} (umbral crítico < $3.0T)
+• TGA (Treasury): ${tga ? '$' + (tga / 1e3).toFixed(0) + 'B' : '—'} (> $700B = drenaje moderado)
 • RRP Fed: ${d.rrp?.[0]?.value != null ? '$' + d.rrp[0].value.toFixed(0) + 'B' : '—'} (alto = drena liquidez; bajo = liberó liquidez)
 • SOFR spread: ${sofr !== null ? sofr + ' bps' : '—'} (normal < 10 bps)
 • DXY: ${dxy ? dxy.toFixed(2) : '—'} (expansivo < 100, restrictivo > 103, muy restrictivo > 107)
