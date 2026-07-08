@@ -1978,6 +1978,20 @@ html.auth-ok #auth-gate{display:none}
   </div>
 
   <!-- ══════════════════════════════════════════════════
+       NIVEL 4 · CANDIDATAS HOY (Fase B Pipeline de Capital 2026-07-07)
+       Sintesis del embudo: ETF en flujo (cuadrante) → RS≥75 → Template≥5/7
+       → acumulacion (U/D≥1.2 o A/D≥B) → ≤25% del max 52w → veto macro.
+  ══════════════════════════════════════════════════ -->
+  <div class="sh"><div class="sh-tag">Síntesis</div><div class="sh-title">CANDIDATAS HOY — el embudo completo en una lista</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('candidatas-hoy')" title="¿Qué es esto?">?</button></div>
+  <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <span style="font-size:10px;color:var(--text2);line-height:1.5">Rotación (dónde entra el capital) × fuerza (RS) × tendencia (Minervini) × acumulación institucional × <b style="color:var(--gold)">veto del régimen macro</b>.</span>
+      <button onclick="CandidatasHoy.scan(true)" style="font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:6px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">🔎 ESCANEAR AHORA</button>
+    </div>
+    <div id="cand-body"><div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:6px 0">Pulsa ESCANEAR AHORA — corre el embudo completo sobre las acciones de los sectores e industrias que están recibiendo capital (~120 tickers, primera vez ~10s). Cache 15 min.</div></div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
        OPPORTUNITY SCANNER · Tab 02 ACTIVOS
        Sistema de detección de oportunidades sectoriales
        Filosofía: Mercado vivo (80%) + Ciclo Howell (20%)
@@ -7820,6 +7834,7 @@ const CapitalDrill = {
   },
   _rowsTableHtml(rows, titulo, nota) {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const hasSec = rows.some(r2 => r2.sec);
     const rowsHtml = rows.map(r => {
       const rsCol = r.rs == null ? 'var(--text3)' : r.rs >= 80 ? '#4ade80' : r.rs >= 60 ? '#86efac' : r.rs >= 40 ? '#a89f93' : '#f87171';
       const udCol = r.ud == null ? 'var(--text3)' : r.ud >= 1.5 ? 'var(--green)' : r.ud >= 1 ? 'var(--text2)' : 'var(--red)';
@@ -7833,6 +7848,7 @@ const CapitalDrill = {
       const d52col = r.dist52 == null ? 'var(--text3)' : r.dist52 > -15 ? 'var(--green)' : r.dist52 > -30 ? 'var(--amber)' : 'var(--red)';
       return '<tr onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
         + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + '</td>'
+        + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
         + '<td class="' + ((r.chg1m ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1m) + '</td>'
@@ -7846,7 +7862,7 @@ const CapitalDrill = {
     return '<div class="lbl" style="margin-bottom:6px">' + titulo + '</div>'
       + '<div style="overflow-x:auto"><table class="drill-tbl">'
       + '<thead><tr>'
-      + '<th>TICKER</th><th>PRECIO</th><th>1D%</th><th>1M%</th>'
+      + '<th>TICKER</th>' + (hasSec ? '<th title="Via: ETF(s) en cuadrante Mejorando/Lider por los que la accion entra al embudo">VÍA</th>' : '') + '<th>PRECIO</th><th>1D%</th><th>1M%</th>'
       + '<th title="RS Rating: percentil de momentum ponderado 3/6/9/12m vs universo (estilo IBD). 80+ = elite">RS RATING</th>'
       + '<th title="Up/Down Volume Ratio 50d: >1.5 acumulacion, >2 patrocinio institucional">U/D 50d</th>'
       + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
@@ -7922,10 +7938,115 @@ const CapitalDrill = {
 };
 
 // ══════════════════════════════════
+// FASE B · CANDIDATAS HOY — sintesis cross-sector del embudo (2026-07-07)
+// Reusa CapitalDrill (universo/metricas) + computeRotationFor (flujo) + regimen del CMD.
+// ══════════════════════════════════
+const CandidatasHoy = {
+  lastRun: 0, cache: null,
+  PASS: { rs: 75, tpl: 5, ud: 1.2, dist: -25 },
+  regimeVeto() {
+    const postura = (document.getElementById('hero-postura')?.textContent || '').toUpperCase();
+    const banner  = (document.getElementById('regime-banner')?.textContent || '').toUpperCase();
+    const regime = banner.includes('RISK_OFF') ? 'RISK_OFF' : banner.includes('RISK_ON') ? 'RISK_ON' : 'NEUTRAL';
+    if (regime === 'RISK_OFF' || postura.includes('MAXIMA CAUTELA') || postura.includes('MÁXIMA CAUTELA'))
+      return { level: 'block', col: 'var(--red)', icon: '⛔', txt: 'VETO MACRO — régimen ' + regime + ' · postura ' + (postura || 'n/d') + '. El sistema desaconseja abrir largos: la lista es SOLO informativa.' };
+    if (postura.includes('DEFENSIVO') || regime === 'NEUTRAL')
+      return { level: 'warn', col: 'var(--amber)', icon: '⚠', txt: 'Régimen ' + regime + ' · postura ' + (postura || 'n/d') + ' — el macro pide selectividad máxima: solo setups A, sizing reducido.' };
+    return { level: 'ok', col: 'var(--green)', icon: '✓', txt: 'Régimen ' + regime + ' · postura ' + (postura || 'n/d') + ' — compatible con nuevas posiciones largas.' };
+  },
+  async scan(force) {
+    const body = document.getElementById('cand-body');
+    if (!body) return;
+    if (!force && this.cache && Date.now() - this.lastRun < 900000) { this.render(this.cache); return; }
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Corriendo el embudo: rotación → holdings → RS/U-D/Template sobre ~120 acciones…</div>';
+    const ok = await CapitalDrill.ensureUniverse();
+    if (!ok) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">No se pudo cargar el universo. Reintenta.</div>'; return; }
+    // Industrias: cargarlas si faltan (el embudo las incluye siempre)
+    if (!rotIndData) {
+      try { rotIndData = await fetch('/api/yahoo?tickers=' + Object.keys(ROT_INDUSTRIES).join(',')).then(r => r.json()); }
+      catch (e) { /* solo sectores */ }
+    }
+    // 1 · ETFs recibiendo capital (cuadrantes Mejorando/Líder)
+    const flows = [];
+    (computeRotationFor(ROT_SECTORS, state.data.prices || {}) || [])
+      .filter(d => d.quad === 'mejorando' || d.quad === 'lider')
+      .forEach(d => flows.push({ tk: d.tk, quad: d.quad, kind: 'sector' }));
+    if (rotIndData) (computeRotationFor(ROT_INDUSTRIES, rotIndData) || [])
+      .filter(d => d.quad === 'mejorando' || d.quad === 'lider')
+      .forEach(d => flows.push({ tk: d.tk, quad: d.quad, kind: 'industria' }));
+    if (!flows.length) {
+      const r0 = { cands: [], evaluated: 0, flows, veto: this.regimeVeto(), sinFlujo: true };
+      this.cache = r0; this.lastRun = Date.now(); this.render(r0); return;
+    }
+    // 2 · acciones de esos ETFs (dedup, registrando por qué vías entran)
+    const seen = new Map();
+    for (const f of flows) {
+      const cons = await CapitalDrill.getHoldings(f.tk);
+      const missing = cons.filter(tk => !CapitalDrill.universe[tk]);
+      if (missing.length) Object.assign(CapitalDrill.universe, await CapitalDrill.fetchBatch(missing));
+      for (const tk of cons) {
+        if (seen.has(tk)) { if (!seen.get(tk).vias.includes(f.tk)) seen.get(tk).vias.push(f.tk); continue; }
+        const row = CapitalDrill.stockRow(tk);
+        if (row) seen.set(tk, { row, vias: [f.tk] });
+      }
+    }
+    // 3 · embudo
+    const P = this.PASS;
+    const cands = [];
+    for (const [tk, { row, vias }] of seen) {
+      if (row.rs == null || row.rs < P.rs) continue;
+      if (!row.tpl || row.tpl.passed < P.tpl) continue;
+      const acum = (row.ud != null && row.ud >= P.ud) || row.ad.letter === 'A' || row.ad.letter === 'B';
+      if (!acum) continue;
+      if (row.dist52 != null && row.dist52 < P.dist) continue;
+      row.sec = vias.slice(0, 3).join('+');
+      cands.push(row);
+    }
+    cands.sort((a, b) => (b.rs ?? 0) - (a.rs ?? 0) || (b.tpl?.passed ?? 0) - (a.tpl?.passed ?? 0) || (b.ud ?? 0) - (a.ud ?? 0));
+    const result = { cands, evaluated: seen.size, flows, veto: this.regimeVeto() };
+    this.cache = result; this.lastRun = Date.now();
+    this.render(result);
+  },
+  render(r) {
+    const body = document.getElementById('cand-body');
+    if (!body) return;
+    const v = r.veto;
+    const vetoBg = v.level === 'block' ? 'rgba(248,113,113,.07)' : v.level === 'warn' ? 'rgba(251,191,36,.06)' : 'rgba(74,222,128,.06)';
+    const vetoHtml = '<div style="padding:9px 11px;border-radius:6px;margin-bottom:10px;font-size:11px;line-height:1.55;border:1px solid ' + v.col + ';border-left-width:3px;background:' + vetoBg + ';color:var(--text2)"><b style="color:' + v.col + '">' + v.icon + '</b> ' + v.txt + '</div>';
+    const chip = t => '<span style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:2px 8px;border-radius:8px;border:1px solid var(--border2);color:var(--text3)">' + t + '</span>';
+    const P = this.PASS;
+    const filtros = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
+      + '<span style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;letter-spacing:.08em">EMBUDO:</span>'
+      + chip('1 · ETF en cuadrante Mejorando/Líder') + chip('2 · RS ≥ ' + P.rs) + chip('3 · Template ≥ ' + P.tpl + '/7')
+      + chip('4 · U/D ≥ ' + P.ud + ' o A/D ≥ B') + chip('5 · ≤25% bajo máx 52w') + chip('6 · veto macro') + '</div>';
+    if (r.sinFlujo) {
+      body.innerHTML = vetoHtml + filtros + '<div style="padding:16px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px">Ningún sector/industria está en cuadrante de entrada (Mejorando/Líder) hoy.<br><span style="color:var(--text3);font-size:10px">Sin flujo no hay embudo — el capital no muestra destino claro.</span></div>';
+      return;
+    }
+    const flowsTxt = r.flows.map(f => f.tk).join(' · ');
+    if (!r.cands.length) {
+      body.innerHTML = vetoHtml + filtros + '<div style="padding:16px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px"><b>0 de ' + r.evaluated + '</b> acciones pasan el embudo completo hoy (vías evaluadas: ' + flowsTxt + ').<br><span style="color:var(--text3);font-size:10px">Eso también es información: el sistema no fuerza trades cuando la calidad no está. Paciencia &gt; actividad.</span></div>';
+      return;
+    }
+    const titulo = '🎯 ' + r.cands.length + ' candidata' + (r.cands.length === 1 ? '' : 's') + ' de ' + r.evaluated + ' evaluadas · vías en flujo: ' + flowsTxt;
+    const nota = 'NO es una recomendación de compra: es el filtro cuantitativo del embudo. El timing de entrada (setup, stop, sizing) es decisión del trader — y el veto macro de arriba manda. Cache 15 min · umbrales en el glosario (botón ?).';
+    body.innerHTML = vetoHtml + filtros + CapitalDrill._rowsTableHtml(r.cands, titulo, nota);
+  }
+};
+
+// ══════════════════════════════════
 // GLOSARIO DE INDICADORES (scope global)
 // Cada entry: name, category, source, formula, interpretation, thresholds[], note
 // ══════════════════════════════════
 const INDICATORS_GLOSSARY = {
+  'candidatas-hoy': {
+    name: 'Candidatas Hoy (embudo completo)', category: 'Sectores',
+    source: { label: 'Computado: rotación + holdings + métricas (Yahoo)', url: 'https://finance.yahoo.com', freq: 'On-demand · cache 15 min' },
+    formula: 'ETF en cuadrante Mejorando/Líder → RS ≥75 → Trend Template ≥5/7 → acumulación (U/D 50d ≥1.2 ó A/D ≥B) → precio ≤25% bajo máx 52w → veto del régimen macro',
+    interpretation: 'La síntesis del Pipeline de Capital: solo sobreviven acciones de sectores/industrias que están RECIBIENDO capital, con fuerza relativa élite, tendencia sana estilo Minervini y huella de compra institucional. El veto macro (postura del CMD) decide si la lista es accionable o solo informativa.',
+    thresholds: ['⛔ VETO: RISK_OFF o Máxima Cautela → no abrir largos', '⚠ WARN: Defensivo/Neutral → solo setups A, sizing reducido', '✓ OK: régimen compatible', '0 candidatas = información válida (no forzar trades)'],
+    note: 'Es un FILTRO cuantitativo, no una señal de entrada: el setup, stop y sizing son decisión del trader. Ordenado por RS → Template → U/D.'
+  },
   'drill-down-acciones': {
     name: 'Drill-Down de Acciones (RS + U/D + Template)', category: 'Sectores',
     source: { label: 'Computado: Yahoo Finance (55 holdings)', url: 'https://finance.yahoo.com', freq: 'On-demand' },
