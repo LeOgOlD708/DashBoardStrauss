@@ -25,6 +25,9 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
 
   const meta      = result.meta;
   const price     = meta.regularMarketPrice;
+  // Guard (P3 2026-07-08): sin precio, price.toFixed() lanzaba dentro del Promise.all
+  // del handler → 500 para TODOS los tickers del batch por un solo ticker malo.
+  if (price == null || isNaN(price)) return { error: 'Sin regularMarketPrice' };
   // BUG FIX 2026-07-07: chartPreviousClose con range=1y es el cierre PREVIO AL RANGO
   // (hace ~1 año), NO el de ayer. chg1d salía como cambio anual (+19% en vez de -1%).
   // El cierre previo real se deriva del penúltimo cierre del histórico (ver abajo).
@@ -104,6 +107,7 @@ async function fetchPriceOnly(ticker) {
   if (!result) return { error: 'Sin datos' };
   const meta  = result.meta;
   const price = meta.regularMarketPrice;
+  if (price == null || isNaN(price)) return { error: 'Sin regularMarketPrice' }; // guard P3
   // BUG FIX 2026-07-07: chartPreviousClose con range=5d es el cierre previo AL RANGO
   // (~6 días hábiles atrás), no el de ayer. Derivar del penúltimo cierre real.
   const closes = (result.indicators?.quote?.[0]?.close || []).filter(c => c != null && !isNaN(c) && c > 0);
@@ -129,7 +133,10 @@ module.exports = async (req, res) => {
   if (priceOnly === 'true') {
     await Promise.all(
       tickerList.map(async (ticker) => {
-        results[ticker] = await fetchPriceOnly(ticker);
+        // try/catch por ticker (P3): una excepción no controlada rechazaba el
+        // Promise.all completo → 500 para todo el batch por un ticker malo
+        try { results[ticker] = await fetchPriceOnly(ticker); }
+        catch (e) { results[ticker] = { error: e.message || 'fetch failed' }; }
       })
     );
     res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=30');
@@ -142,7 +149,8 @@ module.exports = async (req, res) => {
 
   await Promise.all(
     tickerList.map(async (ticker) => {
-      results[ticker] = await fetchTicker(ticker, range, interval);
+      try { results[ticker] = await fetchTicker(ticker, range, interval); }
+      catch (e) { results[ticker] = { error: e.message || 'fetch failed' }; }
     })
   );
 

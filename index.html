@@ -1927,9 +1927,9 @@ html.auth-ok #auth-gate{display:none}
       <div style="display:flex;align-items:baseline;gap:6px;margin:6px 0 4px"><div class="val neu" id="m-move-val">—</div><div class="mono" id="m-move-chg" style="font-size:10px;color:var(--text3)">—</div></div>
       <div class="ch-wrap ch140"><canvas id="moveChart" role="img" aria-label="MOVE Index">MOVE histórico.</canvas></div>
       <div style="margin-top:6px;display:flex;gap:4px">
-        <div style="flex:1;padding:3px 5px;background:rgba(74,222,128,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:10px;color:var(--green)">Verde</div><div class="mono" style="font-size:12px;color:var(--green)">< 100</div></div>
-        <div style="flex:1;padding:3px 5px;background:rgba(251,191,36,.08);border-radius:4px;text-align:center;border:1px solid rgba(251,191,36,.2)"><div class="mono" style="font-size:10px;color:var(--amber)">Alerta</div><div class="mono" style="font-size:12px;color:var(--amber)">100-140</div></div>
-        <div style="flex:1;padding:3px 5px;background:rgba(248,113,113,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:10px;color:var(--red)">Crisis</div><div class="mono" style="font-size:12px;color:var(--red)">> 140</div></div>
+        <div id="move-band-g" style="flex:1;padding:3px 5px;background:rgba(74,222,128,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:10px;color:var(--green)">Verde</div><div class="mono" style="font-size:12px;color:var(--green)">< 100</div></div>
+        <div id="move-band-a" style="flex:1;padding:3px 5px;background:rgba(251,191,36,.08);border-radius:4px;text-align:center;border:1px solid rgba(251,191,36,.2)"><div class="mono" style="font-size:10px;color:var(--amber)">Alerta</div><div class="mono" style="font-size:12px;color:var(--amber)">100-140</div></div>
+        <div id="move-band-r" style="flex:1;padding:3px 5px;background:rgba(248,113,113,.07);border-radius:4px;text-align:center"><div class="mono" style="font-size:10px;color:var(--red)">Crisis</div><div class="mono" style="font-size:12px;color:var(--red)">> 140</div></div>
       </div>
       <div class="source-badge">ICE BofA MOVE</div>
     </div>
@@ -2360,10 +2360,10 @@ html.auth-ok #auth-gate{display:none}
       <div class="vol-gauge">
         <div class="vol-number" id="m-vix-val">—</div>
         <div class="vol-label">Índice del miedo</div>
-        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div class="vol-handle" style="left:36%"></div></div>
+        <div class="vol-bar" style="background:linear-gradient(90deg,var(--green),var(--amber),var(--red))"><div id="vix-handle" class="vol-handle" style="left:36%"></div></div>
         <div class="zone-labels"><span>10</span><span>20</span><span>30</span><span>40</span><span>50</span></div>
       </div>
-      <div style="margin-top:6px;text-align:center"><span class="badge b-neu">Moderado</span></div>
+      <div id="vix-badge-wrap" style="margin-top:6px;text-align:center"><span class="badge b-neu">Moderado</span></div>
     </div>
     <div class="card purple-a"><div class="card-accent"></div>
       <div class="lbl">VVIX</div>
@@ -3273,6 +3273,11 @@ hmTickers.forEach(([t,n])=>{
 
 // ── Triggers — generados por IA junto con la tesis (regla 100% automatico 2026-07-07;
 //    antes: array hardcoded con narrativas de abril "Hormuz", "PBOC oro", etc.) ──
+// Escape HTML global (P3 2026-07-08): todo texto EXTERNO (RSS, output LLM, input user)
+// que entre por innerHTML pasa por acá — antes se inyectaba crudo (superficie XSS).
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 function renderTriggersIA(list) {
   const td = document.getElementById('triggers');
   if (!td) return;
@@ -3287,9 +3292,9 @@ function renderTriggersIA(list) {
     return `<div class="trigger-item">
     <div class="trigger-icon ${cls}">${icon}</div>
     <div class="trigger-content">
-      <div class="trigger-name">${t.name || ''}</div>
-      <div class="trigger-desc">${t.desc || ''}</div>
-      <div class="trigger-impact"><span class="badge b-${dir}" style="font-size:7px">${t.impact || ''}</span></div>
+      <div class="trigger-name">${escHtml(t.name)}</div>
+      <div class="trigger-desc">${escHtml(t.desc)}</div>
+      <div class="trigger-impact"><span class="badge b-${dir}" style="font-size:7px">${escHtml(t.impact)}</span></div>
     </div>
   </div>`;
   }).join('');
@@ -3338,7 +3343,7 @@ async function generateTesisIA(force = false) {
 }
 function renderTesisIA(d, dateStr) {
   const bullets = arr => (arr || []).slice(0, 3).map(b =>
-    `<div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">&bull; ${b}</div>`).join('');
+    `<div style="font-size:9px;padding:3px 6px;background:var(--surface2);border-radius:3px;color:var(--text2)">&bull; ${escHtml(b)}</div>`).join('');
   const fill = (key, listKey) => {
     setEl(`tesis-${key}-titulo`, (d[key] && d[key].titulo) || '—');
     setEl(`tesis-${key}-cuerpo`, (d[key] && d[key].cuerpo) || '');
@@ -4662,9 +4667,10 @@ function updateVolatility(prices) {
     setElF('m-vix-val', vix.price.toFixed(1), vix.chg1d >= 0 ? 'dn' : 'up'); // VIX up = malo
     countUp('m-vix-val', vix.price, v => v.toFixed(1));
     const vixPct = Math.min(90, Math.max(5, ((vix.price - 10) / 40) * 100));
-    const vixHandle = document.querySelector('.card.teal-a .vol-handle');
+    // ids estables (P3 2026-07-08) — los selectores por clase/style se rompían silenciosamente al tocar el HTML
+    const vixHandle = document.getElementById('vix-handle');
     if (vixHandle) vixHandle.style.left = vixPct + '%';
-    const vixBadge = document.querySelector('.card.teal-a [style*="text-align:center"]');
+    const vixBadge = document.getElementById('vix-badge-wrap');
     if (vixBadge) {
       const cl = vix.price < 20 ? 'b-up' : vix.price < 30 ? 'b-neu' : 'b-dn';
       const lb = vix.price < 20 ? 'Calma' : vix.price < 30 ? 'Moderado' : 'Elevado';
@@ -4751,12 +4757,12 @@ function newsItemHTML(item) {
   const age = pubDate ? timeAgo(new Date(pubDate)) : '—';
   const isNew = pubDate && (Date.now() - new Date(pubDate).getTime()) < 30 * 60 * 1000;
   const cm = CAT_META[category] || { label: category||'—', cls:'nc-macro', dot:'#524e4a' };
-  const safeLink = (link||'#').replace(/'/g, '%27');
-  return `<div class="news-item ${ic}${isNew?' is-new':''}" data-cat="${category||''}">
-    <div class="news-title" onclick="window.open('${safeLink}','_blank')">${title}${isNew?'<span class="news-new">NEW</span>':''}</div>
+  const safeLink = escHtml((link||'#').replace(/'/g, '%27'));
+  return `<div class="news-item ${ic}${isNew?' is-new':''}" data-cat="${escHtml(category||'')}">
+    <div class="news-title" onclick="window.open('${safeLink}','_blank')">${escHtml(title)}${isNew?'<span class="news-new">NEW</span>':''}</div>
     <div class="news-source">
       <div class="news-src-dot" style="background:${cm.dot}"></div>
-      <span>${source}</span>
+      <span>${escHtml(source)}</span>
       <span class="news-impact ${cm.cls}">${cm.label}</span>
       <span style="color:${ilc};font-size:7px">${il}</span>
       <span class="news-time" style="margin-left:auto">${age}</span>
@@ -4887,14 +4893,15 @@ function updateMoveSkew(prices) {
     const c = v < 100 ? 'up' : v < 140 ? 'neu' : 'down';
     styleEl('m-move-val', c);
 
-    // Highlight correct range band
-    const bands = document.querySelectorAll('#moveChart')
-      ?.item(0)?.closest('.card')?.querySelectorAll('[style*="border-radius:4px"]');
-    if (bands?.length === 3) {
-      bands.forEach(b => b.style.borderWidth = '');
-      if (v < 100)      { bands[0].style.border = '1px solid rgba(74,222,128,.5)'; }
-      else if (v < 140) { bands[1].style.border = '1px solid rgba(251,191,36,.5)'; }
-      else              { bands[2].style.border = '1px solid rgba(248,113,113,.5)'; }
+    // Highlight correct range band — ids estables (P3 2026-07-08, antes selector [style*=...] frágil)
+    const bandG = document.getElementById('move-band-g');
+    const bandA = document.getElementById('move-band-a');
+    const bandR = document.getElementById('move-band-r');
+    if (bandG && bandA && bandR) {
+      [bandG, bandA, bandR].forEach(b => b.style.border = '');
+      if (v < 100)      { bandG.style.border = '1px solid rgba(74,222,128,.5)'; }
+      else if (v < 140) { bandA.style.border = '1px solid rgba(251,191,36,.5)'; }
+      else              { bandR.style.border = '1px solid rgba(248,113,113,.5)'; }
     }
 
     const moveSeries = move.hist.map((val, i) => ({ date: move.dates[i], value: val }));
@@ -6988,11 +6995,18 @@ function updateNavTickers() {
       const pEl = document.getElementById('nt-' + id + '-p');
       const cEl = document.getElementById('nt-' + id + '-c');
       if (!pEl || !cEl) return;
-      if (!d) return;
+      // Guards null (P3 2026-07-08): un price/chg1d null lanzaba TypeError y cortaba
+      // el resto del pipeline post-Yahoo (updateTechSignals ya no corría)
+      if (!d || d.price == null || isNaN(d.price)) return;
       pEl.textContent = d.price >= 100 ? d.price.toFixed(2) : d.price.toFixed(3);
       const chg = d.chg1d;
-      cEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
-      cEl.className = 'nt-chg ' + (chg > 0.05 ? 'up' : chg < -0.05 ? 'dn' : 'flat');
+      if (chg == null || isNaN(chg)) {
+        cEl.textContent = '—';
+        cEl.className = 'nt-chg flat';
+      } else {
+        cEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+        cEl.className = 'nt-chg ' + (chg > 0.05 ? 'up' : chg < -0.05 ? 'dn' : 'flat');
+      }
     });
   }
   // WTI from FRED
@@ -9510,7 +9524,7 @@ function renderChatMessages() {
     return;
   }
   box.innerHTML = chatState.messages.map(m =>
-    `<div class="chat-msg ${m.role}">${m.text.replace(/\n/g,'<br>')}</div>`
+    `<div class="chat-msg ${m.role}">${escHtml(m.text).replace(/\n/g,'<br>')}</div>`
   ).join('');
   if (chatState.sending) {
     box.innerHTML += `<div class="chat-msg assistant typing">Analizando...</div>`;
