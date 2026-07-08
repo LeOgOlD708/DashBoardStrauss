@@ -9747,11 +9747,15 @@ window.OpportunityScanner = (function () {
     });
     if (valid === 0) return { count: 0, total: 0, pct: null, status: 'none', label: 'BR n/d' };
     const pct = (count / valid) * 100;
+    // FIX 2026-07-08 (audit): con holdings sin cargar el % queda sesgado y puede
+    // cambiar de categoría strong/mixed/weak — se marca incompleto
+    const expected = (config.sectorConstituents?.[ticker] || []).length || 5;
+    const incomplete = valid < Math.min(expected, 5);
     let status;
     if (pct >= 60)      status = 'strong';   // 3+ de 5 holdings sobre SMA50 → liderazgo confirmado
     else if (pct >= 40) status = 'mixed';    // 2 de 5 → mixto
     else                status = 'weak';     // 0-1 de 5 → posible Mag7 trap si vol >25
-    return { count, total: valid, pct, status, label: `BR ${count}/${valid}` };
+    return { count, total: valid, pct, status, incomplete, label: `BR ${count}/${valid}${incomplete ? '⚠' : ''}` };
   }
 
   // Componente 3 — Alineación ciclo (20 pts) + flag divergencia
@@ -9779,7 +9783,11 @@ window.OpportunityScanner = (function () {
   // <0.5 = la última semana frenó/revirtió. Si chg1m es trivial (<0.5%) no aplica.
   function calcAcceleration(chg1w, chg1m) {
     if (chg1w == null || chg1m == null) return null;
-    if (Math.abs(chg1m) < 0.5) return null; // momentum trivial — descartado
+    // BUG FIX 2026-07-08 (audit): con chg1m NEGATIVO el ratio invertía el signo —
+    // un rebote en caída marcaba "desacelerando", y una caída ACELERÁNDOSE daba
+    // ratio >1.5 → +10 pts al sector que se desploma. La aceleración (concepto
+    // IBD) solo califica tendencias alcistas: 1M negativo/trivial → '—'.
+    if (chg1m < 0.5) return null;
     return (chg1w * 4) / chg1m;
   }
 
@@ -9881,7 +9889,7 @@ window.OpportunityScanner = (function () {
     const breadth = computeBreadth(ticker);
     let breadthModifier = 0;
     let mag7Trap = false;
-    if (breadth && breadth.pct != null) {
+    if (breadth && breadth.pct != null && !breadth.incomplete) { // incompleto → ni modifier ni trap (audit 2026-07-08)
       if (breadth.pct >= 60 && comp2 > 25) {
         breadthModifier = 1.5;  // acumulación corroborada por amplitud
         comp2 = Math.min(30, comp2 + breadthModifier);
@@ -10248,7 +10256,7 @@ window.OpportunityScanner = (function () {
       const tickers = top5.map(s => s.ticker).join(', ');
       if (!tickers) return;
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(tickers).then(() => flashCopyBtn('OK'));
+        navigator.clipboard.writeText(tickers).then(() => flashCopyBtn('OK')).catch(() => flashCopyBtn('Error')); // audit: fallo de permiso era silencioso
       } else {
         // Fallback antiguo
         const ta = document.createElement('textarea');
