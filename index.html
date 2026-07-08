@@ -1175,6 +1175,18 @@ html.auth-ok #auth-gate{display:none}
         <span id="gli-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
       </div>
     </div>
+    <!-- Split USA/Fed vs Global ex-US (2026-07-08): separa la pata casi-exacta de las aproximaciones -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <div style="flex:1;min-width:200px;padding:6px 10px;background:rgba(96,165,250,.06);border:1px solid rgba(96,165,250,.22);border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:.05em" title="Flujo neto Fed Δ13sem + balance Fed YoY + M2 USA — la parte con data casi-exacta al método Howell (fidelidad ~90%)">🇺🇸 PATA FED / USA</span>
+        <span class="mono" id="gli-us" style="font-size:15px;font-weight:600">—</span>
+      </div>
+      <div style="flex:1;min-width:200px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);letter-spacing:.05em" title="ECB + BOJ + China (proxy FXI) + DXY inv + colateral MOVE (el UST respalda el crédito global). La parte con proxies — fidelidad media">🌍 GLOBAL ex-USA</span>
+        <span class="mono" id="gli-global" style="font-size:15px;font-weight:600">—</span>
+      </div>
+    </div>
+    <div id="gli-split-note" class="mono" style="display:none;font-size:9px;color:var(--amber);margin:-3px 0 8px;padding:4px 10px;background:rgba(251,191,36,.05);border-left:2px solid rgba(251,191,36,.4);border-radius:0 4px 4px 0;line-height:1.5"></div>
     <div class="g4" style="gap:7px;margin-bottom:7px">
       <div style="padding:7px 9px;background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.28);border-radius:6px">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:.05em">FED NET LIQ · Δ13 SEM ⭐</div>
@@ -5587,15 +5599,19 @@ function _gliCompsAt(when, prices) {
   };
   const fxiYoY = yahooYoY('FXI'), dxyYoY = yahooYoY('DX-Y.NYB');
   // Cada componente → sub-score 0-100 (50 = neutral) y peso Howell-informado
+  // g: sub-índice al que pertenece (split 2026-07-08 pedido por usuario) —
+  //   'us' = pata Fed/USA (data casi-exacta al método Howell: flujo, balance, M2)
+  //   'global' = resto del mundo + colateral (MOVE es vol de UST, pero el UST respalda
+  //              el crédito GLOBAL — Howell lo trata como multiplicador mundial)
   const comps = [
-    { id: 'gli-fednet', val: fedNetD13, fmt: v => (v >= 0 ? '+$' : '−$') + Math.abs(v).toFixed(0) + 'B', sc: v => clamp01(50 + v * 0.12), w: 0.22 },
-    { id: 'gli-move',   val: moveVal,   fmt: v => v.toFixed(0) + ' pts', sc: v => clamp01(50 + (95 - v) * 1.2), w: 0.18, inv: true },
-    { id: 'gli-walcl',  val: walclYoY,  fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
-    { id: 'gli-ecb',    val: ecbYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.12 },
-    { id: 'gli-boj',    val: bojYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
-    { id: 'gli-m2',     val: m2YoY,     fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + (v - 3) * 10), w: 0.10 },
-    { id: 'gli-china',  val: fxiYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 2.5), w: 0.12 },
-    { id: 'gli-dxy',    val: dxyYoY,    fmt: v => (v <= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '% liq', sc: v => clamp01(50 - v * 4), w: 0.08 },
+    { id: 'gli-fednet', g: 'us',     val: fedNetD13, fmt: v => (v >= 0 ? '+$' : '−$') + Math.abs(v).toFixed(0) + 'B', sc: v => clamp01(50 + v * 0.12), w: 0.22 },
+    { id: 'gli-move',   g: 'global', val: moveVal,   fmt: v => v.toFixed(0) + ' pts', sc: v => clamp01(50 + (95 - v) * 1.2), w: 0.18, inv: true },
+    { id: 'gli-walcl',  g: 'us',     val: walclYoY,  fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
+    { id: 'gli-ecb',    g: 'global', val: ecbYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.12 },
+    { id: 'gli-boj',    g: 'global', val: bojYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
+    { id: 'gli-m2',     g: 'us',     val: m2YoY,     fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + (v - 3) * 10), w: 0.10 },
+    { id: 'gli-china',  g: 'global', val: fxiYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 2.5), w: 0.12 },
+    { id: 'gli-dxy',    g: 'global', val: dxyYoY,    fmt: v => (v <= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '% liq', sc: v => clamp01(50 - v * 4), w: 0.08 },
   ];
   comps.forEach(c => { c.sub = c.val != null ? c.sc(c.val) : null; });
   return { comps, fedNetD13 };
@@ -5604,6 +5620,13 @@ function _gliIndexFrom(comps) {
   let num = 0, den = 0;
   for (const c of comps) { if (c.sub == null) continue; num += c.sub * c.w; den += c.w; }
   return den > 0 ? { gli: Math.round(num / den), den } : { gli: null, den: 0 };
+}
+// Split USA/Fed vs Global ex-US (mismos componentes, normalizados por grupo)
+function _gliSubIndices(comps) {
+  return {
+    us:     _gliIndexFrom(comps.filter(c => c.g === 'us')),
+    global: _gliIndexFrom(comps.filter(c => c.g === 'global')),
+  };
 }
 function updateGlobalLiquidity(prices) {
   const { comps, fedNetD13 } = _gliCompsAt(null, prices);
@@ -5626,8 +5649,26 @@ function updateGlobalLiquidity(prices) {
       bdg.textContent = 'Liquidez global ' + regime.toLowerCase() + (den < 0.97 ? ' · parcial' : '');
     }
   }
+  // Split USA/Fed vs Global ex-US (2026-07-08)
+  const sub = _gliSubIndices(comps);
+  const paint = (id, s) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = s.gli != null ? s.gli + '/100' : '—';
+    el.style.color = s.gli == null ? 'var(--text3)' : s.gli >= 60 ? 'var(--green)' : s.gli >= 45 ? 'var(--amber)' : 'var(--red)';
+  };
+  paint('gli-us', sub.us);
+  paint('gli-global', sub.global);
+  const noteEl = document.getElementById('gli-split-note');
+  if (noteEl) {
+    if (sub.us.gli != null && sub.global.gli != null && Math.abs(sub.us.gli - sub.global.gli) >= 15) {
+      const lider = sub.us.gli > sub.global.gli ? 'la FED sostiene la liquidez mientras el resto del mundo drena' : 'el RESTO DEL MUNDO sostiene la liquidez mientras la Fed drena';
+      noteEl.style.display = '';
+      noteEl.textContent = '⚡ DIVERGENCIA USA vs GLOBAL (' + Math.abs(sub.us.gli - sub.global.gli) + ' pts): ' + lider + '. Howell: los giros del ciclo suelen empezar cuando una pata se mueve antes que la otra.';
+    } else noteEl.style.display = 'none';
+  }
   // Para la IA (getDashboardContext) y otros consumidores
-  window.__gli = gli != null ? { gli, regime, fedNetD13 } : null;
+  window.__gli = gli != null ? { gli, regime, fedNetD13, gliUs: sub.us.gli, gliGlobal: sub.global.gli } : null;
   try { renderGliCycle(prices); } catch (e) { /* el chart del ciclo nunca debe romper la card */ }
 }
 
@@ -8850,7 +8891,7 @@ const INDICATORS_GLOSSARY = {
     what: 'Aproximación gratuita al Global Liquidity Index de Michael Howell (CrossBorder Capital): la liquidez mundial no es solo la Fed — son los bancos centrales G3+China, el multiplicador de COLATERAL (MOVE invertido: vol de Treasuries alta = haircuts repo suben = el colateral rinde menos crédito) y sobre todo los FLUJOS, no los niveles.',
     formula: 'Índice difusión 0-100: Fed net liq Δ13sem (22%) + MOVE inv (18%) + ECB YoY (12%) + China proxy FXI YoY (12%) + M2 US YoY (10%) + Fed balance YoY (8%) + BOJ YoY (8%) + DXY YoY inv (8%). 50 = neutral.',
     interpret: 'GLI ≥60 = liquidez global expandiendo (viento a favor risk assets, ciclo ~65 meses en fase alcista). <45 = contrayendo. Los 2 pilares ⭐ (flujo Fed + MOVE) son los que Howell considera decisivos: el score US /8 de arriba mide NIVELES de la pata Fed; este índice mide los FLUJOS del sistema completo.',
-    thresholds: [{ c: 'green', t: '≥60 → expansiva (soporte risk assets)' }, { c: 'amber', t: '45-59 → neutral / transición' }, { c: 'red', t: '<45 → contractiva (squeeze global)' }, { c: 'amber', t: 'MOVE >120 → colateral estresado (multiplicador colapsa)' }],
+    thresholds: [{ c: 'green', t: '≥60 → expansiva (soporte risk assets)' }, { c: 'amber', t: '45-59 → neutral / transición' }, { c: 'red', t: '<45 → contractiva (squeeze global)' }, { c: 'amber', t: 'MOVE >120 → colateral estresado (multiplicador colapsa)' }, { c: 'n', t: 'Split 🇺🇸/🌍: USA/Fed (flujo+balance+M2, fidelidad ~90% al método) vs Global ex-US (G3+China proxy+colateral, fidelidad media). Divergencia ≥15 pts = una pata gira antes que la otra' }],
     note: 'HONESTIDAD: aproximación, NO el GLI oficial. China vía proxy FXI (la serie M2 China de FRED está discontinuada desde 2019); sin cross-border/eurodólar/FX-swaps (dato propietario de CrossBorder Capital sin proxy gratuito). Contexto Howell 2026: sitúa el pico del ciclo de ~65 meses en Q4-2025/inicio-2026 con 2026 difícil para risk assets — coherente con lecturas contractivas. El chart de la card superpone el GLI-lite semanal (~12 meses) con la onda teórica de 65 meses anclada a ese pico — es la regla del libro, no un ajuste a los datos.'
   },
   'transfer-receipts': {
@@ -9758,7 +9799,7 @@ DATOS DEL DASHBOARD (actualizados hace ${mins} min):
 • RRP Fed: ${d.rrp?.[0]?.value != null ? '$' + d.rrp[0].value.toFixed(0) + 'B' : '—'} (alto = drena liquidez; bajo = liberó liquidez)
 • SOFR spread: ${sofr !== null ? sofr + ' bps' : '—'} (normal < 10 bps)
 • DXY: ${dxy ? dxy.toFixed(2) : '—'} (expansivo < 100, restrictivo > 103, muy restrictivo > 107)
-• Liquidez GLOBAL (GLI-lite): ${window.__gli ? window.__gli.gli + '/100 ' + window.__gli.regime + ' · flujo neto Fed 13 sem: ' + (window.__gli.fedNetD13 != null ? (window.__gli.fedNetD13 >= 0 ? '+$' : '−$') + Math.abs(window.__gli.fedNetD13).toFixed(0) + 'B' : 'n/d') : '—'} (G3+MOVE colateral+China proxy — Howell: flujos > stocks)
+• Liquidez GLOBAL (GLI-lite): ${window.__gli ? window.__gli.gli + '/100 ' + window.__gli.regime + ' [🇺🇸 USA/Fed: ' + (window.__gli.gliUs ?? '—') + ' · 🌍 Global ex-US: ' + (window.__gli.gliGlobal ?? '—') + '] · flujo neto Fed 13 sem: ' + (window.__gli.fedNetD13 != null ? (window.__gli.fedNetD13 >= 0 ? '+$' : '−$') + Math.abs(window.__gli.fedNetD13).toFixed(0) + 'B' : 'n/d') : '—'} (G3+MOVE colateral+China proxy — Howell: flujos > stocks)
 • VIX: ${vix ? vix.toFixed(2) : '—'} (stress > 25, pánico > 35)
 • GLD: ${gld ? '$' + gld.toFixed(2) : '—'}
 • WTI: ${wti ? '$' + wti.toFixed(2) : '—'}
