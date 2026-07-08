@@ -17,10 +17,10 @@ async function fetchHoldings(etf) {
   const html = await r.text();
   // Los símbolos aparecen como links /stocks/nvda/ en el orden de la tabla (por peso desc).
   // La navegación del sitio también usa /stocks/xxx/ (screener, compare, industry) → blacklist.
-  const NAV_WORDS = new Set(['SCREENER', 'COMPARE', 'INDUSTRY', 'LIST', 'RANKINGS', 'SECTOR']);
+  const NAV_WORDS = new Set(['SCREENER', 'COMPARE', 'INDUSTRY', 'LIST', 'RANKINGS', 'SECTOR', 'NEWS', 'ANALYSIS', 'CHART', 'QUOTE', 'COMPANY']);
   const seen = new Set();
   const out = [];
-  const re = /href="\/stocks\/([a-z0-9.\-]{1,7})\/"/gi;
+  const re = /href="\/stocks\/([a-z0-9.\-]{1,6})\/"/gi; // {1,6} coherente con el filtro de longitud de abajo
   let m;
   while ((m = re.exec(html)) !== null && out.length < TOP_N) {
     // Normalizar a formato Yahoo: mayúsculas, punto→guión (brk.b → BRK-B)

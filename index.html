@@ -7486,7 +7486,7 @@ function retN(hist, n) {
 }
 function rsRawIBD(hist) {
   const p3 = retN(hist, 63), p6 = retN(hist, 126), p9 = retN(hist, 189);
-  const p12 = hist.length >= 240 ? (hist[hist.length - 1] / hist[0] - 1) * 100 : null;
+  const p12 = (hist.length >= 240 && hist[0] > 0) ? (hist[hist.length - 1] / hist[0] - 1) * 100 : null; // guard div/0 defensivo
   if (p3 == null) return null;
   return 2 * p3 + (p6 ?? p3) + (p9 ?? p6 ?? p3) + (p12 ?? p9 ?? p6 ?? p3);
 }
@@ -7744,7 +7744,7 @@ function renderCapitalRotation() {
 // ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
 const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
 const CapitalDrill = {
-  universe: null, rsPct: null, raws: null, loading: false, currentSector: null, holdingsMap: null,
+  universe: null, rsPct: null, raws: null, _universePromise: null, currentSector: null, holdingsMap: null,
   fallbackCons() { return (window.OpportunityScanner && OpportunityScanner.config.sectorConstituents) || {}; },
   async loadHoldingsMap() {
     if (this.holdingsMap) return this.holdingsMap;
@@ -7792,27 +7792,31 @@ const CapitalDrill = {
   },
   async ensureUniverse() {
     if (this.universe) return true;
-    if (this.loading) return false;
-    this.loading = true;
-    try {
-      const map = await this.loadHoldingsMap();
-      const all = [...new Set(Object.values(map).flat())].filter(t => /^[A-Z0-9-]{1,7}$/.test(t));
-      this.universe = await this.fetchBatch(all);
-      const pairs = [];
-      for (const tk of all) {
-        const d = this.universe[tk];
-        const raw = d && d.hist ? rsRawIBD(d.hist) : null;
-        if (raw != null) pairs.push({ tk, raw });
-      }
-      pairs.sort((x, y) => x.raw - y.raw);
-      this.raws = pairs.map(p2 => p2.raw);
-      this.rsPct = {};
-      pairs.forEach((r, i) => { this.rsPct[r.tk] = Math.max(1, Math.min(99, Math.round(((i + 1) / pairs.length) * 99))); });
-      return Object.keys(this.universe).length > 0;
-    } catch (e) {
-      console.warn('[CapitalDrill] universo:', e.message);
-      return false;
-    } finally { this.loading = false; }
+    // Promise compartida: dos clicks rápidos antes compartían el flag loading y el
+    // segundo veía "No se pudo cargar el universo" falso (race — audit 2026-07-08)
+    if (this._universePromise) return this._universePromise;
+    this._universePromise = (async () => {
+      try {
+        const map = await this.loadHoldingsMap();
+        const all = [...new Set(Object.values(map).flat())].filter(t => /^[A-Z0-9-]{1,7}$/.test(t));
+        this.universe = await this.fetchBatch(all);
+        const pairs = [];
+        for (const tk of all) {
+          const d = this.universe[tk];
+          const raw = d && d.hist ? rsRawIBD(d.hist) : null;
+          if (raw != null) pairs.push({ tk, raw });
+        }
+        pairs.sort((x, y) => x.raw - y.raw);
+        this.raws = pairs.map(p2 => p2.raw);
+        this.rsPct = {};
+        pairs.forEach((r, i) => { this.rsPct[r.tk] = Math.max(1, Math.min(99, Math.round(((i + 1) / pairs.length) * 99))); });
+        return Object.keys(this.universe).length > 0;
+      } catch (e) {
+        console.warn('[CapitalDrill] universo:', e.message);
+        return false;
+      } finally { this._universePromise = null; }
+    })();
+    return this._universePromise;
   },
   pctOf(raw) {
     if (raw == null || !Array.isArray(this.raws) || !this.raws.length) return null;

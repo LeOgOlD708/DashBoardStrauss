@@ -26,8 +26,9 @@ async function fetchEtfStats(etf) {
   const sharesOut = parse(so);
   const aum = parse(au);
   if (!sharesOut) throw new Error('parse sharesOut vacío (¿cambió el HTML?)');
-  // Sanity: los sector SPDRs viven entre ~10M y ~2B shares
-  if (sharesOut < 1e5 || sharesOut > 1e11) throw new Error(`sharesOut fuera de rango: ${sharesOut}`);
+  // Sanity: los 11 SPDRs viven entre 155M (XLI) y 970M (XLF) — rango con margen para
+  // ETFs futuros: 1M a 10B shares (audit 2026-07-08: 1e5 era irreal, 1e11 demasiado laxo)
+  if (sharesOut < 1e6 || sharesOut > 1e10) throw new Error(`sharesOut fuera de rango: ${sharesOut}`);
   return { sharesOut, aum };
 }
 
