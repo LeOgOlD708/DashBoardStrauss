@@ -1977,7 +1977,7 @@ html.auth-ok #auth-gate{display:none}
        Click en sector del cuadrante → top holdings rankeados por RS Rating (percentil
        IBD-style) + U/D institucional + Trend Template Minervini. Computado de Yahoo.
   ══════════════════════════════════════════════════ -->
-  <div class="sh"><div class="sh-tag">Acciones</div><div class="sh-title">Drill-Down — ¿Qué acciones dentro del sector?</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('drill-down-acciones')" title="¿Qué es esto?">?</button></div>
+  <div class="sh"><div class="sh-tag">Acciones</div><div class="sh-title">Drill-Down — ¿Qué acciones dentro del sector?</div><button class="glossary-btn" onclick="openGlossary('drill-down-acciones')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card teal-a" style="margin-bottom:14px"><div class="card-accent"></div>
     <div id="drill-sectors" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
@@ -1992,7 +1992,7 @@ html.auth-ok #auth-gate{display:none}
        Sintesis del embudo: ETF en flujo (cuadrante) → RS≥75 → Template≥5/7
        → acumulacion (U/D≥1.2 o A/D≥B) → ≤25% del max 52w → veto macro.
   ══════════════════════════════════════════════════ -->
-  <div class="sh"><div class="sh-tag">Síntesis</div><div class="sh-title">CANDIDATAS HOY — el embudo completo en una lista</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('candidatas-hoy')" title="¿Qué es esto?">?</button></div>
+  <div class="sh"><div class="sh-tag">Síntesis</div><div class="sh-title">CANDIDATAS HOY — el embudo completo en una lista</div><button class="glossary-btn" onclick="openGlossary('candidatas-hoy')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
       <span style="font-size:10px;color:var(--text2);line-height:1.5">Rotación (dónde entra el capital) × fuerza (RS) × tendencia (Minervini) × acumulación institucional × <b style="color:var(--gold)">veto del régimen macro</b>.</span>
@@ -2077,7 +2077,7 @@ html.auth-ok #auth-gate{display:none}
        Eje Y: momentum de esa fuerza a 4 semanas (RS-Momentum, centro 100)
        Estela: 6 semanas. Agregado 2026-07-07.
   ══════════════════════════════════════════════════ -->
-  <div class="sh"><div class="sh-tag">Rotación</div><div class="sh-title">Rotación de Capital — ¿Hacia dónde se mueve el dinero?</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('rotacion-capital')" title="¿Qué es esto?">?</button></div>
+  <div class="sh"><div class="sh-tag">Rotación</div><div class="sh-title">Rotación de Capital — ¿Hacia dónde se mueve el dinero?</div><button class="glossary-btn" onclick="openGlossary('rotacion-capital')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
     <div style="display:flex;gap:5px;margin-bottom:8px">
       <button id="rot-mode-sec" onclick="setRotMode('sectores')" style="font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">SECTORES (11 SPDR)</button>
@@ -9904,9 +9904,13 @@ window.OpportunityScanner = (function () {
       distSma = ((yh.regularMarketPrice / yh.fiftyDayAverage) - 1) * 100;
 
       // Base por distancia a SMA50 (rangos refinados respecto a v1.0)
+      // BUG FIX 2026-07-08: el branch `>= -10` sin cota superior atrapaba TODO distSma > 5
+      // → los sectores extendidos/sobrecomprados recibían 7 pts ("oversold leve") en vez
+      // de 5/2. Los branches de extendido eran INALCANZABLES. Cazado recomputando el Top 5
+      // a mano (XLV +9.4% mostraba setup 9; diseño dice 7).
       if      (distSma >=  0 && distSma <=  5)  comp4 = 10; // valor sobre SMA50
       else if (distSma >= -5 && distSma <   0)  comp4 = 10; // zona valor justo debajo
-      else if (distSma >= -10)                  comp4 = 7;  // oversold leve (-10 a -5)
+      else if (distSma >= -10 && distSma < -5)  comp4 = 7;  // oversold leve (-10 a -5)
       else if (distSma >  5  && distSma <= 10)  comp4 = 5;  // extendido moderado
       else if (distSma >  10)                   comp4 = 2;  // muy extendido / sobrecomprado
       else                                       comp4 = 4;  // distSma < -10 (oversold profundo)
