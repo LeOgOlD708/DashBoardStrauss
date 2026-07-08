@@ -143,13 +143,16 @@ module.exports = async (req, res) => {
     console.log('[FRED] failed:', failed.map(s => `${s}=${results[s]?.error || '?'}`).join(' · '));
   }
 
-  // Solo cacheamos respuestas exitosas (no propagamos errores)
-  if (failed.length === 0) {
+  // Solo cacheamos respuestas COMPLETAS (fix 2026-07-08: una serie vacía por hiccup
+  // de FRED quedaba cacheada 1h en CDN → score parcial pegajoso hasta expirar; visto
+  // en vivo con WRBWFRBL=[] → score 2.0/8 "Reservas caídas" servido desde cache)
+  const incomplete = failed.length + empty.length;
+  if (incomplete === 0) {
     memCache.set(cacheKey, { data: results, exp: Date.now() + CACHE_TTL_MS });
   }
 
   res.setHeader('X-Cache', 'MISS');
-  const cacheControl = failed.length > 0
+  const cacheControl = incomplete > 0
     ? 'max-age=0, no-cache, no-store'
     : 's-maxage=3600, stale-while-revalidate=600';
   res.setHeader('Cache-Control', cacheControl);
