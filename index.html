@@ -1219,6 +1219,15 @@ html.auth-ok #auth-gate{display:none}
         <div class="mono" style="font-size:9px;color:var(--text3)">USD débil → liquidez global ↑</div>
       </div>
     </div>
+    <!-- ── Ciclo de liquidez: GLI-lite semanal vs onda 65 meses (estilo CrossBorder, 2026-07-08) ── -->
+    <div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;flex-wrap:wrap;gap:6px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text2);letter-spacing:.08em">CICLO DE LIQUIDEZ — GLI-lite semanal vs onda de 65 meses</span>
+        <span class="mono" id="gli-cycle-pos" style="font-size:9px;color:var(--gold)">—</span>
+      </div>
+      <div class="ch-wrap" style="height:150px"><canvas id="gliCycleChart" role="img" aria-label="Ciclo GLI vs onda 65 meses">Ciclo de liquidez global.</canvas></div>
+      <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5">Línea crema: GLI-lite recomputado semana a semana (~12 meses; puntos viejos usan los componentes disponibles, normalizados). Punteada roja: onda teórica de 65 meses del ciclo Howell con pico anclado en dic-2025 (Capital Wars) — es la regla del libro, NO un ajuste a los datos.</div>
+    </div>
     <div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.5">
       Índice 0-100 tipo difusión (framework Howell): pesos Fed-flujo 22% · MOVE 18% · ECB 12% · China 12% · Fed-YoY 8% · BOJ 8% · M2 10% · DXY 8%.
       ⭐ = los 2 pilares que Howell considera decisivos. <strong style="color:var(--text2)">Sin cross-border/eurodólar (dato propietario sin proxy gratuito)</strong> — este índice es la mejor aproximación gratuita, no el GLI oficial.
@@ -5506,51 +5515,55 @@ function updateFavoredAssets(prices) {
 // 0-100 tipo difusión cubre esos gaps con data gratuita. Caveats documentados en
 // el glosario: China vía proxy FXI (M2 China discontinuada en FRED 2019) y sin
 // cross-border/eurodólar (propietario de CrossBorder Capital).
-function _yoySeries(series, days) {
-  if (!Array.isArray(series) || !series.length) return null;
-  const nowV = series[0]?.value;
-  if (nowV == null) return null;
-  const past = _findValueAt(series, new Date(Date.now() - (days || 365) * 86400000));
-  if (past == null || past === 0) return null;
-  return (nowV / past - 1) * 100;
+// (_yoySeries removida 2026-07-08: absorbida por el yoySer de _gliCompsAt, su único consumidor)
+// Helper: valor de una serie Yahoo (hist/dates) en (o antes de) una fecha. when=null → precio vivo.
+function _yahooValAt(tk, when, prices) {
+  const d = prices?.[tk];
+  if (!d || !Array.isArray(d.hist) || !d.hist.length) return null;
+  if (!when) return d.price ?? d.hist[d.hist.length - 1];
+  if (!Array.isArray(d.dates) || d.dates.length !== d.hist.length) return null;
+  for (let j = d.dates.length - 1; j >= 0; j--) {
+    const dt = new Date(d.dates[j]);
+    if (!isNaN(dt.getTime()) && dt <= when) return d.hist[j];
+  }
+  return null;
 }
-function updateGlobalLiquidity(prices) {
+// ── GLI: componentes en una fecha arbitraria (when=null → ahora) ──
+// ÚNICO lugar con las fórmulas: lo usan la card en vivo Y el histórico del ciclo de 65 meses.
+function _gliCompsAt(when, prices) {
   const d = state.data;
   const clamp01 = v => Math.max(0, Math.min(100, v));
-  // 1 ⭐ Fed net liquidity Δ13 semanas — FLUJO en $B (gap #1 de Howell: flujos > stocks)
-  let fedNetD13 = null;
-  const netAt = when => {
-    const r = when ? _findValueAt(d.reserves, when) : d.reserves?.[0]?.value;
-    const t = when ? _findValueAt(d.tga, when) : d.tga?.[0]?.value;
-    const p2 = when ? _findValueAt(d.rrp, when) : d.rrp?.[0]?.value;
-    if (r == null || t == null || p2 == null) return null;
-    return r - t - p2 * 1000; // rrp Billions → Millions
+  const ref = when || new Date();
+  const at = s => when ? _findValueAt(s, when) : (s?.[0]?.value ?? null);
+  const yoySer = (s, days) => {
+    const nowV = at(s);
+    const past = _findValueAt(s, new Date(ref.getTime() - days * 86400000));
+    return (nowV != null && past) ? (nowV / past - 1) * 100 : null;
   };
-  const netNow = netAt(null);
-  const netPast = netAt(new Date(Date.now() - 91 * 86400000));
-  if (netNow != null && netPast != null) fedNetD13 = (netNow - netPast) / 1000; // $B
+  // 1 ⭐ Fed net liquidity Δ13 semanas — FLUJO en $B (gap #1 de Howell: flujos > stocks)
+  const net = x => {
+    const r = _findValueAt(d.reserves, x), t = _findValueAt(d.tga, x), p2 = _findValueAt(d.rrp, x);
+    return (r == null || t == null || p2 == null) ? null : r - t - p2 * 1000; // rrp Billions → Millions
+  };
+  const netNow = when ? net(when) : (() => {
+    const r = d.reserves?.[0]?.value, t = d.tga?.[0]?.value, p2 = d.rrp?.[0]?.value;
+    return (r == null || t == null || p2 == null) ? null : r - t - p2 * 1000;
+  })();
+  const netPast = net(new Date(ref.getTime() - 91 * 86400000));
+  const fedNetD13 = (netNow != null && netPast != null) ? (netNow - netPast) / 1000 : null; // $B
   // 2 ⭐ MOVE (colateral): nivel invertido — <80 colateral sano, >120 estrés
-  const moveVal = prices?.['^MOVE']?.price ?? null;
-  // 3-6: YoY de balances G3 + M2
-  const walclYoY = _yoySeries(d.walcl, 365);
-  const ecbYoY   = _yoySeries(d.ecb, 365);
-  const bojYoY   = _yoySeries(d.boj, 380); // mensual: margen extra
-  const m2YoY    = _yoySeries(d.m2, 380);
-  // 7: China proxy — FXI YoY desde hist Yahoo
-  const fxi = prices?.['FXI'];
-  let fxiYoY = null;
-  if (fxi?.hist?.length >= 200) {
-    const past = fxi.hist.length > 250 ? fxi.hist[fxi.hist.length - 251] : fxi.hist[0];
-    if (past > 0) fxiYoY = ((fxi.price ?? fxi.hist[fxi.hist.length - 1]) / past - 1) * 100;
-  } else if (fxi?.ytd != null) fxiYoY = fxi.ytd;
-  // 8: DXY YoY invertido
-  const dxyP = prices?.['DX-Y.NYB'];
-  let dxyYoY = null;
-  if (dxyP?.hist?.length >= 200) {
-    const past = dxyP.hist.length > 250 ? dxyP.hist[dxyP.hist.length - 251] : dxyP.hist[0];
-    if (past > 0) dxyYoY = ((dxyP.price ?? dxyP.hist[dxyP.hist.length - 1]) / past - 1) * 100;
-  } else if (dxyP?.ytd != null) dxyYoY = dxyP.ytd;
-
+  const moveVal = _yahooValAt('^MOVE', when, prices);
+  // 3-6: YoY de balances G3 + M2 (boj/m2 mensuales: margen extra de días)
+  const walclYoY = yoySer(d.walcl, 365), ecbYoY = yoySer(d.ecb, 365), bojYoY = yoySer(d.boj, 380), m2YoY = yoySer(d.m2, 380);
+  // 7-8: China proxy FXI + DXY inv. El hist Yahoo cubre ~1 año → en puntos históricos el YoY
+  // suele ser null (el índice se normaliza sobre los componentes disponibles).
+  const yahooYoY = tk => {
+    const nowV = _yahooValAt(tk, when, prices);
+    let past = _yahooValAt(tk, new Date(ref.getTime() - 365 * 86400000), prices);
+    if (past == null && !when) { const h = prices?.[tk]?.hist; past = (h?.length >= 200) ? h[0] : null; } // vivo: fallback al punto más viejo (comportamiento GLI v2)
+    return (nowV != null && past > 0) ? (nowV / past - 1) * 100 : null;
+  };
+  const fxiYoY = yahooYoY('FXI'), dxyYoY = yahooYoY('DX-Y.NYB');
   // Cada componente → sub-score 0-100 (50 = neutral) y peso Howell-informado
   const comps = [
     { id: 'gli-fednet', val: fedNetD13, fmt: v => (v >= 0 ? '+$' : '−$') + Math.abs(v).toFixed(0) + 'B', sc: v => clamp01(50 + v * 0.12), w: 0.22 },
@@ -5562,18 +5575,24 @@ function updateGlobalLiquidity(prices) {
     { id: 'gli-china',  val: fxiYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 2.5), w: 0.12 },
     { id: 'gli-dxy',    val: dxyYoY,    fmt: v => (v <= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '% liq', sc: v => clamp01(50 - v * 4), w: 0.08 },
   ];
+  comps.forEach(c => { c.sub = c.val != null ? c.sc(c.val) : null; });
+  return { comps, fedNetD13 };
+}
+function _gliIndexFrom(comps) {
   let num = 0, den = 0;
+  for (const c of comps) { if (c.sub == null) continue; num += c.sub * c.w; den += c.w; }
+  return den > 0 ? { gli: Math.round(num / den), den } : { gli: null, den: 0 };
+}
+function updateGlobalLiquidity(prices) {
+  const { comps, fedNetD13 } = _gliCompsAt(null, prices);
   for (const c of comps) {
     const el = document.getElementById(c.id);
-    if (c.val == null) { if (el) { el.textContent = '—'; el.style.color = 'var(--text3)'; } continue; }
-    const sub = c.sc(c.val);
-    num += sub * c.w; den += c.w;
-    if (el) {
-      el.textContent = c.fmt(c.val);
-      el.style.color = sub >= 60 ? 'var(--green)' : sub <= 40 ? 'var(--red)' : 'var(--amber)';
-    }
+    if (!el) continue;
+    if (c.val == null) { el.textContent = '—'; el.style.color = 'var(--text3)'; continue; }
+    el.textContent = c.fmt(c.val);
+    el.style.color = c.sub >= 60 ? 'var(--green)' : c.sub <= 40 ? 'var(--red)' : 'var(--amber)';
   }
-  const gli = den > 0 ? Math.round(num / den) : null;
+  const { gli, den } = _gliIndexFrom(comps);
   const scoreEl = document.getElementById('gli-score');
   const bdg = document.getElementById('gli-badge');
   let regime = null;
@@ -5587,6 +5606,73 @@ function updateGlobalLiquidity(prices) {
   }
   // Para la IA (getDashboardContext) y otros consumidores
   window.__gli = gli != null ? { gli, regime, fedNetD13 } : null;
+  try { renderGliCycle(prices); } catch (e) { /* el chart del ciclo nunca debe romper la card */ }
+}
+
+// ── Ciclo GLI (2026-07-08): histórico semanal ~12 meses + onda teórica de 65 meses ──
+// Réplica del chart "Global Liquidity Cycle" de CrossBorder Capital con data gratuita.
+// Pico anclado dic-2025 (Howell sitúa el techo del ciclo en Q4-25/inicio-26) — regla, no fit.
+const GLI_CYCLE_PEAK_MS = new Date('2025-12-15T00:00:00Z').getTime();
+const GLI_CYCLE_MONTHS = 65;
+function _gliWaveAt(ms) {
+  const mo = 30.44 * 86400000;
+  return 50 + 42 * Math.cos(2 * Math.PI * (ms - GLI_CYCLE_PEAK_MS) / (GLI_CYCLE_MONTHS * mo));
+}
+function computeGliHistory(prices) {
+  const now = Date.now();
+  if (window._gliHist && now - window._gliHist.ts < 600000) return window._gliHist.points;
+  const points = [];
+  for (let w = 52; w >= 1; w--) {
+    const when = new Date(now - w * 7 * 86400000);
+    const { comps } = _gliCompsAt(when, prices);
+    const { gli, den } = _gliIndexFrom(comps);
+    if (gli != null && den >= 0.5) points.push({ t: when.getTime(), gli }); // <50% de pesos disponibles → punto no representativo
+  }
+  window._gliHist = { ts: now, points };
+  return points;
+}
+function renderGliCycle(prices) {
+  const cv = document.getElementById('gliCycleChart');
+  if (!cv || typeof Chart === 'undefined') return;
+  const points = [...computeGliHistory(prices)];
+  if (window.__gli?.gli != null) points.push({ t: Date.now(), gli: window.__gli.gli }); // hoy = índice completo en vivo
+  if (points.length < 8) return;
+  const labels = points.map(p => new Date(p.t).toLocaleDateString('es-MX', { month: 'short', day: '2-digit' }));
+  const gliData = points.map(p => p.gli);
+  const waveData = points.map(p => Math.round(_gliWaveAt(p.t)));
+  const posEl = document.getElementById('gli-cycle-pos');
+  if (posEl) {
+    const mo = 30.44 * 86400000;
+    const sincePeak = ((Date.now() - GLI_CYCLE_PEAK_MS) / mo % 65 + 65) % 65; // meses desde el pico teórico
+    const mesDesdeValle = Math.round((sincePeak + 32.5) % 65);
+    posEl.textContent = 'mes ~' + mesDesdeValle + '/65 · ' + (sincePeak < 32.5 ? 'fase DESCENDENTE post-pico' : 'fase ascendente');
+  }
+  const ch = state.charts.gliCycle;
+  if (ch) {
+    ch.data.labels = labels;
+    ch.data.datasets[0].data = gliData;
+    ch.data.datasets[1].data = waveData;
+    ch.update('none');
+    return;
+  }
+  state.charts.gliCycle = new Chart(cv, {
+    type: 'line',
+    data: { labels, datasets: [
+      { label: 'GLI-lite computado', data: gliData, borderColor: '#f0ece4', backgroundColor: 'rgba(240,236,228,.05)', borderWidth: 1.6, pointRadius: 0, tension: .3, fill: true },
+      { label: 'Onda 65 meses (Howell)', data: waveData, borderColor: 'rgba(220,38,38,.75)', borderDash: [6, 4], borderWidth: 1.3, pointRadius: 0, tension: .4, fill: false }
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { display: true, labels: { color: '#7d6f63', font: { size: 9, family: "'IBM Plex Mono',monospace" }, boxWidth: 14 } },
+        tooltip: { callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y + '/100' } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 9, maxRotation: 0 } },
+        y: { min: 0, max: 100, grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, stepSize: 25 } }
+      }
+    }
+  });
 }
 
 // ── Flash on value change ──
