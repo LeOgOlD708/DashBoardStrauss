@@ -6058,8 +6058,9 @@ function updateNfci() {
   const s = state.data.nfci;
   if (!Array.isArray(s) || s.length < 20) return;
   const asc = _ascObs(s);
-  const scores = asc.map(o => ({ date: o.date, v: +(100 * (1 - _phiCdf(o.value))).toFixed(1) }));
-  const cur = scores[scores.length - 1];
+  const scoresAll = asc.map(o => ({ date: o.date, v: +(100 * (1 - _phiCdf(o.value))).toFixed(1) }));
+  const scores = scoresAll.slice(-52); // chart: 52 semanas — misma cobertura que el hist de SPY (1 año), ambas líneas completas
+  const cur = scoresAll[scoresAll.length - 1];
   const v = Math.round(cur.v); // mismo valor para display Y umbrales (69.7 mostraba "70 · NEUTRAL")
   const scoreEl = document.getElementById('nfci-score');
   const bdg = document.getElementById('nfci-badge');
