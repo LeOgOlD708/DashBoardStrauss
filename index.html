@@ -8031,6 +8031,87 @@ function rsRawIBD(hist) {
   if (p3 == null) return null;
   return 2 * p3 + (p6 ?? p3) + (p9 ?? p6 ?? p3) + (p12 ?? p9 ?? p6 ?? p3);
 }
+// ══ FASE 1 · Señal por acción (2026-07-08, research 3 agentes — ver playbook 10) ══
+// Retornos diarios simples desde closes
+function _dailyRets(hist) {
+  const r = [];
+  for (let i = 1; i < hist.length; i++) if (hist[i - 1] > 0) r.push(hist[i] / hist[i - 1] - 1);
+  return r;
+}
+// Momentum 12-1 y 6-1 ajustados por volatilidad (estilo MTUM: skip-month + ÷σ).
+// Research: la mejora #1 sobre el RS crudo — deja de premiar retornos frágiles de alta vol.
+function momVolAdj(hist) {
+  if (!Array.isArray(hist) || hist.length < 150) return null;
+  const skip = hist.slice(0, hist.length - 21); // salta el último mes (reversión de corto plazo, J&T)
+  const last = skip[skip.length - 1];
+  const r12 = (hist.length >= 240 && skip[0] > 0) ? last / skip[0] - 1 : null;
+  const i6 = skip.length - 105; // ~6m antes del skip
+  const r6 = (i6 >= 0 && skip[i6] > 0) ? last / skip[i6] - 1 : null;
+  const rets = _dailyRets(hist);
+  const mean = rets.reduce((a, b) => a + b, 0) / rets.length;
+  const sd = Math.sqrt(rets.reduce((a, b) => a + (b - mean) ** 2, 0) / rets.length) * Math.sqrt(252);
+  if (!sd || (!r6 && !r12)) return null;
+  const parts = [r6, r12].filter(v => v != null).map(v => v / sd);
+  return parts.reduce((a, b) => a + b, 0) / parts.length; // rf≈0 (simplificación declarada)
+}
+// Alpha de Jensen (anualizado) + Beta + R² — regresión OLS de retornos diarios vs SPY (rf≈0).
+// Research: rankear por α SOLO con R² decente (<~0.3 = ruido).
+function alphaBeta(hist, spyHist) {
+  if (!Array.isArray(hist) || !Array.isArray(spyHist) || hist.length < 120 || spyHist.length < 120) return null;
+  const n = Math.min(hist.length, spyHist.length);
+  const rs = _dailyRets(hist.slice(-n)), rm = _dailyRets(spyHist.slice(-n));
+  const len = Math.min(rs.length, rm.length);
+  if (len < 100) return null;
+  const x = rm.slice(-len), y = rs.slice(-len);
+  const mx = x.reduce((a, b) => a + b, 0) / len, my = y.reduce((a, b) => a + b, 0) / len;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < len; i++) { const dx = x[i] - mx, dy = y[i] - my; sxy += dx * dy; sxx += dx * dx; syy += dy * dy; }
+  if (!sxx || !syy) return null;
+  const beta = sxy / sxx;
+  const alphaD = my - beta * mx;
+  const alphaA = (Math.pow(1 + alphaD, 252) - 1) * 100; // % anualizado
+  const r2 = (sxy * sxy) / (sxx * syy);
+  return { alpha: alphaA, beta, r2 };
+}
+// Omega(τ=0) sobre retornos diarios (126d): Σ ganancias / Σ pérdidas — usa toda la distribución.
+function omega0(hist, n) {
+  if (!Array.isArray(hist) || hist.length < 60) return null;
+  const rets = _dailyRets(hist.slice(-(n || 126)));
+  let up = 0, dn = 0;
+  for (const r of rets) { if (r > 0) up += r; else dn -= r; }
+  return dn > 0 ? up / dn : (up > 0 ? 9.99 : null);
+}
+// Pocket Pivot (O'Neil/Morales-Kacher): día ALCISTA cuyo volumen supera al MAYOR volumen
+// de día bajista de las 10 sesiones previas, con precio sobre SMA50 (contexto de tendencia).
+// Devuelve true si ocurrió HOY o AYER (ventana de lectura).
+function pocketPivot(hist, vols) {
+  if (!Array.isArray(hist) || !Array.isArray(vols) || hist.length < 65) return false;
+  const s50 = smaAt(hist, 50);
+  for (let d = 0; d < 2; d++) { // hoy y ayer
+    const i = hist.length - 1 - d;
+    if (i < 11 || hist[i] == null || hist[i - 1] == null) continue;
+    if (!(hist[i] > hist[i - 1])) continue;          // día alcista
+    if (s50 == null || hist[i] < s50 * 0.98) continue; // en/encima de la MA50
+    let maxDown = 0;
+    for (let j = i - 10; j < i; j++) {
+      if (hist[j] < hist[j - 1] && vols[j] != null) maxDown = Math.max(maxDown, vols[j]);
+    }
+    if (maxDown > 0 && vols[i] != null && vols[i] > maxDown) return true;
+  }
+  return false;
+}
+// VDU (Volume Dry-Up): volumen 5d contraído a <60% del promedio 50d — oferta agotada
+// (proxy Wyckoff computable; suele preceder al pocket pivot).
+function volumeDryUp(vols) {
+  if (!Array.isArray(vols) || vols.length < 55) return false;
+  const clean = i => (vols[i] != null && isFinite(vols[i]) && vols[i] > 0) ? vols[i] : null;
+  let s5 = 0, n5 = 0, s50 = 0, n50 = 0;
+  for (let i = vols.length - 5; i < vols.length; i++) { const v = clean(i); if (v) { s5 += v; n5++; } }
+  for (let i = vols.length - 50; i < vols.length; i++) { const v = clean(i); if (v) { s50 += v; n50++; } }
+  if (n5 < 3 || n50 < 25) return false;
+  return (s5 / n5) < 0.6 * (s50 / n50);
+}
+
 function trendTemplate(hist, rsRating) {
   if (!Array.isArray(hist) || hist.length < 200) return null;
   const price = hist[hist.length - 1];
@@ -8352,6 +8433,17 @@ const CapitalDrill = {
         this.raws = pairs.map(p2 => p2.raw);
         this.rsPct = {};
         pairs.forEach((r, i) => { this.rsPct[r.tk] = Math.max(1, Math.min(99, Math.round(((i + 1) / pairs.length) * 99))); });
+        // FASE 1: percentil de momentum vol-adjusted (MTUM-style) sobre el mismo universo
+        const momPairs = [];
+        for (const tk of all) {
+          const d = this.universe[tk];
+          const m = d && d.hist ? momVolAdj(d.hist) : null;
+          if (m != null && isFinite(m)) momPairs.push({ tk, m });
+        }
+        momPairs.sort((x, y) => x.m - y.m);
+        this.momRaws = momPairs.map(p2 => p2.m);
+        this.momPct = {};
+        momPairs.forEach((r, i) => { this.momPct[r.tk] = Math.max(1, Math.min(99, Math.round(((i + 1) / momPairs.length) * 99))); });
         return Object.keys(this.universe).length > 0;
       } catch (e) {
         console.warn('[CapitalDrill] universo:', e.message);
@@ -8360,12 +8452,13 @@ const CapitalDrill = {
     })();
     return this._universePromise;
   },
-  pctOf(raw) {
-    if (raw == null || !Array.isArray(this.raws) || !this.raws.length) return null;
-    let lo = 0, hi = this.raws.length;
-    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.raws[mid] <= raw) lo = mid + 1; else hi = mid; }
-    return Math.max(1, Math.min(99, Math.round((lo / this.raws.length) * 99)));
+  _pctIn(arr, v) {
+    if (v == null || !Array.isArray(arr) || !arr.length) return null;
+    let lo = 0, hi = arr.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid] <= v) lo = mid + 1; else hi = mid; }
+    return Math.max(1, Math.min(99, Math.round((lo / arr.length) * 99)));
   },
+  pctOf(raw) { return this._pctIn(this.raws, raw); },
   stockRow(tk) {
     const d = this.universe[tk];
     if (!d || !d.hist || !d.hist.length) return null;
@@ -8376,7 +8469,14 @@ const CapitalDrill = {
     const hi52 = Math.max(...d.hist);
     const dist52 = hi52 > 0 ? (d.price / hi52 - 1) * 100 : null;
     const volAnom = (d.regularMarketVolume && d.averageVolume) ? d.regularMarketVolume / d.averageVolume : null;
-    return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom };
+    // FASE 1 · señal por acción: MOM vol-adjusted (percentil), α/β/R², Ω(0), Pocket Pivot, VDU
+    const mom = this.momPct?.[tk] ?? this._pctIn(this.momRaws, momVolAdj(d.hist));
+    const spyH = state.data.prices?.SPY?.hist;
+    const q = spyH ? alphaBeta(d.hist, spyH) : null;
+    const om = omega0(d.hist);
+    const pp = pocketPivot(d.hist, d.vols || []);
+    const vdu = !pp && volumeDryUp(d.vols || []);
+    return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom, mom, q, om, pp, vdu };
   },
   _rowsTableHtml(rows, titulo, nota) {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
@@ -8389,20 +8489,35 @@ const CapitalDrill = {
       const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 7 ? '#4ade80' : r.tpl.passed >= 5 ? '#fbbf24' : '#f87171';
       const tplDots = !r.tpl ? '—' : '<span style="letter-spacing:1px;color:' + tplCol + '">' + '●'.repeat(r.tpl.passed) + '<span style="opacity:.25">' + '●'.repeat(8 - r.tpl.passed) + '</span></span> <span style="color:' + tplCol + ';font-size:9px">' + r.tpl.passed + '/8</span>';
       const volTag = r.volAnom != null && r.volAnom >= 1.5 ? ' <span style="color:var(--amber)" title="Volumen hoy vs promedio 20d">⚡' + r.volAnom.toFixed(1) + 'x</span>' : '';
+      // FASE 1: huellas de volumen institucional (research O'Neil/Wyckoff)
+      const ppTag = r.pp ? ' <span title="POCKET PIVOT (hoy/ayer): día alcista con volumen mayor al máximo down-volume de 10 sesiones, sobre la SMA50 — huella institucional ANTES del breakout">🚀</span>' : '';
+      const vduTag = r.vdu ? ' <span title="VOLUME DRY-UP: volumen 5d < 60% del promedio 50d — oferta agotada, suele preceder al pocket pivot" style="opacity:.8">💤</span>' : '';
       const rsCell = r.rs == null ? '—' : '<span class="drill-rs"><b style="color:' + rsCol + ';min-width:18px">' + r.rs + '</b><span class="drill-rs-bar"><span style="display:block;width:' + r.rs + '%;height:100%;border-radius:3px;background:' + rsCol + '"></span></span></span>';
+      const momCol = r.mom == null ? 'var(--text3)' : r.mom >= 80 ? '#4ade80' : r.mom >= 60 ? '#86efac' : r.mom >= 40 ? '#a89f93' : '#f87171';
+      const momCell = r.mom == null ? '—' : '<b style="color:' + momCol + '">' + r.mom + '</b>';
+      // CALIDAD: α anualizado (gated por R² para no mostrar ruido como señal) + β + Ω en tooltip
+      let calCell = '—';
+      if (r.q && r.q.alpha != null) {
+        const aCol = r.q.alpha >= 5 ? 'var(--green)' : r.q.alpha <= -5 ? 'var(--red)' : 'var(--text2)';
+        const dim = r.q.r2 < 0.3 ? ';opacity:.45' : '';
+        const aTxt = (r.q.alpha >= 0 ? '+' : '') + r.q.alpha.toFixed(0) + '%';
+        calCell = '<span style="color:' + aCol + dim + '" title="α Jensen anualizado 252d vs SPY: ' + aTxt + ' · β ' + r.q.beta.toFixed(2) + ' · R² ' + r.q.r2.toFixed(2) + (r.q.r2 < 0.3 ? ' (R² bajo: α poco fiable)' : '') + (r.om != null ? ' · Ω(0) ' + r.om.toFixed(2) : '') + '">' + aTxt + ' <span style="font-size:8px;color:var(--text3)">β' + r.q.beta.toFixed(1) + (r.om != null ? '·Ω' + r.om.toFixed(1) : '') + '</span></span>';
+      }
       const adChip = '<span class="drill-chip" style="color:' + r.ad.col + ';border-color:' + r.ad.col + '44;background:' + (r.ad.letter === 'A' || r.ad.letter === 'B' ? 'rgba(74,222,128,.06)' : r.ad.letter === 'D' || r.ad.letter === 'E' ? 'rgba(248,113,113,.06)' : 'transparent') + '">' + r.ad.letter + '</span>';
       const d52col = r.dist52 == null ? 'var(--text3)' : r.dist52 > -15 ? 'var(--green)' : r.dist52 > -30 ? 'var(--amber)' : 'var(--red)';
       return '<tr onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
-        + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + '</td>'
+        + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
         + '<td class="' + ((r.chg1m ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1m) + '</td>'
         + '<td>' + rsCell + '</td>'
+        + '<td>' + momCell + '</td>'
         + '<td style="color:' + udCol + ';font-weight:' + (r.ud != null && r.ud >= 1.5 ? '700' : '400') + '">' + (r.ud != null ? r.ud.toFixed(2) : '—') + '</td>'
         + '<td>' + adChip + '</td>'
         + '<td title="' + tplTip + '">' + tplDots + '</td>'
         + '<td style="color:' + d52col + '">' + fmtP(r.dist52) + '</td>'
+        + '<td>' + calCell + '</td>'
         + '</tr>';
     }).join('');
     return '<div class="lbl" style="margin-bottom:6px">' + titulo + '</div>'
@@ -8410,10 +8525,12 @@ const CapitalDrill = {
       + '<thead><tr>'
       + '<th>TICKER</th>' + (hasSec ? '<th title="Via: ETF(s) en cuadrante Mejorando/Lider por los que la accion entra al embudo">VÍA</th>' : '') + '<th>PRECIO</th><th>1D%</th><th>1M%</th>'
       + '<th title="RS: percentil de momentum ponderado 40/20/20/20 (formula IBD) vs universo LOCAL de ~114 holdings sectoriales — NO equivale al RS Rating de IBD (~6000 acciones). 80+ = elite del universo local">RS RATING</th>'
+      + '<th title="MOM 2.0 (FASE 1): percentil del momentum 6m+12m con skip-month AJUSTADO POR VOLATILIDAD (metodologia MTUM/MSCI) vs el mismo universo. Castiga retornos fragiles de alta vol que el RS crudo premia">MOM</th>'
       + '<th title="Up/Down Volume Ratio 50d (IBD): >1 demanda neta · >=2 patrocinio institucional. El 1.5 del badge es umbral propio conservador, no estandar IBD">U/D 50d</th>'
       + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
       + '<th title="Trend Template Minervini: las 8 condiciones oficiales de tendencia sana (hover para ver cada check)">TEMPLATE MINERVINI</th>'
       + '<th title="Distancia al maximo de 52 semanas (verde: zona de compra 0/-15%)">vs MAX 52w</th>'
+      + '<th title="CALIDAD (FASE 1): alpha de Jensen anualizado 252d vs SPY (skill no explicado por el mercado) + beta + Omega(0). Atenuado si R²<0.3 (alpha poco fiable). 🚀=Pocket Pivot · 💤=Volume Dry-Up en la col. ticker">α · β · Ω</th>'
       + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'
       + '<div style="margin-top:8px;font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.5">' + nota + '</div>';
   },
@@ -8548,7 +8665,7 @@ const CandidatasHoy = {
       row.sec = vias.slice(0, 3).join('+');
       cands.push(row);
     }
-    cands.sort((a, b) => (b.rs ?? 0) - (a.rs ?? 0) || (b.tpl?.passed ?? 0) - (a.tpl?.passed ?? 0) || (b.ud ?? 0) - (a.ud ?? 0));
+    cands.sort((a, b) => (b.rs ?? 0) - (a.rs ?? 0) || (b.tpl?.passed ?? 0) - (a.tpl?.passed ?? 0) || (b.ud ?? 0) - (a.ud ?? 0) || (b.mom ?? 0) - (a.mom ?? 0)); // FASE 1: MOM vol-adjusted como 4º desempate
     const result = { cands, evaluated: seen.size, flows, veto: this.regimeVeto() };
     this.cache = result; this.lastRun = Date.now();
     this.render(result);
