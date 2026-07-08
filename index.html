@@ -6943,12 +6943,13 @@ function updateMotorHistoryMinis() {
     }
     const trendEl = document.getElementById('diag-history-trend');
     if (trendEl && last13.length >= 5) {
-      const cur = last13[last13.length - 1];
-      const prev = last13[last13.length - 5];
-      const delta = cur - prev;
+      const win = last13.slice(-5);
+      const delta = win[win.length - 1] - win[0];
+      const hi = Math.max(...win), lo = Math.min(...win);
+      const volatil = Math.abs(delta) <= 0.3 && (hi - lo) >= 1; // neto plano pero con spike intra-ventana
       const sign = delta >= 0 ? '+' : '';
-      const txt = delta > 0.3 ? '↑ deteriora' : delta < -0.3 ? '↓ mejora' : '→ estable';
-      const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text3)';
+      const txt = delta > 0.3 ? '↑ deteriora' : delta < -0.3 ? '↓ mejora' : volatil ? `↝ volátil ${lo}–${hi}` : '→ estable';
+      const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : volatil ? 'var(--amber)' : 'var(--text3)';
       trendEl.textContent = `4w: ${sign}${delta.toFixed(1)} · ${txt}`;
       trendEl.style.color = col;
     }
@@ -6998,18 +6999,24 @@ function updateMotorHistoryMinis() {
     }
   } catch (e) { /* swallow */ }
 
-  // ── Hero · solo delta 4w como texto (sparkline eliminado por feedback usuario) ──
+  // ── Hero · delta 4w como texto (sparkline eliminado por feedback usuario) ──
   if (howellLast13 && howellLast13.length >= 5) {
     const last13 = howellLast13;
     const trend4wEl = document.getElementById('hero-trend-4w');
     if (trend4wEl) {
-      const cur = last13[last13.length - 1];
-      const prev = last13[last13.length - 5];
+      const win = last13.slice(-5);
+      const cur = win[win.length - 1];
+      const prev = win[0];
       const delta = cur - prev;
+      const hi = Math.max(...win), lo = Math.min(...win);
+      // Fix 2026-07-08 (ojo de Angel): el Δ punto-a-punto escondía spikes intra-ventana —
+      // el score fue 3→3→3→4→5→3 y el hero decía "+0.0 estable". Si el neto es plano
+      // pero la ventana osciló ≥1 pt, se declara la volatilidad con el rango.
+      const volatil = Math.abs(delta) <= 0.3 && (hi - lo) >= 1;
       const sign = delta >= 0 ? '+' : '';
-      const arrow = delta > 0.3 ? '↑' : delta < -0.3 ? '↓' : '→';
-      const txt = delta > 0.3 ? 'deteriora' : delta < -0.3 ? 'mejora' : 'estable';
-      const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : 'var(--text2)';
+      const arrow = delta > 0.3 ? '↑' : delta < -0.3 ? '↓' : volatil ? '↝' : '→';
+      const txt = delta > 0.3 ? 'deteriora' : delta < -0.3 ? 'mejora' : volatil ? `volátil (osciló ${lo}–${hi})` : 'estable';
+      const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : volatil ? 'var(--amber)' : 'var(--text2)';
       trend4wEl.innerHTML = `${sign}${delta.toFixed(1)} ${arrow} <span style="font-size:11px;color:var(--text3);font-weight:400">${txt}</span>`;
       trend4wEl.style.color = col;
     }
@@ -7208,9 +7215,12 @@ function updateHowellHistory() {
   const cur = data[data.length - 1];
   const min = Math.min(...data);
   const max = Math.max(...data);
-  const trend4w = data.length >= 5 ? (cur - data[data.length - 5]) : 0;
-  const trendStr = trend4w > 0.3 ? `↑ +${trend4w.toFixed(1)} (deteriora)` : trend4w < -0.3 ? `↓ ${trend4w.toFixed(1)} (mejora)` : `→ ${trend4w >= 0 ? '+' : ''}${trend4w.toFixed(1)} (estable)`;
-  const trendColor = trend4w > 0.3 ? 'var(--red)' : trend4w < -0.3 ? 'var(--green)' : 'var(--text2)';
+  const win4 = data.slice(-5);
+  const trend4w = win4.length >= 5 ? (cur - win4[0]) : 0;
+  const hi4 = Math.max(...win4), lo4 = Math.min(...win4);
+  const volatil4 = Math.abs(trend4w) <= 0.3 && (hi4 - lo4) >= 1;
+  const trendStr = trend4w > 0.3 ? `↑ +${trend4w.toFixed(1)} (deteriora)` : trend4w < -0.3 ? `↓ ${trend4w.toFixed(1)} (mejora)` : volatil4 ? `↝ ${trend4w >= 0 ? '+' : ''}${trend4w.toFixed(1)} (volátil ${lo4}–${hi4})` : `→ ${trend4w >= 0 ? '+' : ''}${trend4w.toFixed(1)} (estable)`;
+  const trendColor = trend4w > 0.3 ? 'var(--red)' : trend4w < -0.3 ? 'var(--green)' : volatil4 ? 'var(--amber)' : 'var(--text2)';
   const phase = cur >= 6 ? 'Fase 4' : cur >= 4 ? 'Fase 3→4' : cur >= 2 ? 'Fase 3' : cur >= 1 ? 'Fase 2' : 'Fase 1';
 
   const setT = (id, v, c) => { const el = document.getElementById(id); if (el) { el.textContent = v; if (c) el.style.color = c; } };
