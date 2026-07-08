@@ -8535,6 +8535,47 @@ const RelPerf = {
   }
 };
 
+// ── Chart rebaseado genérico (FASE 1D): items vs benchmark — lo usan Drill, Candidatas
+//    y el buscador libre (una sola implementación; RelPerf mantiene la suya con leaderboard) ──
+function renderRebasedChart(cvId, chartKey, items, bench, win) {
+  const cv = document.getElementById(cvId);
+  if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
+  const b = RelPerf._rebase(bench.d, win || 30);
+  if (!b) return;
+  const datasets = [];
+  items.slice(0, 10).forEach((it, i) => {
+    const rb = RelPerf._rebase(it.d, win || 30);
+    if (!rb) return;
+    const n = Math.min(rb.vals.length, b.vals.length);
+    datasets.push({ label: it.label, data: rb.vals.slice(-n), borderColor: RP_PALETTE[i % RP_PALETTE.length], borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false });
+  });
+  if (!datasets.length) return;
+  datasets.push({ label: bench.label + ' (bench)', data: b.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
+  if (state.charts[chartKey]) { state.charts[chartKey].destroy(); }
+  state.charts[chartKey] = new Chart(cv, {
+    type: 'line',
+    data: { labels: b.dates.map(d2 => d2.slice(5)), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+        tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%' } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
+        y: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, callback: v2 => (v2 >= 0 ? '+' : '') + v2 + '%' } }
+      }
+    }
+  });
+}
+// HTML del wrapper del chart rebaseado (título + canvas)
+function rebasedChartHtml(cvId, titulo) {
+  return '<div style="margin-bottom:10px">'
+    + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">' + titulo + '</div>'
+    + '<div class="ch-wrap" style="height:235px"><canvas id="' + cvId + '" role="img" aria-label="' + titulo + '">Chart rebaseado.</canvas></div>'
+    + '</div>';
+}
+
 // ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
 const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
 const CapitalDrill = {
@@ -8719,10 +8760,19 @@ const CapitalDrill = {
     if (missing.length) Object.assign(this.universe, await this.fetchBatch(missing));
     const rows = cons.map(tk => this.stockRow(tk)).filter(Boolean).sort((x, y) => (y.rs ?? 0) - (x.rs ?? 0));
     const secName = ROT_SECTORS[etf] || ROT_INDUSTRIES[etf] || etf;
-    body.innerHTML = this._rowsTableHtml(rows,
+    // FASE 1D (pedido Angel): holdings graficados vs el ETF del sector dentro del drill
+    let benchD = (state.data.prices || {})[etf] || (rotIndData || {})[etf] || this.universe[etf];
+    if (!benchD || !benchD.hist) {
+      try { Object.assign(this.universe, await this.fetchBatch([etf])); benchD = this.universe[etf]; } catch (e) {}
+    }
+    body.innerHTML = rebasedChartHtml('drillChart', 'TOP HOLDINGS DE ' + etf + ' vs ' + etf + ' · 30 DÍAS REBASEADO — liderazgo interno sin la beta del sector')
+      + this._rowsTableHtml(rows,
       secName + ' (' + etf + ') — top holdings rankeados por RS',
       '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · 🚀 = Pocket Pivot · 💤 = Volume Dry-Up · Click en fila → chart TradingView · '
       + 'Universo RS: top-10 holdings × 11 sectores (auto vía /api/holdings, cache 24h). Proxies de precio/volumen (IBD-style) — no son flujos literales.');
+    try {
+      if (benchD?.hist) renderRebasedChart('drillChart', 'drillChart', rows.map(r2 => ({ label: r2.tk, d: this.universe[r2.tk] })), { label: etf, d: benchD });
+    } catch (e) { /* el chart nunca rompe la tabla */ }
     try { if (typeof RelPerf !== 'undefined' && RelPerf.mode === 'drill') RelPerf.render(); } catch (e) {}
   },
   async analyze(tkRaw) {
@@ -8738,10 +8788,12 @@ const CapitalDrill = {
     if (!this.universe[tk]) Object.assign(this.universe, await this.fetchBatch([tk]));
     const row = this.stockRow(tk);
     if (!row) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">Sin datos Yahoo para "' + tk + '" (¿ticker correcto?).</div>'; return; }
-    body.innerHTML = this._rowsTableHtml([row],
+    body.innerHTML = rebasedChartHtml('drillChart', tk + ' vs SPY · 30 DÍAS REBASEADO')
+      + this._rowsTableHtml([row],
       'Análisis libre: ' + tk,
       'RS = percentil vs el universo de ~110 holdings sectoriales (referencia, no universo total del mercado). '
       + 'Mismas métricas que el drill: U/D 50d, A/D 13w, Trend Template Minervini, dist. 52w-high. Click en fila → chart.');
+    try { renderRebasedChart('drillChart', 'drillChart', [{ label: tk, d: this.universe[tk] }], { label: 'SPY', d: (state.data.prices || {}).SPY }); } catch (e) {}
   },
   renderSectorButtons() {
     const wrap = document.getElementById('drill-sectors');
@@ -8842,37 +8894,12 @@ const CandidatasHoy = {
     this.cache = result; this.lastRun = Date.now();
     this.render(result);
   },
-  // FASE 1C (pedido Angel): chart rebaseado de las top candidatas vs SPY — el sistema
-  // visual del screener relativo aplicado a las sobrevivientes del embudo.
+  // FASE 1C (pedido Angel): chart rebaseado de las top candidatas vs SPY.
+  // (1D: delega en renderRebasedChart — implementación única compartida con el Drill.)
   _renderChart(cands) {
-    const cv = document.getElementById('candChart');
-    if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
-    const bench = RelPerf._rebase((state.data.prices || {}).SPY, 30);
-    if (!bench) return;
-    const datasets = [];
-    cands.slice(0, 10).forEach((r, i) => {
-      const rb = RelPerf._rebase(CapitalDrill.universe?.[r.tk], 30);
-      if (!rb) return;
-      const n = Math.min(rb.vals.length, bench.vals.length);
-      datasets.push({ label: r.tk, data: rb.vals.slice(-n), borderColor: RP_PALETTE[i % RP_PALETTE.length], borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false });
-    });
-    if (!datasets.length) return;
-    datasets.push({ label: 'SPY (bench)', data: bench.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
-    state.charts.candChart = new Chart(cv, {
-      type: 'line',
-      data: { labels: bench.dates.map(d2 => d2.slice(5)), datasets },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
-        plugins: {
-          legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
-          tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%' } }
-        },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
-          y: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, callback: v2 => (v2 >= 0 ? '+' : '') + v2 + '%' } }
-        }
-      }
-    });
+    renderRebasedChart('candChart', 'candChart',
+      cands.map(r => ({ label: r.tk, d: CapitalDrill.universe?.[r.tk] })),
+      { label: 'SPY', d: (state.data.prices || {}).SPY });
   },
   render(r) {
     const body = document.getElementById('cand-body');
