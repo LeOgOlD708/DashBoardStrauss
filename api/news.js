@@ -58,7 +58,9 @@ function extractCdata(xml, tag) {
 
 function extractLink(block) {
   // Try CDATA link first
-  const cd = block.match(/<link><!\\[CDATA\\[(.*?)\\]\\]><\/link>/s);
+  // FIX 2026-07-08: el regex tenía doble escape (\\[ en un regex literal = backslash literal)
+  // → nunca matcheaba y ~10 de 37 noticias quedaban con link '#'
+  const cd = block.match(/<link><!\[CDATA\[(.*?)\]\]><\/link>/s);
   if (cd) return cd[1].trim();
   // Atom-style link
   const atom = block.match(/<link[^>]+href=["']([^"']+)["']/);

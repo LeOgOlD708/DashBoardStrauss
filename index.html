@@ -3750,8 +3750,8 @@ const ERP_THRESHOLDS = {
            interp: 'Equity competitivo pero no barato. Risk-reward balanceado.' },
   tight: { min: 1.0,  cls: 'b-neu', col: 'var(--amber)', label: 'Prima ajustada',
            interp: 'Risk-reward asimétrico vs renta fija. Asignaciones marginales a bonos pueden tener mejor sharpe.' },
-  neg:   { min: -999, cls: 'b-dn',  col: 'var(--red)',   label: 'Prima negativa',
-           interp: 'Equity caro vs renta fija real. Cautela — condición histórica que precede underperformance prolongado.' }
+  neg:   { min: -999, cls: 'b-dn',  col: 'var(--red)',   label: 'Prima nula / negativa',
+           interp: 'Equity sin prima (o negativa) vs renta fija real. Cautela — condición histórica que precede underperformance prolongado.' } // el bucket cubre <1.0, incluye positivos chicos (fix label 2026-07-08)
 };
 
 // Positioning indicators (contrarian signals)
@@ -5126,9 +5126,10 @@ function updateDiagnostic() {
     pb.style.color = pc; pb.style.background = pc.replace(')', ',.1)').replace('rgb', 'rgba').replace('#f87171','rgba(248,113,113,.1)').replace('#fbbf24','rgba(251,191,36,.08)').replace('#4ade80','rgba(74,222,128,.08)');
     pb.style.borderColor = pc.replace('#f87171','rgba(248,113,113,.3)').replace('#fbbf24','rgba(251,191,36,.25)').replace('#4ade80','rgba(74,222,128,.25)');
   }
-  setEl('diag-cross-howell', howellPhase.split(' ')[0] + ' ' + (howellPhase.split(' ')[1] || ''));
+  // Umbrales unificados con la determinación de fase (≥6 F4 · ≥4 F3→F4 · ≥2 F3 · ≥1 F2) —
+  // antes usaba ≥3 para "F3→F4" y contradecía al hero con score 3.0-3.9 (fix 2026-07-08)
   const cxh = document.getElementById('diag-cross-howell');
-  if (cxh) { cxh.className = 'badge ' + (score >= 5 ? 'b-dn' : score >= 3 ? 'b-alt' : score >= 1 ? 'b-neu' : 'b-neu'); cxh.style.fontSize = '8px'; cxh.textContent = score >= 5 ? 'F4 Inminente' : score >= 3 ? 'F3→F4' : score >= 1 ? 'F3 Squeeze' : '—'; }
+  if (cxh) { cxh.className = 'badge ' + (score >= 6 ? 'b-dn' : score >= 4 ? 'b-alt' : score >= 2 ? 'b-neu' : 'b-up'); cxh.style.fontSize = '8px'; cxh.textContent = score >= 6 ? 'F4 Contracción' : score >= 4 ? 'F3→F4' : score >= 2 ? 'F3 Squeeze' : score >= 1 ? 'F2 Aceleración' : 'F1 Expansión'; }
 
   // ── China PBOC badge (proxy: GLD YTD + DXY) ──
   const pbocBdg = document.getElementById('diag-pboc-badge');
@@ -5176,7 +5177,7 @@ function updateDiagnostic() {
     const cpiNote  = cpiYoY  != null ? `CPI YoY ${cpiYoY.toFixed(1)}% ${cpiYoY > 3.5 ? '— sticky' : '— moderado'}.` : '';
     const resNote  = resVal  != null ? `Reservas Fed ${formatM(resVal)} ${resVal < 3000000 ? '— bajo umbral crítico' : resVal < 3300000 ? '— zona de alerta' : '— nivel seguro'}.` : '';
     const tgaNote  = tgaVal  != null ? `TGA ${formatM(tgaVal)} ${tgaVal > 900000 ? '— drenaje masivo activo' : tgaVal > 700000 ? '— drenaje moderado' : tgaVal > 500000 ? '— elevado' : '— nivel bajo'}.` : '';
-    const postura  = score >= 5 ? '<strong style="color:var(--red)">MÁXIMA CAUTELA.</strong> Preservar capital. Cash + Oro únicamente.' : score >= 3 ? '<strong style="color:var(--amber)">DEFENSIVO.</strong> Oro · Commodities · Valor defensivo. Reducir riesgo.' : score >= 1 ? '<strong style="color:var(--gold)">SELECTIVO.</strong> Fase Squeeze confirmada. Favorecer GLD, GDX, XLE.' : '<strong style="color:var(--text3)">Sin suficientes datos para veredicto.</strong>';
+    const postura  = score >= 5 ? '<strong style="color:var(--red)">MÁXIMA CAUTELA.</strong> Preservar capital. Cash + Oro únicamente.' : score >= 4 ? '<strong style="color:var(--amber)">DEFENSIVO.</strong> Oro · Commodities · Valor defensivo. Reducir riesgo.' : score >= 2 ? '<strong style="color:var(--gold)">DEFENSIVO SELECTIVO.</strong> Fase Squeeze: oro y defensivos, reducir tecnología.' : score >= 1 ? '<strong style="color:var(--gold)">SELECTIVO.</strong> Favorecer GLD, GDX, XLE.' : '<strong style="color:var(--text3)">Sin suficientes datos para veredicto.</strong>'; // escala unificada con el hero (L7064)
     verdEl.innerHTML = `${postura} ${resNote} ${tgaNote} ${cpiNote} ${wtiNote} ${hyNote}`.replace(/  +/g, ' ').trim();
   }
 
@@ -7174,7 +7175,7 @@ function updateWeekStatus() {
   const cny  = prices?.['CNY=X'];
 
   const items = {
-    'Fase Howell': score >= 5 ? ['F4 Inmin.','b-dn'] : score >= 4 ? ['F3→F4','b-alt'] : score >= 2 ? ['F3 Squeeze','b-neu'] : score >= 1 ? ['F2→F3','b-up'] : ['Sin datos','b-neu'],
+    'Fase Howell': score >= 6 ? ['F4 Inmin.','b-dn'] : score >= 4 ? ['F3→F4','b-alt'] : score >= 2 ? ['F3 Squeeze','b-neu'] : score >= 1 ? ['F2→F3','b-up'] : ['Sin datos','b-neu'],
     'Fase Fidelity': hyVal != null ? (hyVal > 4.5 ? ['Recesión','b-dn'] : hyVal > 3 ? ['Late','b-neu'] : ['Mid','b-up']) : ['Sin datos','b-neu'],
     'Inflación': cpiYoY != null ? (cpiYoY > 3.5 && wtiVal > 85 ? ['Stagflación','b-dn'] : cpiYoY > 3.5 ? ['Alta sticky','b-dn'] : cpiYoY > 2 ? ['Moderada','b-neu'] : ['Controlada','b-up']) : (wtiVal != null ? (wtiVal > 90 ? ['WTI ↑ Presión','b-dn'] : ['Sin CPI','b-neu']) : ['Sin datos','b-neu']),
     'DXY': dxyVal != null ? (dxyVal > 103 ? [dxyVal.toFixed(1)+' ↑','b-dn'] : dxyVal > 100 ? [dxyVal.toFixed(1)+' →','b-neu'] : [dxyVal.toFixed(1)+' ↓','b-up']) : ['Sin datos','b-neu'],
@@ -7206,7 +7207,7 @@ function updateChecklist() {
   const cny    = prices?.['CNY=X'];
   const gld    = prices?.['GLD'];
 
-  const howellLabel = score >= 5 ? 'F4 inminente' : score >= 4 ? 'F3 → F4' : score >= 2 ? 'F3 Squeeze' : score >= 1 ? 'F2 → F3' : null;
+  const howellLabel = score >= 6 ? 'F4 inminente' : score >= 4 ? 'F3 → F4' : score >= 2 ? 'F3 Squeeze' : score >= 1 ? 'F2 → F3' : null;
 
   const dynResults = [
     resVal != null ? `${howellLabel} · Score ${score.toFixed(1)}/8 · Reservas ${resVal < 3000000 ? 'bajo umbral crítico ($3T)' : resVal < 3300000 ? 'en zona alerta ($3.3T)' : 'nivel seguro'}` : null,
@@ -7215,7 +7216,7 @@ function updateChecklist() {
     (cpiYoY != null || wtiVal != null) ? `CPI YoY ${cpiYoY != null ? cpiYoY.toFixed(1)+'%' : 'N/D'}${beVal != null ? ' · BE5Y '+beVal.toFixed(2)+'%' : ''} · WTI $${wtiVal != null ? wtiVal.toFixed(0) : 'N/D'} ${wtiVal > 90 ? '— inflacionario' : wtiVal > 75 ? '— neutro' : '— deflacionario'}` : null,
     (cny && gld) ? `CNY/USD ${cny.price.toFixed(3)} · Oro en CNY ≈ ¥${Math.round(gld.price * 10 * cny.price).toLocaleString()} · ${cny.price < 7.3 ? 'PBOC comprador activo' : 'Presión cambiaria CNY'}` : null,
     (vix && vvix) ? `VIX ${vix.price.toFixed(1)} · VVIX ${vvix.price.toFixed(0)} · ${vvix.chg1m > 5 && vix.chg1m < 0 ? 'Divergencia ACTIVA — institucionales cubriendo' : 'Sin divergencia activa'}` : null,
-    score > 0 ? (score >= 5 ? 'MÁXIMA CAUTELA: Cash + Oro exclusivamente. Salir de riesgo.' : score >= 3 ? 'DEFENSIVO: GLD ↑ · XLE ↑ · XLV · Reducir QQQ/IWM.' : score >= 1 ? 'SELECTIVO: Favorecer GLD, GDX, Commodities vs tech.' : 'Sin suficientes datos para postura.') : null,
+    score > 0 ? (score >= 5 ? 'MÁXIMA CAUTELA: Cash + Oro exclusivamente. Salir de riesgo.' : score >= 4 ? 'DEFENSIVO: GLD ↑ · XLE ↑ · XLV · Reducir QQQ/IWM.' : score >= 2 ? 'DEFENSIVO SELECTIVO: Oro · defensivos · reducir tecnología.' : score >= 1 ? 'SELECTIVO: Favorecer GLD, GDX, Commodities vs tech.' : 'Sin suficientes datos para postura.') : null,
   ];
 
   const defs = [
@@ -9707,8 +9708,9 @@ window.OpportunityScanner = (function () {
       } else {
         phase = 'Expansion'; phaseLabel = 'Expansión';
       }
-      // Postura derivada — espejo de la lógica del Verdict Hero
-      const postura = score == null ? 'NEUTRAL' : score >= 6 ? 'DEFENSIVO' : score >= 3 ? 'NEUTRAL' : 'AGRESIVO';
+      // Postura = espejo REAL del Verdict Hero (fix 2026-07-08: antes usaba una escala
+      // propia NEUTRAL/AGRESIVO que contradecía al hero en la misma pantalla)
+      const postura = score == null ? 'N/D' : score >= 5 ? 'MÁXIMA CAUTELA' : score >= 4 ? 'DEFENSIVO' : score >= 2 ? 'DEFENSIVO SELECTIVO' : score >= 1 ? 'SELECTIVO' : 'VIGILANCIA';
       return { score, phase, phaseLabel, postura, available: score != null };
     } catch (e) {
       console.warn('[OpportunityScanner] readHowell error:', e);
