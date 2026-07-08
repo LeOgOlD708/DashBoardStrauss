@@ -1954,7 +1954,11 @@ html.auth-ok #auth-gate{display:none}
   ══════════════════════════════════════════════════ -->
   <div class="sh"><div class="sh-tag">Acciones</div><div class="sh-title">Drill-Down — ¿Qué acciones dentro del sector?</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('drill-down-acciones')" title="¿Qué es esto?">?</button></div>
   <div class="card teal-a" style="margin-bottom:14px"><div class="card-accent"></div>
-    <div id="drill-sectors" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="drill-sectors" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+      <input id="drill-search" placeholder="Analizar cualquier ticker: NVDA, PLTR, TSM, ARKK…" onkeydown="if(event.key==='Enter')CapitalDrill.analyze(this.value)" style="flex:1;max-width:340px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 8px;outline:none">
+      <button onclick="CapitalDrill.analyze(document.getElementById('drill-search').value)" style="font-size:9px;font-family:'IBM Plex Mono',monospace;padding:5px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.06)">ANALIZAR</button>
+    </div>
     <div id="drill-body"><div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:8px 0">Elige un sector arriba (o click en una fila del cuadrante de rotación) para ver sus acciones rankeadas por fuerza y acumulación institucional.</div></div>
   </div>
 
@@ -2036,6 +2040,10 @@ html.auth-ok #auth-gate{display:none}
   ══════════════════════════════════════════════════ -->
   <div class="sh"><div class="sh-tag">Rotación</div><div class="sh-title">Rotación de Capital — ¿Hacia dónde se mueve el dinero?</div><div class="sh-line"></div><button class="glossary-btn" onclick="openGlossary('rotacion-capital')" title="¿Qué es esto?">?</button></div>
   <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
+    <div style="display:flex;gap:5px;margin-bottom:8px">
+      <button id="rot-mode-sec" onclick="setRotMode('sectores')" style="font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">SECTORES (11 SPDR)</button>
+      <button id="rot-mode-ind" onclick="setRotMode('industrias')" style="font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent">INDUSTRIAS (semis, biotech, defensa…)</button>
+    </div>
     <div id="rot-signal" style="padding:8px 10px;background:var(--surface2);border-radius:6px;margin-bottom:10px;font-size:11px;color:var(--text2);line-height:1.6">Calculando rotación sectorial…</div>
     <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;align-items:start" id="rot-grid">
       <div>
@@ -7412,9 +7420,9 @@ function updateTechSignals(ticker) {
 }
 
 // ══════════════════════════════════
-// PIPELINE DE CAPITAL · FASE A (2026-07-07)
-// U/D Volume Ratio 50d + A/D proxy 13w (huella institucional) + drill-down a acciones
-// (RS Rating percentil IBD-style + Trend Template Minervini). Computado de hist+vols Yahoo.
+// PIPELINE DE CAPITAL · FASES A + A2 (2026-07-07)
+// A: U/D institucional + drill-down. A2: universo top-10 automatico (/api/holdings),
+// toggle Sectores/Industrias en el cuadrante, buscador libre de tickers.
 // ══════════════════════════════════
 function computeUpDownRatio(hist, vols, n) {
   if (!Array.isArray(hist) || !Array.isArray(vols) || hist.length < n + 1) return null;
@@ -7472,141 +7480,29 @@ function trendTemplate(hist, rsRating) {
   return { checks, passed: checks.filter(c => c.ok).length };
 }
 
-const CapitalDrill = {
-  universe: null, rsPct: null, loading: false, currentSector: null,
-  tickers() {
-    const cons = (window.OpportunityScanner && OpportunityScanner.config.sectorConstituents) || {};
-    return [...new Set(Object.values(cons).flat())];
-  },
-  async ensureUniverse() {
-    if (this.universe) return true;
-    if (this.loading) return false;
-    this.loading = true;
-    try {
-      const all = this.tickers();
-      const mid = Math.ceil(all.length / 2);
-      const [a, b] = await Promise.all([
-        fetch('/api/yahoo?tickers=' + encodeURIComponent(all.slice(0, mid).join(','))).then(r => r.json()),
-        fetch('/api/yahoo?tickers=' + encodeURIComponent(all.slice(mid).join(','))).then(r => r.json())
-      ]);
-      this.universe = Object.assign({}, a, b);
-      const raws = [];
-      for (const tk of all) {
-        const d = this.universe[tk];
-        const raw = d && d.hist ? rsRawIBD(d.hist) : null;
-        if (raw != null) raws.push({ tk, raw });
-      }
-      raws.sort((x, y) => x.raw - y.raw);
-      this.rsPct = {};
-      raws.forEach((r, i) => { this.rsPct[r.tk] = Math.max(1, Math.min(99, Math.round(((i + 1) / raws.length) * 99))); });
-      return true;
-    } catch (e) {
-      console.warn('[CapitalDrill] universo:', e.message);
-      return false;
-    } finally { this.loading = false; }
-  },
-  stockRow(tk) {
-    const d = this.universe[tk];
-    if (!d || !d.hist || !d.hist.length) return null;
-    const rs = this.rsPct[tk] ?? null;
-    const ud = computeUpDownRatio(d.hist, d.vols || [], 50);
-    const ad = adLetterFromRatio(computeUpDownRatio(d.hist, d.vols || [], 65));
-    const tpl = trendTemplate(d.hist, rs);
-    const hi52 = Math.max(...d.hist);
-    const dist52 = hi52 > 0 ? (d.price / hi52 - 1) * 100 : null;
-    const volAnom = (d.regularMarketVolume && d.averageVolume) ? d.regularMarketVolume / d.averageVolume : null;
-    return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom };
-  },
-  async open(sectorTk) {
-    this.currentSector = sectorTk;
-    const body = document.getElementById('drill-body');
-    if (!body) return;
-    this.renderSectorButtons();
-    const cons = (window.OpportunityScanner && OpportunityScanner.config.sectorConstituents && OpportunityScanner.config.sectorConstituents[sectorTk]) || [];
-    if (!cons.length) { body.innerHTML = '<div style="font-size:10px;color:var(--text3)">Sin constituents configurados para ' + sectorTk + '.</div>'; return; }
-    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Cargando universo de acciones (55 tickers, primera vez ~5s)…</div>';
-    const ok = await this.ensureUniverse();
-    if (!ok) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">No se pudo cargar el universo de acciones. Reintenta.</div>'; return; }
-    const rows = cons.map(tk => this.stockRow(tk)).filter(Boolean).sort((x, y) => (y.rs ?? 0) - (x.rs ?? 0));
-    const secName = (typeof ROT_SECTORS !== 'undefined' && ROT_SECTORS[sectorTk]) || sectorTk;
-    const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
-    const rowsHtml = rows.map(r => {
-      const rsCol = r.rs == null ? 'var(--text3)' : r.rs >= 80 ? 'var(--green)' : r.rs >= 60 ? '#86efac' : r.rs >= 40 ? 'var(--text2)' : 'var(--red)';
-      const udCol = r.ud == null ? 'var(--text3)' : r.ud >= 1.5 ? 'var(--green)' : r.ud >= 1 ? 'var(--text2)' : 'var(--red)';
-      const inst = r.ud != null && r.ud >= 1.5 ? ' <span title="U/D >=1.5 - acumulacion institucional">🏦</span>' : '';
-      const tplTip = r.tpl ? r.tpl.checks.map(c => (c.ok ? '✓ ' : '✗ ') + c.k).join('&#10;') : '';
-      const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 6 ? 'var(--green)' : r.tpl.passed >= 4 ? 'var(--amber)' : 'var(--red)';
-      const volTag = r.volAnom != null && r.volAnom >= 1.5 ? ' <span style="color:var(--amber)" title="Volumen hoy vs promedio 20d">⚡' + r.volAnom.toFixed(1) + 'x</span>' : '';
-      return '<tr style="cursor:pointer" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
-        + '<td style="padding:5px 6px;font-weight:600;color:var(--text)">' + r.tk + inst + volTag + '</td>'
-        + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
-        + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
-        + '<td class="' + ((r.chg1m ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1m) + '</td>'
-        + '<td style="color:' + rsCol + ';font-weight:600">' + (r.rs ?? '—') + '</td>'
-        + '<td style="color:' + udCol + '">' + (r.ud != null ? r.ud.toFixed(2) : '—') + '</td>'
-        + '<td style="color:' + r.ad.col + ';font-weight:600">' + r.ad.letter + '</td>'
-        + '<td style="color:' + tplCol + '" title="' + tplTip + '">' + (r.tpl ? r.tpl.passed + '/7' : '—') + '</td>'
-        + '<td style="color:' + (r.dist52 != null && r.dist52 > -15 ? 'var(--green)' : 'var(--text2)') + '">' + fmtP(r.dist52) + '</td>'
-        + '</tr>';
-    }).join('');
-    body.innerHTML = '<div class="lbl" style="margin-bottom:6px">' + secName + ' (' + sectorTk + ') — top holdings rankeados por RS</div>'
-      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;font-family:\'IBM Plex Mono\',monospace">'
-      + '<thead><tr style="color:var(--text3);font-size:9px;text-align:left">'
-      + '<th style="padding:4px 6px">TICKER</th><th>PRECIO</th><th>1D%</th><th>1M%</th>'
-      + '<th title="RS Rating: percentil de momentum ponderado 3/6/9/12m vs universo de 55 (estilo IBD)">RS</th>'
-      + '<th title="Up/Down Volume Ratio 50d: >1.5 acumulacion, >2 patrocinio institucional">U/D 50d</th>'
-      + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
-      + '<th title="Trend Template Minervini: 7 condiciones de tendencia sana (hover para detalle)">TEMPLATE</th>'
-      + '<th title="Distancia al maximo de 52 semanas (zona sana: 0 a -15%)">vs 52w-HI</th>'
-      + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'
-      + '<div style="margin-top:8px;font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.5">'
-      + '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · Click en fila → chart TradingView · '
-      + 'Universo RS: 55 holdings (top-5 × 11 sectores). Proxies computados de precio/volumen (IBD-style) — no son flujos literales.</div>';
-  },
-  renderSectorButtons() {
-    const wrap = document.getElementById('drill-sectors');
-    if (!wrap || typeof ROT_SECTORS === 'undefined') return;
-    const rotData = (typeof computeRotation === 'function') ? computeRotation() : null;
-    const order = { mejorando: 0, lider: 1, debilitandose: 2, rezagado: 3 };
-    const tks = Object.keys(ROT_SECTORS).sort((x, y) => {
-      const qa = rotData && rotData.find(d => d.tk === x)?.quad, qb = rotData && rotData.find(d => d.tk === y)?.quad;
-      return (order[qa] ?? 9) - (order[qb] ?? 9);
-    });
-    wrap.innerHTML = tks.map(tk => {
-      const quad = rotData && rotData.find(d => d.tk === tk)?.quad;
-      const col = quad && typeof ROT_QUAD_META !== 'undefined' ? ROT_QUAD_META[quad].col : 'var(--text3)';
-      const active = tk === this.currentSector;
-      return '<button onclick="CapitalDrill.open(&quot;' + tk + '&quot;)" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ' + (active ? col : 'var(--border2)') + ';color:' + col + ';background:' + (active ? 'rgba(255,255,255,.04)' : 'transparent') + '">' + tk + '</button>';
-    }).join('');
-  }
-};
-
-// ══════════════════════════════════
-// ROTACION DE CAPITAL (RRG) — 100% computado del hist Yahoo (2026-07-07)
-// RS-Ratio = 100 * (ratio sector/SPY) / SMA26sem(ratio) · RS-Mom = 100 * RSR / RSR[4sem atras]
-// ══════════════════════════════════
 const ROT_SECTORS = { XLK:'Tecnología', XLF:'Financieros', XLV:'Salud', XLE:'Energía', XLP:'Consumo Básico', XLU:'Utilities', XLB:'Materiales', XLI:'Industriales', XLC:'Comunicaciones', XLY:'Cons. Discrec.', XLRE:'Real Estate' };
+const ROT_INDUSTRIES = { SMH:'Semiconductores', IGV:'Software', XBI:'Biotech', KRE:'Bancos Reg.', ITA:'Defensa', XHB:'Construcción', XOP:'Petróleo E&P', GDX:'Mineras Oro', TAN:'Solar', JETS:'Aerolíneas' };
 const ROT_GROUPS  = { defensivo:['XLP','XLU','XLV'], ciclico:['XLK','XLY','XLC','XLF','XLI'], lateCiclo:['XLE','XLB'] };
+let rotMode = 'sectores';
+let rotIndData = null; // cache de los 10 ETFs de industria (fetch on-demand)
 
-function computeRotation() {
+function computeRotationFor(map, dataObj) {
   const prices = state.data.prices || {};
   const spy = prices.SPY;
   if (!spy?.hist?.length) return null;
   const WEEK = 5, SMA_W = 26, MOM_W = 4, TAIL = 6;
   const out = [];
-  for (const [tk, name] of Object.entries(ROT_SECTORS)) {
-    const sec = prices[tk];
+  for (const [tk, name] of Object.entries(map)) {
+    const sec = dataObj[tk] || prices[tk];
     if (!sec?.hist?.length) continue;
     const n = Math.min(sec.hist.length, spy.hist.length);
-    if (n < WEEK * (SMA_W + MOM_W + TAIL)) continue; // ~180 barras minimo
+    if (n < WEEK * (SMA_W + MOM_W + TAIL)) continue;
     const sH = sec.hist.slice(-n), pH = spy.hist.slice(-n);
-    // muestreo semanal desde el final
     const ratio = [];
     for (let i = n - 1; i >= 0; i -= WEEK) {
       if (pH[i] > 0) ratio.unshift(sH[i] / pH[i]);
     }
     if (ratio.length < SMA_W + MOM_W + 2) continue;
-    // RS-Ratio: ratio vs su SMA de 26 muestras semanales
     const rsr = [];
     for (let i = SMA_W - 1; i < ratio.length; i++) {
       let sum = 0;
@@ -7614,7 +7510,6 @@ function computeRotation() {
       const sma = sum / SMA_W;
       rsr.push(sma > 0 ? 100 * ratio[i] / sma : 100);
     }
-    // RS-Momentum: RSR vs RSR de hace 4 semanas
     const pts = [];
     for (let i = MOM_W; i < rsr.length; i++) {
       if (rsr[i - MOM_W] > 0) pts.push({ x: rsr[i], y: 100 * rsr[i] / rsr[i - MOM_W] });
@@ -7628,6 +7523,18 @@ function computeRotation() {
     out.push({ tk, name, tail, last, quad });
   }
   return out.length ? out : null;
+}
+function computeRotation() { return computeRotationFor(ROT_SECTORS, state.data.prices || {}); }
+
+async function setRotMode(mode) {
+  rotMode = mode;
+  if (mode === 'industrias' && !rotIndData) {
+    const sig = document.getElementById('rot-signal');
+    if (sig) sig.textContent = 'Cargando ETFs de industria (10 tickers)…';
+    try { rotIndData = await fetch('/api/yahoo?tickers=' + Object.keys(ROT_INDUSTRIES).join(',')).then(r => r.json()); }
+    catch (e) { rotIndData = null; if (sig) sig.textContent = 'No se pudieron cargar las industrias. Reintenta.'; return; }
+  }
+  renderCapitalRotation();
 }
 
 const ROT_QUAD_META = {
@@ -7644,10 +7551,10 @@ const rotQuadrantPlugin = {
     if (!a) return;
     const cx = x.getPixelForValue(100), cy = y.getPixelForValue(100);
     const tint = (x0, y0, x1, y1, color) => { ctx.fillStyle = color; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); };
-    tint(cx, a.top, a.right, cy, 'rgba(74,222,128,.045)');   // lider
-    tint(cx, cy, a.right, a.bottom, 'rgba(251,191,36,.045)'); // debilitandose
-    tint(a.left, cy, cx, a.bottom, 'rgba(248,113,113,.045)'); // rezagado
-    tint(a.left, a.top, cx, cy, 'rgba(45,212,191,.045)');     // mejorando
+    tint(cx, a.top, a.right, cy, 'rgba(74,222,128,.045)');
+    tint(cx, cy, a.right, a.bottom, 'rgba(251,191,36,.045)');
+    tint(a.left, cy, cx, a.bottom, 'rgba(248,113,113,.045)');
+    tint(a.left, a.top, cx, cy, 'rgba(45,212,191,.045)');
     ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(cx, a.top); ctx.lineTo(cx, a.bottom); ctx.moveTo(a.left, cy); ctx.lineTo(a.right, cy); ctx.stroke();
   },
@@ -7666,13 +7573,23 @@ const rotQuadrantPlugin = {
 };
 
 function renderCapitalRotation() {
-  const data = computeRotation();
+  const isInd = rotMode === 'industrias';
+  const data = isInd
+    ? (rotIndData ? computeRotationFor(ROT_INDUSTRIES, rotIndData) : null)
+    : computeRotationFor(ROT_SECTORS, state.data.prices || {});
+  // estilo de los botones del toggle
+  const bSec = document.getElementById('rot-mode-sec'), bInd = document.getElementById('rot-mode-ind');
+  if (bSec && bInd) {
+    const on  = 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)';
+    const off = 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent';
+    bSec.style.cssText = isInd ? off : on;
+    bInd.style.cssText = isInd ? on : off;
+  }
   const sigEl = document.getElementById('rot-signal');
   const cv = document.getElementById('rotationChart');
   if (!cv) return;
-  if (!data) { if (sigEl) sigEl.textContent = 'Datos insuficientes para computar rotación (requiere ~9 meses de histórico Yahoo).'; return; }
+  if (!data) { if (sigEl) sigEl.textContent = isInd ? 'Cargando industrias… (usa el botón INDUSTRIAS de nuevo si no carga)' : 'Datos insuficientes para computar rotación (requiere ~9 meses de histórico Yahoo).'; return; }
 
-  // rango simetrico alrededor de 100
   let span = 0;
   data.forEach(d => d.tail.forEach(pt => { span = Math.max(span, Math.abs(pt.x - 100), Math.abs(pt.y - 100)); }));
   span = Math.max(span * 1.25, 2);
@@ -7709,55 +7626,240 @@ function renderCapitalRotation() {
     plugins: [rotQuadrantPlugin]
   });
 
-  // ── tabla lateral ordenada por "hacia donde va el dinero" ──
   const order = { mejorando: 0, lider: 1, debilitandose: 2, rezagado: 3 };
   const sorted = [...data].sort((a, b) => order[a.quad] - order[b.quad] || b.last.y - a.last.y);
   const tbl = document.getElementById('rot-table');
   if (tbl) {
-    tbl.innerHTML = '<div class="lbl" style="margin-bottom:6px">Sectores por cuadrante</div>' + sorted.map(d => {
+    const dataSrc = isInd ? (rotIndData || {}) : (state.data.prices || {});
+    tbl.innerHTML = '<div class="lbl" style="margin-bottom:6px">' + (isInd ? 'Industrias' : 'Sectores') + ' por cuadrante</div>' + sorted.map(d => {
       const m = ROT_QUAD_META[d.quad];
       const flow = d.quad === 'mejorando' || d.quad === 'lider' ? '→ entra' : '← sale';
-      // Fase A: U/D institucional del ETF sectorial + click -> drill-down
-      const secData = (state.data.prices || {})[d.tk];
+      const secData = dataSrc[d.tk];
       const secUd = secData ? computeUpDownRatio(secData.hist, secData.vols || [], 50) : null;
       const udTag = secUd == null ? '' : `<span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${secUd >= 1.5 ? 'var(--green)' : secUd >= 1 ? 'var(--text3)' : 'var(--red)'}" title="U/D Volume Ratio 50d del ETF">U/D ${secUd.toFixed(2)}${secUd >= 1.5 ? ' 🏦' : ''}</span>`;
-      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:2px solid ${m.col};cursor:pointer" onclick="CapitalDrill.open('${d.tk}')" title="Click -> ver acciones del sector">
+      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:2px solid ${m.col};cursor:pointer" onclick="CapitalDrill.open('${d.tk}')" title="Click -> ver acciones del ETF">
         <span style="font-size:10px;color:var(--text)">${d.tk} <span style="color:var(--text3);font-size:9px">${d.name}</span></span>
         <span style="display:flex;gap:8px;align-items:center">${udTag}<span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${m.col}">${m.lbl} ${flow}</span></span>
       </div>`;
     }).join('');
   }
 
-  if (typeof CapitalDrill !== 'undefined') CapitalDrill.renderSectorButtons(); // const = binding léxico global, NO window.*
+  if (typeof CapitalDrill !== 'undefined') CapitalDrill.renderSectorButtons();
 
-  // ── señal integrada con el ciclo (Howell/Stovall) ──
   if (sigEl) {
-    const inQuad = (grp, quads) => ROT_GROUPS[grp].filter(t => { const d = data.find(x => x.tk === t); return d && quads.includes(d.quad); }).length;
-    const defIn  = inQuad('defensivo', ['mejorando', 'lider']);
-    const cycIn  = inQuad('ciclico',   ['mejorando', 'lider']);
-    const cycOut = inQuad('ciclico',   ['debilitandose', 'rezagado']);
-    const lateIn = inQuad('lateCiclo', ['mejorando', 'lider']);
-    const fase = document.getElementById('hero-phase-name')?.textContent || '';
-    const faseDefensiva = /3|4|Squeeze|Contracci/i.test(fase);
-    let head, detail, coherencia = '';
-    if (defIn >= 2 && cycOut >= 3) {
-      head = 'ROTACIÓN DEFENSIVA EN CURSO';
-      detail = `${defIn}/3 defensivos (XLP·XLU·XLV) recibiendo capital mientras ${cycOut}/5 cíclicos lo pierden.`;
-      coherencia = faseDefensiva ? ' <span style="color:var(--green)">✓ CONFIRMA la fase de ciclo actual (' + fase + ').</span>' : ' <span style="color:var(--amber)">⚠ DIVERGE de la fase de ciclo (' + fase + ') — vigilar.</span>';
-    } else if (cycIn >= 3) {
-      head = 'ROTACIÓN PRO-RIESGO';
-      detail = `${cycIn}/5 cíclicos-growth captando capital.`;
-      coherencia = faseDefensiva ? ' <span style="color:var(--amber)">⚠ DIVERGE de la fase defensiva del ciclo (' + fase + ') — el mercado desafía al macro.</span>' : ' <span style="color:var(--green)">✓ Coherente con la fase del ciclo.</span>';
-    } else if (lateIn >= 2) {
-      head = 'ROTACIÓN LATE-CYCLE';
-      detail = 'Energía y Materiales captando capital — patrón típico de final de ciclo/inflación.';
+    if (isInd) {
+      const entra = sorted.filter(d => d.quad === 'mejorando' || d.quad === 'lider').map(d => d.tk);
+      const sale  = sorted.filter(d => d.quad === 'debilitandose' || d.quad === 'rezagado').map(d => d.tk);
+      sigEl.innerHTML = `<span class="mono" style="font-size:9px;letter-spacing:.08em;color:var(--gold)">ROTACIÓN POR INDUSTRIA</span><br>Capital entrando: <span style="color:var(--green)">${entra.join(' · ') || 'ninguna'}</span> · saliendo: <span style="color:var(--red)">${sale.join(' · ') || 'ninguna'}</span>. <span style="color:var(--text3);font-size:9px">La rotación fina DENTRO de los sectores — ej. semis vs software dentro de tech.</span>`;
     } else {
-      head = 'SIN ROTACIÓN DOMINANTE';
-      detail = 'El capital no muestra una dirección sectorial clara esta semana.';
+      const inQuad = (grp, quads) => ROT_GROUPS[grp].filter(t => { const d = data.find(x => x.tk === t); return d && quads.includes(d.quad); }).length;
+      const defIn  = inQuad('defensivo', ['mejorando', 'lider']);
+      const cycIn  = inQuad('ciclico',   ['mejorando', 'lider']);
+      const cycOut = inQuad('ciclico',   ['debilitandose', 'rezagado']);
+      const lateIn = inQuad('lateCiclo', ['mejorando', 'lider']);
+      const fase = document.getElementById('hero-phase-name')?.textContent || '';
+      const faseDefensiva = /3|4|Squeeze|Contracci/i.test(fase);
+      let head, detail, coherencia = '';
+      if (defIn >= 2 && cycOut >= 3) {
+        head = 'ROTACIÓN DEFENSIVA EN CURSO';
+        detail = `${defIn}/3 defensivos (XLP·XLU·XLV) recibiendo capital mientras ${cycOut}/5 cíclicos lo pierden.`;
+        coherencia = faseDefensiva ? ' <span style="color:var(--green)">✓ CONFIRMA la fase de ciclo actual (' + fase + ').</span>' : ' <span style="color:var(--amber)">⚠ DIVERGE de la fase de ciclo (' + fase + ') — vigilar.</span>';
+      } else if (cycIn >= 3) {
+        head = 'ROTACIÓN PRO-RIESGO';
+        detail = `${cycIn}/5 cíclicos-growth captando capital.`;
+        coherencia = faseDefensiva ? ' <span style="color:var(--amber)">⚠ DIVERGE de la fase defensiva del ciclo (' + fase + ') — el mercado desafía al macro.</span>' : ' <span style="color:var(--green)">✓ Coherente con la fase del ciclo.</span>';
+      } else if (lateIn >= 2) {
+        head = 'ROTACIÓN LATE-CYCLE';
+        detail = 'Energía y Materiales captando capital — patrón típico de final de ciclo/inflación.';
+      } else {
+        head = 'SIN ROTACIÓN DOMINANTE';
+        detail = 'El capital no muestra una dirección sectorial clara esta semana.';
+      }
+      sigEl.innerHTML = `<span class="mono" style="font-size:9px;letter-spacing:.08em;color:var(--gold)">${head}</span><br>${detail}${coherencia} <span style="color:var(--text3);font-size:9px">· Computado en vivo: RS vs SPY 26 sem + momentum 4 sem, estela 6 sem.</span>`;
     }
-    sigEl.innerHTML = `<span class="mono" style="font-size:9px;letter-spacing:.08em;color:var(--gold)">${head}</span><br>${detail}${coherencia} <span style="color:var(--text3);font-size:9px">· Computado en vivo: RS vs SPY 26 sem + momentum 4 sem, estela 6 sem.</span>`;
   }
 }
+
+// ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
+const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
+const CapitalDrill = {
+  universe: null, rsPct: null, raws: null, loading: false, currentSector: null, holdingsMap: null,
+  fallbackCons() { return (window.OpportunityScanner && OpportunityScanner.config.sectorConstituents) || {}; },
+  async loadHoldingsMap() {
+    if (this.holdingsMap) return this.holdingsMap;
+    try {
+      const c = JSON.parse(localStorage.getItem(DRILL_HOLDINGS_KEY) || 'null');
+      if (c && c.map && Date.now() - c.ts < 86400000) { this.holdingsMap = c.map; return c.map; }
+    } catch (e) {}
+    let map = {};
+    try {
+      const r = await fetch('/api/holdings?tickers=' + Object.keys(ROT_SECTORS).join(','));
+      if (r.ok) map = (await r.json()).holdings || {};
+    } catch (e) { console.warn('[Drill] holdings API:', e.message); }
+    const fb = this.fallbackCons();
+    for (const tk of Object.keys(ROT_SECTORS)) {
+      if (!Array.isArray(map[tk]) || map[tk].length < 3) map[tk] = fb[tk] || [];
+    }
+    this.holdingsMap = map;
+    this._saveHoldings();
+    return map;
+  },
+  _saveHoldings() {
+    try { localStorage.setItem(DRILL_HOLDINGS_KEY, JSON.stringify({ map: this.holdingsMap, ts: Date.now() })); } catch (e) {}
+  },
+  async getHoldings(etf) {
+    const map = await this.loadHoldingsMap();
+    if (Array.isArray(map[etf]) && map[etf].length >= 3) return map[etf];
+    try {
+      const r = await fetch('/api/holdings?tickers=' + etf);
+      if (r.ok) {
+        const h = ((await r.json()).holdings || {})[etf] || [];
+        if (h.length) { map[etf] = h; this._saveHoldings(); }
+        return h;
+      }
+    } catch (e) {}
+    return map[etf] || [];
+  },
+  async fetchBatch(tks) {
+    const out = {};
+    for (let i = 0; i < tks.length; i += 28) {
+      const chunk = tks.slice(i, i + 28);
+      try { Object.assign(out, await fetch('/api/yahoo?tickers=' + encodeURIComponent(chunk.join(','))).then(r => r.json())); }
+      catch (e) { console.warn('[Drill] batch yahoo:', e.message); }
+    }
+    return out;
+  },
+  async ensureUniverse() {
+    if (this.universe) return true;
+    if (this.loading) return false;
+    this.loading = true;
+    try {
+      const map = await this.loadHoldingsMap();
+      const all = [...new Set(Object.values(map).flat())].filter(t => /^[A-Z0-9-]{1,7}$/.test(t));
+      this.universe = await this.fetchBatch(all);
+      const pairs = [];
+      for (const tk of all) {
+        const d = this.universe[tk];
+        const raw = d && d.hist ? rsRawIBD(d.hist) : null;
+        if (raw != null) pairs.push({ tk, raw });
+      }
+      pairs.sort((x, y) => x.raw - y.raw);
+      this.raws = pairs.map(p2 => p2.raw);
+      this.rsPct = {};
+      pairs.forEach((r, i) => { this.rsPct[r.tk] = Math.max(1, Math.min(99, Math.round(((i + 1) / pairs.length) * 99))); });
+      return Object.keys(this.universe).length > 0;
+    } catch (e) {
+      console.warn('[CapitalDrill] universo:', e.message);
+      return false;
+    } finally { this.loading = false; }
+  },
+  pctOf(raw) {
+    if (raw == null || !Array.isArray(this.raws) || !this.raws.length) return null;
+    let lo = 0, hi = this.raws.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (this.raws[mid] <= raw) lo = mid + 1; else hi = mid; }
+    return Math.max(1, Math.min(99, Math.round((lo / this.raws.length) * 99)));
+  },
+  stockRow(tk) {
+    const d = this.universe[tk];
+    if (!d || !d.hist || !d.hist.length) return null;
+    const rs = this.rsPct[tk] ?? this.pctOf(rsRawIBD(d.hist));
+    const ud = computeUpDownRatio(d.hist, d.vols || [], 50);
+    const ad = adLetterFromRatio(computeUpDownRatio(d.hist, d.vols || [], 65));
+    const tpl = trendTemplate(d.hist, rs);
+    const hi52 = Math.max(...d.hist);
+    const dist52 = hi52 > 0 ? (d.price / hi52 - 1) * 100 : null;
+    const volAnom = (d.regularMarketVolume && d.averageVolume) ? d.regularMarketVolume / d.averageVolume : null;
+    return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom };
+  },
+  _rowsTableHtml(rows, titulo, nota) {
+    const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+    const rowsHtml = rows.map(r => {
+      const rsCol = r.rs == null ? 'var(--text3)' : r.rs >= 80 ? 'var(--green)' : r.rs >= 60 ? '#86efac' : r.rs >= 40 ? 'var(--text2)' : 'var(--red)';
+      const udCol = r.ud == null ? 'var(--text3)' : r.ud >= 1.5 ? 'var(--green)' : r.ud >= 1 ? 'var(--text2)' : 'var(--red)';
+      const inst = r.ud != null && r.ud >= 1.5 ? ' <span title="U/D >=1.5 - acumulacion institucional">🏦</span>' : '';
+      const tplTip = r.tpl ? r.tpl.checks.map(c => (c.ok ? '✓ ' : '✗ ') + c.k).join('&#10;') : '';
+      const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 6 ? 'var(--green)' : r.tpl.passed >= 4 ? 'var(--amber)' : 'var(--red)';
+      const volTag = r.volAnom != null && r.volAnom >= 1.5 ? ' <span style="color:var(--amber)" title="Volumen hoy vs promedio 20d">⚡' + r.volAnom.toFixed(1) + 'x</span>' : '';
+      return '<tr style="cursor:pointer" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
+        + '<td style="padding:5px 6px;font-weight:600;color:var(--text)">' + r.tk + inst + volTag + '</td>'
+        + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
+        + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
+        + '<td class="' + ((r.chg1m ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1m) + '</td>'
+        + '<td style="color:' + rsCol + ';font-weight:600">' + (r.rs ?? '—') + '</td>'
+        + '<td style="color:' + udCol + '">' + (r.ud != null ? r.ud.toFixed(2) : '—') + '</td>'
+        + '<td style="color:' + r.ad.col + ';font-weight:600">' + r.ad.letter + '</td>'
+        + '<td style="color:' + tplCol + '" title="' + tplTip + '">' + (r.tpl ? r.tpl.passed + '/7' : '—') + '</td>'
+        + '<td style="color:' + (r.dist52 != null && r.dist52 > -15 ? 'var(--green)' : 'var(--text2)') + '">' + fmtP(r.dist52) + '</td>'
+        + '</tr>';
+    }).join('');
+    return '<div class="lbl" style="margin-bottom:6px">' + titulo + '</div>'
+      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;font-family:\'IBM Plex Mono\',monospace">'
+      + '<thead><tr style="color:var(--text3);font-size:9px;text-align:left">'
+      + '<th style="padding:4px 6px">TICKER</th><th>PRECIO</th><th>1D%</th><th>1M%</th>'
+      + '<th title="RS Rating: percentil de momentum ponderado 3/6/9/12m vs universo (estilo IBD)">RS</th>'
+      + '<th title="Up/Down Volume Ratio 50d: >1.5 acumulacion, >2 patrocinio institucional">U/D 50d</th>'
+      + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
+      + '<th title="Trend Template Minervini: 7 condiciones de tendencia sana (hover para detalle)">TEMPLATE</th>'
+      + '<th title="Distancia al maximo de 52 semanas (zona sana: 0 a -15%)">vs 52w-HI</th>'
+      + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'
+      + '<div style="margin-top:8px;font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.5">' + nota + '</div>';
+  },
+  async open(etf) {
+    this.currentSector = etf;
+    const body = document.getElementById('drill-body');
+    if (!body) return;
+    this.renderSectorButtons();
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Cargando holdings y universo (primera vez ~8s)…</div>';
+    const cons = await this.getHoldings(etf);
+    if (!cons.length) { body.innerHTML = '<div style="font-size:10px;color:var(--text3)">Sin holdings disponibles para ' + etf + '.</div>'; return; }
+    const ok = await this.ensureUniverse();
+    if (!ok) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">No se pudo cargar el universo de acciones. Reintenta.</div>'; return; }
+    const missing = cons.filter(tk => !this.universe[tk]);
+    if (missing.length) Object.assign(this.universe, await this.fetchBatch(missing));
+    const rows = cons.map(tk => this.stockRow(tk)).filter(Boolean).sort((x, y) => (y.rs ?? 0) - (x.rs ?? 0));
+    const secName = ROT_SECTORS[etf] || ROT_INDUSTRIES[etf] || etf;
+    body.innerHTML = this._rowsTableHtml(rows,
+      secName + ' (' + etf + ') — top holdings rankeados por RS',
+      '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · Click en fila → chart TradingView · '
+      + 'Universo RS: top-10 holdings × 11 sectores (auto vía /api/holdings, cache 24h). Proxies de precio/volumen (IBD-style) — no son flujos literales.');
+  },
+  async analyze(tkRaw) {
+    const tk = String(tkRaw || '').trim().toUpperCase().replace(/\s+/g, '');
+    const body = document.getElementById('drill-body');
+    if (!body) return;
+    if (!/^[A-Z0-9.=^-]{1,10}$/.test(tk)) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">Ticker inválido: "' + tk.slice(0, 20) + '"</div>'; return; }
+    this.currentSector = null;
+    this.renderSectorButtons();
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Analizando ' + tk + '…</div>';
+    const ok = await this.ensureUniverse();
+    if (!ok) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">No se pudo cargar el universo base. Reintenta.</div>'; return; }
+    if (!this.universe[tk]) Object.assign(this.universe, await this.fetchBatch([tk]));
+    const row = this.stockRow(tk);
+    if (!row) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">Sin datos Yahoo para "' + tk + '" (¿ticker correcto?).</div>'; return; }
+    body.innerHTML = this._rowsTableHtml([row],
+      'Análisis libre: ' + tk,
+      'RS = percentil vs el universo de ~110 holdings sectoriales (referencia, no universo total del mercado). '
+      + 'Mismas métricas que el drill: U/D 50d, A/D 13w, Trend Template Minervini, dist. 52w-high. Click en fila → chart.');
+  },
+  renderSectorButtons() {
+    const wrap = document.getElementById('drill-sectors');
+    if (!wrap) return;
+    const rotSec = computeRotationFor(ROT_SECTORS, state.data.prices || {});
+    const rotInd = rotIndData ? computeRotationFor(ROT_INDUSTRIES, rotIndData) : null;
+    const order = { mejorando: 0, lider: 1, debilitandose: 2, rezagado: 3 };
+    const mk = (tks, rotData) => tks.sort((x, y) => {
+      const qa = rotData && rotData.find(d => d.tk === x)?.quad, qb = rotData && rotData.find(d => d.tk === y)?.quad;
+      return (order[qa] ?? 9) - (order[qb] ?? 9);
+    }).map(tk => {
+      const quad = rotData && rotData.find(d => d.tk === tk)?.quad;
+      const col = quad ? ROT_QUAD_META[quad].col : 'var(--text3)';
+      const active = tk === this.currentSector;
+      return '<button onclick="CapitalDrill.open(&quot;' + tk + '&quot;)" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ' + (active ? col : 'var(--border2)') + ';color:' + col + ';background:' + (active ? 'rgba(255,255,255,.04)' : 'transparent') + '">' + tk + '</button>';
+    }).join('');
+    const sep = '<span style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;align-self:center;padding:0 3px">|| INDUSTRIAS:</span>';
+    wrap.innerHTML = mk(Object.keys(ROT_SECTORS), rotSec) + sep + mk(Object.keys(ROT_INDUSTRIES), rotInd);
+  }
+};
 
 // ══════════════════════════════════
 // GLOSARIO DE INDICADORES (scope global)
@@ -7770,7 +7872,7 @@ const INDICATORS_GLOSSARY = {
     formula: 'RS Rating = percentil 1-99 del momentum ponderado (2×3m + 6m + 9m + 12m) vs universo · U/D 50d = vol días verdes ÷ vol días rojos · Template = 7 checks Minervini',
     interpretation: 'El embudo sector→acción: dentro de los sectores que reciben capital, rankea sus top holdings por fuerza relativa (RS ≥80 = élite), acumulación institucional (U/D ≥1.5 = 🏦, ≥2 = patrocinio fuerte) y salud de tendencia (Template ≥6/7 = candidata estilo Minervini).',
     thresholds: ['RS ≥80 → líder de momentum', 'U/D 50d ≥1.5 → acumulación · ≥2 → institucional', 'A/D: A-B compra · D-E venta (13 sem)', 'Template 6-7/7 → tendencia sana', 'vs 52w-HI entre 0 y −15% → zona de compra clásica'],
-    note: 'Proxies computados de precio/volumen (metodología IBD/Minervini) — no son flujos de fondos literales. Fase C añadirá flujos reales $M.'
+    note: 'Universo: top-10 holdings × 11 sectores, scrapeados automáticamente (/api/holdings, cache 24h). Toggle INDUSTRIAS en el cuadrante para rotación fina (semis/biotech/defensa…). Buscador libre: analiza cualquier ticker con las mismas métricas. Proxies de precio/volumen (IBD/Minervini) — no son flujos literales; Fase C añadirá flujos reales $M.'
   },
   'rotacion-capital': {
     name: 'Rotación de Capital (RRG)', category: 'Sectores',
