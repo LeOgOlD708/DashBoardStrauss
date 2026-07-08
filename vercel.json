@@ -1,7 +1,14 @@
 {
   "version": 2,
   "functions": {
-    "api/gemini.js": { "maxDuration": 40 },
-    "api/chat.js": { "maxDuration": 20 }
+    "api/gemini.js": {
+      "maxDuration": 40
+    },
+    "api/chat.js": {
+      "maxDuration": 20
+    },
+    "api/holdings.js": {
+      "maxDuration": 30
+    }
   }
 }
