@@ -59,7 +59,9 @@ async function insiders(ticker) {
   for (const i of idx.slice(0, 6)) {
     try {
       const acc = rec.accessionNumber[i].replace(/-/g, '');
-      const doc = rec.primaryDocument[i];
+      // primaryDocument suele venir como "xslF345X06/wk-form4_x.xml" (versión RENDERIZADA
+      // por XSL → HTML sin <transactionCode>); el XML crudo es el basename (cazado en prod)
+      const doc = rec.primaryDocument[i].split('/').pop();
       const x = await fetch(`https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${acc}/${doc}`, { headers: SEC_UA, signal: AbortSignal.timeout(7000) });
       if (!x.ok) continue;
       const xml = await x.text();
