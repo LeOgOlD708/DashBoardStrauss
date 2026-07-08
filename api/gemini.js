@@ -51,10 +51,15 @@ FORMATO EXIGIDO (texto plano, sin markdown de encabezados, en español, máximo 
 Sin disclaimers, sin preámbulos, sin inventar: si la búsqueda no da resultados claros, di "sin catalysts claros identificados" en vez de especular.`;
 }
 
-async function callGemini(apiKey, prompt, useGrounding) {
+async function callGemini(apiKey, prompt, useGrounding, disableThinking = true) {
+  const generationConfig = { maxOutputTokens: 3000, temperature: 0.3 };
+  // gemini-2.5 gasta el budget en "thinking" ANTES del texto → briefs truncados a
+  // mitad de sección (verificado empírico: 234 chars de ~1400). thinkingBudget 0
+  // dedica todo el budget al output.
+  if (disableThinking) generationConfig.thinkingConfig = { thinkingBudget: 0 };
   const body = {
     contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { maxOutputTokens: 2000, temperature: 0.3 }
+    generationConfig
   };
   if (useGrounding) body.tools = [{ google_search: {} }];
   const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -116,19 +121,28 @@ module.exports = async (req, res) => {
   });
 
   try {
-    // Intento 1: con Google Search grounding (catalysts reales)
-    const { text, sources } = await callGemini(apiKey, prompt, true);
+    // Intento 1: grounding + sin thinking (catalysts reales, budget completo al texto)
+    const { text, sources } = await callGemini(apiKey, prompt, true, true);
     return res.status(200).json({ reply: text, grounded: true, sources });
   } catch (e1) {
     try {
-      // Fallback: sin grounding (marcado — el modelo no ve noticias reales)
-      const { text } = await callGemini(apiKey, prompt, false);
+      // Intento 2: sin grounding, sin thinking
+      const { text } = await callGemini(apiKey, prompt, false, true);
       return res.status(200).json({
         reply: text + '\n\n⚠ Generado SIN búsqueda web (grounding no disponible: ' + (e1.status || e1.message || 'error') + ') — los catalysts pueden no reflejar noticias reales.',
         grounded: false, sources: []
       });
     } catch (e2) {
-      return res.status(502).json({ error: 'Gemini error: ' + (e2.message || 'desconocido') });
+      try {
+        // Intento 3: config mínima (por si thinkingConfig no es aceptado por la API)
+        const { text } = await callGemini(apiKey, prompt, false, false);
+        return res.status(200).json({
+          reply: text + '\n\n⚠ Generado SIN búsqueda web — los catalysts pueden no reflejar noticias reales.',
+          grounded: false, sources: []
+        });
+      } catch (e3) {
+        return res.status(502).json({ error: 'Gemini error: ' + (e3.message || 'desconocido') });
+      }
     }
   }
 };
