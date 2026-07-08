@@ -143,8 +143,8 @@ module.exports = async (req, res) => {
     return res.status(200).json(results);
   }
 
-  // interval automático según range
-  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d' };
+  // interval automático según range · 10y mensual (2026-07-08): para el heatmap de estacionalidad
+  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '10y': '1mo' };
   const interval = intervalMap[range] || '1d';
 
   await Promise.all(
@@ -154,8 +154,8 @@ module.exports = async (req, res) => {
     })
   );
 
-  // Cache: 1min para intraday, 5min para 5d, 15min para el resto
-  const cacheTime = range === '1d' ? 60 : range === '5d' ? 300 : 900;
+  // Cache: 1min para intraday, 5min para 5d, 24h para 10y mensual, 15min para el resto
+  const cacheTime = range === '1d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : 900;
   res.setHeader('Cache-Control', `s-maxage=${cacheTime}, stale-while-revalidate=60`);
   return res.status(200).json(results);
 };

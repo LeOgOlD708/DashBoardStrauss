@@ -2204,6 +2204,12 @@ html.auth-ok #auth-gate{display:none}
     <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;align-items:start" id="rot-grid">
       <div>
         <div style="position:relative"><div class="ch-wrap" style="height:400px"><canvas id="rotationChart" role="img" aria-label="Cuadrante de rotación sectorial">RRG chart.</canvas></div></div>
+        <!-- Time-scrubber (paquete "dimensión temporal"): reproducir la rotación hacia atrás -->
+        <div style="display:flex;align-items:center;gap:8px;margin-top:7px">
+          <span class="mono" style="font-size:8px;color:var(--text3);letter-spacing:.06em;white-space:nowrap">⏪ REPLAY</span>
+          <input type="range" id="rot-scrub" min="0" max="12" value="12" step="1" style="flex:1;accent-color:var(--gold);height:4px" oninput="window._rotScrub=12-(+this.value);renderCapitalRotation()" title="Arrastrá para ver dónde estaba cada sector semanas atrás — la rotación en movimiento">
+          <span class="mono" id="rot-scrub-lbl" style="font-size:9px;color:var(--gold);min-width:74px;text-align:right">HOY</span>
+        </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--text3)">
           <span>⬤ grande con borde = posición HOY</span>
           <span>· puntos chicos = estela 6 semanas</span>
@@ -2213,6 +2219,14 @@ html.auth-ok #auth-gate{display:none}
       <div id="rot-table"></div><div id="rot-flows" style="margin-top:12px"></div>
     </div>
   </div>
+  <!-- ══ VIZ paquete D · Bump chart — carrera de ranking sectorial 26 semanas ══ -->
+  <div class="sh"><div class="sh-tag">Ranking</div><div class="sh-title">Carrera de Ranking — ¿quién sube y quién cae en la tabla?</div><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:5px">POSICIÓN SEMANAL DE CADA SECTOR POR RETORNO 1M (26 SEMANAS) — #1 arriba · los CRUCES son las rotaciones de liderazgo</div>
+    <div class="ch-wrap" style="height:280px"><canvas id="bumpChart" role="img" aria-label="Carrera de ranking sectorial">Bump chart.</canvas></div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px">Complementa al RRG: el cuadrante muestra el ESTADO (dónde está el capital), esta carrera muestra la SECUENCIA (cómo llegó ahí). Un sector cruzando de #9 a #3 en pocas semanas = rotación entrante en curso.</div>
+  </div>
+
   <!-- ══ FASE 1 · Performance Relativa — screener rebaseado con leaderboard (2026-07-08) ══ -->
   <div class="sh"><div class="sh-tag">Relativo</div><div class="sh-title">Performance Relativa — ¿Quién le gana al benchmark?</div><button class="glossary-btn" onclick="openGlossary('performance-relativa')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
@@ -2234,6 +2248,22 @@ html.auth-ok #auth-gate{display:none}
       <div id="rp-board" style="overflow-y:auto;max-height:270px"></div>
     </div>
     <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Retornos acumulados rebaseados a 0% en t₀ (misma base para todos — construcción estándar). Leaderboard: retorno de la ventana + "vs bench" (diferencia de acumulados al cierre). En HOLDINGS vs SECTOR se aísla el liderazgo interno quitando la beta del sector — la confluencia más fuerte: acción que bate a su sector Y sector entrando en el cuadrante RRG.</div>
+  </div>
+
+  <!-- ══ VIZ paquete D · Estacionalidad — matriz de retornos mensuales 10 años ══ -->
+  <div class="sh"><div class="sh-tag">Estacional</div><div class="sh-title">Estacionalidad — ¿este mes suele ser bueno para este activo?</div><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <select id="season-sel" onchange="SeasonMap.load(this.value)" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;padding:4px 8px;font-family:'IBM Plex Mono',monospace;font-size:10px">
+        <option value="SPY">SPY · S&P 500</option><option value="QQQ">QQQ · Nasdaq</option><option value="IWM">IWM · Small Caps</option><option value="GLD">GLD · Oro</option>
+        <option value="XLK">XLK · Tecnología</option><option value="XLF">XLF · Financieros</option><option value="XLE">XLE · Energía</option><option value="XLV">XLV · Salud</option>
+        <option value="XLP">XLP · Consumo Básico</option><option value="XLU">XLU · Utilities</option><option value="XLB">XLB · Materiales</option><option value="XLI">XLI · Industriales</option>
+        <option value="XLC">XLC · Comunicaciones</option><option value="XLY">XLY · Cons. Discrec.</option><option value="XLRE">XLRE · Real Estate</option>
+      </select>
+      <span id="season-note" class="mono" style="font-size:9px;color:var(--text3)">10 años de retornos mensuales (Yahoo) · el MES ACTUAL resaltado</span>
+    </div>
+    <div style="overflow-x:auto"><canvas id="seasonCanvas" height="300" style="width:100%;min-width:640px">Estacionalidad.</canvas></div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5">Filas = años · columnas = meses · color = retorno del mes. Abajo: PROMEDIO y WIN% (años positivos). HONESTIDAD: un promedio alto con win-rate bajo es un outlier disfrazado — mirá siempre las dos filas juntas. La estacionalidad es viento de fondo, no señal de entrada.</div>
   </div>
 
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
@@ -8402,18 +8432,21 @@ const ROT_GROUPS  = { defensivo:['XLP','XLU','XLV'], ciclico:['XLK','XLY','XLC',
 let rotMode = 'sectores';
 let rotIndData = null; // cache de los 10 ETFs de industria (fetch on-demand)
 
-function computeRotationFor(map, dataObj) {
+function computeRotationFor(map, dataObj, offsetWeeks) {
   const prices = state.data.prices || {};
   const spy = prices.SPY;
   if (!spy?.hist?.length) return null;
   const WEEK = 5, SMA_W = 26, MOM_W = 4, TAIL = 6;
+  const cut = (offsetWeeks || 0) * WEEK; // time-scrubber: recorta el final = "cómo se veía hace N semanas"
   const out = [];
   for (const [tk, name] of Object.entries(map)) {
     const sec = dataObj[tk] || prices[tk];
     if (!sec?.hist?.length) continue;
-    const n = Math.min(sec.hist.length, spy.hist.length);
-    if (n < WEEK * (SMA_W + MOM_W + TAIL)) continue;
-    const sH = sec.hist.slice(-n), pH = spy.hist.slice(-n);
+    const sFull = cut ? sec.hist.slice(0, sec.hist.length - cut) : sec.hist;
+    const pFull = cut ? spy.hist.slice(0, spy.hist.length - cut) : spy.hist;
+    const n = Math.min(sFull.length, pFull.length);
+    if (n < WEEK * (SMA_W + MOM_W + 2)) continue; // con replay la estela puede acortarse; mínimo para el cálculo
+    const sH = sFull.slice(-n), pH = pFull.slice(-n);
     const ratio = [];
     for (let i = n - 1; i >= 0; i -= WEEK) {
       if (pH[i] > 0) ratio.unshift(sH[i] / pH[i]);
@@ -8517,9 +8550,12 @@ const rotQuadrantPlugin = {
 
 function renderCapitalRotation() {
   const isInd = rotMode === 'industrias';
+  const scrub = window._rotScrub || 0; // semanas hacia atrás (time-scrubber)
+  const lblEl = document.getElementById('rot-scrub-lbl');
+  if (lblEl) { lblEl.textContent = scrub === 0 ? 'HOY' : '⏪ hace ' + scrub + ' sem'; lblEl.style.color = scrub === 0 ? 'var(--gold)' : 'var(--amber)'; }
   const data = isInd
-    ? (rotIndData ? computeRotationFor(ROT_INDUSTRIES, rotIndData) : null)
-    : computeRotationFor(ROT_SECTORS, state.data.prices || {});
+    ? (rotIndData ? computeRotationFor(ROT_INDUSTRIES, rotIndData, scrub) : null)
+    : computeRotationFor(ROT_SECTORS, state.data.prices || {}, scrub);
   // estilo de los botones del toggle
   const bSec = document.getElementById('rot-mode-sec'), bInd = document.getElementById('rot-mode-ind');
   if (bSec && bInd) {
@@ -8627,8 +8663,12 @@ function renderCapitalRotation() {
       sigEl.innerHTML = `<span class="mono" style="font-size:9px;letter-spacing:.08em;color:var(--gold)">${head}</span><br>${detail}${coherencia} <span style="color:var(--text3);font-size:9px">· Computado en vivo: RS vs SPY 26 sem + momentum 4 sem, estela 6 sem.</span>`;
     }
   }
+  // Time-scrubber: si estamos en replay, marcar la señal como vista histórica
+  if (sigEl && scrub > 0) sigEl.innerHTML = '<span class="mono" style="font-size:9px;color:var(--amber)">⏪ VISTA HISTÓRICA — hace ' + scrub + ' semanas (arrastrá el slider a la derecha para volver a HOY)</span><br>' + sigEl.innerHTML;
   // FASE 1: el screener de performance relativa comparte el ciclo de render del tab
   try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
+  try { if (typeof BumpRace !== 'undefined') BumpRace.render(); } catch (e) { /* ídem */ }
+  try { if (typeof SeasonMap !== 'undefined' && !SeasonMap._init) { SeasonMap._init = true; SeasonMap.load(SeasonMap._current); } } catch (e) { /* ídem */ }
 }
 
 // ══ FASE 1 · Performance Relativa — chart rebaseado + leaderboard (estilo CryptoLat) ══
@@ -8851,6 +8891,149 @@ function rebasedChartHtml(cvId, titulo) {
     + '<div class="ch-wrap" style="height:235px"><canvas id="' + cvId + '" role="img" aria-label="' + titulo + '">Chart rebaseado.</canvas></div>'
     + '</div>';
 }
+
+// ══ VIZ paquete D · BumpRace — ranking semanal de sectores por retorno 1M (26 semanas) ══
+// Computado del hist diario existente (cero data nueva): en cada semana w, rank 1-11 por
+// retorno trailing 21d. Los cruces de líneas = rotaciones de liderazgo (complemento del RRG).
+const BumpRace = {
+  render() {
+    const cv = document.getElementById('bumpChart');
+    if (!cv || typeof Chart === 'undefined') return;
+    const prices = state.data.prices || {};
+    const tks = Object.keys(ROT_SECTORS).filter(tk => prices[tk]?.hist?.length >= 160);
+    if (tks.length < 6) return;
+    const WEEKS = 26;
+    const ranksByTk = {}; tks.forEach(tk => ranksByTk[tk] = []);
+    const labels = [];
+    for (let w = WEEKS - 1; w >= 0; w--) {
+      const rets = [];
+      for (const tk of tks) {
+        const h = prices[tk].hist;
+        const i = h.length - 1 - w * 5;
+        if (i < 21 || h[i] == null || !h[i - 21]) { rets.push({ tk, r: null }); continue; }
+        rets.push({ tk, r: h[i] / h[i - 21] - 1 });
+      }
+      const valid = rets.filter(x => x.r != null).sort((a, b) => b.r - a.r);
+      const rank = {}; valid.forEach((x, i2) => rank[x.tk] = i2 + 1);
+      tks.forEach(tk => ranksByTk[tk].push(rank[tk] ?? null));
+      labels.push(w === 0 ? 'HOY' : '-' + w + 'w');
+    }
+    const datasets = tks.map((tk, i) => ({
+      label: tk, data: ranksByTk[tk], borderColor: RP_PALETTE[i % RP_PALETTE.length],
+      borderWidth: ranksByTk[tk][ranksByTk[tk].length - 1] <= 3 ? 2.2 : 1.1, // top 3 actual más gruesos
+      pointRadius: ranksByTk[tk].map((_, j) => j === ranksByTk[tk].length - 1 ? 4 : 0),
+      pointBackgroundColor: RP_PALETTE[i % RP_PALETTE.length],
+      tension: .35, fill: false, spanGaps: true
+    }));
+    if (state.charts.bumpChart) state.charts.bumpChart.destroy();
+    state.charts.bumpChart = new Chart(cv, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+        plugins: {
+          legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+          tooltip: { mode: 'index', intersect: false, itemSort: (a, b) => a.parsed.y - b.parsed.y,
+            callbacks: { label: c => '#' + c.parsed.y + ' ' + c.dataset.label } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 10, maxRotation: 0 } },
+          y: { reverse: true, min: 1, max: 11, grid: { color: 'rgba(45,30,30,.25)' }, ticks: { stepSize: 1, color: '#7d6f63', font: { size: 8 }, callback: v => '#' + v } }
+        }
+      }
+    });
+  }
+};
+
+// ══ VIZ paquete D · SeasonMap — heatmap de estacionalidad (retornos mensuales 10 años) ══
+// Canvas puro (estética densa de la casa). Data: /api/yahoo?range=10y (interval mensual,
+// cache CDN 24h). Filas AVG y WIN% al pie: promedio sin win-rate es un outlier disfrazado.
+const SeasonMap = {
+  _cache: {}, _loading: false, _current: 'SPY',
+  MESES: ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'],
+  async load(tk) {
+    this._current = tk;
+    const note = document.getElementById('season-note');
+    if (!this._cache[tk]) {
+      if (note) note.textContent = 'Cargando 10 años de ' + tk + '…';
+      try {
+        const d = await fetch('/api/yahoo?tickers=' + tk + '&range=10y').then(r => r.json());
+        if (d?.[tk]?.hist?.length >= 24) this._cache[tk] = d[tk];
+      } catch (e) {}
+    }
+    if (this._current !== tk) return; // el usuario cambió de activo mientras cargaba
+    if (!this._cache[tk]) { if (note) note.textContent = 'Sin datos de 10 años para ' + tk; return; }
+    if (note) note.textContent = tk + ' · 10 años de retornos mensuales · el MES ACTUAL resaltado';
+    this.draw(tk);
+  },
+  draw(tk) {
+    const cv = document.getElementById('seasonCanvas');
+    const d = this._cache[tk];
+    if (!cv || !d) return;
+    // matriz año→mes→retorno (closes mensuales: ret del mes i = close[i]/close[i-1]−1)
+    const byYear = {};
+    for (let i = 1; i < d.hist.length; i++) {
+      if (!(d.hist[i - 1] > 0)) continue;
+      const dt = d.dates[i]; const y = +dt.slice(0, 4); const m = +dt.slice(5, 7) - 1;
+      (byYear[y] = byYear[y] || {})[m] = (d.hist[i] / d.hist[i - 1] - 1) * 100;
+    }
+    const years = Object.keys(byYear).map(Number).sort((a, b) => b - a).slice(0, 10);
+    const W = Math.max(640, cv.parentElement.clientWidth - 4);
+    const rowH = 24, labW = 44, colW = (W - labW) / 12.9, sumW = colW * 0.9;
+    const H = (years.length + 3) * rowH + 6;
+    cv.width = W * (window.devicePixelRatio || 1); cv.height = H * (window.devicePixelRatio || 1);
+    cv.style.height = H + 'px';
+    const ctx = cv.getContext('2d');
+    ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = "600 9px 'IBM Plex Mono', monospace"; ctx.textBaseline = 'middle';
+    const nowM = new Date().getMonth(), nowY = new Date().getFullYear();
+    const cellColor = v => {
+      if (v == null) return 'rgba(255,255,255,.03)';
+      const a = Math.min(Math.abs(v) / 8, 1) * 0.55 + 0.08;
+      return v >= 0 ? 'rgba(74,222,128,' + a.toFixed(2) + ')' : 'rgba(248,113,113,' + a.toFixed(2) + ')';
+    };
+    // header meses
+    ctx.fillStyle = '#7d6f63'; ctx.textAlign = 'center';
+    this.MESES.forEach((mn, m) => {
+      if (m === nowM) { ctx.fillStyle = '#f8d794'; ctx.fillText('▾' + mn, labW + m * colW + colW / 2, rowH / 2); ctx.fillStyle = '#7d6f63'; }
+      else ctx.fillText(mn, labW + m * colW + colW / 2, rowH / 2);
+    });
+    // filas por año
+    years.forEach((y, r) => {
+      const yy = (r + 1) * rowH;
+      ctx.fillStyle = '#a89f93'; ctx.textAlign = 'left'; ctx.fillText(String(y), 4, yy + rowH / 2);
+      for (let m = 0; m < 12; m++) {
+        const v = byYear[y]?.[m];
+        const x = labW + m * colW;
+        ctx.fillStyle = cellColor(v);
+        ctx.fillRect(x + 1, yy + 1, colW - 2, rowH - 2);
+        if (m === nowM) { ctx.strokeStyle = 'rgba(248,215,148,.5)'; ctx.strokeRect(x + 1, yy + 1, colW - 2, rowH - 2); }
+        if (v != null) {
+          ctx.fillStyle = Math.abs(v) > 5 ? '#f0ece4' : '#a89f93'; ctx.textAlign = 'center';
+          ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(1), x + colW / 2, yy + rowH / 2);
+        }
+        if (y === nowY && m > nowM) { /* meses futuros del año actual quedan vacíos naturalmente */ }
+      }
+    });
+    // AVG y WIN%
+    const avgY = (years.length + 1) * rowH + 3, winY = (years.length + 2) * rowH + 3;
+    ctx.fillStyle = '#f8d794'; ctx.textAlign = 'left';
+    ctx.fillText('AVG', 4, avgY + rowH / 2); ctx.fillText('WIN%', 4, winY + rowH / 2);
+    for (let m = 0; m < 12; m++) {
+      const vals = years.map(y => byYear[y]?.[m]).filter(v => v != null);
+      const x = labW + m * colW;
+      if (!vals.length) continue;
+      const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const win = vals.filter(v => v > 0).length / vals.length * 100;
+      ctx.fillStyle = cellColor(avg); ctx.fillRect(x + 1, avgY + 1, colW - 2, rowH - 2);
+      ctx.fillStyle = '#f0ece4'; ctx.textAlign = 'center';
+      ctx.fillText((avg >= 0 ? '+' : '') + avg.toFixed(1), x + colW / 2, avgY + rowH / 2);
+      ctx.fillStyle = win >= 70 ? 'rgba(74,222,128,.9)' : win <= 40 ? 'rgba(248,113,113,.9)' : '#a89f93';
+      ctx.fillText(win.toFixed(0) + '%', x + colW / 2, winY + rowH / 2);
+    }
+  }
+};
 
 // ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
 const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
