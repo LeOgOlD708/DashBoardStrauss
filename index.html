@@ -7132,6 +7132,9 @@ function updateHeroScore() {
   updateLeadingIndicators();
   updateHowellHistory();
   updateOperationalContext();
+  // GLI v2: re-computar cuando FRED ya cargó (la 1a llamada vive en el path Yahoo,
+  // que puede correr ANTES de que lleguen walcl/ecb/boj/m2 → tiles en '—')
+  try { updateGlobalLiquidity(state.data.prices || {}); } catch (e) {}
   updateERP();
   updatePositioning();
   updateMotorHistoryMinis();
