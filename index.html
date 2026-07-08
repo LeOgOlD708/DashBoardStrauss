@@ -693,6 +693,16 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-catalysts-btn:hover{background:rgba(249,115,22,.16);border-color:rgba(249,115,22,.55)}
 .os-catalysts-btn[disabled]{opacity:.6;cursor:wait}
 .os-catalysts-modal-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.04em;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+/* ── CMD Center: acordeones densos con chips (rediseno A+C 2026-07-08) ── */
+.acc-header{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin:6px 0;transition:border-color .15s,background .15s}
+.acc-header:hover{border-color:rgba(230,180,80,.35);background:var(--surface2)}
+.acc-header .acc-arrow{font-size:9px;color:var(--gold);transition:transform .2s;flex:none;width:12px}
+.acc-header.acc-open .acc-arrow{transform:rotate(90deg)}
+.acc-header .acc-title{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;color:var(--text);white-space:nowrap;font-weight:600}
+.acc-header .acc-chips{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;align-items:center}
+.acc-chip{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 8px;border-radius:9px;background:rgba(255,255,255,.045);border:1px solid var(--border2);color:var(--text2);white-space:nowrap;max-width:190px;overflow:hidden;text-overflow:ellipsis}
+.acc-body{overflow:hidden}
+.acc-body.acc-closed{display:none}
 /* ── Pipeline de Capital: drill + RRG (upgrade visual 2026-07-07) ── */
 .drill-tbl{width:100%;border-collapse:collapse;font-size:11px;font-family:'IBM Plex Mono',monospace}
 .drill-tbl th{padding:5px 8px;font-size:8px;color:var(--text3);text-align:left;letter-spacing:.06em;border-bottom:1px solid var(--border2);cursor:help;white-space:nowrap}
@@ -7227,6 +7237,99 @@ async function updateNextEvents() {
   }
 }
 updateNextEvents();
+
+// ══════════════════════════════════
+// CMD CENTER · ACORDEONES DENSOS (rediseño A+C, 2026-07-08)
+// El tab 01 medía 11,737px (13 pantallas, 45 cards). Transformación EN RUNTIME:
+// cada sección .sh de las zonas pesadas se convierte en barra colapsable con
+// chips de sus datos clave. El HTML original NO se mueve en el archivo →
+// los ids que alimentan getDashboardContext/regimeVeto/updateTesisAuto siguen
+// en el DOM (display:none preserva textContent). Estado en localStorage.
+// ══════════════════════════════════
+const ACC_KEY = 'cmd_acc_v1';
+const ACC_SECTIONS = [
+  { match: /Yield Curve|Estructura de Plazos/i, id: 'yc' },
+  { match: /Contexto Operacional/i,             id: 'oper' },
+  { match: /Indicadores Adelantados/i,          id: 'lead' },
+  { match: /Diagnóstico en Vivo/i,              id: 'howell' },
+  { match: /Eco Score|Ciclo Económico —/i,      id: 'eco' },
+  { match: /52 semanas/i,                       id: 'tray' },
+  { match: /4 Termómetros/i,                    id: 'termo' },
+  { match: /Activos Favorecidos/i,              id: 'alloc' }
+];
+function accState() { try { return JSON.parse(localStorage.getItem(ACC_KEY) || '{}') || {}; } catch (e) { return {}; } }
+function accSave(st) { try { localStorage.setItem(ACC_KEY, JSON.stringify(st)); } catch (e) {} }
+
+function initCmdAccordions() {
+  const root = document.getElementById('tab-diag');
+  if (!root || root._accDone) return;
+  root._accDone = true;
+  const st = accState();
+  const shList = [...root.querySelectorAll('.sh')];
+  for (const sh of shList) {
+    const def = ACC_SECTIONS.find(d => d.match.test(sh.textContent));
+    if (!def) continue;
+    // Cuerpo = hermanos siguientes hasta el próximo .sh (o fin del contenedor)
+    const body = document.createElement('div');
+    body.className = 'acc-body';
+    body.dataset.accId = def.id;
+    let sib = sh.nextElementSibling;
+    const toMove = [];
+    while (sib && !sib.classList.contains('sh')) { toMove.push(sib); sib = sib.nextElementSibling; }
+    if (!toMove.length) continue;
+    sh.parentNode.insertBefore(body, toMove[0]);
+    toMove.forEach(el => body.appendChild(el));
+    // Header: barra densa con chips
+    const header = document.createElement('div');
+    header.className = 'acc-header';
+    header.dataset.accId = def.id;
+    const titleTxt = (sh.querySelector('.sh-title')?.textContent || sh.textContent).replace(/\s+/g, ' ').trim().slice(0, 52);
+    header.innerHTML = '<span class="acc-arrow">▶</span><span class="acc-title">' + titleTxt + '</span><span class="acc-chips" id="acc-chips-' + def.id + '"></span>';
+    sh.parentNode.insertBefore(header, sh);
+    sh.style.display = 'none'; // el .sh original queda oculto (título vive en la barra)
+    const open = st[def.id] === true; // default: TODO colapsado (objetivo ~2 pantallas)
+    if (!open) body.classList.add('acc-closed'); else header.classList.add('acc-open');
+    header.addEventListener('click', () => {
+      const nowOpen = body.classList.contains('acc-closed');
+      body.classList.toggle('acc-closed', !nowOpen);
+      header.classList.toggle('acc-open', nowOpen);
+      const st2 = accState(); st2[def.id] = nowOpen; accSave(st2);
+      if (nowOpen) setTimeout(() => { // Chart.js no pinta en display:none → resize al abrir
+        try { Object.values(state.charts || {}).forEach(c => { if (c && c.resize) c.resize(); }); } catch (e) {}
+      }, 60);
+    });
+  }
+  updateAccChips();
+}
+
+// Chips: 3 datos clave por sección, leídos del DOM vivo (badges y valores existentes)
+function updateAccChips() {
+  for (const def of ACC_SECTIONS) {
+    const wrap = document.getElementById('acc-chips-' + def.id);
+    const body = document.querySelector('.acc-body[data-acc-id="' + def.id + '"]');
+    if (!wrap || !body) continue;
+    const seen = new Set();
+    const chips = [];
+    const cands = body.querySelectorAll('.badge, .kb-val, .val-sm, .vh-num, .thb-val');
+    for (const el of cands) {
+      const t = el.textContent.replace(/\s+/g, ' ').trim();
+      if (!t || t === '—' || t === '...' || t.length > 26 || seen.has(t)) continue;
+      if (/Cargando|Esperando/i.test(t)) continue;
+      seen.add(t);
+      chips.push('<span class="acc-chip">' + t.replace(/</g, '&lt;') + '</span>');
+      if (chips.length >= 3) break;
+    }
+    wrap.innerHTML = chips.join('');
+  }
+}
+
+// Init: al cargar + refrescar chips tras cada ciclo de datos (hook en hideLoadingState)
+setTimeout(initCmdAccordions, 400);
+const _origHideLoading = hideLoadingState;
+hideLoadingState = function () {
+  _origHideLoading();
+  try { initCmdAccordions(); updateAccChips(); } catch (e) {}
+};
 
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
