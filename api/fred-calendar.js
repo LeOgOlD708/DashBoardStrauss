@@ -196,7 +196,11 @@ module.exports = async (req, res) => {
   // El STATIC curado trae fechas OFICIALES (PFEI/BLS/Fed) → manda. FRED solo cubre
   // tags sin cobertura static en la ventana (failsafe si el static queda stale).
   const staticInWindow = STATIC_EVENTS.filter(e => e.date >= todayStr && e.date <= futureStr);
-  const staticTags = new Set(staticInWindow.map(e => e.tag));
+  // Cobertura por tag: mira TODO el static futuro, no solo la ventana. Si el tag tiene
+  // curación futura (ej. FOMC 29-jul con ventana hasta 21-jul), la ausencia en ventana
+  // es CORRECTA (no hay evento próximo) — sin esto, FRED rellenaba con vintages falsos
+  // (FOMC "7-8 jul" cuando la reunión real es 28-29).
+  const staticTags = new Set(STATIC_EVENTS.filter(e => e.date >= todayStr).map(e => e.tag));
   const releasesToFetch = RELEASES.filter(r => !staticTags.has(r.tag));
 
   // Procesa releases en lotes de 6 (12 simultáneos disparaban throttling FRED)
