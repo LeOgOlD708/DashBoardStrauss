@@ -7728,7 +7728,7 @@ function renderCapitalRotation() {
     }).join('');
   }
 
-  if (window.CapitalDrill) CapitalDrill.renderSectorButtons();
+  if (typeof CapitalDrill !== 'undefined') CapitalDrill.renderSectorButtons(); // const = binding léxico global, NO window.*
 
   // ── señal integrada con el ciclo (Howell/Stovall) ──
   if (sigEl) {
