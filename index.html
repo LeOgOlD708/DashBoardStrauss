@@ -1279,7 +1279,7 @@ html.auth-ok #auth-gate{display:none}
             <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Prod. Mfg YoY <button class="help-i" type="button" onclick="openGlossary('ipman-yoy')" title="¿Qué es?">?</button></span><span class="mono" id="fid-pmi-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-pmi-pts" style="font-size:10px;text-align:center">—</span>
           </div>
           <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">PIB Real QoQ <button class="help-i" type="button" onclick="openGlossary('pib-real')" title="¿Qué es?">?</button></span><span class="mono" id="fid-gdp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-gdp-pts" style="font-size:10px;text-align:center">—</span>
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">PIB Real QoQ <button class="help-i" type="button" onclick="openGlossary('gdp-real')" title="¿Qué es?">?</button></span><span class="mono" id="fid-gdp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-gdp-pts" style="font-size:10px;text-align:center">—</span>
           </div>
           <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
             <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Desempleo <button class="help-i" type="button" onclick="openGlossary('unrate')" title="¿Qué es?">?</button></span><span class="mono" id="fid-unemp-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-unemp-pts" style="font-size:10px;text-align:center">—</span>
@@ -1291,7 +1291,7 @@ html.auth-ok #auth-gate{display:none}
             <span style="color:var(--text2);display:flex;align-items:center;gap:5px">V. Minoristas MoM <button class="help-i" type="button" onclick="openGlossary('retail-sales')" title="¿Qué es?">?</button></span><span class="mono" id="fid-retail-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-retail-pts" style="font-size:10px;text-align:center">—</span>
           </div>
           <div style="display:grid;grid-template-columns:155px 1fr 50px;align-items:center;gap:10px;font-family:'IBM Plex Mono',monospace;font-size:11px">
-            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Conf. Consumidor <button class="help-i" type="button" onclick="openGlossary('umcsent')" title="¿Qué es?">?</button></span><span class="mono" id="fid-sent-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-sent-pts" style="font-size:10px;text-align:center">—</span>
+            <span style="color:var(--text2);display:flex;align-items:center;gap:5px">Conf. Consumidor <button class="help-i" type="button" onclick="openGlossary('consumer-sentiment')" title="¿Qué es?">?</button></span><span class="mono" id="fid-sent-val" style="color:var(--text);text-align:right">—</span><span class="badge b-neu" id="fid-sent-pts" style="font-size:10px;text-align:center">—</span>
           </div>
         </div>
       </div>
@@ -8148,6 +8148,30 @@ const FlowTracker = {
 // Cada entry: name, category, source, formula, interpretation, thresholds[], note
 // ══════════════════════════════════
 const INDICATORS_GLOSSARY = {
+  'curve-regime': {
+    name: 'Régimen de la Curva de Tasas', category: 'Macro',
+    source: { label: 'FRED: T10Y2Y / TB6MS-GS30', url: 'https://fred.stlouisfed.org/series/T10Y2Y', freq: 'Diario' },
+    formula: 'Clasificación por spread 10Y-2Y y forma de la curva 6M→30Y',
+    interpretation: 'Normal (larga > corta) = expectativa de crecimiento sano. Plana = transición/incertidumbre. Invertida (corta > larga) = el mercado espera recortes de la Fed — históricamente precede recesiones con 12-18 meses de lag.',
+    thresholds: ['10Y-2Y > +0.5% → curva normal', '0 a +0.5% → plana', '< 0 → invertida (señal histórica de recesión)', 'Re-empinamiento tras inversión = el aviso más peligroso'],
+    note: 'Ver el timeline histórico 1978-2026 con recesiones NBER en esta misma sección.'
+  },
+  'yield-curve-interp': {
+    name: 'Cómo leer la Estructura de Plazos', category: 'Macro',
+    source: { label: 'FRED: TB6MS, GS1-GS30', url: 'https://fred.stlouisfed.org', freq: 'Diario' },
+    formula: 'Curva de rendimientos: yield de cada plazo (6M → 30Y) en un instante',
+    interpretation: 'La FORMA importa más que el nivel: pendiente positiva = premio por plazo normal; joroba en tramos medios = mercado dividido; inversión del tramo corto = apuesta a recortes. Comparar NOW vs 1M/6M/1Y atrás muestra hacia dónde se movió la expectativa.',
+    thresholds: ['Empinamiento bull (corta baja) → Fed dovish esperada', 'Empinamiento bear (larga sube) → miedo fiscal/inflación', 'Aplanamiento → ciclo madurando'],
+    note: 'Usa los botones NOW / 1M / 6M / 1Y del chart para ver la evolución.'
+  },
+  'yield-spreads': {
+    name: 'Spreads Clave de la Curva', category: 'Macro',
+    source: { label: 'FRED: T10Y2Y y derivados', url: 'https://fred.stlouisfed.org/series/T10Y2Y', freq: 'Diario' },
+    formula: '10Y−2Y (el clásico de recesión) · 10Y−3M (el preferido de la Fed)',
+    interpretation: 'Los dos spreads resumen la curva en un número. El 10Y-3M invertido es el indicador con mejor track record de recesión (Estrella & Mishkin); el 10Y-2Y es el más seguido por el mercado.',
+    thresholds: ['Ambos > 0 → normal', '10Y-2Y < 0 → inversión clásica', '10Y-3M < 0 → señal Fed (más fiable)', 'Divergencia entre ambos → transición en curso'],
+    note: 'La des-inversión (vuelta a positivo tras invertirse) históricamente coincide con el inicio de la recesión, no con su fin.'
+  },
   'flujos-reales': {
     name: 'Flujos Reales (creations/redemptions)', category: 'Sectores',
     source: { label: 'Computado: Δ shares outstanding (stockanalysis) × precio (Yahoo)', url: 'https://stockanalysis.com', freq: '1 muestra/día' },
