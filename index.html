@@ -1276,6 +1276,42 @@ html.auth-ok #auth-gate{display:none}
     <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5">FRED A063RC1 / PI · mensual · ~8 años de historia. Qué parte del ingreso de los hogares USA viene de transferencias del gobierno (Social Security, Medicare/Medicaid, subsidios). Pre-GFC: ~12-14% · post-COVID se asentó en ~17-19% · pico estímulo 2021: 33.6%. Alto y subiendo = dominancia fiscal: el ingreso depende del déficit — soporte de corto plazo, fragilidad estructural de largo.</div>
   </div>
 
+  <!-- ══ FASE 2 · Quad Engine — régimen growth × inflación con probabilidades (2026-07-08) ══ -->
+  <div class="zone-divider">Régimen por Cuadrantes · Growth × Inflación</div>
+  <div class="card" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gold);letter-spacing:.1em">🧭 QUAD ENGINE — ¿EN QUÉ RÉGIMEN ESTAMOS?</span>
+        <button class="help-i" type="button" onclick="openGlossary('quad-engine')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono" id="quad-actual" style="font-size:16px;font-weight:700;color:var(--text)">—</span>
+        <span id="quad-conf" class="badge b-neu" style="font-size:10px">Calculando…</span>
+      </div>
+    </div>
+    <div id="quad-probs" style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px"></div>
+    <div class="ch-wrap" style="height:170px"><canvas id="quadChart" role="img" aria-label="Probabilidades de régimen">Probabilidades por régimen.</canvas></div>
+    <div id="quad-playbook" style="margin-top:9px"></div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:7px;line-height:1.5">Growth = Δ3m del composite z(YoY) de producción industrial + ventas retail reales + nóminas + permisos (2ª derivada, estilo GIP/Hedgeye) · Inflación = core PCE 3m anualizado − YoY (acelera si 3m &gt; 12m) · Probabilidades por producto de sigmoides (suman 100% por construcción). Series mensuales con ~1 mes de rezago de publicación.</div>
+  </div>
+
+  <!-- ══ FASE 2 · NFCI — condiciones financieras Chicago Fed con overlay S&P ══ -->
+  <div class="zone-divider">Condiciones Financieras · NFCI Chicago Fed</div>
+  <div class="card" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.1em">🌡 MACRO SCORE — CONDICIONES FINANCIERAS (NFCI)</span>
+        <button class="help-i" type="button" onclick="openGlossary('nfci-score')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono" id="nfci-score" style="font-size:22px;font-weight:600;color:var(--text)">—</span>
+        <span id="nfci-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
+      </div>
+    </div>
+    <div class="ch-wrap" style="height:180px"><canvas id="nfciChart" role="img" aria-label="NFCI score vs S&P 500">NFCI vs S&P.</canvas></div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Índice oficial de la Chicago Fed (105 series, semanal, ya normalizado) convertido a score 0-100 de risk-on: Score = 100·(1−Φ(NFCI)). Bandas: &gt;70 RISK-ON (condiciones laxas) · &lt;30 RISK-OFF (tight). Línea azul: S&amp;P 500 normalizado en la misma ventana — los tramos rojos del score deberían anteceder/coincidir con los drawdowns.</div>
+  </div>
+
   <!-- Three Horizons eliminado en Fase A — Net Liquidity Δ13w rescatado al mini-card de Z1.
        Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
        DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
@@ -3473,7 +3509,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI,CRDQCNAPABIS'; // A063RC1+PI: dominancia fiscal · CRDQCNAPABIS (GLI v3): crédito total China REAL (BIS via FRED, mata el proxy FXI)
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI,CRDQCNAPABIS,NFCI,RRSFS,PAYEMS'; // A063RC1+PI: fiscal · CRDQCNAPABIS: China real · NFCI+RRSFS+PAYEMS (FASE 2): condiciones financieras Chicago Fed + eje growth del quad engine
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -3589,6 +3625,11 @@ async function loadFredData() {
     state.data.pi        = Array.isArray(d.PI)         ? d.PI         : null;
     // GLI v3: crédito total al sector privado no-financiero de China (BIS via FRED, trimestral, rezago ~2T)
     state.data.chinaCredit = Array.isArray(d.CRDQCNAPABIS) ? d.CRDQCNAPABIS : null;
+    // FASE 2 (quad engine + NFCI): condiciones financieras Chicago Fed (semanal, ya en z-score)
+    // + ventas retail REALES y nóminas para el composite de growth
+    state.data.nfci   = Array.isArray(d.NFCI)   ? d.NFCI   : null;
+    state.data.rrsfs  = Array.isArray(d.RRSFS)  ? d.RRSFS  : null;
+    state.data.payems = Array.isArray(d.PAYEMS) ? d.PAYEMS : null;
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
     state.data.fedfunds  = Array.isArray(d.FEDFUNDS)  ? d.FEDFUNDS  : null;
@@ -4493,6 +4534,8 @@ function updateFredUI() {
   setEl('diag-live-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
 
   try { updateFiscal(); } catch (e) { /* la card fiscal nunca debe romper el resto del FRED UI */ }
+  try { updateQuadEngine(); } catch (e) { /* FASE 2 — aislado */ }
+  try { updateNfci(); } catch (e) { /* FASE 2 — aislado (overlay S&P se completa cuando Yahoo carga) */ }
 }
 
 // ── ETF Table ──
@@ -5868,6 +5911,195 @@ function updateFiscal() {
       }
     }
   });
+}
+
+// ══ FASE 2 (2026-07-08, research playbook 10) · QUAD ENGINE + NFCI ══
+// Helpers estadísticos (arrays FRED DESC → cronológico, z-scores con clip ±3, CDF normal)
+function _ascObs(s) { return Array.isArray(s) ? [...s].reverse() : []; }
+function _yoyAsc(s) {
+  const a = _ascObs(s), out = [];
+  for (let i = 12; i < a.length; i++) if (a[i - 12]?.value) out.push({ date: a[i].date, v: (a[i].value / a[i - 12].value - 1) * 100 });
+  return out;
+}
+function _zArr(vals) {
+  const m = vals.reduce((x, y) => x + y, 0) / vals.length;
+  const sd = Math.sqrt(vals.reduce((x, y) => x + (y - m) ** 2, 0) / vals.length) || 1;
+  return vals.map(v => Math.max(-3, Math.min(3, (v - m) / sd)));
+}
+function _phiCdf(x) { // Φ normal estándar (Abramowitz-Stegun 7.1.26 vía erf)
+  const z = Math.abs(x) / Math.SQRT2, t = 1 / (1 + 0.3275911 * z);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z);
+  return x >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+}
+
+// Quad Engine: growth × inflación en 2ª derivada (estilo GIP) → probabilidades por
+// producto de sigmoides (suman 100% por construcción). Devuelve serie mensual + actual.
+const QUAD_META = [
+  { k: 'P1', n: 'Q1 · GOLDILOCKS', d: 'Growth ↑ · Inflación ↓', col: '#4ade80', ow: 'XLK · XLY · XLI · high-beta · growth · small caps', uw: 'XLU · XLP' },
+  { k: 'P2', n: 'Q2 · REFLATION',  d: 'Growth ↑ · Inflación ↑', col: '#fbbf24', ow: 'XLE · XLB · XLF · XLI · commodities · EM · TIPS', uw: 'XLU · REITs · duración' },
+  { k: 'P3', n: 'Q3 · STAGFLATION', d: 'Growth ↓ · Inflación ↑', col: '#fb923c', ow: 'XLE · XLU · XLP · oro · TIPS · low-beta', uw: 'XLK · XLY · high-beta' },
+  { k: 'P4', n: 'Q4 · DEFLATION',  d: 'Growth ↓ · Inflación ↓', col: '#f87171', ow: 'XLV · XLP · XLU · TLT · USD · oro · quality', uw: 'XLK · XLE · XLI · small caps' },
+];
+function computeQuadSeries() {
+  const d = state.data;
+  // Eje GROWTH: composite de 4 proxies mensuales (z de YoY), Δ3m, z final
+  const comps = [d.indpro, d.rrsfs, d.payems, d.permits].map(_yoyAsc).filter(a => a.length >= 24);
+  if (comps.length < 3 || !Array.isArray(d.corePce)) return null;
+  const byDate = {};
+  comps.forEach(serie => {
+    const z = _zArr(serie.map(o => o.v));
+    serie.forEach((o, i) => { (byDate[o.date] = byDate[o.date] || []).push(z[i]); });
+  });
+  const compDates = Object.keys(byDate).filter(k => byDate[k].length >= 3).sort();
+  const composite = compDates.map(k => byDate[k].reduce((x, y) => x + y, 0) / byDate[k].length);
+  if (composite.length < 12) return null;
+  const gRaw = [], gDates = [];
+  for (let i = 3; i < composite.length; i++) { gRaw.push(composite[i] - composite[i - 3]); gDates.push(compDates[i]); }
+  const gZ = _zArr(gRaw);
+  // Eje INFLACIÓN: core PCE 3m anualizado − YoY (acelera si 3m > 12m)
+  const pce = _ascObs(d.corePce);
+  const iRaw = [], iDates = [];
+  for (let i = 12; i < pce.length; i++) {
+    if (!pce[i - 3]?.value || !pce[i - 12]?.value) continue;
+    const ann3 = (Math.pow(pce[i].value / pce[i - 3].value, 4) - 1) * 100;
+    const yoy = (pce[i].value / pce[i - 12].value - 1) * 100;
+    iRaw.push(ann3 - yoy); iDates.push(pce[i].date);
+  }
+  if (iRaw.length < 12) return null;
+  const iZ = _zArr(iRaw);
+  const iByDate = {}; iDates.forEach((dt, i) => { iByDate[dt] = iZ[i]; });
+  // Serie de probabilidades (intersección de fechas)
+  const K = 1.5, sig = v => 1 / (1 + Math.exp(-K * v));
+  const pts = [];
+  gDates.forEach((dt, i) => {
+    if (iByDate[dt] == null) return;
+    const pG = sig(gZ[i]), pI = sig(iByDate[dt]);
+    pts.push({ date: dt, g: gZ[i], i: iByDate[dt],
+      P1: pG * (1 - pI) * 100, P2: pG * pI * 100, P3: (1 - pG) * pI * 100, P4: (1 - pG) * (1 - pI) * 100 });
+  });
+  if (!pts.length) return null;
+  const cur = pts[pts.length - 1];
+  const probs = [cur.P1, cur.P2, cur.P3, cur.P4];
+  const qi = probs.indexOf(Math.max(...probs));
+  return { pts, cur, quadIdx: qi, conf: probs[qi] };
+}
+function updateQuadEngine() {
+  const q = computeQuadSeries();
+  const actualEl = document.getElementById('quad-actual');
+  if (!q) { if (actualEl) actualEl.textContent = 'Sin datos suficientes'; return; }
+  const meta = QUAD_META[q.quadIdx];
+  if (actualEl) { actualEl.textContent = meta.n + ' — ' + meta.d; actualEl.style.color = meta.col; }
+  const confEl = document.getElementById('quad-conf');
+  if (confEl) {
+    confEl.className = 'badge ' + (q.conf >= 55 ? 'b-up' : q.conf >= 40 ? 'b-neu' : 'b-alt');
+    confEl.textContent = 'confianza ' + q.conf.toFixed(0) + '%' + (q.conf < 40 ? ' · régimen difuso' : '');
+  }
+  // 4 barras de probabilidad
+  const probsEl = document.getElementById('quad-probs');
+  if (probsEl) {
+    probsEl.innerHTML = QUAD_META.map((m, i) => {
+      const p = q.cur[m.k];
+      const active = i === q.quadIdx;
+      return '<div style="padding:7px 9px;background:' + (active ? m.col + '14' : 'var(--surface2)') + ';border:1px solid ' + (active ? m.col + '55' : 'var(--border)') + ';border-radius:6px">'
+        + '<div style="font-family:\'IBM Plex Mono\',monospace;font-size:9px;color:' + m.col + ';letter-spacing:.05em">' + m.n + (active ? ' ◀' : '') + '</div>'
+        + '<div class="mono" style="font-size:17px;font-weight:700;color:' + (active ? m.col : 'var(--text2)') + ';margin:2px 0">' + p.toFixed(1) + '%</div>'
+        + '<div style="height:5px;background:var(--border2);border-radius:3px;overflow:hidden"><div style="height:100%;width:' + p.toFixed(0) + '%;background:' + m.col + ';border-radius:3px"></div></div>'
+        + '<div class="mono" style="font-size:8px;color:var(--text3);margin-top:3px">' + m.d + '</div></div>';
+    }).join('');
+  }
+  // Chart histórico de las 4 probabilidades (como la referencia de CryptoLat)
+  const cv = document.getElementById('quadChart');
+  if (cv && typeof Chart !== 'undefined') {
+    const labels = q.pts.map(p => p.date.slice(0, 7));
+    const mk = (k, m) => ({ label: m.n, data: q.pts.map(p => +p[k].toFixed(1)), borderColor: m.col, borderWidth: 1.4, pointRadius: 0, tension: .3, fill: false });
+    const ds = QUAD_META.map((m) => mk(m.k, m));
+    const ch = state.charts.quadChart;
+    if (ch) { ch.data.labels = labels; ch.data.datasets.forEach((dset, i) => dset.data = ds[i].data); ch.update('none'); }
+    else state.charts.quadChart = new Chart(cv, {
+      type: 'line', data: { labels, datasets: ds },
+      options: { responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        plugins: { legend: { display: true, labels: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+          tooltip: { mode: 'index', intersect: false, callbacks: { label: c => c.dataset.label + ': ' + c.parsed.y.toFixed(1) + '%' } } },
+        scales: { x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8 }, maxTicksLimit: 8, maxRotation: 0 } },
+          y: { min: 0, max: 100, grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, callback: v => v + '%' } } } }
+    });
+  }
+  // Playbook: 4 columnas, la activa resaltada
+  const pbEl = document.getElementById('quad-playbook');
+  if (pbEl) {
+    pbEl.innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:5px">PLAYBOOK SECTORIAL POR RÉGIMEN (Hedgeye/Dalio, ver glosario) — columna activa resaltada</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">'
+      + QUAD_META.map((m, i) => {
+        const active = i === q.quadIdx;
+        return '<div style="padding:6px 8px;border-radius:5px;background:' + (active ? m.col + '10' : 'var(--surface2)') + ';border:1px solid ' + (active ? m.col + '44' : 'var(--border)') + (active ? '' : ';opacity:.65') + '">'
+          + '<div class="mono" style="font-size:8px;color:' + m.col + '">' + m.n + '</div>'
+          + '<div style="font-size:9px;color:var(--text2);margin-top:3px"><b style="color:var(--green)">OW:</b> ' + m.ow + '</div>'
+          + '<div style="font-size:9px;color:var(--text3);margin-top:2px"><b style="color:var(--red)">UW:</b> ' + m.uw + '</div></div>';
+      }).join('') + '</div>';
+  }
+  window.__quad = { quad: meta.n, conf: q.conf, probs: { P1: q.cur.P1, P2: q.cur.P2, P3: q.cur.P3, P4: q.cur.P4 } };
+}
+
+// NFCI → Macro Score 0-100 de risk-on + overlay S&P (bandas 70/30)
+const nfciBandsPlugin = {
+  id: 'nfciBands',
+  beforeDraw(chart) {
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    if (!a || !y) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(74,222,128,.05)';
+    ctx.fillRect(a.left, y.getPixelForValue(100), a.right - a.left, y.getPixelForValue(70) - y.getPixelForValue(100));
+    ctx.fillStyle = 'rgba(248,113,113,.07)';
+    ctx.fillRect(a.left, y.getPixelForValue(30), a.right - a.left, y.getPixelForValue(0) - y.getPixelForValue(30));
+    ctx.restore();
+  }
+};
+function updateNfci() {
+  const s = state.data.nfci;
+  if (!Array.isArray(s) || s.length < 20) return;
+  const asc = _ascObs(s);
+  const scores = asc.map(o => ({ date: o.date, v: +(100 * (1 - _phiCdf(o.value))).toFixed(1) }));
+  const cur = scores[scores.length - 1];
+  const scoreEl = document.getElementById('nfci-score');
+  const bdg = document.getElementById('nfci-badge');
+  const col = cur.v >= 70 ? 'var(--green)' : cur.v >= 30 ? 'var(--amber)' : 'var(--red)';
+  if (scoreEl) { scoreEl.textContent = cur.v.toFixed(0) + '/100'; scoreEl.style.color = col; }
+  if (bdg) {
+    bdg.className = 'badge ' + (cur.v >= 70 ? 'b-up' : cur.v >= 30 ? 'b-neu' : 'b-dn');
+    bdg.textContent = (cur.v >= 70 ? 'RISK-ON · condiciones laxas' : cur.v >= 30 ? 'NEUTRAL' : 'RISK-OFF · condiciones tight') + ' · NFCI ' + (s[0].value >= 0 ? '+' : '') + s[0].value.toFixed(2) + 'σ';
+  }
+  const cv = document.getElementById('nfciChart');
+  if (!cv || typeof Chart === 'undefined') return;
+  // Overlay S&P normalizado 0-100 (min-max) en la MISMA ventana semanal del NFCI
+  const spy = state.data.prices?.SPY;
+  let spyLine = null;
+  if (spy?.hist?.length && spy?.dates?.length) {
+    const vals = scores.map(sc => { // close de SPY en (o antes de) cada fecha semanal del NFCI
+      for (let j = spy.dates.length - 1; j >= 0; j--) if (spy.dates[j] <= sc.date) return spy.hist[j];
+      return null;
+    });
+    const present = vals.filter(v => v != null);
+    if (present.length >= 10) {
+      const mn = Math.min(...present), mx = Math.max(...present);
+      spyLine = vals.map(v => v == null ? null : +((v - mn) / (mx - mn || 1) * 100).toFixed(1));
+    }
+  }
+  const labels = scores.map(sc => sc.date.slice(2, 7));
+  const ds = [{ label: 'Macro Score (NFCI)', data: scores.map(sc => sc.v), borderColor: '#fbbf24', borderWidth: 1.7, pointRadius: 0, tension: .3, fill: false }];
+  if (spyLine) ds.push({ label: 'S&P 500 (normalizado)', data: spyLine, borderColor: '#60a5fa', borderWidth: 1.3, pointRadius: 0, tension: .3, fill: false, spanGaps: true });
+  const ch = state.charts.nfciChart;
+  if (ch) { ch.data.labels = labels; ch.data.datasets = ds; ch.update('none'); }
+  else state.charts.nfciChart = new Chart(cv, {
+    type: 'line', data: { labels, datasets: ds },
+    options: { responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      plugins: { legend: { display: true, labels: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+        nfciBands: {},
+        tooltip: { mode: 'index', intersect: false } },
+      scales: { x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8 }, maxTicksLimit: 9, maxRotation: 0 } },
+        y: { min: 0, max: 100, grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 } } } } },
+    plugins: [nfciBandsPlugin]
+  });
+  window.__nfci = { score: cur.v, raw: s[0].value };
 }
 
 // Computes macro regime from all available signals
@@ -7432,6 +7664,7 @@ function updateHeroScore() {
   // GLI v2: re-computar cuando FRED ya cargó (la 1a llamada vive en el path Yahoo,
   // que puede correr ANTES de que lleguen walcl/ecb/boj/m2 → tiles en '—')
   try { updateGlobalLiquidity(state.data.prices || {}); } catch (e) {}
+  try { updateNfci(); } catch (e) {} // FASE 2: re-render con SPY ya cargado (overlay)
   updateERP();
   updatePositioning();
   updateMotorHistoryMinis();
@@ -7703,6 +7936,8 @@ function updateAccChips() {
 const HZ_DEFS = [
   { key: 'resumen', match: /Ventanas de Tiempo/i,      hz: null },
   { key: 'oper',    match: /Crédito · Volatilidad/i,   hz: 'corto', muestra: 'real yields · crédito HY/BBB · término VIX · niveles técnicos SPY', aplica: 'timing de entradas/salidas, stops y sizing táctico' },
+  { key: 'nfci',    match: /Condiciones Financieras/i,  hz: 'corto', muestra: 'NFCI Chicago Fed (105 series) → score 0-100 de risk-on con overlay S&P', aplica: 'el semáforo de si el mercado PERMITE riesgo esta semana' },
+  { key: 'quad',    match: /Régimen por Cuadrantes/i,   hz: 'medio', muestra: 'growth × inflación en 2ª derivada → probabilidades de 4 regímenes', aplica: 'QUÉ sectores privilegiar según el cuadrante (playbook)' },
   { key: 'eco',     match: /Ciclo Económico/i,          hz: 'medio', muestra: 'ciclo económico Fidelity — 8 indicadores (IPMAN, PIB, empleo, consumo)', aplica: 'sesgo growth/value y rotación sectorial del trimestre' },
   { key: 'yc',      match: /Tasas & Fed Pricing/i,      hz: 'medio', muestra: 'curva de tasas completa + lo que el mercado le descuenta a la Fed', aplica: 'anticipar recesión (inversión) y duración: TLT vs cíclicos' },
   { key: 'lead',    match: /Indicadores Adelantados/i,  hz: 'medio', muestra: 'claims, producción, permisos, PCE — giran ANTES que la economía', aplica: 'anticipar el cambio de fase del ciclo económico' },
@@ -7777,8 +8012,8 @@ function initCmdHorizons() {
     }
   };
   if (segs.resumen) for (const n of segs.resumen.nodes) z1.appendChild(n); // resumen 3 horizontes → cierre de 01·Decisión
-  place(z2, ['oper']);
-  place(z3, ['eco', 'yc', 'lead']);
+  place(z2, ['nfci', 'oper']);
+  place(z3, ['quad', 'eco', 'yc', 'lead']);
   place(z4, ['howell', 'gli', 'pctr', 'pos', 'tray', 'termo', 'alloc']);
 
   // Chart.js: recalcular tamaños tras las mudanzas
@@ -9096,6 +9331,34 @@ const INDICATORS_GLOSSARY = {
     interpret: 'El embudo sector→acción: dentro de los sectores que reciben capital, rankea sus top holdings por fuerza relativa (RS ≥80 = élite), acumulación institucional (U/D ≥1.5 = 🏦, ≥2 = patrocinio fuerte) y salud de tendencia (Template ≥6/7 = candidata estilo Minervini).',
     thresholds: [{ c: 'green', t: 'RS >=80 → líder de momentum del universo local' }, { c: 'green', t: 'U/D 50d >=1.5 → acumulación · >=2 → institucional' }, { c: 'amber', t: 'A/D: A-B compra · D-E venta (13 sem)' }, { c: 'green', t: 'Template 7-8/8 → tendencia sana (criterios oficiales Minervini)' }, { c: 'n', t: 'vs 52w-HI entre 0 y -15% → zona de compra clásica' }],
     note: 'Universo: top-10 holdings × 11 sectores, scrapeados automáticamente (/api/holdings, cache 24h). Toggle INDUSTRIAS para rotación fina. Buscador libre: cualquier ticker. HONESTIDAD METODOLÓGICA: el RS es percentil contra ~114 nombres (RS 90 aquí ≠ RS 90 de IBD sobre ~6000 — el universo local puede estar sesgado al alza); el umbral U/D 1.5 del badge 🏦 es propio (IBD solo define >1 y ≥2). Los flujos literales están en el panel Flujos Reales del cuadrante.'
+  },
+  'quad-engine': {
+    name: 'Quad Engine — Régimen Growth × Inflación', category: 'Macro · Régimen',
+    source: { label: 'Computado: FRED (INDPRO, RRSFS, PAYEMS, PERMIT, PCEPILFE)', url: 'https://fred.stlouisfed.org', freq: 'Mensual (~1 mes de rezago)' },
+    formula: 'Growth g = z(Δ3m del composite z(YoY) de 4 proxies) · Inflación i = z(core PCE 3m anualizado − YoY) · pG=σ(1.5g), pI=σ(1.5i) · P(Q1)=pG(1−pI), P(Q2)=pG·pI, P(Q3)=(1−pG)pI, P(Q4)=(1−pG)(1−pI) — suman 100% por construcción.',
+    what: 'El régimen macro en 4 cuadrantes (estilo GIP/Hedgeye y All-Weather/Dalio): crecimiento e inflación medidos en SEGUNDA DERIVADA (¿aceleran o desaceleran?), con probabilidades continuas en vez de una etiqueta binaria.',
+    interpret: 'Q1 Goldilocks (growth↑ infl↓) favorece tech/growth/high-beta · Q2 Reflation (↑↑) commodities/energía/financieras · Q3 Stagflation (↓↑) energía/defensivos/oro · Q4 Deflation (↓↓) bonos/salud/staples/USD — y castiga tech/small caps. La CONFIANZA (probabilidad del quad dominante) importa: <40% = régimen difuso, no forzar el playbook.',
+    thresholds: [
+      { c: 'green', t: 'Confianza ≥55% → régimen claro, playbook accionable' },
+      { c: 'amber', t: '40-55% → régimen probable, confirmar con el RRG' },
+      { c: 'red', t: '<40% → difuso: los 4 cuadrantes compiten, no forzar sesgos' },
+      { c: 'n', t: 'El chart histórico muestra los giros de régimen — los cruces de líneas son los momentos de rotación' }
+    ],
+    note: 'FASE 2 del proyecto de oportunidades. El playbook sectorial reconstruye las páginas públicas de Hedgeye validadas contra All-Weather (las tablas oficiales están tras login — declarado). Las series tienen ~1 mes de rezago de publicación: es un régimen de MEDIO plazo, no un timing intradía.'
+  },
+  'nfci-score': {
+    name: 'Macro Score — NFCI (Condiciones Financieras)', category: 'Macro · Risk-on/off',
+    source: { label: 'FRED · NFCI (Chicago Fed National Financial Conditions Index)', url: 'https://fred.stlouisfed.org/series/NFCI', freq: 'Semanal (miércoles)' },
+    formula: 'Score = 100 · (1 − Φ(NFCI)), donde NFCI ya viene en desvíos estándar (media 0 desde 1971) y Φ es la CDF normal estándar. NFCI negativo (condiciones laxas) → score alto.',
+    what: 'El índice de condiciones financieras de la Chicago Fed — un factor dinámico de 105 series de riesgo, crédito y apalancamiento — convertido a un score 0-100 de risk-on. Es el "Macro Score" institucional, gratis.',
+    interpret: 'Score >70 = condiciones laxas (RISK-ON: el sistema financiero empuja a favor del riesgo) · <30 = tight (RISK-OFF: funding caro, spreads abriéndose — los drawdowns del S&P históricamente coinciden o llegan después). El overlay vs S&P normalizado permite validar visualmente: los tramos rojos del score deberían anteceder los tramos débiles del índice.',
+    thresholds: [
+      { c: 'green', t: '>70 → RISK-ON (NFCI < −0.5σ aprox)' },
+      { c: 'amber', t: '30-70 → neutral / transición' },
+      { c: 'red', t: '<30 → RISK-OFF (NFCI > +0.5σ) — históricamente zona de estrés' },
+      { c: 'n', t: 'Complementa al GLI (liquidez global) y al Howell (liquidez USA): NFCI mide las CONDICIONES del sistema financiero USA' }
+    ],
+    note: 'FASE 2. Subíndices disponibles a futuro: NFCIRISK / NFCICREDIT / NFCILEVERAGE y ANFCI (aislado del ciclo económico). Ventana del chart: ~2 años semanales (limit 104 del proxy FRED).'
   },
   'performance-relativa': {
     name: 'Performance Relativa (rebaseada)', category: 'Sectores',
