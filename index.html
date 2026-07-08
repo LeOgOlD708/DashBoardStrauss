@@ -5591,11 +5591,20 @@ function _gliCompsAt(when, prices) {
   const d = state.data;
   const clamp01 = v => Math.max(0, Math.min(100, v));
   const ref = when || new Date();
-  const at = s => when ? _findValueAt(s, when) : (s?.[0]?.value ?? null);
+  // obsAt devuelve la OBSERVACIÓN (con fecha), no solo el valor: el YoY se ancla a la
+  // fecha del propio dato — con series rezagadas (China ~3T) anclar a HOY comparaba el
+  // último dato contra el trimestre anterior (+0.6% en vez del +5.5% real; cazado en prod)
+  const obsAt = s => {
+    if (!Array.isArray(s) || !s.length) return null;
+    if (!when) return s[0] ?? null;
+    for (const o of s) { if (o?.date && new Date(o.date) <= when) return o; }
+    return null;
+  };
   const yoySer = (s, days) => {
-    const nowV = at(s);
-    const past = _findValueAt(s, new Date(ref.getTime() - days * 86400000));
-    return (nowV != null && past) ? (nowV / past - 1) * 100 : null;
+    const nowO = obsAt(s);
+    if (!nowO || nowO.value == null) return null;
+    const past = _findValueAt(s, new Date(new Date(nowO.date).getTime() - days * 86400000));
+    return past ? (nowO.value / past - 1) * 100 : null;
   };
   // 1 ⭐ Fed net liquidity Δ13 semanas — FLUJO en $B (gap #1 de Howell: flujos > stocks)
   const net = x => {
