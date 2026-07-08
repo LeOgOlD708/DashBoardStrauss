@@ -1234,6 +1234,23 @@ html.auth-ok #auth-gate{display:none}
     </div>
   </div>
 
+  <!-- ── Dominancia fiscal — Transfer Receipts % of Personal Income (2026-07-08) ── -->
+  <div class="zone-divider">Dominancia Fiscal · Transfer Receipts</div>
+  <div class="card" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--gold);letter-spacing:.1em">🏛 TRANSFERENCIAS DEL GOBIERNO · % DEL INGRESO PERSONAL</span>
+        <button class="help-i" type="button" onclick="openGlossary('transfer-receipts')" title="¿Qué es?">?</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono" id="pctr-val" style="font-size:20px;font-weight:600;color:var(--text)">—</span>
+        <span id="pctr-badge" class="badge b-neu" style="font-size:10px">Calculando…</span>
+      </div>
+    </div>
+    <div class="ch-wrap" style="height:150px"><canvas id="pctrChart" role="img" aria-label="Transfer receipts % del ingreso personal">PCTR histórico.</canvas></div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5">FRED A063RC1 / PI · mensual · ~8 años de historia. Qué parte del ingreso de los hogares USA viene de transferencias del gobierno (Social Security, Medicare/Medicaid, subsidios). Pre-GFC: ~12-14% · post-COVID se asentó en ~17-19% · pico estímulo 2021: 33.6%. Alto y subiendo = dominancia fiscal: el ingreso depende del déficit — soporte de corto plazo, fragilidad estructural de largo.</div>
+  </div>
+
   <!-- Three Horizons eliminado en Fase A — Net Liquidity Δ13w rescatado al mini-card de Z1.
        Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
        DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
@@ -3420,7 +3437,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI'; // A063RC1+PI (2026-07-08): transfer receipts % del ingreso — dominancia fiscal
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -3530,6 +3547,9 @@ async function loadFredData() {
     state.data.ecb       = Array.isArray(d.ECBASSETSW) ? d.ECBASSETSW : null;
     state.data.boj       = Array.isArray(d.JPNASSETS)  ? d.JPNASSETS  : null;
     state.data.m2        = Array.isArray(d.M2SL)       ? d.M2SL       : null;
+    // Dominancia fiscal (2026-07-08): transferencias del gobierno % del ingreso personal
+    state.data.pctr      = Array.isArray(d.A063RC1)    ? d.A063RC1    : null;
+    state.data.pi        = Array.isArray(d.PI)         ? d.PI         : null;
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
     state.data.fedfunds  = Array.isArray(d.FEDFUNDS)  ? d.FEDFUNDS  : null;
@@ -4420,6 +4440,8 @@ function updateFredUI() {
   }
 
   setEl('diag-live-ts', new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+
+  try { updateFiscal(); } catch (e) { /* la card fiscal nunca debe romper el resto del FRED UI */ }
 }
 
 // ── ETF Table ──
@@ -5679,6 +5701,54 @@ function renderGliCycle(prices) {
 // ═══════════════════════════════════════════════════
 // DECISION ENGINE — Regime + Yield Curve
 // ═══════════════════════════════════════════════════
+
+// ── Dominancia fiscal (2026-07-08): Transfer Receipts % of Personal Income ──
+// A063RC1/PI, mensuales (~8 años con limit=104). Mide qué parte del ingreso de los
+// hogares depende del gobierno — la pata FISCAL que el dashboard no tenía.
+function updateFiscal() {
+  const { pctr, pi } = state.data;
+  if (!Array.isArray(pctr) || !Array.isArray(pi) || !pctr.length || !pi.length) return;
+  const piByDate = new Map(pi.map(o => [o.date, o.value]));
+  const pts = [];
+  for (const o of pctr) {
+    const p = piByDate.get(o.date);
+    if (p > 0 && o.value != null) pts.push({ date: o.date, v: (o.value / p) * 100 });
+  }
+  if (pts.length < 2) return;
+  pts.reverse(); // FRED viene DESC → cronológico
+  const cur = pts[pts.length - 1].v;
+  const yAgo = pts.length >= 13 ? pts[pts.length - 13].v : null;
+  const delta = yAgo != null ? cur - yAgo : null;
+  const tier = cur >= 20 ? ['b-dn', 'var(--red)', 'Dependencia récord']
+             : cur >= 17 ? ['b-neu', 'var(--amber)', 'Dominancia fiscal alta']
+             : cur >= 14 ? ['b-neu', 'var(--text)', 'Elevado vs pre-GFC']
+             :             ['b-up', 'var(--green)', 'Rango histórico normal'];
+  const valEl = document.getElementById('pctr-val');
+  if (valEl) { valEl.textContent = cur.toFixed(1) + '%'; valEl.style.color = tier[1]; }
+  const bdg = document.getElementById('pctr-badge');
+  if (bdg) {
+    bdg.className = 'badge ' + tier[0];
+    bdg.textContent = tier[2] + (delta != null ? ' · ' + (delta >= 0 ? '+' : '') + delta.toFixed(1) + 'pp YoY' : '');
+  }
+  const cv = document.getElementById('pctrChart');
+  if (!cv || typeof Chart === 'undefined') return;
+  const labels = pts.map(p2 => p2.date.slice(0, 7));
+  const data = pts.map(p2 => +p2.v.toFixed(2));
+  const ch = state.charts.pctrChart;
+  if (ch) { ch.data.labels = labels; ch.data.datasets[0].data = data; ch.update('none'); return; }
+  state.charts.pctrChart = new Chart(cv, {
+    type: 'line',
+    data: { labels, datasets: [{ label: 'Transferencias % del ingreso', data, borderColor: '#c9a84c', backgroundColor: 'rgba(201,168,76,.06)', borderWidth: 1.5, pointRadius: 0, tension: .25, fill: true }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.parsed.y.toFixed(2) + '% del ingreso personal' } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 9, maxRotation: 0 } },
+        y: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, callback: v => v + '%' } }
+      }
+    }
+  });
+}
 
 // Computes macro regime from all available signals
 function computeRegime() {
@@ -7508,6 +7578,7 @@ const HZ_DEFS = [
   { key: 'lead',    match: /Indicadores Adelantados/i,  hz: 'medio', muestra: 'claims, producción, permisos, PCE — giran ANTES que la economía', aplica: 'anticipar el cambio de fase del ciclo económico' },
   { key: 'howell',  match: /Motor Howell/i,             hz: 'largo', muestra: 'stress de liquidez USA (score /8): reservas, TGA, RRP, SOFR, DXY, CPI', aplica: 'la fase del ciclo — manda sobre la exposición total' },
   { key: 'gli',     match: /Liquidez Global/i,          hz: 'largo', muestra: 'GLI-lite: liquidez global G3+China con flujos y colateral (Howell)', aplica: 'viento de cola/en contra estructural para risk assets' },
+  { key: 'pctr',    match: /Dominancia Fiscal/i,        hz: 'largo', muestra: 'transferencias del gobierno como % del ingreso personal (pata fiscal)', aplica: 'fragilidad estructural: cuánto ingreso depende del déficit' },
   { key: 'pos',     match: /Posicionamiento/i,          hz: 'largo', muestra: 'prima de equity vs bonos reales (ERP) + sentimiento contrarian', aplica: 'asimetría del mercado y extremos de multitud' },
   { key: 'tray',    match: /Trayectoria 52/i,           hz: 'largo', muestra: 'evolución del score Howell 52 semanas', aplica: 'dirección del ciclo: ¿mejora o deteriora?' },
   { key: 'termo',   match: /Termómetros/i,              hz: 'largo', muestra: 'los 4 drivers de Howell en histórico 6 meses', aplica: 'identificar cuál componente está presionando el score' },
@@ -7567,7 +7638,7 @@ function initCmdHorizons() {
   if (segs.resumen) for (const n of segs.resumen.nodes) z1.appendChild(n); // resumen 3 horizontes → cierre de 01·Decisión
   place(z2, ['oper']);
   place(z3, ['eco', 'yc', 'lead']);
-  place(z4, ['howell', 'gli', 'pos', 'tray', 'termo', 'alloc']);
+  place(z4, ['howell', 'gli', 'pctr', 'pos', 'tray', 'termo', 'alloc']);
 
   // Chart.js: recalcular tamaños tras las mudanzas
   setTimeout(() => { try { Object.values(state.charts || {}).forEach(c => { if (c && c.resize) c.resize(); }); } catch (e) {} }, 80);
@@ -8766,7 +8837,21 @@ const INDICATORS_GLOSSARY = {
     formula: 'Índice difusión 0-100: Fed net liq Δ13sem (22%) + MOVE inv (18%) + ECB YoY (12%) + China proxy FXI YoY (12%) + M2 US YoY (10%) + Fed balance YoY (8%) + BOJ YoY (8%) + DXY YoY inv (8%). 50 = neutral.',
     interpret: 'GLI ≥60 = liquidez global expandiendo (viento a favor risk assets, ciclo ~65 meses en fase alcista). <45 = contrayendo. Los 2 pilares ⭐ (flujo Fed + MOVE) son los que Howell considera decisivos: el score US /8 de arriba mide NIVELES de la pata Fed; este índice mide los FLUJOS del sistema completo.',
     thresholds: [{ c: 'green', t: '≥60 → expansiva (soporte risk assets)' }, { c: 'amber', t: '45-59 → neutral / transición' }, { c: 'red', t: '<45 → contractiva (squeeze global)' }, { c: 'amber', t: 'MOVE >120 → colateral estresado (multiplicador colapsa)' }],
-    note: 'HONESTIDAD: aproximación, NO el GLI oficial. China vía proxy FXI (la serie M2 China de FRED está discontinuada desde 2019); sin cross-border/eurodólar/FX-swaps (dato propietario de CrossBorder Capital sin proxy gratuito). Contexto Howell 2026: sitúa el pico del ciclo de ~65 meses en Q4-2025/inicio-2026 con 2026 difícil para risk assets — coherente con lecturas contractivas.'
+    note: 'HONESTIDAD: aproximación, NO el GLI oficial. China vía proxy FXI (la serie M2 China de FRED está discontinuada desde 2019); sin cross-border/eurodólar/FX-swaps (dato propietario de CrossBorder Capital sin proxy gratuito). Contexto Howell 2026: sitúa el pico del ciclo de ~65 meses en Q4-2025/inicio-2026 con 2026 difícil para risk assets — coherente con lecturas contractivas. El chart de la card superpone el GLI-lite semanal (~12 meses) con la onda teórica de 65 meses anclada a ese pico — es la regla del libro, no un ajuste a los datos.'
+  },
+  'transfer-receipts': {
+    name: 'Transferencias del Gobierno % del Ingreso Personal', category: 'Fiscal · Estructural',
+    source: { label: 'FRED · A063RC1 / PI', url: 'https://fred.stlouisfed.org/series/A063RC1', freq: 'Mensual' },
+    formula: 'Personal Current Transfer Receipts ÷ Personal Income × 100 (ambas series mensuales SAAR).',
+    what: 'Qué porcentaje del ingreso de los hogares USA viene de transferencias del gobierno: Social Security, Medicare/Medicaid, desempleo, subsidios. Mide la DEPENDENCIA FISCAL del ingreso — la pata fiscal del framework de liquidez.',
+    interpret: 'Estructuralmente sube hace 60 años (6% en 1959 → ~19% hoy). Nivel alto y subiendo = dominancia fiscal: el consumo depende del déficit público, no del ingreso privado. Es soporte de corto plazo (el gasto público sostiene la demanda) pero fragilidad de largo: obliga a emitir deuda que la liquidez global tiene que absorber — conecta directo con la tesis Howell de refinanciamiento de deuda como driver de la liquidez.',
+    thresholds: [
+      { c: 'green', t: '< 14% — rango pre-GFC (histórico normal)' },
+      { c: 'amber', t: '14 – 17% — elevado (régimen post-2009)' },
+      { c: 'amber', t: '17 – 20% — dominancia fiscal alta (régimen post-COVID)' },
+      { c: 'red',   t: '> 20% — dependencia récord fuera de crisis (picos: 2020: 31% · 2021: 33.6%)' }
+    ],
+    note: 'Los spikes de 2020-2021 son los cheques de estímulo COVID. Lo estructural es el NIVEL de la meseta posterior: cada crisis deja el piso más alto que el anterior (ratchet fiscal). Complementa al GLI: el déficit que esto revela es lo que la liquidez global debe refinanciar.'
   },
   // ── FIDELITY (medio plazo) ──
   'fidelity-score': {
