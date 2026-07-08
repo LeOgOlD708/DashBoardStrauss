@@ -7139,6 +7139,7 @@ function updateChecklist() {
 // oficiales verificadas (Fed calendar + BLS PFEI CY2026).
 const FOMC_FALLBACK = ['2026-07-29', '2026-09-16', '2026-10-28', '2026-12-09', '2027-01-27'];
 const CPI_FALLBACK  = ['2026-07-14', '2026-08-12', '2026-09-11', '2026-10-14', '2026-11-10', '2026-12-10'];
+const PCE_FALLBACK  = ['2026-07-31', '2026-08-26', '2026-09-30', '2026-10-29', '2026-11-25', '2026-12-23'];
 async function updateNextEvents() {
   const MES  = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const DIAS = ['dom','lun','mar','mié','jue','vie','sáb'];
@@ -7164,6 +7165,7 @@ async function updateNextEvents() {
   } catch (e) { /* fallback abajo */ }
   if (!nextCPI)  nextCPI  = CPI_FALLBACK.find(d => d >= todayIso) || null;
   if (!nextFOMC) nextFOMC = FOMC_FALLBACK.find(d => d >= todayIso) || null;
+  if (!nextPCE)  nextPCE  = PCE_FALLBACK.find(d => d >= todayIso) || null;
 
   const cpiEl = document.getElementById('evt-cpi');
   const fedEl = document.getElementById('evt-fed');
