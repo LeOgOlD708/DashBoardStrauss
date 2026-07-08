@@ -72,13 +72,19 @@ function extractLink(block) {
 }
 
 function decodeHtml(str) {
+  // Decode COMPLETO (fix 2026-07-08): entities numéricas (&#x2019;) y &apos; quedaban
+  // sin decodificar; el frontend ahora escapa innerHTML → se veían literales.
+  // Orden: strip tags → numéricas → nombradas → &amp; al final (estándar).
   return str
-    .replace(/&amp;/g, '&')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => { try { return String.fromCodePoint(parseInt(h, 16)); } catch (e) { return ''; } })
+    .replace(/&#(\d+);/g, (_, d) => { try { return String.fromCodePoint(parseInt(d, 10)); } catch (e) { return ''; } })
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/<[^>]+>/g, '');
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&');
 }
 
 function getSource(feedUrl) {
