@@ -6060,13 +6060,14 @@ function updateNfci() {
   const asc = _ascObs(s);
   const scores = asc.map(o => ({ date: o.date, v: +(100 * (1 - _phiCdf(o.value))).toFixed(1) }));
   const cur = scores[scores.length - 1];
+  const v = Math.round(cur.v); // mismo valor para display Y umbrales (69.7 mostraba "70 · NEUTRAL")
   const scoreEl = document.getElementById('nfci-score');
   const bdg = document.getElementById('nfci-badge');
-  const col = cur.v >= 70 ? 'var(--green)' : cur.v >= 30 ? 'var(--amber)' : 'var(--red)';
-  if (scoreEl) { scoreEl.textContent = cur.v.toFixed(0) + '/100'; scoreEl.style.color = col; }
+  const col = v >= 70 ? 'var(--green)' : v >= 30 ? 'var(--amber)' : 'var(--red)';
+  if (scoreEl) { scoreEl.textContent = v + '/100'; scoreEl.style.color = col; }
   if (bdg) {
-    bdg.className = 'badge ' + (cur.v >= 70 ? 'b-up' : cur.v >= 30 ? 'b-neu' : 'b-dn');
-    bdg.textContent = (cur.v >= 70 ? 'RISK-ON · condiciones laxas' : cur.v >= 30 ? 'NEUTRAL' : 'RISK-OFF · condiciones tight') + ' · NFCI ' + (s[0].value >= 0 ? '+' : '') + s[0].value.toFixed(2) + 'σ';
+    bdg.className = 'badge ' + (v >= 70 ? 'b-up' : v >= 30 ? 'b-neu' : 'b-dn');
+    bdg.textContent = (v >= 70 ? 'RISK-ON · condiciones laxas' : v >= 30 ? 'NEUTRAL' : 'RISK-OFF · condiciones tight') + ' · NFCI ' + (s[0].value >= 0 ? '+' : '') + s[0].value.toFixed(2) + 'σ';
   }
   const cv = document.getElementById('nfciChart');
   if (!cv || typeof Chart === 'undefined') return;
@@ -10484,6 +10485,8 @@ DATOS DEL DASHBOARD (actualizados hace ${mins} min):
 • SOFR spread: ${sofr !== null ? sofr + ' bps' : '—'} (normal < 10 bps)
 • DXY: ${dxy ? dxy.toFixed(2) : '—'} (expansivo < 100, restrictivo > 103, muy restrictivo > 107)
 • Liquidez GLOBAL (GLI-lite): ${window.__gli ? window.__gli.gli + '/100 ' + window.__gli.regime + ' [🇺🇸 USA/Fed: ' + (window.__gli.gliUs ?? '—') + ' · 🌍 Global ex-US: ' + (window.__gli.gliGlobal ?? '—') + '] · flujo neto Fed 13 sem: ' + (window.__gli.fedNetD13 != null ? (window.__gli.fedNetD13 >= 0 ? '+$' : '−$') + Math.abs(window.__gli.fedNetD13).toFixed(0) + 'B' : 'n/d') : '—'} (G3+MOVE colateral+China proxy — Howell: flujos > stocks)
+• Régimen QUAD (growth×inflación): ${window.__quad ? window.__quad.quad + ' · confianza ' + window.__quad.conf.toFixed(0) + '%' + (window.__quad.conf < 40 ? ' (DIFUSO — los 4 regímenes compiten)' : '') : '—'}
+• Condiciones financieras (NFCI Chicago Fed): ${window.__nfci ? window.__nfci.score.toFixed(0) + '/100 (' + (window.__nfci.raw >= 0 ? '+' : '') + window.__nfci.raw.toFixed(2) + 'σ; >70 risk-on, <30 risk-off)' : '—'}
 • VIX: ${vix ? vix.toFixed(2) : '—'} (stress > 25, pánico > 35)
 • GLD: ${gld ? '$' + gld.toFixed(2) : '—'}
 • WTI: ${wti ? '$' + wti.toFixed(2) : '—'}
