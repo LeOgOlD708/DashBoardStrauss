@@ -2083,7 +2083,7 @@ html.auth-ok #auth-gate{display:none}
           <span>giro normal: MEJORANDO → LÍDER → DEBILITÁNDOSE → REZAGADO (sentido horario)</span>
         </div>
       </div>
-      <div id="rot-table"></div>
+      <div id="rot-table"></div><div id="rot-flows" style="margin-top:12px"></div>
     </div>
   </div>
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
@@ -2699,7 +2699,7 @@ function go(id,el){
   el.classList.add('active');
   if (id === 'tecnico') initTechTab();
   if (id === 'tesis') generateTesisIA();
-  if (id === 'act') setTimeout(renderCapitalRotation, 60);
+  if (id === 'act') { setTimeout(renderCapitalRotation, 60); setTimeout(() => FlowTracker.refresh(), 900); }
 
   // ── Lifecycle Opportunity Scanner (Tab 02 ACTIVOS) — init/destroy lazy ──
   // Solo se inicializa al entrar; se destruye al salir para liberar timers y no consumir API calls.
@@ -8035,10 +8035,109 @@ const CandidatasHoy = {
 };
 
 // ══════════════════════════════════
+// FASE C · FLUJOS REALES — Δ shares outstanding × precio (2026-07-07)
+// Creations/redemptions de primera mano: /api/flows scrapea sharesOut diario,
+// el historial se construye en localStorage (1 muestra/día calendario).
+// etfdb/etf.com bloquean scraping → este método ES el dato real, no un proxy.
+// ══════════════════════════════════
+const FlowTracker = {
+  KEY: 'flow_hist_v1',
+  hist: null,
+  load() {
+    if (this.hist) return this.hist;
+    try { this.hist = JSON.parse(localStorage.getItem(this.KEY) || '{}') || {}; }
+    catch (e) { this.hist = {}; }
+    return this.hist;
+  },
+  save() { try { localStorage.setItem(this.KEY, JSON.stringify(this.hist)); } catch (e) {} },
+  async refresh() {
+    this.load();
+    const today = new Date().toISOString().slice(0, 10);
+    const tks = Object.keys(ROT_SECTORS);
+    const needsSample = tks.some(tk => !(this.hist[tk] || []).some(m => m.d === today));
+    if (needsSample) {
+      let resp = null;
+      try { resp = await fetch('/api/flows?tickers=' + tks.join(',')).then(r => r.ok ? r.json() : null); }
+      catch (e) { console.warn('[FlowTracker]', e.message); }
+      if (resp && resp.data) {
+        for (const tk of tks) {
+          const d0 = resp.data[tk];
+          if (!d0 || !d0.sharesOut) continue;
+          const px = (state.data.prices || {})[tk]?.price ?? null;
+          const arr = this.hist[tk] = (this.hist[tk] || []).filter(m => m.d !== today);
+          arr.push({ d: today, so: d0.sharesOut, px, aum: d0.aum ?? null });
+          arr.sort((a, b) => a.d.localeCompare(b.d));
+          if (arr.length > 40) arr.splice(0, arr.length - 40);
+        }
+        this.save();
+      }
+    }
+    this.renderPanel();
+  },
+  flowSince(tk) {
+    const arr = this.load()[tk] || [];
+    if (arr.length < 2) return null;
+    const a = arr[0], b = arr[arr.length - 1];
+    if (a.d === b.d || !a.so || !b.so) return null;
+    const pxAvg = (a.px && b.px) ? (a.px + b.px) / 2 : (b.px ?? a.px);
+    if (!pxAvg) return null;
+    const days = Math.max(1, Math.round((new Date(b.d) - new Date(a.d)) / 86400000));
+    return { usd: (b.so - a.so) * pxAvg, from: a.d, days, aum: b.aum };
+  },
+  fmtUsd(v) {
+    const a = Math.abs(v);
+    const sign = v >= 0 ? '+' : '−';
+    if (a >= 1e9) return sign + '$' + (a / 1e9).toFixed(2) + 'B';
+    if (a >= 1e6) return sign + '$' + (a / 1e6).toFixed(0) + 'M';
+    return sign + '$' + (a / 1e3).toFixed(0) + 'K';
+  },
+  renderPanel() {
+    const el = document.getElementById('rot-flows');
+    if (!el) return;
+    this.load();
+    const tks = Object.keys(ROT_SECTORS);
+    const flows = tks.map(tk => ({ tk, f: this.flowSince(tk) }));
+    const withData = flows.filter(x => x.f);
+    const latestAum = tk => { const arr = this.hist[tk] || []; return arr.length ? arr[arr.length - 1].aum : null; };
+    const fmtAum = v => v == null ? '' : '$' + (v >= 1e9 ? (v / 1e9).toFixed(0) + 'B' : (v / 1e6).toFixed(0) + 'M');
+    const head = '<div class="lbl" style="margin-bottom:2px;display:flex;align-items:center;gap:6px">Flujos reales — creations/redemptions <button class="glossary-btn" onclick="openGlossary(&quot;flujos-reales&quot;)" title="¿Qué es esto?">?</button></div>';
+    if (!withData.length) {
+      const sampled = tks.filter(tk => (this.hist[tk] || []).length >= 1).length;
+      el.innerHTML = head + '<div style="font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.6;padding:6px 8px;background:var(--surface2);border-radius:4px">'
+        + (sampled ? '📡 Baseline de hoy capturado (' + sampled + '/11 sectores · shares outstanding + AUM).<br>Los flujos aparecen desde el próximo muestreo (mañana) — el historial se construye solo con cada visita.' : 'Sin datos de shares outstanding aún — reintenta al recargar.')
+        + '</div>';
+      return;
+    }
+    const maxAbs = Math.max(...withData.map(x => Math.abs(x.f.usd)), 1);
+    const days = withData[0].f.days;
+    const rows = withData.sort((a, b) => b.f.usd - a.f.usd).map(({ tk, f }) => {
+      const pct = Math.max(4, Math.round(Math.abs(f.usd) / maxAbs * 100));
+      const col = f.usd >= 0 ? 'var(--green)' : 'var(--red)';
+      return '<div style="display:grid;grid-template-columns:38px 1fr 74px;gap:7px;align-items:center;margin-bottom:3px" title="' + tk + ' · flujo desde ' + f.from + ' (' + f.days + 'd) · AUM ' + fmtAum(f.aum) + '">'
+        + '<span style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;color:var(--text)">' + tk + '</span>'
+        + '<span style="height:7px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;display:block"><span style="display:block;height:100%;width:' + pct + '%;background:' + col + ';border-radius:3px"></span></span>'
+        + '<span style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;color:' + col + ';text-align:right">' + this.fmtUsd(f.usd) + '</span>'
+        + '</div>';
+    }).join('');
+    el.innerHTML = head
+      + '<div style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:6px">Δ shares out × precio · ventana: últimos ' + days + 'd de muestreo</div>'
+      + rows;
+  }
+};
+
+// ══════════════════════════════════
 // GLOSARIO DE INDICADORES (scope global)
 // Cada entry: name, category, source, formula, interpretation, thresholds[], note
 // ══════════════════════════════════
 const INDICATORS_GLOSSARY = {
+  'flujos-reales': {
+    name: 'Flujos Reales (creations/redemptions)', category: 'Sectores',
+    source: { label: 'Computado: Δ shares outstanding (stockanalysis) × precio (Yahoo)', url: 'https://stockanalysis.com', freq: '1 muestra/día' },
+    formula: 'Flujo $ = (shares outstanding hoy − shares outstanding baseline) × precio promedio del periodo',
+    interpretation: 'El dato REAL de entrada/salida de dinero de un ETF: cuando entran órdenes netas de compra, los Authorized Participants CREAN shares nuevos (flujo +); cuando salen, los REDIMEN (flujo −). A diferencia del RRG (precio relativo) y el U/D (volumen), esto mide dólares literales que entran al vehículo.',
+    thresholds: ['Barra verde → creations netas (dinero entrando)', 'Barra roja → redemptions netas (dinero saliendo)', 'Validación cruzada: flujo + cuadrante Mejorando/Líder = rotación confirmada con dinero real', 'Flujo vs precio divergentes = mover con cautela'],
+    note: 'El historial se construye muestreando 1 vez al día al abrir el tab (localStorage, hasta 40 muestras). Día 1 = baseline; los flujos aparecen desde el día 2. etfdb/etf.com bloquean scraping — este método computa el flujo de primera mano con el mecanismo real del ETF.'
+  },
   'candidatas-hoy': {
     name: 'Candidatas Hoy (embudo completo)', category: 'Sectores',
     source: { label: 'Computado: rotación + holdings + métricas (Yahoo)', url: 'https://finance.yahoo.com', freq: 'On-demand · cache 15 min' },

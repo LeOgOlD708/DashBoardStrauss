@@ -9,6 +9,9 @@
     },
     "api/holdings.js": {
       "maxDuration": 30
+    },
+    "api/flows.js": {
+      "maxDuration": 30
     }
   }
 }
