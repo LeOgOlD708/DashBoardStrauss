@@ -83,6 +83,9 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     ytd:    parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
     hist:   histFull.map(r => parseFloat(r.close.toFixed(2))),
     dates:  histFull.map(r => r.date),
+    // Fase A Pipeline de Capital 2026-07-07: serie diaria de volúmenes (alineada con hist)
+    // para U/D Volume Ratio 50d y A/D proxy 13w — huella institucional computada client-side
+    vols:   histFull.map(r => (r.volume != null && !isNaN(r.volume)) ? r.volume : null),
     // Campos nuevos para Opportunity Scanner — additivos, no rompen callers existentes
     regularMarketVolume,
     averageVolume,
