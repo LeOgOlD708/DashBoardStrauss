@@ -2741,27 +2741,15 @@ const state = { data: {}, charts: {}, newsItems: [], lastUpdate: null, refreshTi
 
 // ── ETF metadata — needed early for skeleton rendering (re-declared safely below if needed) ──
 const ETF_TICKERS = ['GLD','GDX','XLE','XLV','XLP','XLU','XLB','XLF','XLI','XLC','XLY','XLK','XLRE','SPY','QQQ','IWM','TLT','EEM','FXI','EWJ'];
+// Solo NOMBRES (fix 2026-07-08, regla 100% automático): antes traía ph/sig/sl
+// hardcodeados de abril — QQQ decía "↓ EVITAR" estando en el top 5 del scanner.
+// La señal ahora se computa en vivo por ticker: computeEtfSignal() (vs SMA50 + momentum 1M).
 const ETF_META = {
-  GLD:{n:'Oro',           ph:'F3 ↑',    sig:'b-up',  sl:'↑↑ FUERTE'},
-  GDX:{n:'Mineras Oro',   ph:'F3 ↑↑',   sig:'b-up',  sl:'↑↑ MUY FAV.'},
-  XLE:{n:'Energía',       ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
-  XLV:{n:'Salud',         ph:'F3',      sig:'b-neu', sl:'= NEUTRAL+'},
-  XLP:{n:'Consumo Básico',ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
-  XLU:{n:'Utilities',     ph:'F4 prep.',sig:'b-neu', sl:'= REFUGIO'},
-  XLB:{n:'Materiales',    ph:'F3 ↑',    sig:'b-up',  sl:'↑ FAVORABLE'},
-  XLF:{n:'Financieros',   ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  XLI:{n:'Industriales',  ph:'F3',      sig:'b-neu', sl:'= NEUTRAL'},
-  XLC:{n:'Comunicac.',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  XLY:{n:'Cons. Discrec.',ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  XLK:{n:'Tecnología',    ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  XLRE:{n:'Real Estate',  ph:'F3/F4 ~', sig:'b-neu', sl:'= MIXTO'},
-  SPY:{n:'S&P 500',       ph:'F3 ↓',    sig:'b-dn',  sl:'↓ PRESIÓN'},
-  QQQ:{n:'Nasdaq 100',    ph:'F3 ↓↓',   sig:'b-dn',  sl:'↓ EVITAR'},
-  IWM:{n:'Small Caps',    ph:'F3/F4 ↓↓',sig:'b-dn',  sl:'↓ VULNERABLE'},
-  TLT:{n:'Bonos 20Y',     ph:'Esperar', sig:'b-alt', sl:'⚠ POST-FED'},
-  EEM:{n:'Emergentes',    ph:'F3 ~',    sig:'b-neu', sl:'= MODERADO'},
-  FXI:{n:'China large-cap',ph:'F3 ~',   sig:'b-neu', sl:'= GLOBAL LIQ'},
-  EWJ:{n:'Japón',         ph:'F3 ~',    sig:'b-neu', sl:'= GLOBAL LIQ'},
+  GLD:{n:'Oro'}, GDX:{n:'Mineras Oro'}, XLE:{n:'Energía'}, XLV:{n:'Salud'},
+  XLP:{n:'Consumo Básico'}, XLU:{n:'Utilities'}, XLB:{n:'Materiales'}, XLF:{n:'Financieros'},
+  XLI:{n:'Industriales'}, XLC:{n:'Comunicac.'}, XLY:{n:'Cons. Discrec.'}, XLK:{n:'Tecnología'},
+  XLRE:{n:'Real Estate'}, SPY:{n:'S&P 500'}, QQQ:{n:'Nasdaq 100'}, IWM:{n:'Small Caps'},
+  TLT:{n:'Bonos 20Y'}, EEM:{n:'Emergentes'}, FXI:{n:'China large-cap'}, EWJ:{n:'Japón'},
 };
 
 // ── Clock ──
@@ -4480,6 +4468,20 @@ function updateFredUI() {
 }
 
 // ── ETF Table ──
+// Señal COMPUTADA en vivo (fix 2026-07-08): tendencia vs SMA50 + momentum 1M.
+// Reemplaza los sig/sl estáticos de abril que vivían en ETF_META.
+function computeEtfSignal(p) {
+  if (!p || p.error || p.price == null) return { sig: 'b-neu', sl: '—' };
+  const sma50 = p.fiftyDayAverage;
+  const dist = (sma50 > 0) ? (p.price / sma50 - 1) * 100 : null;
+  const m1 = p.chg1m;
+  if (dist == null || m1 == null) return { sig: 'b-neu', sl: '—' };
+  if (dist > 2 && m1 > 3)   return { sig: 'b-up', sl: '↑↑ FUERTE' };
+  if (dist > 0 && m1 > 0)   return { sig: 'b-up', sl: '↑ FAVORABLE' };
+  if (dist < -5 && m1 < -3) return { sig: 'b-dn', sl: '↓↓ DÉBIL' };
+  if (dist < 0 && m1 < 0)   return { sig: 'b-dn', sl: '↓ PRESIÓN' };
+  return { sig: 'b-neu', sl: '= MIXTO' };
+}
 const _etfSort = { col: null, dir: 'desc' };
 
 function sortETFTable(col) {
@@ -4509,8 +4511,8 @@ function _getSortedTickers(prices) {
   return [...ETF_TICKERS].sort((a, b) => {
     if (_etfSort.col === 'ticker') return a.localeCompare(b) * dirMul;
     if (_etfSort.col === 'signal') {
-      const av = sigOrder[ETF_META[a]?.sig] ?? -2;
-      const bv = sigOrder[ETF_META[b]?.sig] ?? -2;
+      const av = sigOrder[computeEtfSignal(prices[a]).sig] ?? -2;
+      const bv = sigOrder[computeEtfSignal(prices[b]).sig] ?? -2;
       return (av - bv) * dirMul;
     }
     const ap = prices[a], bp = prices[b];
@@ -4530,7 +4532,8 @@ function updateETFTable(prices) {
   // Acumular HTML en array → assign una vez. Evita N reflows (uno por fila).
   const rows = sortedTickers.map(ticker => {
     const p  = prices[ticker];
-    const m  = ETF_META[ticker] || { n: ticker, ph: '—', sig: 'b-neu', sl: '—' };
+    const m  = ETF_META[ticker] || { n: ticker };
+    const sig = computeEtfSignal(p); // señal viva (antes estática de abril)
     if (!p || p.error) {
       return `<tr>
         <td class="mono tbl-ticker" style="color:var(--text2)">${ticker}</td>
@@ -4541,7 +4544,7 @@ function updateETFTable(prices) {
         <td class="mono" style="color:var(--text3)">—</td>
         <td class="mono" style="color:var(--text3)">—</td>
         <td></td>
-        <td><span class="badge ${m.sig}" style="font-size:7px;padding:1px 5px">${m.sl}</span></td>
+        <td><span class="badge b-neu" style="font-size:7px;padding:1px 5px">—</span></td>
       </tr>`;
     }
     const ps   = p.price < 10 ? p.price.toFixed(3) : p.price.toFixed(2);
@@ -4564,7 +4567,7 @@ function updateETFTable(prices) {
       <td class="mono ${q3c}">${q3v}</td>
       <td class="mono ${yc}">${ys}${p.ytd}%</td>
       <td class="sp-cell"><canvas id="spark-${ticker}" class="sp-canvas" width="52" height="18"></canvas></td>
-      <td><span class="badge ${m.sig}" style="font-size:7px;padding:1px 5px">${m.sl}</span></td>
+      <td><span class="badge ${sig.sig}" style="font-size:7px;padding:1px 5px">${sig.sl}</span></td>
     </tr>`;
   });
   tbody.innerHTML = rows.join('');
@@ -10107,6 +10110,12 @@ window.OpportunityScanner = (function () {
     const baseTickers = [...config.sectors, ...config.macros].map(s => s.ticker);
     const constituentSet = new Set();
     Object.values(config.sectorConstituents || {}).forEach(arr => arr.forEach(t => constituentSet.add(t)));
+    // Breadth dinámico: sumar los top-5 del holdingsMap automático al batch (si ya cargó)
+    if (typeof CapitalDrill !== 'undefined' && CapitalDrill.holdingsMap) {
+      Object.keys(config.sectorConstituents || {}).forEach(etf => {
+        (CapitalDrill.holdingsMap[etf] || []).slice(0, 5).forEach(t => { if (/^[A-Z0-9-]{1,7}$/.test(t)) constituentSet.add(t); });
+      });
+    }
     // Evitar redundancia con baseTickers (PG, GOOG, META, etc. ya estén)
     baseTickers.forEach(t => constituentSet.delete(t));
     const allTickers = [...baseTickers, ...constituentSet].join(',');
@@ -10134,6 +10143,16 @@ window.OpportunityScanner = (function () {
 
     // Howell viene del estado global ya cargado (no es fetch nuevo)
     state.howell = readHowell();
+
+    // Breadth dinámico (fix 2026-07-08): cargar el holdingsMap automático de /api/holdings
+    // (mismo cache 24h que usa el Drill) ANTES del batch Yahoo, para que computeBreadth
+    // use holdings reales en vez del hardcode trimestral. Race 4s: si tarda, este ciclo
+    // usa el fallback y el próximo ya lo tiene.
+    try {
+      if (typeof CapitalDrill !== 'undefined') {
+        await Promise.race([CapitalDrill.loadHoldingsMap(), new Promise(r => setTimeout(r, 4000))]);
+      }
+    } catch (e) { /* fallback hardcode */ }
 
     // Yahoo es la única fuente de datos del scanner (Alpha Vantage SECTOR fue deprecado).
     let yahooOk = false;
@@ -10194,7 +10213,11 @@ window.OpportunityScanner = (function () {
   // (≥60% = 3-5 de 5) vs trampa Mag7 (sector sube por momentum de 1-2 nombres).
   // Devuelve { count, total, pct, status: 'strong'|'mixed'|'weak'|'none', label }.
   function computeBreadth(ticker) {
-    const constituents = config.sectorConstituents?.[ticker];
+    // Fix 2026-07-08: preferir los holdings AUTOMÁTICOS (/api/holdings, cache 24h) sobre
+    // el hardcode top-5 trimestral que vencía; el hardcode queda de fallback.
+    const dyn = (typeof CapitalDrill !== 'undefined' && CapitalDrill.holdingsMap?.[ticker]?.length >= 3)
+      ? CapitalDrill.holdingsMap[ticker].slice(0, 5) : null;
+    const constituents = dyn || config.sectorConstituents?.[ticker];
     if (!constituents || !state.yahooData) return null;
     let count = 0;
     let valid = 0;
@@ -10211,7 +10234,7 @@ window.OpportunityScanner = (function () {
     const pct = (count / valid) * 100;
     // FIX 2026-07-08 (audit): con holdings sin cargar el % queda sesgado y puede
     // cambiar de categoría strong/mixed/weak — se marca incompleto
-    const expected = (config.sectorConstituents?.[ticker] || []).length || 5;
+    const expected = constituents.length || 5; // misma lista que se evaluó (dinámica o fallback)
     const incomplete = valid < Math.min(expected, 5);
     let status;
     if (pct >= 60)      status = 'strong';   // 3+ de 5 holdings sobre SMA50 → liderazgo confirmado
