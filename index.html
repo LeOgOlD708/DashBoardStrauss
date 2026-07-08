@@ -9660,7 +9660,9 @@ window.OpportunityScanner = (function () {
     const ctrl = new AbortController();
     const timeout = setTimeout(() => ctrl.abort(), 15000);
     try {
-      const res = await fetch(`/api/yahoo?tickers=${allTickers}&range=3mo`, { signal: ctrl.signal });
+      // FIX 2026-07-08: range 3mo (62 barras) impedia el momentum multi-ventana v2
+      // (necesita 12M) -> 1y, mismo range que boot y drill (el CDN comparte cache)
+      const res = await fetch(`/api/yahoo?tickers=${allTickers}&range=1y`, { signal: ctrl.signal });
       clearTimeout(timeout);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
