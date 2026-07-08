@@ -18,8 +18,10 @@ async function fetchEtfStats(etf) {
   });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const html = await r.text();
-  const so = html.match(/Shares Out[^0-9]{0,60}([\d.,]+)\s*([KMBT])/i);
-  const au = html.match(/Assets[^$]{0,60}\$\s*([\d.,]+)\s*([KMBT])/i);
+  // La página incrusta un JSON limpio: sharesOut:"650.31M" · aum:"$117.78B"
+  // (la tabla HTML tiene clases CSS con dígitos entre label y valor → regex frágil)
+  const so = html.match(/sharesOut:"([\d.,]+)\s*([KMBT])"/i);
+  const au = html.match(/aum:"\$?([\d.,]+)\s*([KMBT])"/i);
   const parse = m => m ? parseFloat(m[1].replace(/,/g, '')) * (MULT[m[2].toUpperCase()] || 1) : null;
   const sharesOut = parse(so);
   const aum = parse(au);
