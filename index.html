@@ -694,6 +694,11 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-catalysts-modal-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.04em;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
 /* ── CMD Center: acordeones densos con chips (rediseno A+C 2026-07-08) ── */
 .acc-header{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin:6px 0;transition:border-color .15s,background .15s}
+/* Guía de uso por sección (reorg horizontes 2026-07-08): qué muestra · en qué aplicarlo */
+.hz-guide{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);letter-spacing:.04em;line-height:1.6;margin:-6px 0 10px;padding:5px 10px;background:rgba(255,255,255,.015);border-left:2px solid var(--border2);border-radius:0 4px 4px 0}
+.hz-guide b{color:var(--text2);font-weight:600}
+.hz-guide .hz-h{font-weight:700;letter-spacing:.08em}
+.hz-corto .hz-h{color:var(--teal)} .hz-medio .hz-h{color:var(--amber)} .hz-largo .hz-h{color:var(--gold)}
 .acc-header:hover{border-color:rgba(230,180,80,.35);background:var(--surface2)}
 .acc-header .acc-arrow{font-size:9px;color:var(--gold);transition:transform .2s;flex:none;width:12px}
 .acc-header.acc-open .acc-arrow{transform:rotate(90deg)}
@@ -7401,12 +7406,93 @@ function updateAccChips() {
   }
 }
 
+// ══════════════════════════════════
+// CMD CENTER · REORG POR HORIZONTE TEMPORAL (2026-07-08, elegido por el usuario)
+// Z2→CORTO · Z3→MEDIO · Z4→LARGO. Transformación EN RUNTIME (HTML del archivo intacto,
+// ids y listeners vivos — misma técnica que los acordeones): cada bloque divider+contenido
+// se identifica por el texto de su .zone-divider y se muda a la zona de su horizonte,
+// con guía "qué muestra · aplicalo a" bajo el divider. Las Ventanas de Tiempo (resumen
+// de los 3 horizontes) se mudan al final de 01·Decisión como mapa de navegación.
+// ══════════════════════════════════
+const HZ_DEFS = [
+  { key: 'resumen', match: /Ventanas de Tiempo/i,      hz: null },
+  { key: 'oper',    match: /Crédito · Volatilidad/i,   hz: 'corto', muestra: 'real yields · crédito HY/BBB · término VIX · niveles técnicos SPY', aplica: 'timing de entradas/salidas, stops y sizing táctico' },
+  { key: 'eco',     match: /Ciclo Económico/i,          hz: 'medio', muestra: 'ciclo económico Fidelity — 8 indicadores (IPMAN, PIB, empleo, consumo)', aplica: 'sesgo growth/value y rotación sectorial del trimestre' },
+  { key: 'yc',      match: /Tasas & Fed Pricing/i,      hz: 'medio', muestra: 'curva de tasas completa + lo que el mercado le descuenta a la Fed', aplica: 'anticipar recesión (inversión) y duración: TLT vs cíclicos' },
+  { key: 'lead',    match: /Indicadores Adelantados/i,  hz: 'medio', muestra: 'claims, producción, permisos, PCE — giran ANTES que la economía', aplica: 'anticipar el cambio de fase del ciclo económico' },
+  { key: 'howell',  match: /Motor Howell/i,             hz: 'largo', muestra: 'stress de liquidez USA (score /8): reservas, TGA, RRP, SOFR, DXY, CPI', aplica: 'la fase del ciclo — manda sobre la exposición total' },
+  { key: 'gli',     match: /Liquidez Global/i,          hz: 'largo', muestra: 'GLI-lite: liquidez global G3+China con flujos y colateral (Howell)', aplica: 'viento de cola/en contra estructural para risk assets' },
+  { key: 'pos',     match: /Posicionamiento/i,          hz: 'largo', muestra: 'prima de equity vs bonos reales (ERP) + sentimiento contrarian', aplica: 'asimetría del mercado y extremos de multitud' },
+  { key: 'tray',    match: /Trayectoria 52/i,           hz: 'largo', muestra: 'evolución del score Howell 52 semanas', aplica: 'dirección del ciclo: ¿mejora o deteriora?' },
+  { key: 'termo',   match: /Termómetros/i,              hz: 'largo', muestra: 'los 4 drivers de Howell en histórico 6 meses', aplica: 'identificar cuál componente está presionando el score' },
+  { key: 'alloc',   match: /Asset Allocation/i,         hz: 'largo', muestra: 'qué activos favorece y castiga la fase actual', aplica: 'asset allocation como consecuencia del diagnóstico' }
+];
+function initCmdHorizons() {
+  const z1 = document.getElementById('z1-decision');
+  const z2 = document.getElementById('z2-anatomia');
+  const z3 = document.getElementById('z3-operativo');
+  const z4 = document.getElementById('z4-historico');
+  const root = document.getElementById('tab-diag');
+  if (!z1 || !z2 || !z3 || !z4 || !root || !root._accDone || z2._hzDone) return;
+  z2._hzDone = true;
+
+  // 1 · Cosechar segmentos: divider + hermanos siguientes hasta el próximo divider
+  const segs = {};
+  for (const zone of [z2, z3, z4]) {
+    let current = null;
+    for (const el of [...zone.children]) {
+      if (el.classList.contains('zone-divider')) {
+        const def = HZ_DEFS.find(d => d.match.test(el.textContent));
+        current = def ? (segs[def.key] = { def, nodes: [el] }) : null;
+        continue;
+      }
+      if (el.classList.contains('zone-head')) continue; // el head se queda en su zona
+      if (current) current.nodes.push(el);
+    }
+  }
+
+  // 2 · Re-titular las zonas como horizontes
+  const setHead = (zone, mono, h2, lead) => {
+    const head = zone.querySelector('.zone-head');
+    if (!head) return;
+    const m = head.querySelector('.zone-mono'); if (m) m.textContent = mono;
+    const h = head.querySelector('h2');         if (h) h.textContent = h2;
+    const l = head.querySelector('.zone-lead'); if (l) l.textContent = lead;
+  };
+  setHead(z2, '02 · ⏱ Corto plazo', 'Timing táctico — 1 a 4 semanas', 'Para decidir HOY: entrar/salir, sizing y stops. Complementa la zona 01·Decisión (el régimen de arriba manda en este horizonte).');
+  setHead(z3, '03 · 📊 Medio plazo', 'Ciclo económico — 1 a 6 meses', 'Para el sesgo de cartera: rotación sectorial, growth vs value, duración. La economía real siguiendo a la liquidez con rezago.');
+  setHead(z4, '04 · 🌊 Largo plazo', 'Liquidez y ciclo global — 6 meses o más', 'Para la exposición total y la tesis macro. Framework Howell: la liquidez es la causa; precio y economía son el efecto.');
+
+  // 3 · Mover cada segmento a su horizonte (appendChild MUEVE nodos — charts/listeners viven)
+  const HZ_TAG = { corto: '⏱ CORTO 1-4 SEM', medio: '📊 MEDIO 1-6 M', largo: '🌊 LARGO 6 M+' };
+  const place = (zone, keys) => {
+    for (const k of keys) {
+      const s = segs[k];
+      if (!s) continue;
+      for (const n of s.nodes) zone.appendChild(n);
+      if (s.def.hz && s.def.muestra) {
+        const g = document.createElement('div');
+        g.className = 'hz-guide hz-' + s.def.hz;
+        g.innerHTML = '<span class="hz-h">' + HZ_TAG[s.def.hz] + '</span> · Muestra: <b>' + s.def.muestra + '</b> · Aplicalo a: <b>' + s.def.aplica + '</b>';
+        s.nodes[0].after(g);
+      }
+    }
+  };
+  if (segs.resumen) for (const n of segs.resumen.nodes) z1.appendChild(n); // resumen 3 horizontes → cierre de 01·Decisión
+  place(z2, ['oper']);
+  place(z3, ['eco', 'yc', 'lead']);
+  place(z4, ['howell', 'gli', 'pos', 'tray', 'termo', 'alloc']);
+
+  // Chart.js: recalcular tamaños tras las mudanzas
+  setTimeout(() => { try { Object.values(state.charts || {}).forEach(c => { if (c && c.resize) c.resize(); }); } catch (e) {} }, 80);
+}
+
 // Init: al cargar + refrescar chips tras cada ciclo de datos (hook en hideLoadingState)
-setTimeout(initCmdAccordions, 400);
+setTimeout(() => { initCmdAccordions(); initCmdHorizons(); }, 400);
 const _origHideLoading = hideLoadingState;
 hideLoadingState = function () {
   _origHideLoading();
-  try { initCmdAccordions(); updateAccChips(); } catch (e) {}
+  try { initCmdAccordions(); initCmdHorizons(); updateAccChips(); } catch (e) {}
 };
 
 // ── Keyboard shortcuts ──
