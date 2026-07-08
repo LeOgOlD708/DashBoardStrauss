@@ -3600,7 +3600,11 @@ async function loadYahooData() {
     if (dxyRaw && !dxyRaw.error && dxyRaw.hist?.length) {
       // FRED format: [{date, value}] más reciente primero
       const synth = dxyRaw.dates.map((d, i) => ({ date: d, value: dxyRaw.hist[i] })).reverse();
-      synth.unshift({ date: new Date().toISOString().slice(0, 10), value: dxyRaw.price });
+      // BUG FIX 2026-07-08: si el hist ya trae la sesión de hoy, unshift DUPLICABA el cierre
+      // → dxy[0]≈dxy[1] y el Δ mostraba siempre +0.00. Hoy se reemplaza, no se duplica.
+      const hoyIso = new Date().toISOString().slice(0, 10);
+      if (synth[0]?.date === hoyIso) synth[0] = { date: hoyIso, value: dxyRaw.price };
+      else synth.unshift({ date: hoyIso, value: dxyRaw.price });
       state.data.dxy = synth;
     }
 
@@ -4284,11 +4288,12 @@ function updateFredUI() {
   if (dxy?.length) {
     const latest = dxy[0].value;
     const prev   = dxy[1]?.value || latest;
-    const chg    = (latest - prev).toFixed(2);
-    const sign   = chg >= 0 ? '+' : '';
+    // % 1d — mismo formato que el price-loop de 60s (antes: diff absoluto que alternaba con el %)
+    const chgPct = prev ? ((latest / prev) - 1) * 100 : 0;
+    const sign   = chgPct >= 0 ? '+' : '';
     setElF('m-dxy-val', latest.toFixed(1));
     countUp('m-dxy-val', latest, v => v.toFixed(1));
-    setEl('m-dxy-chg', `${sign}${chg}`);
+    setEl('m-dxy-chg', `${sign}${chgPct.toFixed(2)}%`);
     const c = latest < 100 ? 'up' : latest < 106 ? 'neu' : 'down';
     styleEl('m-dxy-val', c);
     const impacto = latest < 100 ? 'Positivo — expansivo' : latest < 106 ? 'Neutro' : 'Negativo — contractivo';
@@ -4357,9 +4362,9 @@ function updateFredUI() {
   }
   if (dxy?.length) {
     const v = dxy[0].value, p = dxy[1]?.value || v;
-    const chg = v - p;
+    const chgPct = p ? ((v / p) - 1) * 100 : 0;
     setEl('diag-dxy4-val', v.toFixed(1));
-    setEl('diag-dxy4-chg', (chg >= 0 ? '+' : '') + chg.toFixed(2) + ' sem.');
+    setEl('diag-dxy4-chg', (chgPct >= 0 ? '+' : '') + chgPct.toFixed(2) + '% 1d'); // serie diaria (era "sem.")
     const pct = Math.max(2, Math.min(98, ((v - 85) / (120 - 85)) * 100));
     const hdl = document.getElementById('diag-dxy4-hdl'); if (hdl) hdl.style.left = pct + '%';
     const [sc, st] = v < 100 ? ['is-g','EXPANSIVO'] : v < 106 ? ['is-a','NEUTRAL'] : ['is-r','CONTRACTIVO'];
@@ -9629,7 +9634,7 @@ window.OpportunityScanner = (function () {
       XLF:  ['BRK-B', 'JPM', 'V', 'MA', 'BAC'],
       XLY:  ['AMZN', 'MCD', 'TSLA', 'NKE', 'HD'],
       XLE:  ['XOM', 'CVX', 'COP', 'EOG', 'MPC'],
-      XLI:  ['BA', 'CAT', 'GE', 'UBER', 'PG'],
+      XLI:  ['BA', 'CAT', 'GE', 'UBER', 'RTX'], // fix 2026-07-08: PG es XLP, no XLI — contaminaba el breadth
       XLU:  ['NEE', 'DUK', 'SO', 'EXC', 'AEP'],
       XLV:  ['JNJ', 'UNH', 'PFE', 'ABBV', 'MRK'],
       XLP:  ['WMT', 'PG', 'KO', 'COST', 'MO'],
@@ -9946,8 +9951,10 @@ window.OpportunityScanner = (function () {
 
     // Modifier: aceleración 1W/1M (puede sumar o restar al componente Momentum).
     // Solo aplicamos si Yahoo dio chg1w + chg1m. No depende de Alpha Vantage.
-    const accel = (yh && yh.chg1w != null && yh.chg1m != null)
-      ? calcAcceleration(yh.chg1w, yh.chg1m)
+    // BUG FIX 2026-07-08: yh.chg1w NUNCA existió (api/yahoo devuelve chg5d) — el modifier
+    // de aceleración estuvo muerto desde v1.1 (badge siempre '—'). chg5d = 5 días hábiles ≈ 1W.
+    const accel = (yh && yh.chg5d != null && yh.chg1m != null)
+      ? calcAcceleration(yh.chg5d, yh.chg1m)
       : null;
     if (accel != null) {
       if (accel >= 1.5)        comp1 += 10; // acelerando fuerte
@@ -10107,7 +10114,7 @@ window.OpportunityScanner = (function () {
       divergence: align.divergence,
       reason,
       chg1d: yh?.chg1d ?? null,
-      chg1w: yh?.chg1w ?? null,
+      chg1w: yh?.chg5d ?? null, // fuente real: chg5d de api/yahoo (5 días hábiles ≈ 1W)
       chg1m: yh?.chg1m ?? null,
       r1w, r1m, r3m, r6m,    // 2a pasada: retornos multi-ventana desde hist
       obv20, obvDivergencia, // 2a pasada: capa OBV ('bear' capea comp2 a 15)
