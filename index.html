@@ -8966,6 +8966,15 @@ const INDICATORS_GLOSSARY = {
     ],
     note: 'Si SPY de Yahoo no está disponible, el fallback usa chg1m absoluto del sector sin benchmark (no es RS verdadero) y el score se normaliza /80→/100.'
   },
+  'obv-divergencia': {
+    name: 'Divergencia OBV (precio vs volumen)', category: 'Sectores',
+    source: { label: 'Computado: Yahoo (hist + vols 20d)', url: 'https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/on-balance-volume-obv', freq: 'Diario' },
+    what: 'Compara la dirección del PRECIO (retorno 1M) con la del VOLUMEN acumulado (OBV 20d: suma de volúmenes con el signo del día). Cuando divergen, el movimiento del precio no tiene convicción detrás.',
+    formula: 'OBV 20d = Σ (volumen × signo del día). Divergencia bajista: precio 1M > +1% con OBV < 0 → comp. volumen capeado a 15. Divergencia alcista: precio < −1% con OBV > 0 (informativa).',
+    interpret: 'El chip ⚠ OBV↓ marca al "líder" sospechoso: sube de precio mientras el volumen neto SALE — el patrón clásico del rally que revierte. 🔍 acumulación oculta es lo contrario: cae con volumen entrando (posible giro).',
+    thresholds: [{ c: 'amber', t: '⚠ OBV↓ → rally sin volumen, score de volumen capeado' }, { c: 'green', t: '🔍 acum. oculta → cae con volumen entrando (vigilar giro)' }, { c: 'n', t: 'Sin chip → precio y volumen coherentes' }],
+    note: 'Capa añadida en la 2ª pasada del Scoring v2 (2026-07-08) — antes el scanner podía rankear #1 a un sector en distribución.'
+  },
   'volumen-anormal': {
     name: 'Volumen Anormal',
     category: 'Opportunity Scanner · Componente 2',
@@ -9917,6 +9926,31 @@ window.OpportunityScanner = (function () {
       }
     }
 
+    // ── Capa OBV (2a pasada, 2026-07-08): divergencia precio-volumen ──
+    // OBV 20d = Σ volumen con signo del día. Precio 1M subiendo con OBV cayendo =
+    // rally sin convicción de volumen (el "líder" que revierte) → cap de comp2 a 15.
+    // Precio cayendo con OBV subiendo = acumulación oculta (info, no puntúa).
+    let obv20 = null, obvDivergencia = null;
+    let r1w = null, r1m = null, r3m = null, r6m = null;
+    if (yh && Array.isArray(yh.hist) && Array.isArray(yh.vols) && yh.hist.length >= 22) {
+      const H = yh.hist, V = yh.vols;
+      let o = 0, nO = 0;
+      for (let i = H.length - 20; i < H.length; i++) {
+        const v = V[i];
+        if (v == null || !isFinite(v) || H[i - 1] == null) continue;
+        o += (H[i] > H[i - 1] ? 1 : H[i] < H[i - 1] ? -1 : 0) * v;
+        nO++;
+      }
+      if (nO >= 10) obv20 = o;
+      if (typeof retN === 'function') {
+        r1w = retN(H, 5); r1m = retN(H, 21); r3m = retN(H, 63); r6m = retN(H, 126);
+      }
+      if (obv20 != null && r1m != null) {
+        if (r1m > 1 && obv20 < 0) { obvDivergencia = 'bear'; comp2 = Math.min(comp2, 15); }
+        else if (r1m < -1 && obv20 > 0) { obvDivergencia = 'bull'; }
+      }
+    }
+
     // ── Modifier Breadth (Feature A v1.4) — solo aplica a sectores SPDR ──
     // breadth ≥60% + volScore >25 → +1.5 pts (acumulación confirmada por amplitud)
     // breadth <40% + volScore >20 → flag Mag7-trap (vol pero solo 0-1 de 5 holdings sobre SMA50)
@@ -10013,6 +10047,8 @@ window.OpportunityScanner = (function () {
       chg1d: yh?.chg1d ?? null,
       chg1w: yh?.chg1w ?? null,
       chg1m: yh?.chg1m ?? null,
+      r1w, r1m, r3m, r6m,    // 2a pasada: retornos multi-ventana desde hist
+      obv20, obvDivergencia, // 2a pasada: capa OBV ('bear' capea comp2 a 15)
       acceleration: accel,
       price: yh?.regularMarketPrice ?? null,
       breadth,               // Feature A v1.4: { count, total, pct, status, label } | null
@@ -10082,6 +10118,20 @@ window.OpportunityScanner = (function () {
     }
     try { localStorage.setItem(OS_LEADER_KEY, sorted[0]?.ticker || ''); } catch (e) {}
     sorted.forEach((sc, i) => { sc._ord = i; });
+    // 2a pasada: delta de ranking vs el orden del día ANTERIOR (▲/▼ en cards)
+    try {
+      const RK = 'os_rank_hist_v1';
+      let rk = JSON.parse(localStorage.getItem(RK) || 'null') || {};
+      const todayR = new Date().toISOString().slice(0, 10);
+      const orderNow = sorted.map(x => x.ticker);
+      if (rk.d !== todayR) rk = { d: todayR, order: orderNow, prevOrder: rk.order || null };
+      else rk.order = orderNow; // intra-day: actualiza hoy, el "ayer" queda fijo
+      localStorage.setItem(RK, JSON.stringify(rk));
+      sorted.forEach((sc, i) => {
+        const prev = rk.prevOrder ? rk.prevOrder.indexOf(sc.ticker) : -1;
+        sc.rankDelta = prev < 0 ? null : prev - i; // + = subió puestos
+      });
+    } catch (e) {}
   }
 
   function computeAllScores() {
@@ -10203,7 +10253,28 @@ window.OpportunityScanner = (function () {
         ? '<div class="os-card-diverge-note">El mercado supera al ciclo en este sector</div>'
         : '';
       const accelB = accelerationBadge(s.acceleration);
-      const accelBadgeHtml = accelB.cls === 'none'
+      // 2a pasada: chips OBV divergencia + cuadrante RRG (rotación corta)
+      const obvHtml = s.obvDivergencia === 'bear'
+        ? '<span class="os-pill" style="color:var(--amber);border-color:rgba(251,191,36,.35)" title="Precio 1M subiendo con OBV 20d cayendo: rally sin convicción de volumen — comp. volumen capeado a 15">⚠ OBV↓ sin volumen</span>' + helpIcon('obv-divergencia')
+        : s.obvDivergencia === 'bull'
+        ? '<span class="os-pill" style="color:var(--teal);border-color:rgba(45,212,191,.35)" title="Precio 1M cayendo con OBV 20d subiendo: posible acumulación oculta">🔍 acum. oculta</span>' + helpIcon('obv-divergencia')
+        : '';
+      const quadHtml = (() => {
+        try {
+          if (typeof _rotQuadCache === 'undefined') window._rotQuadCache = null;
+          if (!window._rotQuadCache || Date.now() - window._rotQuadCache.ts > 300000) {
+            const rot = (typeof computeRotationFor === 'function' && typeof ROT_SECTORS !== 'undefined')
+              ? computeRotationFor(ROT_SECTORS, window.state?.data?.prices || {}) : null;
+            window._rotQuadCache = { ts: Date.now(), map: {} };
+            (rot || []).forEach(d => { window._rotQuadCache.map[d.tk] = d.quad; });
+          }
+          const quad = window._rotQuadCache.map[s.ticker];
+          if (!quad || typeof ROT_QUAD_META === 'undefined') return '';
+          const m2 = ROT_QUAD_META[quad];
+          return '<span class="os-pill" style="color:' + m2.col + ';border-color:' + m2.col + '55" title="Cuadrante de rotación de capital (RRG corto plazo — ver sección Rotación)">◉ ' + m2.lbl + '</span>';
+        } catch (e) { return ''; }
+      })();
+            const accelBadgeHtml = accelB.cls === 'none'
         ? ''
         : `<span class="os-accel-badge os-accel-${accelB.cls}" title="Aceleración 1W/1M: ${accelB.txt}">${accelB.label}</span><button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('aceleracion-momentum')" title="¿Qué es Aceleración de Momentum?">?</button>`;
       const pill52 = dist52wPill(s.dist52w);
@@ -10225,7 +10296,7 @@ window.OpportunityScanner = (function () {
         : '';
       return `
         <div class="os-card${s.divergence ? ' has-divergence' : ''}" style="animation-delay:${i * 100}ms">
-          <div class="os-card-rank lvl-${lvl}">${rank}</div>
+          <div class="os-card-rank lvl-${lvl}">${rank}${s.rankDelta == null ? '' : s.rankDelta > 0 ? '<div style="font-size:9px;color:#22c55e" title="Subió ' + s.rankDelta + ' puesto(s) vs ayer">▲' + s.rankDelta + '</div>' : s.rankDelta < 0 ? '<div style="font-size:9px;color:#ef4444" title="Bajó ' + (-s.rankDelta) + ' puesto(s) vs ayer">▼' + (-s.rankDelta) + '</div>' : '<div style="font-size:9px;color:var(--text3)" title="Mismo puesto que ayer">=</div>'}</div>
           <div class="os-card-id">
             <div class="os-card-ticker">${s.ticker}</div>
             <div class="os-card-sector">${escapeAttr(s.name)}</div>
@@ -10237,11 +10308,12 @@ window.OpportunityScanner = (function () {
             </div>
             <div class="os-card-progress"><div class="os-card-progress-fill lvl-${lvl}" style="width:${s.total}%"></div></div>
             <div class="os-card-chg ${chgCls}">${fmtChange(s.chg1d)} hoy</div>
+            <div style="display:flex;gap:8px;font-size:8px;font-family:'IBM Plex Mono',monospace;margin-top:3px">${['1W','1M','3M','6M'].map((L,i2)=>{const v=[s.r1w,s.r1m,s.r3m,s.r6m][i2];const c=v==null?'var(--text3)':v>=0?'#22c55e':'#ef4444';return '<span style="color:var(--text3)">'+L+' <b style="color:'+c+'">'+(v==null?'—':(v>=0?'+':'')+v.toFixed(1)+'%')+'</b></span>';}).join('')}</div>
           </div>
           <div class="os-card-reason">
             <div class="os-card-reason-text">${escapeAttr(s.reason)}</div>
             <div class="os-card-align ${alignCls}">${alignTxt}</div>
-            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}${breadthHtml}${mag7Html}${catalystsHtml}</div>
+            <div class="os-card-pills">${accelBadgeHtml}${pill52Html}${breadthHtml}${obvHtml}${quadHtml}${mag7Html}${catalystsHtml}</div>
             ${divNote}
           </div>
         </div>`;
