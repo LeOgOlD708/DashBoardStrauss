@@ -15,14 +15,17 @@ async function fetchHoldings(etf) {
   });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   const html = await r.text();
-  // Los símbolos aparecen como links /stocks/nvda/ en el orden de la tabla (por peso desc)
+  // Los símbolos aparecen como links /stocks/nvda/ en el orden de la tabla (por peso desc).
+  // La navegación del sitio también usa /stocks/xxx/ (screener, compare, industry) → blacklist.
+  const NAV_WORDS = new Set(['SCREENER', 'COMPARE', 'INDUSTRY', 'LIST', 'RANKINGS', 'SECTOR']);
   const seen = new Set();
   const out = [];
-  const re = /href="\/stocks\/([a-z0-9.\-]{1,10})\/"/gi;
+  const re = /href="\/stocks\/([a-z0-9.\-]{1,7})\/"/gi;
   let m;
   while ((m = re.exec(html)) !== null && out.length < TOP_N) {
     // Normalizar a formato Yahoo: mayúsculas, punto→guión (brk.b → BRK-B)
     const sym = m[1].toUpperCase().replace(/\./g, '-');
+    if (NAV_WORDS.has(sym) || sym.length > 6) continue;
     if (!seen.has(sym)) { seen.add(sym); out.push(sym); }
   }
   if (!out.length) throw new Error('parse vacío (¿cambió el HTML?)');
