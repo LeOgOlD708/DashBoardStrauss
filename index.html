@@ -8954,7 +8954,7 @@ const CapitalDrill = {
       }
       const adChip = '<span class="drill-chip" style="color:' + r.ad.col + ';border-color:' + r.ad.col + '44;background:' + (r.ad.letter === 'A' || r.ad.letter === 'B' ? 'rgba(74,222,128,.06)' : r.ad.letter === 'D' || r.ad.letter === 'E' ? 'rgba(248,113,113,.06)' : 'transparent') + '">' + r.ad.letter + '</span>';
       const d52col = r.dist52 == null ? 'var(--text3)' : r.dist52 > -15 ? 'var(--green)' : r.dist52 > -30 ? 'var(--amber)' : 'var(--red)';
-      return '<tr onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
+      return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
         + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
@@ -9168,6 +9168,45 @@ const CandidatasHoy = {
       + '</div>';
     body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota);
     try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
+    try { this.enrich(r.cands); } catch (e) { /* FASE 3: enriquecimiento asíncrono, nunca rompe */ }
+  },
+  // ══ FASE 3 · "dinero real" (2026-07-08): short volume FINRA + insiders SEC + earnings ══
+  // Chips asíncronos que se inyectan en la celda del ticker tras el render (no bloquean).
+  async enrich(cands) {
+    const tks = cands.map(r => r.tk);
+    const chip = (tk, html) => {
+      const cell = document.querySelector('#cand-body tr[data-tk="' + tk + '"] td');
+      if (cell) cell.insertAdjacentHTML('beforeend', ' ' + html);
+    };
+    // 1 · FINRA short volume ratio (1 llamada para todas)
+    try {
+      const f = await fetch('/api/capital?src=finra&tickers=' + tks.join(',')).then(r2 => r2.json());
+      Object.entries(f.data || {}).forEach(([tk, d]) => {
+        const col = d.ratio >= 55 ? 'var(--red)' : d.ratio <= 40 ? 'var(--green)' : 'var(--text3)';
+        chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME (FINRA Reg SHO, archivo ' + d.file + '): ' + d.ratio + '% del volumen del día fue venta corta (' + (d.shortVol/1e6).toFixed(1) + 'M de ' + (d.totalVol/1e6).toFixed(1) + 'M). >55% presión corta elevada · <40% baja — umbrales PROVISIONALES (el ~45% es normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
+      });
+    } catch (e) {}
+    // 2 · Earnings (1 llamada; requiere FINNHUB_KEY en Vercel — falla silenciosa si no está)
+    try {
+      const ea = await fetch('/api/capital?src=earnings&tickers=' + tks.join(',')).then(r2 => r2.json());
+      if (!ea.error) Object.entries(ea.data || {}).forEach(([tk, d]) => {
+        const days = Math.round((new Date(d.date + 'T12:00:00') - Date.now()) / 86400000);
+        const col = days <= 7 ? 'var(--red)' : days <= 14 ? 'var(--amber)' : 'var(--text3)';
+        chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="Próximos EARNINGS: ' + d.date + (d.hour ? ' (' + d.hour + ')' : '') + (days <= 7 ? ' — ¡a ' + days + ' días! Entrar la víspera es lotería, no setup' : '') + ' · Finnhub">📅' + d.date.slice(5) + '</span>');
+      });
+      else console.warn('[F3 earnings]', ea.error);
+    } catch (e) {}
+    // 3 · Insiders SEC (top 8, secuencial — respeta el rate del SEC; cache CDN 12h por ticker)
+    for (const tk of tks.slice(0, 8)) {
+      try {
+        const ins = await fetch('/api/capital?src=insiders&tickers=' + tk).then(r2 => r2.json());
+        if (ins && !ins.error && (ins.buys || ins.sells)) {
+          const col = ins.buys > ins.sells ? 'var(--green)' : ins.sells > ins.buys ? 'var(--red)' : 'var(--text3)';
+          const usd = ins.buyUsd >= 1e6 ? ' · $' + (ins.buyUsd / 1e6).toFixed(1) + 'M comprados' : '';
+          chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="INSIDERS (SEC Form 4, 90 días, últimos ' + ins.parsed + ' de ' + ins.form4_90d + ' filings parseados): ' + ins.buys + ' compras abiertas (P) / ' + ins.sells + ' ventas (S)' + usd + '. Compras > ventas = convicción de los que más saben">👔' + ins.buys + 'C/' + ins.sells + 'V</span>');
+        }
+      } catch (e) {}
+    }
   }
 };
 
@@ -9323,7 +9362,7 @@ const INDICATORS_GLOSSARY = {
     what: 'La síntesis del Pipeline de Capital: la lista corta de acciones que sobreviven TODO el embudo (rotación + fuerza + tendencia + acumulación) con el veto del régimen macro aplicado.',
     interpret: 'La síntesis del Pipeline de Capital: solo sobreviven acciones de sectores/industrias que están RECIBIENDO capital, con fuerza relativa élite, tendencia sana estilo Minervini y huella de compra institucional. El veto macro (postura del CMD) decide si la lista es accionable o solo informativa.',
     thresholds: [{ c: 'red', t: 'VETO: RISK_OFF o Máxima Cautela → no abrir largos' }, { c: 'amber', t: 'WARN: Defensivo/Neutral → solo setups A, sizing reducido' }, { c: 'green', t: 'OK: régimen compatible con largos' }, { c: 'n', t: '0 candidatas = información válida (no forzar trades)' }],
-    note: 'Es un FILTRO cuantitativo, no una señal de entrada: el setup, stop y sizing son decisión del trader. Ordenado por RS → Template → U/D.'
+    note: 'Es un FILTRO cuantitativo, no una señal de entrada: el setup, stop y sizing son decisión del trader. Ordenado por RS → Template → U/D → MOM. FASE 3 "dinero real": cada candidata se enriquece con 🩳 short volume del día (FINRA Reg SHO), 👔 compras/ventas de insiders 90d (SEC Form 4) y 📅 próximos earnings (Finnhub) — el chart superior muestra las top 10 rebaseadas vs SPY 30d.'
   },
   'drill-down-acciones': {
     name: 'Drill-Down de Acciones (RS + U/D + Template)', category: 'Sectores',

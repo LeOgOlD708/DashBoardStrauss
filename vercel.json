@@ -12,6 +12,9 @@
     },
     "api/flows.js": {
       "maxDuration": 30
+    },
+    "api/capital.js": {
+      "maxDuration": 30
     }
   }
 }
