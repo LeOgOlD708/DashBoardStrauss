@@ -5650,18 +5650,15 @@ function computeGliHistory(prices) {
     const { gli, den } = _gliIndexFrom(comps);
     if (gli != null && den >= 0.5) points.push({ t: when.getTime(), gli }); // <50% de pesos disponibles → punto no representativo
   }
-  window._gliHist = { ts: now, points };
+  // Solo cachear si salió una serie útil — el primer llamado corre en el path Yahoo
+  // ANTES de FRED y cacheaba [] por 10 min, dejando el chart vacío (cazado en prod)
+  if (points.length >= 8) window._gliHist = { ts: now, points };
   return points;
 }
 function renderGliCycle(prices) {
   const cv = document.getElementById('gliCycleChart');
   if (!cv || typeof Chart === 'undefined') return;
-  const points = [...computeGliHistory(prices)];
-  if (window.__gli?.gli != null) points.push({ t: Date.now(), gli: window.__gli.gli }); // hoy = índice completo en vivo
-  if (points.length < 8) return;
-  const labels = points.map(p => new Date(p.t).toLocaleDateString('es-MX', { month: 'short', day: '2-digit' }));
-  const gliData = points.map(p => p.gli);
-  const waveData = points.map(p => Math.round(_gliWaveAt(p.t)));
+  // Posición en el ciclo teórico: no depende del histórico → se muestra siempre
   const posEl = document.getElementById('gli-cycle-pos');
   if (posEl) {
     const mo = 30.44 * 86400000;
@@ -5669,6 +5666,12 @@ function renderGliCycle(prices) {
     const mesDesdeValle = Math.round((sincePeak + 32.5) % 65);
     posEl.textContent = 'mes ~' + mesDesdeValle + '/65 · ' + (sincePeak < 32.5 ? 'fase DESCENDENTE post-pico' : 'fase ascendente');
   }
+  const points = [...computeGliHistory(prices)];
+  if (window.__gli?.gli != null) points.push({ t: Date.now(), gli: window.__gli.gli }); // hoy = índice completo en vivo
+  if (points.length < 8) return;
+  const labels = points.map(p => new Date(p.t).toLocaleDateString('es-MX', { month: 'short', day: '2-digit' }));
+  const gliData = points.map(p => p.gli);
+  const waveData = points.map(p => Math.round(_gliWaveAt(p.t)));
   const ch = state.charts.gliCycle;
   if (ch) {
     ch.data.labels = labels;
@@ -7593,18 +7596,29 @@ function initCmdHorizons() {
   if (!z1 || !z2 || !z3 || !z4 || !root || !root._accDone || z2._hzDone) return;
   z2._hzDone = true;
 
-  // 1 · Cosechar segmentos: divider + hermanos siguientes hasta el próximo divider
+  // 1 · Cosechar segmentos. GOTCHA (cazado en prod 2026-07-08): los acc-body de
+  // initCmdAccordions se TRAGAN el zone-divider de la sección siguiente, así que un
+  // recorrido por hijos directos arrastra secciones enteras. Fix: las secciones
+  // acordeón se anclan por .acc-header[data-acc-id] (mismos ids que HZ_DEFS) y su
+  // divider se extrae de donde haya quedado; las secciones de cards sí se cosechan
+  // por hermanos hasta el próximo boundary (divider o acc-header).
+  const allDividers = [...root.querySelectorAll('.zone-divider')];
   const segs = {};
-  for (const zone of [z2, z3, z4]) {
-    let current = null;
-    for (const el of [...zone.children]) {
-      if (el.classList.contains('zone-divider')) {
-        const def = HZ_DEFS.find(d => d.match.test(el.textContent));
-        current = def ? (segs[def.key] = { def, nodes: [el] }) : null;
-        continue;
+  for (const def of HZ_DEFS) {
+    const dv = allDividers.find(d2 => def.match.test(d2.textContent)) || null;
+    const acc = document.querySelector('.acc-header[data-acc-id="' + def.key + '"]');
+    if (acc) {
+      const body = document.querySelector('.acc-body[data-acc-id="' + def.key + '"]');
+      segs[def.key] = { def, nodes: [dv, acc, body].filter(Boolean) };
+    } else {
+      if (!dv) continue;
+      const nodes = [dv];
+      let sib = dv.nextElementSibling;
+      while (sib && !sib.classList.contains('zone-divider') && !sib.classList.contains('acc-header')) {
+        nodes.push(sib);
+        sib = sib.nextElementSibling;
       }
-      if (el.classList.contains('zone-head')) continue; // el head se queda en su zona
-      if (current) current.nodes.push(el);
+      segs[def.key] = { def, nodes };
     }
   }
 
