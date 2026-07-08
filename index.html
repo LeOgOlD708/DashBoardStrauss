@@ -8774,6 +8774,27 @@ const RelPerf = {
 
 // ── Chart rebaseado genérico (FASE 1D): items vs benchmark — lo usan Drill, Candidatas
 //    y el buscador libre (una sola implementación; RelPerf mantiene la suya con leaderboard) ──
+// RS NEW-HIGH dots (paquete "contexto accionable", estilo IBD/MarketSurge): sobre la línea
+// rebaseada se marca el día en que la LÍNEA RS (precio/benchmark, mirando TODO el año) hace
+// máximo anual. ◆ dorado grande = RS new-high con el PRECIO aún lejos de su propio máximo
+// (la fuerza relativa lidera al precio — la señal temprana clásica del growth investing).
+function _rsNewHighFlags(itemD, benchD, windowDates) {
+  if (!itemD?.hist || !itemD?.dates || !benchD?.hist || !benchD?.dates) return null;
+  const bByDate = {}; benchD.dates.forEach((dt, i) => { bByDate[dt] = benchD.hist[i]; });
+  const ratio = [], price = [], dates = [];
+  itemD.dates.forEach((dt, i) => { const bv = bByDate[dt]; if (bv > 0 && itemD.hist[i] > 0) { ratio.push(itemD.hist[i] / bv); price.push(itemD.hist[i]); dates.push(dt); } });
+  if (ratio.length < 40) return null;
+  let maxR = -Infinity, maxP = -Infinity;
+  const flag = {}; // date → 1 (RS high) | 2 (RS high y precio NO en máximo → RS lidera)
+  ratio.forEach((r, i) => {
+    const isHigh = r >= maxR;
+    maxR = Math.max(maxR, r);
+    const priceAtHigh = price[i] >= maxP;
+    maxP = Math.max(maxP, price[i]);
+    if (isHigh && i > 20) flag[dates[i]] = priceAtHigh ? 1 : 2;
+  });
+  return windowDates.map(dt => flag[dt] || 0);
+}
 function renderRebasedChart(cvId, chartKey, items, bench, win) {
   const cv = document.getElementById(cvId);
   if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
@@ -8784,7 +8805,18 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
     const rb = RelPerf._rebase(it.d, win || 30);
     if (!rb) return;
     const n = Math.min(rb.vals.length, b.vals.length);
-    datasets.push({ label: it.label, data: rb.vals.slice(-n), borderColor: RP_PALETTE[i % RP_PALETTE.length], borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false });
+    const col = RP_PALETTE[i % RP_PALETTE.length];
+    const winDates = rb.dates.slice(-n);
+    const flags = _rsNewHighFlags(it.d, bench.d, winDates);
+    const ds = { label: it.label, data: rb.vals.slice(-n), borderColor: col, borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false };
+    if (flags && flags.some(f => f)) {
+      ds.pointRadius = flags.map(f => f === 2 ? 4.5 : f === 1 ? 2.5 : 0);
+      ds.pointStyle = flags.map(f => f === 2 ? 'rectRot' : 'circle');
+      ds.pointBackgroundColor = flags.map(f => f === 2 ? '#f8d794' : col);
+      ds.pointBorderColor = flags.map(f => f === 2 ? '#f8d794' : col);
+      ds._rsFlags = flags;
+    }
+    datasets.push(ds);
   });
   if (!datasets.length) return;
   datasets.push({ label: bench.label + ' (bench)', data: b.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
@@ -8796,7 +8828,11 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
       responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
       plugins: {
         legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
-        tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%' } }
+        tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => {
+          const f = c.dataset._rsFlags?.[c.dataIndex];
+          return c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%'
+            + (f === 2 ? ' · ◆ RS NEW-HIGH liderando al precio (señal temprana)' : f === 1 ? ' · ● RS new-high anual' : '');
+        } } }
       },
       scales: {
         x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
@@ -8805,10 +8841,13 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
     }
   });
 }
-// HTML del wrapper del chart rebaseado (título + canvas)
+// HTML del wrapper del chart rebaseado (título + canvas + leyenda de señales RS)
 function rebasedChartHtml(cvId, titulo) {
   return '<div style="margin-bottom:10px">'
-    + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">' + titulo + '</div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px">'
+    + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em">' + titulo + '</div>'
+    + '<div class="mono" style="font-size:8px;color:var(--text3)">● = línea RS hace máximo anual · <span style="color:#f8d794">◆ = RS new-high ANTES que el precio (IBD: liderazgo temprano)</span></div>'
+    + '</div>'
     + '<div class="ch-wrap" style="height:235px"><canvas id="' + cvId + '" role="img" aria-label="' + titulo + '">Chart rebaseado.</canvas></div>'
     + '</div>';
 }
@@ -8925,7 +8964,20 @@ const CapitalDrill = {
     const om = omega0(d.hist);
     const pp = pocketPivot(d.hist, d.vols || []);
     const vdu = !pp && volumeDryUp(d.vols || []);
-    return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom, mom, q, om, pp, vdu };
+    // Paquete "contexto accionable": posición en el rango 52w (bullet) + percentil de la
+    // LÍNEA RS (ratio vs SPY) dentro de su propio rango 1y — ¿la fuerza relativa está en extremo?
+    const lo52 = Math.min(...d.hist);
+    const pos52 = hi52 > lo52 ? ((d.price - lo52) / (hi52 - lo52)) * 100 : null;
+    const s50v = smaAt(d.hist, 50);
+    const sma50pos = (s50v != null && hi52 > lo52) ? Math.max(0, Math.min(100, ((s50v - lo52) / (hi52 - lo52)) * 100)) : null;
+    let rsLinePctl = null;
+    if (spyH?.length >= 60) {
+      const nn = Math.min(d.hist.length, spyH.length);
+      const ratios = [];
+      for (let i2 = 0; i2 < nn; i2++) { const pv = spyH[spyH.length - nn + i2]; if (pv > 0) ratios.push(d.hist[d.hist.length - nn + i2] / pv); }
+      if (ratios.length > 40) { const last = ratios[ratios.length - 1]; rsLinePctl = Math.round(ratios.filter(x => x <= last).length / ratios.length * 100); }
+    }
+    return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom, mom, q, om, pp, vdu, pos52, sma50pos, rsLinePctl };
   },
   _rowsTableHtml(rows, titulo, nota) {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
@@ -8941,7 +8993,8 @@ const CapitalDrill = {
       // FASE 1: huellas de volumen institucional (research O'Neil/Wyckoff)
       const ppTag = r.pp ? ' <span title="POCKET PIVOT (hoy/ayer): día alcista con volumen mayor al máximo down-volume de 10 sesiones, sobre la SMA50 — huella institucional ANTES del breakout">🚀</span>' : '';
       const vduTag = r.vdu ? ' <span title="VOLUME DRY-UP: volumen 5d < 60% del promedio 50d — oferta agotada, suele preceder al pocket pivot" style="opacity:.8">💤</span>' : '';
-      const rsCell = r.rs == null ? '—' : '<span class="drill-rs"><b style="color:' + rsCol + ';min-width:18px">' + r.rs + '</b><span class="drill-rs-bar"><span style="display:block;width:' + r.rs + '%;height:100%;border-radius:3px;background:' + rsCol + '"></span></span></span>';
+      const rsTip = 'RS ' + (r.rs ?? '—') + ' = percentil vs universo local' + (r.rsLinePctl != null ? ' · La LÍNEA RS (precio/SPY) está en el percentil ' + r.rsLinePctl + ' de SU propio rango de 1 año' + (r.rsLinePctl >= 95 ? ' — fuerza relativa en zona de MÁXIMOS' : r.rsLinePctl <= 15 ? ' — fuerza relativa deprimida' : '') : '');
+      const rsCell = r.rs == null ? '—' : '<span class="drill-rs" title="' + rsTip + '"><b style="color:' + rsCol + ';min-width:18px">' + r.rs + '</b><span class="drill-rs-bar"><span style="display:block;width:' + r.rs + '%;height:100%;border-radius:3px;background:' + rsCol + '"></span></span>' + (r.rsLinePctl != null && r.rsLinePctl >= 95 ? '<span style="color:#f8d794;font-size:8px" title="Línea RS en percentil ' + r.rsLinePctl + ' de su rango anual">◆</span>' : '') + '</span>';
       const momCol = r.mom == null ? 'var(--text3)' : r.mom >= 80 ? '#4ade80' : r.mom >= 60 ? '#86efac' : r.mom >= 40 ? '#a89f93' : '#f87171';
       const momCell = r.mom == null ? '—' : '<b style="color:' + momCol + '">' + r.mom + '</b>';
       // CALIDAD: α anualizado (gated por R² para no mostrar ruido como señal) + β + Ω en tooltip
@@ -8954,6 +9007,13 @@ const CapitalDrill = {
       }
       const adChip = '<span class="drill-chip" style="color:' + r.ad.col + ';border-color:' + r.ad.col + '44;background:' + (r.ad.letter === 'A' || r.ad.letter === 'B' ? 'rgba(74,222,128,.06)' : r.ad.letter === 'D' || r.ad.letter === 'E' ? 'rgba(248,113,113,.06)' : 'transparent') + '">' + r.ad.letter + '</span>';
       const d52col = r.dist52 == null ? 'var(--text3)' : r.dist52 > -15 ? 'var(--green)' : r.dist52 > -30 ? 'var(--amber)' : 'var(--red)';
+      // Bullet 52w (paquete "contexto accionable"): banda mín→máx con marcador y tick de SMA50
+      const bullet52 = r.pos52 == null ? fmtP(r.dist52)
+        : '<span title="Posición en el rango de 52 semanas: percentil ' + Math.round(r.pos52) + ' (0=mínimo, 100=máximo) · tick gris = SMA50 · ' + fmtP(r.dist52) + ' del máximo" style="display:inline-flex;align-items:center;gap:5px">'
+        + '<span style="position:relative;display:inline-block;width:52px;height:7px;background:linear-gradient(90deg,rgba(248,113,113,.28),rgba(168,159,147,.18),rgba(74,222,128,.28));border-radius:3px">'
+        + (r.sma50pos != null ? '<span style="position:absolute;left:' + r.sma50pos.toFixed(0) + '%;top:-2px;width:1px;height:11px;background:var(--text3)"></span>' : '')
+        + '<span style="position:absolute;left:calc(' + Math.max(2, Math.min(98, r.pos52)).toFixed(0) + '% - 3px);top:-1px;width:6px;height:9px;border-radius:2px;background:' + d52col + ';border:1px solid rgba(8,5,10,.7)"></span>'
+        + '</span><span style="color:' + d52col + '">' + fmtP(r.dist52) + '</span></span>';
       return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
         + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
@@ -8965,7 +9025,7 @@ const CapitalDrill = {
         + '<td style="color:' + udCol + ';font-weight:' + (r.ud != null && r.ud >= 1.5 ? '700' : '400') + '">' + (r.ud != null ? r.ud.toFixed(2) : '—') + '</td>'
         + '<td>' + adChip + '</td>'
         + '<td title="' + tplTip + '">' + tplDots + '</td>'
-        + '<td style="color:' + d52col + '">' + fmtP(r.dist52) + '</td>'
+        + '<td>' + bullet52 + '</td>'
         + '<td>' + calCell + '</td>'
         + '</tr>';
     }).join('');
@@ -8978,7 +9038,7 @@ const CapitalDrill = {
       + '<th title="Up/Down Volume Ratio 50d (IBD): >1 demanda neta · >=2 patrocinio institucional. El 1.5 del badge es umbral propio conservador, no estandar IBD">U/D 50d</th>'
       + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
       + '<th title="Trend Template Minervini: las 8 condiciones oficiales de tendencia sana (hover para ver cada check)">TEMPLATE MINERVINI</th>'
-      + '<th title="Distancia al maximo de 52 semanas (verde: zona de compra 0/-15%)">vs MAX 52w</th>'
+      + '<th title="Bullet del rango 52 semanas: banda min-max con marcador (posicion actual) y tick gris (SMA50) + distancia al maximo (verde: zona de compra 0/-15%)">RANGO 52w</th>'
       + '<th title="CALIDAD (FASE 1): alpha de Jensen anualizado 252d vs SPY (skill no explicado por el mercado) + beta + Omega(0). Atenuado si R²<0.3 (alpha poco fiable). 🚀=Pocket Pivot · 💤=Volume Dry-Up en la col. ticker">α · β · Ω</th>'
       + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'
       + '<div style="margin-top:8px;font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.5">' + nota + '</div>';
