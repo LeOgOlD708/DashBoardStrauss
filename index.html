@@ -1158,40 +1158,66 @@ html.auth-ok #auth-gate{display:none}
 
   <div class="zone-divider">Liquidez Global · 70% no-Fed</div>
 
-  <!-- ── GLOBAL LIQUIDITY PROXY — 70% del ciclo Howell es no-Fed (China + Japan + USD) ── -->
+  <!-- ── GLI-lite v2 — Índice de Liquidez Global (framework Howell, 2026-07-08) ── -->
   <div class="card" style="margin-bottom:10px;background:linear-gradient(90deg,var(--surface) 0%,rgba(20,15,30,.92) 100%);border-color:rgba(96,165,250,.25)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
       <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.1em">🌐 GLOBAL LIQUIDITY PROXY</span>
-        <span style="font-size:11px;color:var(--text3)">— Howell global (no-Fed)</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.1em">🌐 LIQUIDEZ GLOBAL · GLI-lite</span>
+        <span style="font-size:11px;color:var(--text3)">— bancos centrales G3 + colateral + flujos</span>
         <button class="help-i" type="button" onclick="openGlossary('global-liquidity')" title="¿Qué es?">?</button>
       </div>
-      <span id="gl-regime-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
-    </div>
-    <div class="g4" style="gap:8px">
-      <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">DXY YoY (invertido) · 50%</div>
-        <div class="mono" id="gl-dxy-yoy" style="font-size:20px;font-weight:500;margin-top:3px">—</div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">USD ↓ → liq global ↑</div>
-      </div>
-      <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">FXI YTD · China · 30%</div>
-        <div class="mono" id="gl-fxi-ytd" style="font-size:20px;font-weight:500;margin-top:3px">—</div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Proxy China credit impulse</div>
-      </div>
-      <div style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);letter-spacing:.06em">EWJ YTD · Japan · 20%</div>
-        <div class="mono" id="gl-ewj-ytd" style="font-size:20px;font-weight:500;margin-top:3px">—</div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">Proxy BoJ stance</div>
-      </div>
-      <div style="padding:8px 10px;background:rgba(96,165,250,.08);border:1px solid rgba(96,165,250,.3);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--blue);letter-spacing:.06em">Score ponderado</div>
-        <div class="mono" id="gl-score" style="font-size:20px;font-weight:500;margin-top:3px;color:var(--text)">—</div>
-        <div class="mono" style="font-size:10px;color:var(--text3);margin-top:2px">DXY:0.5 · FXI:0.3 · EWJ:0.2</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="mono" id="gli-score" style="font-size:22px;font-weight:600;color:var(--text)">—</span>
+        <span id="gli-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
       </div>
     </div>
-    <div style="margin-top:8px;font-size:11px;color:var(--text3);line-height:1.45">
-      Howell mismo lo dice: <strong style="color:var(--text2)">~70% del ciclo de liquidez global no es Fed</strong>. Sin China + Japan + USD relativo, mides solo media bicicleta. Aquí está el complemento al Howell US.
+    <div class="g4" style="gap:7px;margin-bottom:7px">
+      <div style="padding:7px 9px;background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.28);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:.05em">FED NET LIQ · Δ13 SEM ⭐</div>
+        <div class="mono" id="gli-fednet" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">Reservas−TGA−RRP · FLUJO (Howell: flujos > stocks)</div>
+      </div>
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">MOVE · COLATERAL ⭐</div>
+        <div class="mono" id="gli-move" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">vol Treasuries inv. ≈ multiplicador de colateral</div>
+      </div>
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">FED BALANCE · YoY</div>
+        <div class="mono" id="gli-walcl" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">WALCL total assets</div>
+      </div>
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">ECB · YoY</div>
+        <div class="mono" id="gli-ecb" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">balance BCE (EUR)</div>
+      </div>
+    </div>
+    <div class="g4" style="gap:7px">
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">BOJ · YoY</div>
+        <div class="mono" id="gli-boj" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">balance BoJ (¥)</div>
+      </div>
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">M2 USA · YoY</div>
+        <div class="mono" id="gli-m2" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">M2SL mensual</div>
+      </div>
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">CHINA · PROXY FXI YoY</div>
+        <div class="mono" id="gli-china" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">M2 China discont. en FRED → proxy honesto</div>
+      </div>
+      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">DXY · YoY INV</div>
+        <div class="mono" id="gli-dxy" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">USD débil → liquidez global ↑</div>
+      </div>
+    </div>
+    <div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.5">
+      Índice 0-100 tipo difusión (framework Howell): pesos Fed-flujo 22% · MOVE 18% · ECB 12% · China 12% · Fed-YoY 8% · BOJ 8% · M2 10% · DXY 8%.
+      ⭐ = los 2 pilares que Howell considera decisivos. <strong style="color:var(--text2)">Sin cross-border/eurodólar (dato propietario sin proxy gratuito)</strong> — este índice es la mejor aproximación gratuita, no el GLI oficial.
     </div>
   </div>
 
@@ -3376,7 +3402,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF';
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL';
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -3480,6 +3506,11 @@ async function loadFredData() {
     }
 
     state.data.reserves  = Array.isArray(d.WRBWFRBL)  ? d.WRBWFRBL  : null;
+    // GLI v2 (2026-07-08): balances G3 + M2 para el indice de liquidez global
+    state.data.walcl     = Array.isArray(d.WALCL)      ? d.WALCL      : null;
+    state.data.ecb       = Array.isArray(d.ECBASSETSW) ? d.ECBASSETSW : null;
+    state.data.boj       = Array.isArray(d.JPNASSETS)  ? d.JPNASSETS  : null;
+    state.data.m2        = Array.isArray(d.M2SL)       ? d.M2SL       : null;
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
     state.data.fedfunds  = Array.isArray(d.FEDFUNDS)  ? d.FEDFUNDS  : null;
@@ -5468,60 +5499,93 @@ function updateFavoredAssets(prices) {
   }
 }
 
-// ── Global Liquidity Proxy — el 70% del ciclo Howell que NO es Fed ──
-// Composición: DXY YoY invertido (USD relativo) + FXI YTD (China credit impulse proxy)
-// + EWJ YTD (BoJ stance proxy). Score compuesto = avg de los 3.
+// ── GLI-lite v2 (2026-07-08) — Índice de Liquidez Global, framework Howell ──
+// Auditoría vs teoría: el score US /8 mide la pata Fed con NIVELES; Howell mide
+// FLUJOS multi-banco-central + multiplicador de colateral (MOVE inv). Este índice
+// 0-100 tipo difusión cubre esos gaps con data gratuita. Caveats documentados en
+// el glosario: China vía proxy FXI (M2 China discontinuada en FRED 2019) y sin
+// cross-border/eurodólar (propietario de CrossBorder Capital).
+function _yoySeries(series, days) {
+  if (!Array.isArray(series) || !series.length) return null;
+  const nowV = series[0]?.value;
+  if (nowV == null) return null;
+  const past = _findValueAt(series, new Date(Date.now() - (days || 365) * 86400000));
+  if (past == null || past === 0) return null;
+  return (nowV / past - 1) * 100;
+}
 function updateGlobalLiquidity(prices) {
-  // DXY YoY: usa hist (~252 días = 1 año) o fallback a yahoo ytd
-  const dxy = prices['DX-Y.NYB'];
-  let dxyYoY = null;
-  if (dxy?.hist?.length >= 200) {
-    // hist.length-252 sería índice negativo con 200-251 barras → usar hist[0] explícito
-    const past = dxy.hist.length > 252 ? dxy.hist[dxy.hist.length - 252] : dxy.hist[0];
-    const now = dxy.price ?? dxy.hist[dxy.hist.length - 1];
-    if (past && now) dxyYoY = ((now - past) / past) * 100;
-  } else if (dxy?.ytd != null) {
-    dxyYoY = dxy.ytd; // fallback aproximado
-  }
-  const dxyInv = dxyYoY != null ? -dxyYoY : null;
-  const fxi = prices['FXI']?.ytd;
-  const ewj = prices['EWJ']?.ytd;
-
-  const fmt = (v, suffix) => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + suffix;
-  const colorOf = v => v == null ? 'var(--text3)' : v > 5 ? 'var(--green)' : v < -5 ? 'var(--red)' : 'var(--amber)';
-
-  const setEl = (id, val, suffix) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.textContent = fmt(val, suffix);
-    el.style.color = colorOf(val);
+  const d = state.data;
+  const clamp01 = v => Math.max(0, Math.min(100, v));
+  // 1 ⭐ Fed net liquidity Δ13 semanas — FLUJO en $B (gap #1 de Howell: flujos > stocks)
+  let fedNetD13 = null;
+  const netAt = when => {
+    const r = when ? _findValueAt(d.reserves, when) : d.reserves?.[0]?.value;
+    const t = when ? _findValueAt(d.tga, when) : d.tga?.[0]?.value;
+    const p2 = when ? _findValueAt(d.rrp, when) : d.rrp?.[0]?.value;
+    if (r == null || t == null || p2 == null) return null;
+    return r - t - p2 * 1000; // rrp Billions → Millions
   };
-  setEl('gl-dxy-yoy', dxyInv, '%');
-  setEl('gl-fxi-ytd', fxi,    '%');
-  setEl('gl-ewj-ytd', ewj,    '%');
+  const netNow = netAt(null);
+  const netPast = netAt(new Date(Date.now() - 91 * 86400000));
+  if (netNow != null && netPast != null) fedNetD13 = (netNow - netPast) / 1000; // $B
+  // 2 ⭐ MOVE (colateral): nivel invertido — <80 colateral sano, >120 estrés
+  const moveVal = prices?.['^MOVE']?.price ?? null;
+  // 3-6: YoY de balances G3 + M2
+  const walclYoY = _yoySeries(d.walcl, 365);
+  const ecbYoY   = _yoySeries(d.ecb, 365);
+  const bojYoY   = _yoySeries(d.boj, 380); // mensual: margen extra
+  const m2YoY    = _yoySeries(d.m2, 380);
+  // 7: China proxy — FXI YoY desde hist Yahoo
+  const fxi = prices?.['FXI'];
+  let fxiYoY = null;
+  if (fxi?.hist?.length >= 200) {
+    const past = fxi.hist.length > 250 ? fxi.hist[fxi.hist.length - 251] : fxi.hist[0];
+    if (past > 0) fxiYoY = ((fxi.price ?? fxi.hist[fxi.hist.length - 1]) / past - 1) * 100;
+  } else if (fxi?.ytd != null) fxiYoY = fxi.ytd;
+  // 8: DXY YoY invertido
+  const dxyP = prices?.['DX-Y.NYB'];
+  let dxyYoY = null;
+  if (dxyP?.hist?.length >= 200) {
+    const past = dxyP.hist.length > 250 ? dxyP.hist[dxyP.hist.length - 251] : dxyP.hist[0];
+    if (past > 0) dxyYoY = ((dxyP.price ?? dxyP.hist[dxyP.hist.length - 1]) / past - 1) * 100;
+  } else if (dxyP?.ytd != null) dxyYoY = dxyP.ytd;
 
-  // Score compuesto: weights ponderados (Howell mismo argumenta DXY ~70% del ciclo).
-  // DXY 0.5 · FXI 0.3 · EWJ 0.2 — refleja jerarquía real, antes era avg simple.
-  // Si algún componente falta, redistribuye proporcionalmente entre los disponibles.
-  const wMap = [
-    { val: dxyInv, w: 0.5 },
-    { val: fxi,    w: 0.3 },
-    { val: ewj,    w: 0.2 },
-  ].filter(c => c.val != null);
-  const sumW = wMap.reduce((s, c) => s + c.w, 0);
-  const score = sumW > 0 ? wMap.reduce((s, c) => s + c.val * c.w, 0) / sumW : null;
-  const scoreEl = document.getElementById('gl-score');
-  if (scoreEl) {
-    scoreEl.textContent = score == null ? '—' : (score >= 0 ? '+' : '') + score.toFixed(1) + '%';
-    scoreEl.style.color = colorOf(score);
+  // Cada componente → sub-score 0-100 (50 = neutral) y peso Howell-informado
+  const comps = [
+    { id: 'gli-fednet', val: fedNetD13, fmt: v => (v >= 0 ? '+$' : '−$') + Math.abs(v).toFixed(0) + 'B', sc: v => clamp01(50 + v * 0.12), w: 0.22 },
+    { id: 'gli-move',   val: moveVal,   fmt: v => v.toFixed(0) + ' pts', sc: v => clamp01(50 + (95 - v) * 1.2), w: 0.18, inv: true },
+    { id: 'gli-walcl',  val: walclYoY,  fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
+    { id: 'gli-ecb',    val: ecbYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.12 },
+    { id: 'gli-boj',    val: bojYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
+    { id: 'gli-m2',     val: m2YoY,     fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + (v - 3) * 10), w: 0.10 },
+    { id: 'gli-china',  val: fxiYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 2.5), w: 0.12 },
+    { id: 'gli-dxy',    val: dxyYoY,    fmt: v => (v <= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '% liq', sc: v => clamp01(50 - v * 4), w: 0.08 },
+  ];
+  let num = 0, den = 0;
+  for (const c of comps) {
+    const el = document.getElementById(c.id);
+    if (c.val == null) { if (el) { el.textContent = '—'; el.style.color = 'var(--text3)'; } continue; }
+    const sub = c.sc(c.val);
+    num += sub * c.w; den += c.w;
+    if (el) {
+      el.textContent = c.fmt(c.val);
+      el.style.color = sub >= 60 ? 'var(--green)' : sub <= 40 ? 'var(--red)' : 'var(--amber)';
+    }
   }
-  const bdg = document.getElementById('gl-regime-badge');
-  if (bdg && score != null) {
-    if (score > 8)        { bdg.className='badge b-up';  bdg.textContent='Liquidez global expansiva'; }
-    else if (score > 0)   { bdg.className='badge b-up';  bdg.textContent='Levemente expansiva'; }
-    else if (score > -8)  { bdg.className='badge b-neu'; bdg.textContent='Neutral / mixto'; }
-    else                  { bdg.className='badge b-dn';  bdg.textContent='Liquidez global contractiva'; }
+  const gli = den > 0 ? Math.round(num / den) : null;
+  const scoreEl = document.getElementById('gli-score');
+  const bdg = document.getElementById('gli-badge');
+  let regime = null;
+  if (gli != null) {
+    regime = gli >= 60 ? 'EXPANSIVA' : gli >= 45 ? 'NEUTRAL' : 'CONTRACTIVA';
+    if (scoreEl) { scoreEl.textContent = gli + '/100'; scoreEl.style.color = gli >= 60 ? 'var(--green)' : gli >= 45 ? 'var(--amber)' : 'var(--red)'; }
+    if (bdg) {
+      bdg.className = 'badge ' + (gli >= 60 ? 'b-up' : gli >= 45 ? 'b-neu' : 'b-dn');
+      bdg.textContent = 'Liquidez global ' + regime.toLowerCase() + (den < 0.97 ? ' · parcial' : '');
+    }
   }
+  // Para la IA (getDashboardContext) y otros consumidores
+  window.__gli = gli != null ? { gli, regime, fedNetD13 } : null;
 }
 
 // ── Flash on value change ──
@@ -8507,19 +8571,13 @@ const INDICATORS_GLOSSARY = {
     note: 'Mejor proxy del "verdadero QE/QT" más allá del balance Fed reportado. La pill Δ13w en Three Horizons es la lectura accionable; el nivel solo es contexto.'
   },
   'global-liquidity': {
-    name: 'Global Liquidity Proxy',
-    category: 'Howell · Global',
-    source: { label: 'Yahoo · DX-Y.NYB + FXI + EWJ', url: '#', freq: 'Tiempo real' },
-    what: 'Aproximación al ciclo de liquidez global (no-Fed). Howell argumenta que ~70% del ciclo no es Fed → sin China + Japan + USD relativo, mides solo media bicicleta.',
-    formula: 'Score = 0.5 × (-DXY YoY) + 0.3 × FXI YTD + 0.2 × EWJ YTD. DXY pesa más por ser el motor central del ciclo según Howell.',
-    interpret: 'DXY YoY invertido captura el USD relativo (USD débil = liquidez global expansiva). FXI YTD aproxima el China Credit Impulse (proxy retail; el indicador real PBOC requiere fuente paid). EWJ YTD aproxima el BoJ stance.',
-    thresholds: [
-      { c:'green',  t:'> +8% — liquidez global expansiva' },
-      { c:'green',  t:'0 – +8% — levemente expansiva' },
-      { c:'amber',  t:'-8% – 0% — neutral / mixto' },
-      { c:'red',    t:'< -8% — liquidez global contractiva' }
-    ],
-    note: 'Complemento del Howell US-only. Cuando ambos divergen (US contractivo + global expansivo), oro y EM tienden a outperformar SPY.'
+    name: 'GLI-lite · Índice de Liquidez Global', category: 'Howell',
+    source: { label: 'FRED (WALCL/ECB/BOJ/M2) + Yahoo (^MOVE, FXI, DXY)', url: 'https://fred.stlouisfed.org/series/WALCL', freq: 'Semanal/mensual' },
+    what: 'Aproximación gratuita al Global Liquidity Index de Michael Howell (CrossBorder Capital): la liquidez mundial no es solo la Fed — son los bancos centrales G3+China, el multiplicador de COLATERAL (MOVE invertido: vol de Treasuries alta = haircuts repo suben = el colateral rinde menos crédito) y sobre todo los FLUJOS, no los niveles.',
+    formula: 'Índice difusión 0-100: Fed net liq Δ13sem (22%) + MOVE inv (18%) + ECB YoY (12%) + China proxy FXI YoY (12%) + M2 US YoY (10%) + Fed balance YoY (8%) + BOJ YoY (8%) + DXY YoY inv (8%). 50 = neutral.',
+    interpret: 'GLI ≥60 = liquidez global expandiendo (viento a favor risk assets, ciclo ~65 meses en fase alcista). <45 = contrayendo. Los 2 pilares ⭐ (flujo Fed + MOVE) son los que Howell considera decisivos: el score US /8 de arriba mide NIVELES de la pata Fed; este índice mide los FLUJOS del sistema completo.',
+    thresholds: [{ c: 'green', t: '≥60 → expansiva (soporte risk assets)' }, { c: 'amber', t: '45-59 → neutral / transición' }, { c: 'red', t: '<45 → contractiva (squeeze global)' }, { c: 'amber', t: 'MOVE >120 → colateral estresado (multiplicador colapsa)' }],
+    note: 'HONESTIDAD: aproximación, NO el GLI oficial. China vía proxy FXI (la serie M2 China de FRED está discontinuada desde 2019); sin cross-border/eurodólar/FX-swaps (dato propietario de CrossBorder Capital sin proxy gratuito). Contexto Howell 2026: sitúa el pico del ciclo de ~65 meses en Q4-2025/inicio-2026 con 2026 difícil para risk assets — coherente con lecturas contractivas.'
   },
   // ── FIDELITY (medio plazo) ──
   'fidelity-score': {
@@ -9412,6 +9470,7 @@ DATOS DEL DASHBOARD (actualizados hace ${mins} min):
 • RRP Fed: ${d.rrp?.[0]?.value != null ? '$' + d.rrp[0].value.toFixed(0) + 'B' : '—'} (alto = drena liquidez; bajo = liberó liquidez)
 • SOFR spread: ${sofr !== null ? sofr + ' bps' : '—'} (normal < 10 bps)
 • DXY: ${dxy ? dxy.toFixed(2) : '—'} (expansivo < 100, restrictivo > 103, muy restrictivo > 107)
+• Liquidez GLOBAL (GLI-lite): ${window.__gli ? window.__gli.gli + '/100 ' + window.__gli.regime + ' · flujo neto Fed 13 sem: ' + (window.__gli.fedNetD13 != null ? (window.__gli.fedNetD13 >= 0 ? '+$' : '−$') + Math.abs(window.__gli.fedNetD13).toFixed(0) + 'B' : 'n/d') : '—'} (G3+MOVE colateral+China proxy — Howell: flujos > stocks)
 • VIX: ${vix ? vix.toFixed(2) : '—'} (stress > 25, pánico > 35)
 • GLD: ${gld ? '$' + gld.toFixed(2) : '—'}
 • WTI: ${wti ? '$' + wti.toFixed(2) : '—'}
