@@ -8842,9 +8842,42 @@ const CandidatasHoy = {
     this.cache = result; this.lastRun = Date.now();
     this.render(result);
   },
+  // FASE 1C (pedido Angel): chart rebaseado de las top candidatas vs SPY — el sistema
+  // visual del screener relativo aplicado a las sobrevivientes del embudo.
+  _renderChart(cands) {
+    const cv = document.getElementById('candChart');
+    if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
+    const bench = RelPerf._rebase((state.data.prices || {}).SPY, 30);
+    if (!bench) return;
+    const datasets = [];
+    cands.slice(0, 10).forEach((r, i) => {
+      const rb = RelPerf._rebase(CapitalDrill.universe?.[r.tk], 30);
+      if (!rb) return;
+      const n = Math.min(rb.vals.length, bench.vals.length);
+      datasets.push({ label: r.tk, data: rb.vals.slice(-n), borderColor: RP_PALETTE[i % RP_PALETTE.length], borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false });
+    });
+    if (!datasets.length) return;
+    datasets.push({ label: 'SPY (bench)', data: bench.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
+    state.charts.candChart = new Chart(cv, {
+      type: 'line',
+      data: { labels: bench.dates.map(d2 => d2.slice(5)), datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        plugins: {
+          legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+          tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%' } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
+          y: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, callback: v2 => (v2 >= 0 ? '+' : '') + v2 + '%' } }
+        }
+      }
+    });
+  },
   render(r) {
     const body = document.getElementById('cand-body');
     if (!body) return;
+    if (state.charts.candChart) { state.charts.candChart.destroy(); state.charts.candChart = null; } // el canvas se reescribe con el body
     const v = r.veto;
     const vetoBg = v.level === 'block' ? 'rgba(248,113,113,.07)' : v.level === 'warn' ? 'rgba(251,191,36,.06)' : 'rgba(74,222,128,.06)';
     const vetoHtml = '<div style="padding:9px 11px;border-radius:6px;margin-bottom:10px;font-size:11px;line-height:1.55;border:1px solid ' + v.col + ';border-left-width:3px;background:' + vetoBg + ';color:var(--text2)"><b style="color:' + v.col + '">' + v.icon + '</b> ' + v.txt + '</div>';
@@ -8865,7 +8898,12 @@ const CandidatasHoy = {
     }
     const titulo = '🎯 ' + r.cands.length + ' candidata' + (r.cands.length === 1 ? '' : 's') + ' de ' + r.evaluated + ' evaluadas · vías en flujo: ' + flowsTxt;
     const nota = 'NO es una recomendación de compra: es el filtro cuantitativo del embudo. El timing de entrada (setup, stop, sizing) es decisión del trader — y el veto macro de arriba manda. Cache 15 min · umbrales en el glosario (botón ?).';
-    body.innerHTML = vetoHtml + filtros + CapitalDrill._rowsTableHtml(r.cands, titulo, nota);
+    const chartHtml = '<div style="margin-bottom:10px">'
+      + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">TOP ' + Math.min(10, r.cands.length) + ' CANDIDATAS vs SPY · 30 DÍAS REBASEADO (0% = t₀ común) — ¿desde cuándo lideran y con qué pendiente?</div>'
+      + '<div class="ch-wrap" style="height:235px"><canvas id="candChart" role="img" aria-label="Candidatas vs SPY rebaseado">Candidatas vs SPY.</canvas></div>'
+      + '</div>';
+    body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota);
+    try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
   }
 };
 
