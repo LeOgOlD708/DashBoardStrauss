@@ -7313,9 +7313,10 @@ function updateAccChips() {
     const cands = body.querySelectorAll('.badge, .kb-val, .val-sm, .vh-num, .thb-val');
     for (const el of cands) {
       const t = el.textContent.replace(/\s+/g, ' ').trim();
-      if (!t || t === '—' || t === '...' || t.length > 26 || seen.has(t)) continue;
+      const norm = t.toLowerCase().replace(/[^a-z0-9áéíóúñ]/gi, ''); // dedupe "Fase 3 · Squeeze" vs "Fase 3 Squeeze" (visto en verificación visual)
+      if (!t || t === '—' || t === '...' || t.length > 26 || !norm || seen.has(norm)) continue;
       if (/Cargando|Esperando/i.test(t)) continue;
-      seen.add(t);
+      seen.add(norm);
       chips.push('<span class="acc-chip">' + t.replace(/</g, '&lt;') + '</span>');
       if (chips.length >= 3) break;
     }
