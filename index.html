@@ -693,6 +693,21 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .os-catalysts-btn:hover{background:rgba(249,115,22,.16);border-color:rgba(249,115,22,.55)}
 .os-catalysts-btn[disabled]{opacity:.6;cursor:wait}
 .os-catalysts-modal-meta{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:.04em;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+/* ── Pipeline de Capital: drill + RRG (upgrade visual 2026-07-07) ── */
+.drill-tbl{width:100%;border-collapse:collapse;font-size:11px;font-family:'IBM Plex Mono',monospace}
+.drill-tbl th{padding:5px 8px;font-size:8px;color:var(--text3);text-align:left;letter-spacing:.06em;border-bottom:1px solid var(--border2);cursor:help;white-space:nowrap}
+.drill-tbl td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.035);white-space:nowrap}
+.drill-tbl tbody tr{cursor:pointer;transition:background .12s}
+.drill-tbl tbody tr:hover{background:rgba(230,180,80,.06)}
+.drill-rs{display:flex;align-items:center;gap:7px}
+.drill-rs-bar{width:46px;height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;flex:none}
+.drill-rs-bar>div{height:100%;border-radius:3px}
+.drill-chip{display:inline-block;font-size:9px;padding:1px 7px;border-radius:8px;border:1px solid;font-weight:600}
+.rot-btn{display:inline-flex;align-items:center;gap:5px;font-size:9px;font-family:'IBM Plex Mono',monospace;padding:4px 10px;border-radius:12px;cursor:pointer;background:transparent;border:1px solid var(--border2);transition:all .15s}
+.rot-btn:hover{background:rgba(255,255,255,.06);transform:translateY(-1px)}
+.rot-btn .dot{width:6px;height:6px;border-radius:50%;flex:none}
+.rot-row{transition:background .12s,transform .12s}
+.rot-row:hover{background:rgba(255,255,255,.06)!important;transform:translateX(2px)}
 .os-catalysts-modal-body{font-size:13px;color:var(--text);line-height:1.65;white-space:pre-wrap;font-family:'IBM Plex Mono',monospace}
 .os-catalysts-modal-loader{display:flex;align-items:center;gap:10px;padding:30px 6px;color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:12px}
 .os-catalysts-modal-spinner{width:14px;height:14px;border:2px solid rgba(249,115,22,.25);border-top-color:var(--phoenix-amber);border-radius:50%;animation:os-spin .8s linear infinite}
@@ -2048,11 +2063,10 @@ html.auth-ok #auth-gate{display:none}
     <div style="display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:12px;align-items:start" id="rot-grid">
       <div>
         <div style="position:relative"><div class="ch-wrap" style="height:400px"><canvas id="rotationChart" role="img" aria-label="Cuadrante de rotación sectorial">RRG chart.</canvas></div></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace">
-          <span style="color:#4ade80">■ LÍDER (fuerte y acelerando)</span>
-          <span style="color:#fbbf24">■ DEBILITÁNDOSE (fuerte, frenando)</span>
-          <span style="color:#f87171">■ REZAGADO (débil, frenando)</span>
-          <span style="color:#2dd4bf">■ MEJORANDO (débil, acelerando)</span>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--text3)">
+          <span>⬤ grande con borde = posición HOY</span>
+          <span>· puntos chicos = estela 6 semanas</span>
+          <span>giro normal: MEJORANDO → LÍDER → DEBILITÁNDOSE → REZAGADO (sentido horario)</span>
         </div>
       </div>
       <div id="rot-table"></div>
@@ -7551,24 +7565,51 @@ const rotQuadrantPlugin = {
     if (!a) return;
     const cx = x.getPixelForValue(100), cy = y.getPixelForValue(100);
     const tint = (x0, y0, x1, y1, color) => { ctx.fillStyle = color; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); };
-    tint(cx, a.top, a.right, cy, 'rgba(74,222,128,.045)');
-    tint(cx, cy, a.right, a.bottom, 'rgba(251,191,36,.045)');
-    tint(a.left, cy, cx, a.bottom, 'rgba(248,113,113,.045)');
-    tint(a.left, a.top, cx, cy, 'rgba(45,212,191,.045)');
-    ctx.strokeStyle = 'rgba(255,255,255,.14)'; ctx.lineWidth = 1;
+    tint(cx, a.top, a.right, cy, 'rgba(74,222,128,.05)');
+    tint(cx, cy, a.right, a.bottom, 'rgba(251,191,36,.05)');
+    tint(a.left, cy, cx, a.bottom, 'rgba(248,113,113,.05)');
+    tint(a.left, a.top, cx, cy, 'rgba(45,212,191,.05)');
+    ctx.strokeStyle = 'rgba(255,255,255,.16)'; ctx.lineWidth = 1;
+    ctx.setLineDash([5, 4]);
     ctx.beginPath(); ctx.moveTo(cx, a.top); ctx.lineTo(cx, a.bottom); ctx.moveTo(a.left, cy); ctx.lineTo(a.right, cy); ctx.stroke();
+    ctx.setLineDash([]);
+    // Etiquetas de cuadrante EN el chart (antes: solo en la leyenda de abajo)
+    ctx.font = "600 10px 'IBM Plex Mono', monospace";
+    ctx.globalAlpha = .6;
+    ctx.fillStyle = '#4ade80'; ctx.textAlign = 'right'; ctx.fillText('LÍDER — el capital ESTÁ aquí', a.right - 8, a.top + 15);
+    ctx.fillStyle = '#2dd4bf'; ctx.textAlign = 'left';  ctx.fillText('MEJORANDO — el capital ENTRA', a.left + 8, a.top + 15);
+    ctx.fillStyle = '#fbbf24'; ctx.textAlign = 'right'; ctx.fillText('DEBILITÁNDOSE — el capital SALE', a.right - 8, a.bottom - 9);
+    ctx.fillStyle = '#f87171'; ctx.textAlign = 'left';  ctx.fillText('REZAGADO — capital ya salió', a.left + 8, a.bottom - 9);
+    ctx.globalAlpha = 1; ctx.textAlign = 'left';
   },
   afterDatasetsDraw(chart) {
-    const { ctx } = chart;
-    ctx.font = "9px 'IBM Plex Mono', monospace";
+    const { ctx, chartArea: a } = chart;
+    ctx.font = "600 10px 'IBM Plex Mono', monospace";
+    // Anti-colisión: recolectar posiciones deseadas, empujar hacia abajo si chocan
+    const labels = [];
     chart.data.datasets.forEach((ds, i) => {
       if (!ds._rotTicker) return;
       const meta = chart.getDatasetMeta(i);
       const el = meta.data[meta.data.length - 1];
       if (!el) return;
-      ctx.fillStyle = ds.borderColor;
-      ctx.fillText(ds._rotTicker, el.x + 7, el.y - 6);
+      labels.push({ txt: ds._rotTicker, col: ds.borderColor, x: el.x + 9, y: el.y - 9 });
     });
+    labels.sort((p, q) => p.y - q.y);
+    for (let i = 0; i < labels.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const a2 = labels[i], b2 = labels[j];
+        if (Math.abs(a2.x - b2.x) < 48 && Math.abs(a2.y - b2.y) < 13) a2.y = b2.y + 13;
+      }
+    }
+    for (const L of labels) {
+      const lx = Math.min(L.x, (a?.right ?? 1e4) - 42);
+      const ly = Math.max(L.y, (a?.top ?? 0) + 22);
+      const w = ctx.measureText(L.txt).width;
+      ctx.fillStyle = 'rgba(8,5,10,.8)';           // pill oscuro tras el texto → legible sobre estelas
+      ctx.fillRect(lx - 3, ly - 9, w + 6, 12);
+      ctx.fillStyle = L.col;
+      ctx.fillText(L.txt, lx, ly);
+    }
   }
 };
 
@@ -7594,16 +7635,22 @@ function renderCapitalRotation() {
   data.forEach(d => d.tail.forEach(pt => { span = Math.max(span, Math.abs(pt.x - 100), Math.abs(pt.y - 100)); }));
   span = Math.max(span * 1.25, 2);
 
-  const datasets = data.map(d => ({
-    label: d.name, _rotTicker: d.tk,
-    data: d.tail,
-    showLine: true, borderWidth: 1.5, tension: .3,
-    borderColor: ROT_QUAD_META[d.quad].col,
-    backgroundColor: ROT_QUAD_META[d.quad].col,
-    pointRadius: d.tail.map((_, i) => i === d.tail.length - 1 ? 5 : 2),
-    pointHoverRadius: 6,
-    segment: { borderColor: c => ROT_QUAD_META[d.quad].col + '88' }
-  }));
+  const datasets = data.map(d => {
+    const n2 = d.tail.length;
+    return {
+      label: d.name, _rotTicker: d.tk,
+      data: d.tail,
+      showLine: true, borderWidth: 1.2, tension: .35,
+      borderColor: ROT_QUAD_META[d.quad].col,
+      backgroundColor: d.tail.map((_, i) => i === n2 - 1 ? ROT_QUAD_META[d.quad].col : ROT_QUAD_META[d.quad].col + '55'),
+      // Jerarquía visual: HOY = punto grande con borde crema · estela = puntos chicos translúcidos
+      pointRadius: d.tail.map((_, i) => i === n2 - 1 ? 6.5 : 2 + i * 0.35),
+      pointBorderColor: d.tail.map((_, i) => i === n2 - 1 ? '#f8d794' : 'transparent'),
+      pointBorderWidth: d.tail.map((_, i) => i === n2 - 1 ? 1.6 : 0),
+      pointHoverRadius: 8,
+      segment: { borderColor: ctx2 => ROT_QUAD_META[d.quad].col + (ctx2.p1DataIndex >= n2 - 2 ? '99' : '38') }
+    };
+  });
 
   if (state.charts.rotation) { state.charts.rotation.destroy(); }
   state.charts.rotation = new Chart(cv, {
@@ -7612,8 +7659,8 @@ function renderCapitalRotation() {
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
       scales: {
-        x: { min: 100 - span, max: 100 + span, grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 } }, title: { display: true, text: 'RS-Ratio · fuerza relativa vs SPY (100 = en tendencia)', color: '#7a716a', font: { size: 9 } } },
-        y: { min: 100 - span, max: 100 + span, grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 } }, title: { display: true, text: 'RS-Momentum · aceleración 4 sem', color: '#7a716a', font: { size: 9 } } }
+        x: { min: Math.floor(100 - span), max: Math.ceil(100 + span), grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 }, maxTicksLimit: 7, callback: v => Math.round(v) }, title: { display: true, text: '← más débil que SPY · RS-Ratio · más fuerte que SPY →', color: '#7a716a', font: { size: 9 } } },
+        y: { min: Math.floor(100 - span), max: Math.ceil(100 + span), grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 }, maxTicksLimit: 7, callback: v => Math.round(v) }, title: { display: true, text: '← frenando · aceleración 4 sem · acelerando →', color: '#7a716a', font: { size: 9 } } }
       },
       plugins: {
         legend: { display: false },
@@ -7637,7 +7684,7 @@ function renderCapitalRotation() {
       const secData = dataSrc[d.tk];
       const secUd = secData ? computeUpDownRatio(secData.hist, secData.vols || [], 50) : null;
       const udTag = secUd == null ? '' : `<span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${secUd >= 1.5 ? 'var(--green)' : secUd >= 1 ? 'var(--text3)' : 'var(--red)'}" title="U/D Volume Ratio 50d del ETF">U/D ${secUd.toFixed(2)}${secUd >= 1.5 ? ' 🏦' : ''}</span>`;
-      return `<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:5px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:2px solid ${m.col};cursor:pointer" onclick="CapitalDrill.open('${d.tk}')" title="Click -> ver acciones del ETF">
+      return `<div class="rot-row" style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:3px solid ${m.col};cursor:pointer" onclick="CapitalDrill.open('${d.tk}')" title="Click -> ver acciones del ETF">
         <span style="font-size:10px;color:var(--text)">${d.tk} <span style="color:var(--text3);font-size:9px">${d.name}</span></span>
         <span style="display:flex;gap:8px;align-items:center">${udTag}<span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${m.col}">${m.lbl} ${flow}</span></span>
       </div>`;
@@ -7774,33 +7821,37 @@ const CapitalDrill = {
   _rowsTableHtml(rows, titulo, nota) {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
     const rowsHtml = rows.map(r => {
-      const rsCol = r.rs == null ? 'var(--text3)' : r.rs >= 80 ? 'var(--green)' : r.rs >= 60 ? '#86efac' : r.rs >= 40 ? 'var(--text2)' : 'var(--red)';
+      const rsCol = r.rs == null ? 'var(--text3)' : r.rs >= 80 ? '#4ade80' : r.rs >= 60 ? '#86efac' : r.rs >= 40 ? '#a89f93' : '#f87171';
       const udCol = r.ud == null ? 'var(--text3)' : r.ud >= 1.5 ? 'var(--green)' : r.ud >= 1 ? 'var(--text2)' : 'var(--red)';
       const inst = r.ud != null && r.ud >= 1.5 ? ' <span title="U/D >=1.5 - acumulacion institucional">🏦</span>' : '';
       const tplTip = r.tpl ? r.tpl.checks.map(c => (c.ok ? '✓ ' : '✗ ') + c.k).join('&#10;') : '';
-      const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 6 ? 'var(--green)' : r.tpl.passed >= 4 ? 'var(--amber)' : 'var(--red)';
+      const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 6 ? '#4ade80' : r.tpl.passed >= 4 ? '#fbbf24' : '#f87171';
+      const tplDots = !r.tpl ? '—' : '<span style="letter-spacing:1px;color:' + tplCol + '">' + '●'.repeat(r.tpl.passed) + '<span style="opacity:.25">' + '●'.repeat(7 - r.tpl.passed) + '</span></span> <span style="color:' + tplCol + ';font-size:9px">' + r.tpl.passed + '/7</span>';
       const volTag = r.volAnom != null && r.volAnom >= 1.5 ? ' <span style="color:var(--amber)" title="Volumen hoy vs promedio 20d">⚡' + r.volAnom.toFixed(1) + 'x</span>' : '';
-      return '<tr style="cursor:pointer" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
-        + '<td style="padding:5px 6px;font-weight:600;color:var(--text)">' + r.tk + inst + volTag + '</td>'
+      const rsCell = r.rs == null ? '—' : '<span class="drill-rs"><b style="color:' + rsCol + ';min-width:18px">' + r.rs + '</b><span class="drill-rs-bar"><span style="display:block;width:' + r.rs + '%;height:100%;border-radius:3px;background:' + rsCol + '"></span></span></span>';
+      const adChip = '<span class="drill-chip" style="color:' + r.ad.col + ';border-color:' + r.ad.col + '44;background:' + (r.ad.letter === 'A' || r.ad.letter === 'B' ? 'rgba(74,222,128,.06)' : r.ad.letter === 'D' || r.ad.letter === 'E' ? 'rgba(248,113,113,.06)' : 'transparent') + '">' + r.ad.letter + '</span>';
+      const d52col = r.dist52 == null ? 'var(--text3)' : r.dist52 > -15 ? 'var(--green)' : r.dist52 > -30 ? 'var(--amber)' : 'var(--red)';
+      return '<tr onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
+        + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + '</td>'
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
         + '<td class="' + ((r.chg1m ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1m) + '</td>'
-        + '<td style="color:' + rsCol + ';font-weight:600">' + (r.rs ?? '—') + '</td>'
-        + '<td style="color:' + udCol + '">' + (r.ud != null ? r.ud.toFixed(2) : '—') + '</td>'
-        + '<td style="color:' + r.ad.col + ';font-weight:600">' + r.ad.letter + '</td>'
-        + '<td style="color:' + tplCol + '" title="' + tplTip + '">' + (r.tpl ? r.tpl.passed + '/7' : '—') + '</td>'
-        + '<td style="color:' + (r.dist52 != null && r.dist52 > -15 ? 'var(--green)' : 'var(--text2)') + '">' + fmtP(r.dist52) + '</td>'
+        + '<td>' + rsCell + '</td>'
+        + '<td style="color:' + udCol + ';font-weight:' + (r.ud != null && r.ud >= 1.5 ? '700' : '400') + '">' + (r.ud != null ? r.ud.toFixed(2) : '—') + '</td>'
+        + '<td>' + adChip + '</td>'
+        + '<td title="' + tplTip + '">' + tplDots + '</td>'
+        + '<td style="color:' + d52col + '">' + fmtP(r.dist52) + '</td>'
         + '</tr>';
     }).join('');
     return '<div class="lbl" style="margin-bottom:6px">' + titulo + '</div>'
-      + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;font-family:\'IBM Plex Mono\',monospace">'
-      + '<thead><tr style="color:var(--text3);font-size:9px;text-align:left">'
-      + '<th style="padding:4px 6px">TICKER</th><th>PRECIO</th><th>1D%</th><th>1M%</th>'
-      + '<th title="RS Rating: percentil de momentum ponderado 3/6/9/12m vs universo (estilo IBD)">RS</th>'
+      + '<div style="overflow-x:auto"><table class="drill-tbl">'
+      + '<thead><tr>'
+      + '<th>TICKER</th><th>PRECIO</th><th>1D%</th><th>1M%</th>'
+      + '<th title="RS Rating: percentil de momentum ponderado 3/6/9/12m vs universo (estilo IBD). 80+ = elite">RS RATING</th>'
       + '<th title="Up/Down Volume Ratio 50d: >1.5 acumulacion, >2 patrocinio institucional">U/D 50d</th>'
       + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
-      + '<th title="Trend Template Minervini: 7 condiciones de tendencia sana (hover para detalle)">TEMPLATE</th>'
-      + '<th title="Distancia al maximo de 52 semanas (zona sana: 0 a -15%)">vs 52w-HI</th>'
+      + '<th title="Trend Template Minervini: 7 condiciones de tendencia sana (hover para ver cada check)">TEMPLATE MINERVINI</th>'
+      + '<th title="Distancia al maximo de 52 semanas (verde: zona de compra 0/-15%)">vs MAX 52w</th>'
       + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'
       + '<div style="margin-top:8px;font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.5">' + nota + '</div>';
   },
@@ -7847,17 +7898,26 @@ const CapitalDrill = {
     const rotSec = computeRotationFor(ROT_SECTORS, state.data.prices || {});
     const rotInd = rotIndData ? computeRotationFor(ROT_INDUSTRIES, rotIndData) : null;
     const order = { mejorando: 0, lider: 1, debilitandose: 2, rezagado: 3 };
-    const mk = (tks, rotData) => tks.sort((x, y) => {
+    const arrow = { mejorando: '↗', lider: '▲', debilitandose: '↘', rezagado: '▼' };
+    const mk = (map, rotData) => Object.keys(map).sort((x, y) => {
       const qa = rotData && rotData.find(d => d.tk === x)?.quad, qb = rotData && rotData.find(d => d.tk === y)?.quad;
       return (order[qa] ?? 9) - (order[qb] ?? 9);
     }).map(tk => {
       const quad = rotData && rotData.find(d => d.tk === tk)?.quad;
       const col = quad ? ROT_QUAD_META[quad].col : 'var(--text3)';
       const active = tk === this.currentSector;
-      return '<button onclick="CapitalDrill.open(&quot;' + tk + '&quot;)" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ' + (active ? col : 'var(--border2)') + ';color:' + col + ';background:' + (active ? 'rgba(255,255,255,.04)' : 'transparent') + '">' + tk + '</button>';
+      const name = map[tk] || '';
+      return '<button class="rot-btn" onclick="CapitalDrill.open(&quot;' + tk + '&quot;)" '
+        + 'style="border-color:' + (active ? col : 'var(--border2)') + ';color:' + col + (active ? ';background:rgba(255,255,255,.05)' : '') + '" '
+        + 'title="' + name + (quad ? ' — ' + ROT_QUAD_META[quad].lbl : '') + '">'
+        + '<span class="dot" style="background:' + col + '"></span>'
+        + '<b>' + tk + '</b><span style="color:var(--text3);font-size:8px">' + name.slice(0, 11) + '</span>'
+        + (quad ? '<span style="font-size:8px">' + arrow[quad] + '</span>' : '')
+        + '</button>';
     }).join('');
-    const sep = '<span style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;align-self:center;padding:0 3px">|| INDUSTRIAS:</span>';
-    wrap.innerHTML = mk(Object.keys(ROT_SECTORS), rotSec) + sep + mk(Object.keys(ROT_INDUSTRIES), rotInd);
+    const lbl = t => '<span style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;letter-spacing:.1em;align-self:center;padding-right:2px">' + t + '</span>';
+    wrap.innerHTML = '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:5px">' + lbl('SECTORES') + mk(ROT_SECTORS, rotSec) + '</div>'
+      + '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">' + lbl('INDUSTRIAS') + mk(ROT_INDUSTRIES, rotInd) + '</div>';
   }
 };
 
