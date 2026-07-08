@@ -8256,56 +8256,63 @@ const INDICATORS_GLOSSARY = {
     name: 'Régimen de la Curva de Tasas', category: 'Macro',
     source: { label: 'FRED: T10Y2Y / TB6MS-GS30', url: 'https://fred.stlouisfed.org/series/T10Y2Y', freq: 'Diario' },
     formula: 'Clasificación por spread 10Y-2Y y forma de la curva 6M→30Y',
-    interpretation: 'Normal (larga > corta) = expectativa de crecimiento sano. Plana = transición/incertidumbre. Invertida (corta > larga) = el mercado espera recortes de la Fed — históricamente precede recesiones con 12-18 meses de lag.',
-    thresholds: ['10Y-2Y > +0.5% → curva normal', '0 a +0.5% → plana', '< 0 → invertida (señal histórica de recesión)', 'Re-empinamiento tras inversión = el aviso más peligroso'],
+    what: 'Clasificación del estado de la curva de tasas (normal, plana o invertida) — uno de los indicadores macro con mejor historial anticipando recesiones.',
+    interpret: 'Normal (larga > corta) = expectativa de crecimiento sano. Plana = transición/incertidumbre. Invertida (corta > larga) = el mercado espera recortes de la Fed — históricamente precede recesiones con 12-18 meses de lag.',
+    thresholds: [{ c: 'green', t: '10Y-2Y > +0.5% → curva normal' }, { c: 'amber', t: '0 a +0.5% → plana' }, { c: 'red', t: '< 0 → invertida (señal histórica de recesión)' }, { c: 'red', t: 'Re-empinamiento tras inversión = el aviso más peligroso' }],
     note: 'Ver el timeline histórico 1978-2026 con recesiones NBER en esta misma sección.'
   },
   'yield-curve-interp': {
     name: 'Cómo leer la Estructura de Plazos', category: 'Macro',
     source: { label: 'FRED: TB6MS, GS1-GS30', url: 'https://fred.stlouisfed.org', freq: 'Diario' },
     formula: 'Curva de rendimientos: yield de cada plazo (6M → 30Y) en un instante',
-    interpretation: 'La FORMA importa más que el nivel: pendiente positiva = premio por plazo normal; joroba en tramos medios = mercado dividido; inversión del tramo corto = apuesta a recortes. Comparar NOW vs 1M/6M/1Y atrás muestra hacia dónde se movió la expectativa.',
-    thresholds: ['Empinamiento bull (corta baja) → Fed dovish esperada', 'Empinamiento bear (larga sube) → miedo fiscal/inflación', 'Aplanamiento → ciclo madurando'],
+    what: 'Guía de lectura de la estructura de plazos: qué significa la FORMA de la curva (6M a 30Y) y sus cambios en el tiempo.',
+    interpret: 'La FORMA importa más que el nivel: pendiente positiva = premio por plazo normal; joroba en tramos medios = mercado dividido; inversión del tramo corto = apuesta a recortes. Comparar NOW vs 1M/6M/1Y atrás muestra hacia dónde se movió la expectativa.',
+    thresholds: [{ c: 'green', t: 'Empinamiento bull (corta baja) → Fed dovish esperada' }, { c: 'red', t: 'Empinamiento bear (larga sube) → miedo fiscal/inflación' }, { c: 'amber', t: 'Aplanamiento → ciclo madurando' }],
     note: 'Usa los botones NOW / 1M / 6M / 1Y del chart para ver la evolución.'
   },
   'yield-spreads': {
     name: 'Spreads Clave de la Curva', category: 'Macro',
     source: { label: 'FRED: T10Y2Y y derivados', url: 'https://fred.stlouisfed.org/series/T10Y2Y', freq: 'Diario' },
     formula: '10Y−2Y (el clásico de recesión) · 10Y−3M (el preferido de la Fed)',
-    interpretation: 'Los dos spreads resumen la curva en un número. El 10Y-3M invertido es el indicador con mejor track record de recesión (Estrella & Mishkin); el 10Y-2Y es el más seguido por el mercado.',
-    thresholds: ['Ambos > 0 → normal', '10Y-2Y < 0 → inversión clásica', '10Y-3M < 0 → señal Fed (más fiable)', 'Divergencia entre ambos → transición en curso'],
+    what: 'Los dos spreads que resumen la curva en un número: 10Y-2Y (el clásico del mercado) y 10Y-3M (el preferido de la Fed para señal de recesión).',
+    interpret: 'Los dos spreads resumen la curva en un número. El 10Y-3M invertido es el indicador con mejor track record de recesión (Estrella & Mishkin); el 10Y-2Y es el más seguido por el mercado.',
+    thresholds: [{ c: 'green', t: 'Ambos > 0 → normal' }, { c: 'red', t: '10Y-2Y < 0 → inversión clásica' }, { c: 'red', t: '10Y-3M < 0 → señal Fed (más fiable)' }, { c: 'amber', t: 'Divergencia entre ambos → transición en curso' }],
     note: 'La des-inversión (vuelta a positivo tras invertirse) históricamente coincide con el inicio de la recesión, no con su fin.'
   },
   'flujos-reales': {
     name: 'Flujos Reales (creations/redemptions)', category: 'Sectores',
     source: { label: 'Computado: Δ shares outstanding (stockanalysis) × precio (Yahoo)', url: 'https://stockanalysis.com', freq: '1 muestra/día' },
     formula: 'Flujo $ = (shares outstanding hoy − shares outstanding baseline) × precio promedio del periodo',
-    interpretation: 'El dato REAL de entrada/salida de dinero de un ETF: cuando entran órdenes netas de compra, los Authorized Participants CREAN shares nuevos (flujo +); cuando salen, los REDIMEN (flujo −). A diferencia del RRG (precio relativo) y el U/D (volumen), esto mide dólares literales que entran al vehículo.',
-    thresholds: ['Barra verde → creations netas (dinero entrando)', 'Barra roja → redemptions netas (dinero saliendo)', 'Validación cruzada: flujo + cuadrante Mejorando/Líder = rotación confirmada con dinero real', 'Flujo vs precio divergentes = mover con cautela'],
+    what: 'El flujo de dinero REAL que entra o sale de cada ETF sectorial, medido por el mecanismo de creations/redemptions (cambio en shares outstanding × precio).',
+    interpret: 'El dato REAL de entrada/salida de dinero de un ETF: cuando entran órdenes netas de compra, los Authorized Participants CREAN shares nuevos (flujo +); cuando salen, los REDIMEN (flujo −). A diferencia del RRG (precio relativo) y el U/D (volumen), esto mide dólares literales que entran al vehículo.',
+    thresholds: [{ c: 'green', t: 'Barra verde → creations netas (dinero entrando)' }, { c: 'red', t: 'Barra roja → redemptions netas (dinero saliendo)' }, { c: 'green', t: 'Flujo + cuadrante Mejorando/Líder = rotación confirmada con dinero real' }, { c: 'amber', t: 'Flujo vs precio divergentes = mover con cautela' }],
     note: 'El historial se construye muestreando 1 vez al día al abrir el tab (localStorage, 40 muestras). Día 1 = baseline; flujos desde el día 2. Método estándar de la industria (Morningstar/emisores computan igual). Caveats: usamos precio ≈ NAV (SPDRs líquidos, error <0.1%); saltos de shares >25% entre muestras se descartan como splits (cambian shares SIN flujo); shares outstanding llegan con desfase T+1 de settlement.'
   },
   'candidatas-hoy': {
     name: 'Candidatas Hoy (embudo completo)', category: 'Sectores',
     source: { label: 'Computado: rotación + holdings + métricas (Yahoo)', url: 'https://finance.yahoo.com', freq: 'On-demand · cache 15 min' },
     formula: 'ETF en cuadrante Mejorando/Líder → RS ≥75 → Trend Template ≥6/8 → acumulación (U/D 50d ≥1.2 ó A/D ≥B) → precio ≤25% bajo máx 52w → veto del régimen macro',
-    interpretation: 'La síntesis del Pipeline de Capital: solo sobreviven acciones de sectores/industrias que están RECIBIENDO capital, con fuerza relativa élite, tendencia sana estilo Minervini y huella de compra institucional. El veto macro (postura del CMD) decide si la lista es accionable o solo informativa.',
-    thresholds: ['⛔ VETO: RISK_OFF o Máxima Cautela → no abrir largos', '⚠ WARN: Defensivo/Neutral → solo setups A, sizing reducido', '✓ OK: régimen compatible', '0 candidatas = información válida (no forzar trades)'],
+    what: 'La síntesis del Pipeline de Capital: la lista corta de acciones que sobreviven TODO el embudo (rotación + fuerza + tendencia + acumulación) con el veto del régimen macro aplicado.',
+    interpret: 'La síntesis del Pipeline de Capital: solo sobreviven acciones de sectores/industrias que están RECIBIENDO capital, con fuerza relativa élite, tendencia sana estilo Minervini y huella de compra institucional. El veto macro (postura del CMD) decide si la lista es accionable o solo informativa.',
+    thresholds: [{ c: 'red', t: 'VETO: RISK_OFF o Máxima Cautela → no abrir largos' }, { c: 'amber', t: 'WARN: Defensivo/Neutral → solo setups A, sizing reducido' }, { c: 'green', t: 'OK: régimen compatible con largos' }, { c: 'n', t: '0 candidatas = información válida (no forzar trades)' }],
     note: 'Es un FILTRO cuantitativo, no una señal de entrada: el setup, stop y sizing son decisión del trader. Ordenado por RS → Template → U/D.'
   },
   'drill-down-acciones': {
     name: 'Drill-Down de Acciones (RS + U/D + Template)', category: 'Sectores',
     source: { label: 'Computado: Yahoo Finance (55 holdings)', url: 'https://finance.yahoo.com', freq: 'On-demand' },
     formula: 'RS = percentil 1-99 del momentum ponderado 40/20/20/20 (fórmula IBD) vs universo LOCAL de ~114 · U/D 50d = vol días verdes ÷ vol días rojos (ventana IBD) · Template = los 8 checks oficiales de Minervini',
-    interpretation: 'El embudo sector→acción: dentro de los sectores que reciben capital, rankea sus top holdings por fuerza relativa (RS ≥80 = élite), acumulación institucional (U/D ≥1.5 = 🏦, ≥2 = patrocinio fuerte) y salud de tendencia (Template ≥6/7 = candidata estilo Minervini).',
-    thresholds: ['RS ≥80 → líder de momentum', 'U/D 50d ≥1.5 → acumulación · ≥2 → institucional', 'A/D: A-B compra · D-E venta (13 sem)', 'Template 7-8/8 → tendencia sana (los 8 criterios oficiales)', 'vs 52w-HI entre 0 y −15% → zona de compra clásica'],
+    what: 'El embudo sector→acción: dentro de los sectores/industrias que reciben capital, rankea sus top holdings por fuerza relativa, acumulación institucional y salud de tendencia.',
+    interpret: 'El embudo sector→acción: dentro de los sectores que reciben capital, rankea sus top holdings por fuerza relativa (RS ≥80 = élite), acumulación institucional (U/D ≥1.5 = 🏦, ≥2 = patrocinio fuerte) y salud de tendencia (Template ≥6/7 = candidata estilo Minervini).',
+    thresholds: [{ c: 'green', t: 'RS >=80 → líder de momentum del universo local' }, { c: 'green', t: 'U/D 50d >=1.5 → acumulación · >=2 → institucional' }, { c: 'amber', t: 'A/D: A-B compra · D-E venta (13 sem)' }, { c: 'green', t: 'Template 7-8/8 → tendencia sana (criterios oficiales Minervini)' }, { c: 'n', t: 'vs 52w-HI entre 0 y -15% → zona de compra clásica' }],
     note: 'Universo: top-10 holdings × 11 sectores, scrapeados automáticamente (/api/holdings, cache 24h). Toggle INDUSTRIAS para rotación fina. Buscador libre: cualquier ticker. HONESTIDAD METODOLÓGICA: el RS es percentil contra ~114 nombres (RS 90 aquí ≠ RS 90 de IBD sobre ~6000 — el universo local puede estar sesgado al alza); el umbral U/D 1.5 del badge 🏦 es propio (IBD solo define >1 y ≥2). Los flujos literales están en el panel Flujos Reales del cuadrante.'
   },
   'rotacion-capital': {
     name: 'Rotación de Capital (RRG)', category: 'Sectores',
     source: { label: 'Computado: Yahoo Finance (11 SPDRs vs SPY)', url: 'https://finance.yahoo.com', freq: 'Diario' },
     formula: 'RS-Ratio = 100 × (sector/SPY) ÷ SMA 26 sem del ratio · RS-Momentum = 100 × RS-Ratio ÷ RS-Ratio de hace 4 sem',
-    interpretation: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
-    thresholds: ['X>100 & Y>100 → Líder', 'X<100 & Y>100 → Mejorando (dinero entrando)', 'X>100 & Y<100 → Debilitándose (dinero saliendo)', 'X<100 & Y<100 → Rezagado'],
+    what: 'Versión del Relative Rotation Graph institucional: cada sector gira por 4 cuadrantes según su fuerza relativa vs SPY y la aceleración de esa fuerza. Muestra hacia dónde se mueve el capital.',
+    interpret: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
+    thresholds: [{ c: 'green', t: 'X>100 y Y>100 → Líder (el capital ESTÁ aquí)' }, { c: 'green', t: 'X<100 y Y>100 → Mejorando (el capital ENTRA)' }, { c: 'amber', t: 'X>100 y Y<100 → Debilitándose (el capital SALE)' }, { c: 'red', t: 'X<100 y Y<100 → Rezagado (capital ya salió)' }],
     note: 'La estela muestra 6 semanas. Señal integrada: se cruza con la fase Howell. HONESTIDAD METODOLÓGICA: es una aproximación NO propietaria del RRG de JdK/StockCharts (falta el escalado por desviación estándar y la normalización contra el universo) — interpretar SOLO el cuadrante y la dirección del giro, NO la distancia al centro ni comparar magnitudes entre sectores de distinta volatilidad.'
   },
   // ── HOWELL (largo plazo, liquidez) ──
@@ -8949,7 +8956,7 @@ const INDICATORS_GLOSSARY = {
     category: 'Opportunity Scanner · Componente 1',
     source: { label: 'Yahoo Finance (chg1m del sector vs SPY)', url: 'https://finance.yahoo.com/quote/SPY', freq: 'Tiempo real' },
     what: 'Diferencial de retorno 1M del sector vs SPY (Relative Strength). Mide si el sector está liderando o rezagándose vs el mercado general.',
-    formula: 'RS = sector.chg1m − SPY.chg1m. Cascada de 2 niveles: Yahoo SPY directo → chg1m absoluto (último recurso, normaliza /80→/100).',
+    formula: 'v2 (2026-07-08): percentil 0-40 del RS multi-ventana IBD (40%·3M + 20%·6M/9M/12M sobre el ratio sector/SPY) dentro del universo del scanner — continuo, sin escalones. Modifier de aceleración 1W/1M solo en uptrends.',
     interpret: 'Outperformance persistente vs SPY indica capital rotando hacia el sector. Es el principal indicador de leadership sectorial. Modificado por aceleración (componente 1 puede llegar a 50 con bonus, clamp a 40).',
     thresholds: [
       { c:'green', t:'RS > +3% → 40 pts' },
@@ -8964,7 +8971,7 @@ const INDICATORS_GLOSSARY = {
     category: 'Opportunity Scanner · Componente 2',
     source: { label: 'Yahoo Finance (regularMarketVolume / averageVolume 20d)', url: 'https://finance.yahoo.com/', freq: 'Tiempo real' },
     what: 'Ratio del volumen de hoy vs el promedio de las últimas 20 sesiones. Detecta acumulación institucional (volumen anormal alto antes que el precio se mueva fuerte).',
-    formula: 'ratio = regularMarketVolume / averageVolume (window 20d)',
+    formula: 'v2 (2026-07-08): RVOL direccional 5d = promedio de (volumen/avg20d) CON SIGNO del día (verde suma, rojo resta) → 0-30 continuo. El spike de 1 día ya no puntúa (queda como dato informativo): acumulación real = volumen sostenido en días de subida.',
     interpret: 'Tradición Wyckoff/O\'Neil: el volumen precede al precio. Volumen >2x promedio en sectores sin noticias = smart money entrando silenciosamente. CAN SLIM y Wyckoff lo usan como señal primaria.',
     thresholds: [
       { c:'green', t:'≥ 2.0 → 30 pts (acumulación fuerte)' },
@@ -9839,8 +9846,13 @@ window.OpportunityScanner = (function () {
     let momentumValue = null;          // valor de RS final usado para los thresholds (en pp)
     let momentumSource = null;         // 'spy' | 'chg1m-absoluto' | null
 
-    // Fuente PRIMARIA: Yahoo SPY directo
-    if (yh && yh.chg1m != null && spy && spy.chg1m != null) {
+    // Fuente PRIMARIA v2: percentil multi-ventana pre-computado (0-40 continuo)
+    if (state.momPct && state.momPct[ticker] != null) {
+      comp1 = state.momPct[ticker];
+      momentumValue = (yh && yh.chg1m != null && spy && spy.chg1m != null) ? (yh.chg1m - spy.chg1m) : null;
+      momentumSource = 'rs-multi';
+    } else if (yh && yh.chg1m != null && spy && spy.chg1m != null) {
+      // Fallback legacy: umbrales escalonados sobre RS 1M
       const rs = yh.chg1m - spy.chg1m;
       momentumValue = rs;
       momentumSource = 'spy';
@@ -9872,15 +9884,35 @@ window.OpportunityScanner = (function () {
       comp1 = Math.max(0, Math.min(40, comp1)); // clamp [0, 40]
     }
 
-    // ── Comp 2 — Volumen Anormal (30 pts) ──
+    // ── Comp 2 v2 (2026-07-08) — RVOL DIRECCIONAL 5d (30 pts) ──
+    // Antes: volumen de UN día (la señal más ruidosa en ETFs: rebalanceos, opex).
+    // Ahora: promedio 5d de RVOL CON SIGNO (día verde suma, rojo resta) — acumulación
+    // real es volumen sostenido en días up. dirRVOL +1 → ~27 · 0 → 10 · negativo → 0-8.
     let comp2 = 0;
-    let volRatio = null;
+    let volRatio = null;   // 1 día — queda solo para display
+    let dirRVOL = null;
     if (yh && yh.regularMarketVolume != null && yh.averageVolume != null && yh.averageVolume > 0) {
       volRatio = yh.regularMarketVolume / yh.averageVolume;
-      if (volRatio >= 2.0)      comp2 = 30;
-      else if (volRatio >= 1.5) comp2 = 20;
-      else if (volRatio >= 1.0) comp2 = 10;
-      else                       comp2 = 0;
+    }
+    if (yh && Array.isArray(yh.hist) && Array.isArray(yh.vols) && yh.hist.length >= 26) {
+      const H = yh.hist, V = yh.vols;
+      const a20 = [];
+      for (let i = H.length - 20; i < H.length; i++) { const v = V[i]; if (v != null && isFinite(v) && v > 0) a20.push(v); }
+      const avg20 = a20.length >= 10 ? a20.reduce((x, y) => x + y, 0) / a20.length : null;
+      if (avg20) {
+        let sum = 0, nDays = 0;
+        for (let i = H.length - 5; i < H.length; i++) {
+          const v = V[i];
+          if (v == null || !isFinite(v) || H[i - 1] == null) continue;
+          const sign = H[i] > H[i - 1] ? 1 : H[i] < H[i - 1] ? -1 : 0;
+          sum += sign * (v / avg20);
+          nDays++;
+        }
+        if (nDays >= 3) {
+          dirRVOL = sum / nDays;
+          comp2 = Math.max(0, Math.min(30, Math.round(10 + dirRVOL * 17)));
+        }
+      }
     }
 
     // ── Modifier Breadth (Feature A v1.4) — solo aplica a sectores SPDR ──
@@ -9934,7 +9966,7 @@ window.OpportunityScanner = (function () {
     // ── Total y normalización ──
     // Si NO conseguimos un RS verdadero (Yahoo SPY directo), normalizamos /80→/100
     // porque el componente Momentum quedó capeado en 30 pts (chg1m absoluto) en lugar de 40.
-    const hasRealRS = momentumSource === 'spy';
+    const hasRealRS = momentumSource === 'spy' || momentumSource === 'rs-multi';
     let total;
     if (!hasRealRS) {
       const partial = comp1 + comp2 + comp3 + comp4;
@@ -9968,8 +10000,9 @@ window.OpportunityScanner = (function () {
       level: levelFromScore(total),
       components: { momentum: comp1, volume: comp2, howell: comp3, setup: comp4 },
       momentumValue,
-      momentumSource,        // 'spy' | 'chg1m-absoluto' | null
+      momentumSource,        // 'rs-multi' | 'spy' | 'chg1m-absoluto' | null
       volRatio,
+      dirRVOL,
       distSma,
       dist52w,
       align,
@@ -9986,7 +10019,71 @@ window.OpportunityScanner = (function () {
     };
   }
 
+  // ── Scoring v2 (2026-07-08) · PASADA 1: momentum multi-ventana percentilizado ──
+  // Antes: umbrales escalonados sobre RS 1M (+4.6pp y +9.3pp daban ambos 40/40).
+  // Ahora: fórmula IBD 40/20/20/20 sobre la serie RATIO sector/SPY (reusa rsRawIBD
+  // del Pipeline) → percentil continuo 0-40 dentro del universo del scanner.
+  function computeMomentumPercentiles() {
+    const spy = state.yahooData?.SPY;
+    if (!spy?.hist?.length) { state.momPct = null; return; }
+    const universe = [...config.sectors, ...config.macros].map(x => x.ticker);
+    const raws = [];
+    for (const tk of universe) {
+      if (tk === 'SPY') continue;
+      const d = state.yahooData?.[tk];
+      if (!d?.hist?.length) continue;
+      const n = Math.min(d.hist.length, spy.hist.length);
+      if (n < 130) continue;
+      const sH = d.hist.slice(-n), pH = spy.hist.slice(-n);
+      const ratio = [];
+      for (let i = 0; i < n; i++) { if (pH[i] > 0) ratio.push(sH[i] / pH[i]); }
+      const raw = (typeof rsRawIBD === 'function') ? rsRawIBD(ratio) : null;
+      if (raw != null && isFinite(raw)) raws.push({ tk, raw });
+    }
+    if (raws.length < 4) { state.momPct = null; return; }
+    raws.sort((a, b) => a.raw - b.raw);
+    state.momPct = {};
+    raws.forEach((r, i) => {
+      const pctl = raws.length > 1 ? i / (raws.length - 1) : 0.5;
+      state.momPct[r.tk] = Math.round(pctl * 40);
+    });
+  }
+
+  // ── Anti-whipsaw (2026-07-08): EMA diaria del score + histéresis de líder ──
+  const OS_EMA_KEY = 'os_score_ema_v1';
+  const OS_LEADER_KEY = 'os_leader_v1';
+  function applyAntiWhipsaw(scores) {
+    let store = {};
+    try { store = JSON.parse(localStorage.getItem(OS_EMA_KEY) || '{}') || {}; } catch (e) {}
+    const today = new Date().toISOString().slice(0, 10);
+    for (const sc of scores) {
+      const prev = store[sc.ticker];
+      sc.rawTotal = sc.total;
+      // suaviza contra el EMA de un día ANTERIOR (intra-day estable, sin doble conteo)
+      const base = prev && prev.d !== today ? prev.ema : (prev ? prev.emaPrev : null);
+      if (typeof base === 'number') sc.total = Math.round(0.4 * base + 0.6 * sc.rawTotal);
+      store[sc.ticker] = prev && prev.d === today
+        ? { d: today, ema: sc.total, emaPrev: prev.emaPrev ?? null }
+        : { d: today, ema: sc.total, emaPrev: prev ? prev.ema : null };
+    }
+    try { localStorage.setItem(OS_EMA_KEY, JSON.stringify(store)); } catch (e) {}
+    const sorted = [...scores].sort((a, b) => b.total - a.total);
+    let prevLeader = null;
+    try { prevLeader = localStorage.getItem(OS_LEADER_KEY); } catch (e) {}
+    if (prevLeader && sorted[0] && sorted[0].ticker !== prevLeader) {
+      const pl = sorted.find(x => x.ticker === prevLeader);
+      if (pl && sorted[0].total - pl.total < 5) {
+        sorted.splice(sorted.indexOf(pl), 1);
+        sorted.unshift(pl); // histéresis: el retador no supera por >=5 pts
+        pl.heldByHysteresis = true;
+      }
+    }
+    try { localStorage.setItem(OS_LEADER_KEY, sorted[0]?.ticker || ''); } catch (e) {}
+    sorted.forEach((sc, i) => { sc._ord = i; });
+  }
+
   function computeAllScores() {
+    computeMomentumPercentiles();
     const universe = [...config.sectors, ...config.macros];
     const scores = universe.map(s => {
       const sc = calculateScore(s.ticker);
@@ -9994,6 +10091,7 @@ window.OpportunityScanner = (function () {
       sc.isMacro = !config.sectors.find(x => x.ticker === s.ticker);
       return sc;
     });
+    applyAntiWhipsaw(scores);
     return scores;
   }
 
@@ -10014,7 +10112,8 @@ window.OpportunityScanner = (function () {
       const h = state.howell || readHowell();
       const phaseTxt = h.phaseLabel || '—';
       const sc = h.score != null ? `${h.score.toFixed(1)}/8` : 'N/D';
-      sub.textContent = `Ciclo Howell: ${phaseTxt} (${sc}) · Postura: ${h.postura}`;
+      const faseDash = document.getElementById('hero-phase-name')?.textContent?.trim();
+      sub.textContent = `Ciclo (Stovall 3 fases): ${phaseTxt} (${sc})${faseDash ? ' · Dashboard: ' + faseDash : ''} · Postura: ${h.postura}`;
     }
     const ts = $('os-timestamp');
     if (ts) ts.textContent = `Última actualización: ${fmtTime(state.lastUpdate)}`;
@@ -10089,7 +10188,7 @@ window.OpportunityScanner = (function () {
   function renderTopCards() {
     const wrap = $('os-cards');
     if (!wrap) return;
-    const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+    const top5 = [...state.scores].sort((a, b) => (a._ord ?? 99) - (b._ord ?? 99)).slice(0, 5);
     wrap.innerHTML = top5.map((s, i) => {
       const rank = String(i + 1).padStart(2, '0');
       const lvl = s.level;
@@ -10150,7 +10249,7 @@ window.OpportunityScanner = (function () {
   function renderDivergenceAlert() {
     const alert = $('os-divergence-alert');
     if (!alert) return;
-    const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+    const top5 = [...state.scores].sort((a, b) => (a._ord ?? 99) - (b._ord ?? 99)).slice(0, 5);
     const divCount = top5.filter(s => s.divergence).length;
     alert.style.display = divCount >= 3 ? 'block' : 'none';
   }
@@ -10158,7 +10257,7 @@ window.OpportunityScanner = (function () {
   function renderWatchlist() {
     const wrap = $('os-watchlist');
     if (!wrap) return;
-    const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+    const top5 = [...state.scores].sort((a, b) => (a._ord ?? 99) - (b._ord ?? 99)).slice(0, 5);
     wrap.innerHTML = top5.map((s, i) => {
       const lvl = s.level;
       const chgCls = classFromChange(s.chg1d);
@@ -10252,7 +10351,7 @@ window.OpportunityScanner = (function () {
   // ──────────────────────────────────────────────────────────
   function copyWatchlist() {
     try {
-      const top5 = [...state.scores].sort((a, b) => b.total - a.total).slice(0, 5);
+      const top5 = [...state.scores].sort((a, b) => (a._ord ?? 99) - (b._ord ?? 99)).slice(0, 5);
       const tickers = top5.map(s => s.ticker).join(', ');
       if (!tickers) return;
       if (navigator.clipboard && navigator.clipboard.writeText) {
