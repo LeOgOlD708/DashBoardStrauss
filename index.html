@@ -9583,7 +9583,7 @@ window.OpportunityScanner = (function () {
   // Feature B v1.5 — Catalysts LLM (Gemini brief 7d, on-demand, cache 3h)
   // ──────────────────────────────────────────────────────────
   const CATALYSTS_CACHE_TTL_MS = 3 * 60 * 60 * 1000; // 3 horas
-  const CATALYSTS_CACHE_PREFIX = 'os_catalysts_';
+  const CATALYSTS_CACHE_PREFIX = 'os_catalysts_v2_'; // v2 2026-07-07: invalida briefs viejos de 3 bullets sin grounding
 
   function _readCatalystsCache(ticker) {
     try {
@@ -9601,11 +9601,11 @@ window.OpportunityScanner = (function () {
     }
   }
 
-  function _writeCatalystsCache(ticker, reply, score) {
+  function _writeCatalystsCache(ticker, reply, score, grounded, sources) {
     try {
       localStorage.setItem(
         CATALYSTS_CACHE_PREFIX + ticker,
-        JSON.stringify({ reply, score, timestamp: Date.now() })
+        JSON.stringify({ reply, score, grounded, sources, timestamp: Date.now() })
       );
     } catch (e) { /* quota — silencioso */ }
   }
@@ -9629,20 +9629,30 @@ window.OpportunityScanner = (function () {
     return `<div class="os-catalysts-modal-error"><div>⚠ Catalysts no disponibles · ${safeMsg}</div><button class="os-catalysts-modal-retry" type="button" onclick="window.OpportunityScanner&&OpportunityScanner.showCatalysts('${ticker}', true)">Reintentar</button></div>`;
   }
 
-  function _catalystsContentHtml(reply, timestamp, fromCache) {
+  function _catalystsContentHtml(reply, timestamp, fromCache, grounded, sources) {
     const dt = new Date(timestamp);
     const hh = String(dt.getHours()).padStart(2, '0');
     const mm = String(dt.getMinutes()).padStart(2, '0');
     const dd = String(dt.getDate()).padStart(2, '0');
     const mo = String(dt.getMonth() + 1).padStart(2, '0');
     const cacheTag = fromCache ? '<span style="color:var(--text3)">· cacheado</span>' : '<span style="color:#22c55e">· nuevo</span>';
-    const safeReply = String(reply || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const groundTag = grounded
+      ? '<span style="color:#22c55e">🔎 con búsqueda Google</span>'
+      : '<span style="color:var(--amber)">⚠ sin búsqueda web</span>';
+    let safeReply = String(reply || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // md-lite: **negritas** + resaltar encabezados de sección con emoji
+    safeReply = safeReply.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    safeReply = safeReply.replace(/^(📊|📰|👀|⚖️)([^\n]*)$/gm, '<span style="color:var(--gold);font-weight:600;letter-spacing:.05em">$1$2</span>');
+    const sourcesHtml = (Array.isArray(sources) && sources.length)
+      ? `<div style="margin-top:10px;font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace">Fuentes de la búsqueda: ${sources.map(s => String(s).replace(/</g,'&lt;')).join(' · ')}</div>`
+      : '';
     return `
       <div class="os-catalysts-modal-meta">
-        <span>Análisis ${dd}/${mo} ${hh}:${mm} ${cacheTag}</span>
+        <span>Análisis ${dd}/${mo} ${hh}:${mm} ${cacheTag} ${groundTag}</span>
         <span style="color:var(--text3)">Gemini 2.5 Flash · cache 3h</span>
       </div>
       <div class="os-catalysts-modal-body">${safeReply}</div>
+      ${sourcesHtml}
       <div style="margin-top:14px;font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;letter-spacing:.04em;line-height:1.5;border-top:1px solid var(--border2);padding-top:10px">
         Asistente de contextualización · validar con fuentes primarias antes de operar.
       </div>`;
@@ -9664,7 +9674,7 @@ window.OpportunityScanner = (function () {
     if (!forceRefresh) {
       const cached = _readCatalystsCache(ticker);
       if (cached) {
-        _renderCatalystsModal(ticker, sectorName, _catalystsContentHtml(cached.reply, cached.timestamp, true));
+        _renderCatalystsModal(ticker, sectorName, _catalystsContentHtml(cached.reply, cached.timestamp, true, cached.grounded, cached.sources));
         return;
       }
     }
@@ -9672,14 +9682,31 @@ window.OpportunityScanner = (function () {
     // 2. Loading state
     _renderCatalystsModal(ticker, sectorName, _catalystsLoadingHtml());
 
-    // 3. Fetch /api/gemini
+    // 3. Contexto rico v2: métricas vivas del scanner + titulares RSS + eventos calendario
+    const metrics = scoreObj ? {
+      chg1d: scoreObj.chg1d, chg1w: scoreObj.chg1w, chg1m: scoreObj.chg1m,
+      momentumValue: scoreObj.momentumValue, volRatio: scoreObj.volRatio,
+      distSma: scoreObj.distSma, dist52w: scoreObj.dist52w
+    } : {};
+    const news = (window.state?.newsItems || []).slice(0, 12)
+      .map(n => `${(n.title || '').slice(0, 150)} (${n.source || '?'})`);
+    let events = [];
+    try {
+      const calRes = await fetch('/api/fred-calendar'); // CDN-cacheado 4h — barato
+      if (calRes.ok) {
+        const cal = await calRes.json();
+        events = (cal.events || []).slice(0, 8).map(e => `${e.date} ${e.name}`);
+      }
+    } catch (e) { /* sin eventos — no bloquea */ }
+
+    // 4. Fetch /api/gemini (grounding tarda — timeout amplio, backend corta a 40s)
     try {
       const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), 20000);
+      const timeout = setTimeout(() => ctrl.abort(), 45000);
       const res = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, sectorName, holdings, score }),
+        body: JSON.stringify({ ticker, sectorName, holdings, score, metrics, news, events }),
         signal: ctrl.signal,
       });
       clearTimeout(timeout);
@@ -9690,10 +9717,10 @@ window.OpportunityScanner = (function () {
       const data = await res.json();
       const reply = data.reply || 'Sin respuesta de Gemini.';
       const ts = Date.now();
-      _writeCatalystsCache(ticker, reply, score);
-      _renderCatalystsModal(ticker, sectorName, _catalystsContentHtml(reply, ts, false));
+      _writeCatalystsCache(ticker, reply, score, data.grounded, data.sources);
+      _renderCatalystsModal(ticker, sectorName, _catalystsContentHtml(reply, ts, false, data.grounded, data.sources));
     } catch (e) {
-      const msg = e.name === 'AbortError' ? 'timeout (20s)' : (e.message || 'error de red');
+      const msg = e.name === 'AbortError' ? 'timeout (45s)' : (e.message || 'error de red');
       console.warn('[OpportunityScanner] showCatalysts error:', msg);
       _renderCatalystsModal(ticker, sectorName, _catalystsErrorHtml(ticker, msg));
     }
