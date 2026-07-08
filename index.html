@@ -699,6 +699,11 @@ a.source-badge:hover{color:var(--gold)!important;border-color:rgba(201,168,76,.4
 .hz-guide b{color:var(--text2);font-weight:600}
 .hz-guide .hz-h{font-weight:700;letter-spacing:.08em}
 .hz-corto .hz-h{color:var(--teal)} .hz-medio .hz-h{color:var(--amber)} .hz-largo .hz-h{color:var(--gold)}
+/* Performance Relativa (FASE 1 · 2026-07-08) */
+.rp-grid{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:12px}
+@media(max-width:900px){.rp-grid{grid-template-columns:1fr}}
+.rp-row{display:grid;grid-template-columns:24px 44px 1fr 1fr;gap:6px;align-items:center;padding:4px 7px;border-radius:4px;margin-bottom:2px;background:var(--surface2);font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer}
+.rp-row:hover{background:rgba(255,255,255,.05)}
 .acc-header:hover{border-color:rgba(230,180,80,.35);background:var(--surface2)}
 .acc-header .acc-arrow{font-size:9px;color:var(--gold);transition:transform .2s;flex:none;width:12px}
 .acc-header.acc-open .acc-arrow{transform:rotate(90deg)}
@@ -2172,6 +2177,28 @@ html.auth-ok #auth-gate{display:none}
       <div id="rot-table"></div><div id="rot-flows" style="margin-top:12px"></div>
     </div>
   </div>
+  <!-- ══ FASE 1 · Performance Relativa — screener rebaseado con leaderboard (2026-07-08) ══ -->
+  <div class="sh"><div class="sh-tag">Relativo</div><div class="sh-title">Performance Relativa — ¿Quién le gana al benchmark?</div><button class="glossary-btn" onclick="openGlossary('performance-relativa')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button id="rp-mode-sec" class="rot-btn" type="button" onclick="RelPerf.setMode('sectores')">SECTORES vs SPY</button>
+        <button id="rp-mode-drill" class="rot-btn" type="button" onclick="RelPerf.setMode('drill')">HOLDINGS vs SECTOR</button>
+        <span id="rp-note" class="mono" style="font-size:9px;color:var(--text3)"></span>
+      </div>
+      <div style="display:flex;gap:4px">
+        <button id="rp-w-30" class="rot-btn" type="button" onclick="RelPerf.setWindow(30)">30D</button>
+        <button id="rp-w-90" class="rot-btn" type="button" onclick="RelPerf.setWindow(90)">90D</button>
+        <button id="rp-w-ytd" class="rot-btn" type="button" onclick="RelPerf.setWindow('ytd')">YTD</button>
+      </div>
+    </div>
+    <div class="rp-grid">
+      <div class="ch-wrap" style="height:270px"><canvas id="rpChart" role="img" aria-label="Performance relativa rebaseada">Performance relativa.</canvas></div>
+      <div id="rp-board" style="overflow-y:auto;max-height:270px"></div>
+    </div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Retornos acumulados rebaseados a 0% en t₀ (misma base para todos — construcción estándar). Leaderboard: retorno de la ventana + "vs bench" (diferencia de acumulados al cierre). En HOLDINGS vs SECTOR se aísla el liderazgo interno quitando la beta del sector — la confluencia más fuerte: acción que bate a su sector Y sector entrando en el cuadrante RRG.</div>
+  </div>
+
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
 
   <!-- RANGE SELECTOR -->
@@ -8362,7 +8389,121 @@ function renderCapitalRotation() {
       sigEl.innerHTML = `<span class="mono" style="font-size:9px;letter-spacing:.08em;color:var(--gold)">${head}</span><br>${detail}${coherencia} <span style="color:var(--text3);font-size:9px">· Computado en vivo: RS vs SPY 26 sem + momentum 4 sem, estela 6 sem.</span>`;
     }
   }
+  // FASE 1: el screener de performance relativa comparte el ciclo de render del tab
+  try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
 }
+
+// ══ FASE 1 · Performance Relativa — chart rebaseado + leaderboard (estilo CryptoLat) ══
+// Construcción estándar (research playbook 10): rebase de cada serie a 0% en t₀ común;
+// leaderboard = retorno acumulado + diferencia vs benchmark al cierre de la ventana.
+const RP_PALETTE = ['#60a5fa','#4ade80','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#e879f9','#86efac','#fca5a5','#93c5fd'];
+const RelPerf = {
+  mode: 'sectores', win: 30,
+  setMode(m) { this.mode = m; this.render(); },
+  setWindow(w) { this.win = w; this.render(); },
+  _rebase(d, win) {
+    if (!d || !Array.isArray(d.hist) || !Array.isArray(d.dates) || d.hist.length < 25) return null;
+    let start;
+    if (win === 'ytd') {
+      const jan = new Date().getFullYear() + '-01-01';
+      start = d.dates.findIndex(x => x >= jan);
+      if (start < 0 || start >= d.hist.length - 5) start = 0;
+    } else {
+      start = Math.max(0, d.hist.length - win - 1);
+    }
+    const base = d.hist[start];
+    if (!(base > 0)) return null;
+    return { dates: d.dates.slice(start), vals: d.hist.slice(start).map(v => +((v / base - 1) * 100).toFixed(2)) };
+  },
+  render() {
+    const cv = document.getElementById('rpChart');
+    const board = document.getElementById('rp-board');
+    const note = document.getElementById('rp-note');
+    if (!cv || typeof Chart === 'undefined') return;
+    const prices = state.data.prices || {};
+    // botones activos
+    const on = 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)';
+    const off = 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent';
+    const bSec = document.getElementById('rp-mode-sec'), bDr = document.getElementById('rp-mode-drill');
+    if (bSec && bDr) { bSec.style.cssText = this.mode === 'sectores' ? on : off; bDr.style.cssText = this.mode === 'drill' ? on : off; }
+    [['rp-w-30', 30], ['rp-w-90', 90], ['rp-w-ytd', 'ytd']].forEach(([id, w]) => {
+      const b = document.getElementById(id); if (b) b.style.cssText = this.win === w ? on : off;
+    });
+    // universo + benchmark según modo
+    let tks, benchTk, dataOf, titleNote;
+    if (this.mode === 'drill') {
+      const etf = (typeof CapitalDrill !== 'undefined') ? CapitalDrill.currentSector : null;
+      const hm = (typeof CapitalDrill !== 'undefined') ? CapitalDrill.holdingsMap : null;
+      if (!etf || !hm || !Array.isArray(hm[etf]) || !CapitalDrill.universe) {
+        if (board) board.innerHTML = '<div class="mono" style="font-size:10px;color:var(--text3);padding:10px">Abrí un sector en el Drill-Down de arriba (click en un botón de sector) y volvé — acá se rebasean sus holdings contra el ETF.</div>';
+        if (note) note.textContent = '';
+        if (state.charts.relPerf) { state.charts.relPerf.destroy(); state.charts.relPerf = null; }
+        return;
+      }
+      tks = hm[etf].slice(0, 10).filter(t => CapitalDrill.universe[t]?.hist);
+      benchTk = etf;
+      dataOf = tk => tk === etf ? (prices[etf] || (rotIndData || {})[etf]) : CapitalDrill.universe[tk];
+      titleNote = 'holdings de ' + etf + ' vs ' + etf;
+    } else {
+      tks = Object.keys(ROT_SECTORS);
+      benchTk = 'SPY';
+      dataOf = tk => prices[tk];
+      titleNote = '11 sectores SPDR vs SPY';
+    }
+    if (note) note.textContent = titleNote;
+    const bench = this._rebase(dataOf(benchTk), this.win);
+    if (!bench) return;
+    const rows = [];
+    for (const tk of tks) {
+      const rb = this._rebase(dataOf(tk), this.win);
+      if (!rb) continue;
+      // alinear al largo del benchmark (mismo t₀ por construcción — ventana fija)
+      const n = Math.min(rb.vals.length, bench.vals.length);
+      const vals = rb.vals.slice(-n);
+      const fin = vals[vals.length - 1];
+      rows.push({ tk, vals, fin, vsB: +(fin - bench.vals[bench.vals.length - 1]).toFixed(2) });
+    }
+    if (!rows.length) return;
+    rows.sort((a, b) => b.fin - a.fin);
+    const labels = bench.dates.map(d2 => d2.slice(5));
+    const datasets = rows.map((r, i) => ({
+      label: r.tk, data: r.vals, borderColor: RP_PALETTE[i % RP_PALETTE.length],
+      borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, _rp: r.tk
+    }));
+    datasets.push({ label: benchTk + ' (bench)', data: bench.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
+    if (state.charts.relPerf) { state.charts.relPerf.destroy(); }
+    state.charts.relPerf = new Chart(cv, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%' } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
+          y: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8 }, callback: v => (v >= 0 ? '+' : '') + v + '%' } }
+        }
+      }
+    });
+    if (board) {
+      const bFin = bench.vals[bench.vals.length - 1];
+      board.innerHTML = '<div class="rp-row" style="cursor:default;background:transparent;color:var(--text3)"><span>#</span><span>TK</span><span style="text-align:right">RET</span><span style="text-align:right">vs ' + benchTk + '</span></div>'
+        + rows.map((r, i) => {
+          const col = RP_PALETTE[i % RP_PALETTE.length];
+          const vsCol = r.vsB >= 0 ? 'var(--green)' : 'var(--red)';
+          return '<div class="rp-row" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
+            + '<span style="color:var(--text3)">' + (i + 1) + '</span>'
+            + '<span style="color:' + col + ';font-weight:700">' + r.tk + '</span>'
+            + '<span style="text-align:right;color:' + (r.fin >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r.fin >= 0 ? '+' : '') + r.fin.toFixed(1) + '%</span>'
+            + '<span style="text-align:right;color:' + vsCol + ';font-weight:600">' + (r.vsB >= 0 ? '+' : '') + r.vsB.toFixed(1) + '%</span>'
+            + '</div>';
+        }).join('')
+        + '<div class="rp-row" style="cursor:default;background:transparent"><span></span><span style="color:#f0ece4">' + benchTk + '</span><span style="text-align:right;color:var(--text2)">' + (bFin >= 0 ? '+' : '') + bFin.toFixed(1) + '%</span><span style="text-align:right;color:var(--text3)">bench</span></div>';
+    }
+  }
+};
 
 // ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
 const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
@@ -8550,8 +8691,9 @@ const CapitalDrill = {
     const secName = ROT_SECTORS[etf] || ROT_INDUSTRIES[etf] || etf;
     body.innerHTML = this._rowsTableHtml(rows,
       secName + ' (' + etf + ') — top holdings rankeados por RS',
-      '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · Click en fila → chart TradingView · '
+      '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · 🚀 = Pocket Pivot · 💤 = Volume Dry-Up · Click en fila → chart TradingView · '
       + 'Universo RS: top-10 holdings × 11 sectores (auto vía /api/holdings, cache 24h). Proxies de precio/volumen (IBD-style) — no son flujos literales.');
+    try { if (typeof RelPerf !== 'undefined' && RelPerf.mode === 'drill') RelPerf.render(); } catch (e) {}
   },
   async analyze(tkRaw) {
     const tk = String(tkRaw || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -8859,6 +9001,15 @@ const INDICATORS_GLOSSARY = {
     interpret: 'El embudo sector→acción: dentro de los sectores que reciben capital, rankea sus top holdings por fuerza relativa (RS ≥80 = élite), acumulación institucional (U/D ≥1.5 = 🏦, ≥2 = patrocinio fuerte) y salud de tendencia (Template ≥6/7 = candidata estilo Minervini).',
     thresholds: [{ c: 'green', t: 'RS >=80 → líder de momentum del universo local' }, { c: 'green', t: 'U/D 50d >=1.5 → acumulación · >=2 → institucional' }, { c: 'amber', t: 'A/D: A-B compra · D-E venta (13 sem)' }, { c: 'green', t: 'Template 7-8/8 → tendencia sana (criterios oficiales Minervini)' }, { c: 'n', t: 'vs 52w-HI entre 0 y -15% → zona de compra clásica' }],
     note: 'Universo: top-10 holdings × 11 sectores, scrapeados automáticamente (/api/holdings, cache 24h). Toggle INDUSTRIAS para rotación fina. Buscador libre: cualquier ticker. HONESTIDAD METODOLÓGICA: el RS es percentil contra ~114 nombres (RS 90 aquí ≠ RS 90 de IBD sobre ~6000 — el universo local puede estar sesgado al alza); el umbral U/D 1.5 del badge 🏦 es propio (IBD solo define >1 y ≥2). Los flujos literales están en el panel Flujos Reales del cuadrante.'
+  },
+  'performance-relativa': {
+    name: 'Performance Relativa (rebaseada)', category: 'Sectores',
+    source: { label: 'Computado: Yahoo Finance (hist 252d)', url: 'https://finance.yahoo.com', freq: 'Diario' },
+    formula: 'rebased(t) = (Precio(t) / Precio(t₀) − 1) × 100, con t₀ común para toda la canasta (30/90 días o YTD). Leaderboard: retorno acumulado y diferencia vs benchmark al cierre.',
+    what: 'Chart de retornos acumulados donde TODOS parten de 0% en la misma fecha base — la forma visual estándar de ver quién le gana al benchmark y desde cuándo.',
+    interpret: 'Modo SECTORES: los 11 SPDRs vs SPY — el líder visual coincide con el cuadrante RRG pero acá ves la MAGNITUD y el timing. Modo HOLDINGS: las acciones del sector vs su ETF — aísla el liderazgo interno quitando la beta sectorial. La confluencia más fuerte del pipeline: acción sobre su sector + sector entrando al cuadrante Mejorando/Líder + MOM alto.',
+    thresholds: [{ c: 'green', t: 'Línea sobre el benchmark y separándose → liderazgo en expansión' }, { c: 'amber', t: 'Cruce reciente de la línea del bench → cambio de régimen relativo (vigilar)' }, { c: 'red', t: 'Bajo el bench y cayendo → evitar aunque el retorno absoluto sea positivo' }, { c: 'n', t: 'Sensible a t₀: confirmar en 2 ventanas (30D y 90D) antes de concluir' }],
+    note: 'FASE 1 del proyecto de oportunidades (2026-07-08). Es visualización de fuerza relativa, no un factor nuevo — su valor es la lectura de confluencia y el timing del liderazgo.'
   },
   'rotacion-capital': {
     name: 'Rotación de Capital (RRG)', category: 'Sectores',
