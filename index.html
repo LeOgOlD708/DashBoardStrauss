@@ -7500,6 +7500,7 @@ function trendTemplate(hist, rsRating) {
     { k: 'Precio > SMA150 y SMA200', ok: s150 != null && s200 != null && price > s150 && price > s200 },
     { k: 'SMA150 > SMA200',          ok: s150 != null && s200 != null && s150 > s200 },
     { k: 'SMA200 en ascenso (1m)',   ok: s200 != null && s200prev != null && s200 > s200prev },
+    { k: 'SMA50 > SMA150 y SMA200',  ok: s50 != null && s150 != null && s200 != null && s50 > s150 && s50 > s200 }, // criterio #4 oficial — faltaba (audit metodologico 2026-07-08): filtra giros tempranos con medias sin apilar
     { k: 'Precio > SMA50',           ok: s50 != null && price > s50 },
     { k: '>=30% sobre minimo 52w',   ok: lo52 > 0 && price >= lo52 * 1.3 },
     { k: 'A <=25% del maximo 52w',   ok: hi52 > 0 && price >= hi52 * 0.75 },
@@ -7844,8 +7845,8 @@ const CapitalDrill = {
       const udCol = r.ud == null ? 'var(--text3)' : r.ud >= 1.5 ? 'var(--green)' : r.ud >= 1 ? 'var(--text2)' : 'var(--red)';
       const inst = r.ud != null && r.ud >= 1.5 ? ' <span title="U/D >=1.5 - acumulacion institucional">🏦</span>' : '';
       const tplTip = r.tpl ? r.tpl.checks.map(c => (c.ok ? '✓ ' : '✗ ') + c.k).join('&#10;') : '';
-      const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 6 ? '#4ade80' : r.tpl.passed >= 4 ? '#fbbf24' : '#f87171';
-      const tplDots = !r.tpl ? '—' : '<span style="letter-spacing:1px;color:' + tplCol + '">' + '●'.repeat(r.tpl.passed) + '<span style="opacity:.25">' + '●'.repeat(7 - r.tpl.passed) + '</span></span> <span style="color:' + tplCol + ';font-size:9px">' + r.tpl.passed + '/7</span>';
+      const tplCol = !r.tpl ? 'var(--text3)' : r.tpl.passed >= 7 ? '#4ade80' : r.tpl.passed >= 5 ? '#fbbf24' : '#f87171';
+      const tplDots = !r.tpl ? '—' : '<span style="letter-spacing:1px;color:' + tplCol + '">' + '●'.repeat(r.tpl.passed) + '<span style="opacity:.25">' + '●'.repeat(8 - r.tpl.passed) + '</span></span> <span style="color:' + tplCol + ';font-size:9px">' + r.tpl.passed + '/8</span>';
       const volTag = r.volAnom != null && r.volAnom >= 1.5 ? ' <span style="color:var(--amber)" title="Volumen hoy vs promedio 20d">⚡' + r.volAnom.toFixed(1) + 'x</span>' : '';
       const rsCell = r.rs == null ? '—' : '<span class="drill-rs"><b style="color:' + rsCol + ';min-width:18px">' + r.rs + '</b><span class="drill-rs-bar"><span style="display:block;width:' + r.rs + '%;height:100%;border-radius:3px;background:' + rsCol + '"></span></span></span>';
       const adChip = '<span class="drill-chip" style="color:' + r.ad.col + ';border-color:' + r.ad.col + '44;background:' + (r.ad.letter === 'A' || r.ad.letter === 'B' ? 'rgba(74,222,128,.06)' : r.ad.letter === 'D' || r.ad.letter === 'E' ? 'rgba(248,113,113,.06)' : 'transparent') + '">' + r.ad.letter + '</span>';
@@ -7867,10 +7868,10 @@ const CapitalDrill = {
       + '<div style="overflow-x:auto"><table class="drill-tbl">'
       + '<thead><tr>'
       + '<th>TICKER</th>' + (hasSec ? '<th title="Via: ETF(s) en cuadrante Mejorando/Lider por los que la accion entra al embudo">VÍA</th>' : '') + '<th>PRECIO</th><th>1D%</th><th>1M%</th>'
-      + '<th title="RS Rating: percentil de momentum ponderado 3/6/9/12m vs universo (estilo IBD). 80+ = elite">RS RATING</th>'
-      + '<th title="Up/Down Volume Ratio 50d: >1.5 acumulacion, >2 patrocinio institucional">U/D 50d</th>'
+      + '<th title="RS: percentil de momentum ponderado 40/20/20/20 (formula IBD) vs universo LOCAL de ~114 holdings sectoriales — NO equivale al RS Rating de IBD (~6000 acciones). 80+ = elite del universo local">RS RATING</th>'
+      + '<th title="Up/Down Volume Ratio 50d (IBD): >1 demanda neta · >=2 patrocinio institucional. El 1.5 del badge es umbral propio conservador, no estandar IBD">U/D 50d</th>'
       + '<th title="Acumulacion/Distribucion proxy 13 semanas (A=compra fuerte, E=venta fuerte)">A/D</th>'
-      + '<th title="Trend Template Minervini: 7 condiciones de tendencia sana (hover para ver cada check)">TEMPLATE MINERVINI</th>'
+      + '<th title="Trend Template Minervini: las 8 condiciones oficiales de tendencia sana (hover para ver cada check)">TEMPLATE MINERVINI</th>'
       + '<th title="Distancia al maximo de 52 semanas (verde: zona de compra 0/-15%)">vs MAX 52w</th>'
       + '</tr></thead><tbody>' + rowsHtml + '</tbody></table></div>'
       + '<div style="margin-top:8px;font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.5">' + nota + '</div>';
@@ -7947,7 +7948,7 @@ const CapitalDrill = {
 // ══════════════════════════════════
 const CandidatasHoy = {
   lastRun: 0, cache: null,
-  PASS: { rs: 75, tpl: 5, ud: 1.2, dist: -25 },
+  PASS: { rs: 75, tpl: 6, ud: 1.2, dist: -25 }, // tpl sobre 8 checks (antes 5/7)
   regimeVeto() {
     const postura = (document.getElementById('hero-postura')?.textContent || '').toUpperCase();
     const banner  = (document.getElementById('regime-banner')?.textContent || '').toUpperCase();
@@ -8021,7 +8022,7 @@ const CandidatasHoy = {
     const P = this.PASS;
     const filtros = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
       + '<span style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;letter-spacing:.08em">EMBUDO:</span>'
-      + chip('1 · ETF en cuadrante Mejorando/Líder') + chip('2 · RS ≥ ' + P.rs) + chip('3 · Template ≥ ' + P.tpl + '/7')
+      + chip('1 · ETF en cuadrante Mejorando/Líder') + chip('2 · RS ≥ ' + P.rs) + chip('3 · Template ≥ ' + P.tpl + '/8')
       + chip('4 · U/D ≥ ' + P.ud + ' o A/D ≥ B') + chip('5 · ≤25% bajo máx 52w') + chip('6 · veto macro') + '</div>';
     if (r.sinFlujo) {
       body.innerHTML = vetoHtml + filtros + '<div style="padding:16px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px">Ningún sector/industria está en cuadrante de entrada (Mejorando/Líder) hoy.<br><span style="color:var(--text3);font-size:10px">Sin flujo no hay embudo — el capital no muestra destino claro.</span></div>';
@@ -8079,14 +8080,27 @@ const FlowTracker = {
     this.renderPanel();
   },
   flowSince(tk) {
+    // Suma por SEGMENTOS consecutivos (audit metodologico 2026-07-08):
+    // (a) un split/reverse-split cambia shares outstanding SIN flujo → saltos >25%
+    //     entre muestras se descartan (2:1 = +100%, un flujo real diario raramente >10%)
+    // (b) cada segmento usa su propio precio → ventanas largas no mezclan precios stale
+    // Caveat documentado: usamos precio de mercado ≈ NAV (SPDRs liquidos, error <0.1%)
     const arr = this.load()[tk] || [];
     if (arr.length < 2) return null;
-    const a = arr[0], b = arr[arr.length - 1];
-    if (a.d === b.d || !a.so || !b.so) return null;
-    const pxAvg = (a.px && b.px) ? (a.px + b.px) / 2 : (b.px ?? a.px);
-    if (!pxAvg) return null;
-    const days = Math.max(1, Math.round((new Date(b.d) - new Date(a.d)) / 86400000));
-    return { usd: (b.so - a.so) * pxAvg, from: a.d, days, aum: b.aum };
+    let usd = 0, validPairs = 0, skippedSplits = 0;
+    for (let i = 1; i < arr.length; i++) {
+      const a = arr[i - 1], b = arr[i];
+      if (!a.so || !b.so || a.d === b.d) continue;
+      if (Math.abs(b.so / a.so - 1) > 0.25) { skippedSplits++; continue; }
+      const px = (a.px && b.px) ? (a.px + b.px) / 2 : (b.px ?? a.px);
+      if (!px) continue;
+      usd += (b.so - a.so) * px;
+      validPairs++;
+    }
+    if (!validPairs) return null;
+    const from = arr[0].d, to = arr[arr.length - 1].d;
+    const days = Math.max(1, Math.round((new Date(to) - new Date(from)) / 86400000));
+    return { usd, from, days, aum: arr[arr.length - 1].aum, skippedSplits };
   },
   fmtUsd(v) {
     const a = Math.abs(v);
@@ -8140,12 +8154,12 @@ const INDICATORS_GLOSSARY = {
     formula: 'Flujo $ = (shares outstanding hoy − shares outstanding baseline) × precio promedio del periodo',
     interpretation: 'El dato REAL de entrada/salida de dinero de un ETF: cuando entran órdenes netas de compra, los Authorized Participants CREAN shares nuevos (flujo +); cuando salen, los REDIMEN (flujo −). A diferencia del RRG (precio relativo) y el U/D (volumen), esto mide dólares literales que entran al vehículo.',
     thresholds: ['Barra verde → creations netas (dinero entrando)', 'Barra roja → redemptions netas (dinero saliendo)', 'Validación cruzada: flujo + cuadrante Mejorando/Líder = rotación confirmada con dinero real', 'Flujo vs precio divergentes = mover con cautela'],
-    note: 'El historial se construye muestreando 1 vez al día al abrir el tab (localStorage, hasta 40 muestras). Día 1 = baseline; los flujos aparecen desde el día 2. etfdb/etf.com bloquean scraping — este método computa el flujo de primera mano con el mecanismo real del ETF.'
+    note: 'El historial se construye muestreando 1 vez al día al abrir el tab (localStorage, 40 muestras). Día 1 = baseline; flujos desde el día 2. Método estándar de la industria (Morningstar/emisores computan igual). Caveats: usamos precio ≈ NAV (SPDRs líquidos, error <0.1%); saltos de shares >25% entre muestras se descartan como splits (cambian shares SIN flujo); shares outstanding llegan con desfase T+1 de settlement.'
   },
   'candidatas-hoy': {
     name: 'Candidatas Hoy (embudo completo)', category: 'Sectores',
     source: { label: 'Computado: rotación + holdings + métricas (Yahoo)', url: 'https://finance.yahoo.com', freq: 'On-demand · cache 15 min' },
-    formula: 'ETF en cuadrante Mejorando/Líder → RS ≥75 → Trend Template ≥5/7 → acumulación (U/D 50d ≥1.2 ó A/D ≥B) → precio ≤25% bajo máx 52w → veto del régimen macro',
+    formula: 'ETF en cuadrante Mejorando/Líder → RS ≥75 → Trend Template ≥6/8 → acumulación (U/D 50d ≥1.2 ó A/D ≥B) → precio ≤25% bajo máx 52w → veto del régimen macro',
     interpretation: 'La síntesis del Pipeline de Capital: solo sobreviven acciones de sectores/industrias que están RECIBIENDO capital, con fuerza relativa élite, tendencia sana estilo Minervini y huella de compra institucional. El veto macro (postura del CMD) decide si la lista es accionable o solo informativa.',
     thresholds: ['⛔ VETO: RISK_OFF o Máxima Cautela → no abrir largos', '⚠ WARN: Defensivo/Neutral → solo setups A, sizing reducido', '✓ OK: régimen compatible', '0 candidatas = información válida (no forzar trades)'],
     note: 'Es un FILTRO cuantitativo, no una señal de entrada: el setup, stop y sizing son decisión del trader. Ordenado por RS → Template → U/D.'
@@ -8153,10 +8167,10 @@ const INDICATORS_GLOSSARY = {
   'drill-down-acciones': {
     name: 'Drill-Down de Acciones (RS + U/D + Template)', category: 'Sectores',
     source: { label: 'Computado: Yahoo Finance (55 holdings)', url: 'https://finance.yahoo.com', freq: 'On-demand' },
-    formula: 'RS Rating = percentil 1-99 del momentum ponderado (2×3m + 6m + 9m + 12m) vs universo · U/D 50d = vol días verdes ÷ vol días rojos · Template = 7 checks Minervini',
+    formula: 'RS = percentil 1-99 del momentum ponderado 40/20/20/20 (fórmula IBD) vs universo LOCAL de ~114 · U/D 50d = vol días verdes ÷ vol días rojos (ventana IBD) · Template = los 8 checks oficiales de Minervini',
     interpretation: 'El embudo sector→acción: dentro de los sectores que reciben capital, rankea sus top holdings por fuerza relativa (RS ≥80 = élite), acumulación institucional (U/D ≥1.5 = 🏦, ≥2 = patrocinio fuerte) y salud de tendencia (Template ≥6/7 = candidata estilo Minervini).',
-    thresholds: ['RS ≥80 → líder de momentum', 'U/D 50d ≥1.5 → acumulación · ≥2 → institucional', 'A/D: A-B compra · D-E venta (13 sem)', 'Template 6-7/7 → tendencia sana', 'vs 52w-HI entre 0 y −15% → zona de compra clásica'],
-    note: 'Universo: top-10 holdings × 11 sectores, scrapeados automáticamente (/api/holdings, cache 24h). Toggle INDUSTRIAS en el cuadrante para rotación fina (semis/biotech/defensa…). Buscador libre: analiza cualquier ticker con las mismas métricas. Proxies de precio/volumen (IBD/Minervini) — no son flujos literales; Fase C añadirá flujos reales $M.'
+    thresholds: ['RS ≥80 → líder de momentum', 'U/D 50d ≥1.5 → acumulación · ≥2 → institucional', 'A/D: A-B compra · D-E venta (13 sem)', 'Template 7-8/8 → tendencia sana (los 8 criterios oficiales)', 'vs 52w-HI entre 0 y −15% → zona de compra clásica'],
+    note: 'Universo: top-10 holdings × 11 sectores, scrapeados automáticamente (/api/holdings, cache 24h). Toggle INDUSTRIAS para rotación fina. Buscador libre: cualquier ticker. HONESTIDAD METODOLÓGICA: el RS es percentil contra ~114 nombres (RS 90 aquí ≠ RS 90 de IBD sobre ~6000 — el universo local puede estar sesgado al alza); el umbral U/D 1.5 del badge 🏦 es propio (IBD solo define >1 y ≥2). Los flujos literales están en el panel Flujos Reales del cuadrante.'
   },
   'rotacion-capital': {
     name: 'Rotación de Capital (RRG)', category: 'Sectores',
@@ -8164,7 +8178,7 @@ const INDICATORS_GLOSSARY = {
     formula: 'RS-Ratio = 100 × (sector/SPY) ÷ SMA 26 sem del ratio · RS-Momentum = 100 × RS-Ratio ÷ RS-Ratio de hace 4 sem',
     interpretation: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
     thresholds: ['X>100 & Y>100 → Líder', 'X<100 & Y>100 → Mejorando (dinero entrando)', 'X>100 & Y<100 → Debilitándose (dinero saliendo)', 'X<100 & Y<100 → Rezagado'],
-    note: 'La estela muestra 6 semanas de trayectoria. Señal integrada: se cruza con la fase Howell — rotación defensiva + fase Squeeze/Contracción = confirmación macro.'
+    note: 'La estela muestra 6 semanas. Señal integrada: se cruza con la fase Howell. HONESTIDAD METODOLÓGICA: es una aproximación NO propietaria del RRG de JdK/StockCharts (falta el escalado por desviación estándar y la normalización contra el universo) — interpretar SOLO el cuadrante y la dirección del giro, NO la distancia al centro ni comparar magnitudes entre sectores de distinta volatilidad.'
   },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {
