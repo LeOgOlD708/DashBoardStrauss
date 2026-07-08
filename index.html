@@ -88,7 +88,6 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 .live-dot .dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
 .clock-display{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text3)}
-.phase-badge{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:4px 11px;background:linear-gradient(135deg,rgba(249,115,22,.12),rgba(220,38,38,.08));border:1px solid rgba(249,115,22,.3);color:var(--phoenix-orange);letter-spacing:.08em;border-radius:3px;box-shadow:0 0 16px -6px rgba(249,115,22,0.4)}
 
 /* ── TABS ── */
 .tabs{background:var(--surface);border-bottom:1px solid var(--border);display:flex;padding:0 20px;overflow-x:auto;gap:0}
@@ -2616,7 +2615,7 @@ html.auth-ok #auth-gate{display:none}
           </div>
           <!-- Trend -->
           <div class="flow-row">
-            <span class="flow-label">Tendencia (SMA20w)</span>
+            <span class="flow-label">Tendencia (SMA50)</span>
             <span id="tv-sig-trend" class="badge b-neu">—</span>
           </div>
           <div class="flow-row">
@@ -2644,7 +2643,7 @@ html.auth-ok #auth-gate{display:none}
           <div class="flow-row"><span class="flow-label" style="color:var(--red)">R2 (máx 52W)</span><span id="tv-r2" class="mono" style="font-size:11px">—</span></div>
           <div class="flow-row"><span class="flow-label" style="color:var(--amber)">R1 (máx 3M)</span><span id="tv-r1" class="mono" style="font-size:11px">—</span></div>
           <div class="flow-row"><span class="flow-label">Precio actual</span><span id="tv-price" class="mono" style="font-size:11px;color:var(--gold)">—</span></div>
-          <div class="flow-row"><span class="flow-label" style="color:var(--green)">S1 (SMA20w)</span><span id="tv-s1" class="mono" style="font-size:11px">—</span></div>
+          <div class="flow-row"><span class="flow-label" style="color:var(--green)">S1 (SMA20d)</span><span id="tv-s1" class="mono" style="font-size:11px">—</span></div>
           <div class="flow-row"><span class="flow-label" style="color:var(--green)">S2 (mín 52W)</span><span id="tv-s2" class="mono" style="font-size:11px">—</span></div>
         </div>
       </div>
@@ -3477,6 +3476,7 @@ async function bootData() {
   updateFidelitySection();
   updateWeekStatus();
   updateChecklist();
+  updateNextEvents(); // P4: antes solo corría al load — pestaña abierta días mostraba fechas viejas (fetch cacheado en CDN)
   updateNavTickers();
   updateHeroScore();
   updateLastUpdate();
@@ -4238,9 +4238,11 @@ function scheduleRefresh() {
 
 // ── Dollar formatter (FRED returns millions) ──
 function formatM(millions) {
-  if (millions >= 1000000) return '$' + (millions / 1000000).toFixed(2) + 'T';
-  if (millions >= 1000)    return '$' + Math.round(millions / 1000) + 'B';
-  return '$' + Math.round(millions) + 'M';
+  const sign = millions < 0 ? '-' : ''; // P4: antes un negativo daba "$-5M"; '-' ASCII (no U+2212) para que el parser de setElF lo entienda
+  const a = Math.abs(millions);
+  if (a >= 1000000) return sign + '$' + (a / 1000000).toFixed(2) + 'T';
+  if (a >= 1000)    return sign + '$' + Math.round(a / 1000) + 'B';
+  return sign + '$' + Math.round(a) + 'M';
 }
 
 // ── Update FRED UI ──
@@ -5125,14 +5127,7 @@ function updateDiagnostic() {
     return `<span class="badge ${cls}" style="font-size:8px">${txt}</span>`;
   }).join('');
 
-  // ── Nav phase badge ──
-  const pb = document.getElementById('phase-badge');
-  if (pb) {
-    pb.textContent = score >= 5 ? 'FASE 4 — Inminente' : score >= 3 ? 'FASE 3 → F4' : score >= 1 ? 'FASE 3 — Squeeze' : 'Calculando...';
-    const pc = score >= 5 ? '#f87171' : score >= 3 ? '#fbbf24' : '#4ade80';
-    pb.style.color = pc; pb.style.background = pc.replace(')', ',.1)').replace('rgb', 'rgba').replace('#f87171','rgba(248,113,113,.1)').replace('#fbbf24','rgba(251,191,36,.08)').replace('#4ade80','rgba(74,222,128,.08)');
-    pb.style.borderColor = pc.replace('#f87171','rgba(248,113,113,.3)').replace('#fbbf24','rgba(251,191,36,.25)').replace('#4ade80','rgba(74,222,128,.25)');
-  }
+  // (P4 2026-07-08: bloque #phase-badge removido — el elemento se eliminó del topbar en e0347bb)
   // Umbrales unificados con la determinación de fase (≥6 F4 · ≥4 F3→F4 · ≥2 F3 · ≥1 F2) —
   // antes usaba ≥3 para "F3→F4" y contradecía al hero con score 3.0-3.9 (fix 2026-07-08)
   const cxh = document.getElementById('diag-cross-howell');
@@ -5189,7 +5184,6 @@ function updateDiagnostic() {
   }
 
   updateTesisAuto(score, howellPhase, fidName, infName, { hyVal, cpiYoY, wtiVal, dxyVal, resVal, tgaVal });
-  updateSemaforoText(score);
 }
 
 function updateTesisAuto(score, howellPhase, fidName, infName, vals) {
@@ -5324,7 +5318,7 @@ function computeFidelityScore() {
 }
 
 function updateFidelitySection() {
-  const { score, pmiVal, gdpVal, unempCurr, unempPrev, yieldVal,
+  const { score, pmiVal, pmiYoY, gdpVal, unempCurr, unempPrev, yieldVal,
           retailCurr, retailPrev, sentVal, hyVal,
           pmiScore, pmiTrendScore, gdpScore, unempScore, yieldScore, retailScore, sentScore, hyScore } = computeFidelityScore();
   const maxScore = 8;
@@ -5339,7 +5333,7 @@ function updateFidelitySection() {
   const retailMoM  = (retailCurr != null && retailPrev != null) ? ((retailCurr/retailPrev-1)*100) : null;
   const unempDiff  = (unempCurr  != null && unempPrev  != null) ? (unempCurr - unempPrev) : null;
 
-  const fidPmiYoY = computeFidelityScore().pmiYoY;
+  const fidPmiYoY = pmiYoY; // P4: ya viene del computeFidelityScore() de arriba (antes se recomputaba entero)
   setEl('fid-pmi-val',    fidPmiYoY != null ? `${fidPmiYoY>=0?'+':''}${fidPmiYoY.toFixed(1)}% YoY` : (pmiVal != null ? pmiVal.toFixed(1) : '—'));
   setEl('fid-gdp-val',    gdpVal     != null ? gdpVal.toFixed(1)+'%'    : '—');
   setEl('fid-unemp-val',  unempCurr  != null ? unempCurr.toFixed(1)+'%'+(unempDiff!=null?(unempDiff>=0?' ↑':' ↓')+Math.abs(unempDiff).toFixed(1)+'pp':'') : '—');
@@ -5423,18 +5417,7 @@ function updateFidelitySection() {
   if (s6) updateMiniChart('fidSentChart',   s6, sentScore  > 0 ? '#f87171' : '#a78bfa', false);
 }
 
-function updateSemaforoText(score) {
-  const el = document.getElementById('semaforoSummary');
-  if (!el) return;
-  const alerts = score;
-  const cl = alerts >= 5 ? '#f87171' : alerts >= 3 ? '#fbbf24' : '#4ade80';
-  const label = alerts >= 5 ? 'FASE 4 INMINENTE' : alerts >= 3 ? 'ALERTA — FASE 3→4' : 'ESTABLE';
-  const { dxy, wti } = state.data;
-  const dxyNote = dxy?.[0]?.value < 100 ? 'DXY < 100 aporta liquidez global.' : '';
-  const wtiNote = wti?.[0]?.value > 90 ? `WTI $${wti[0].value.toFixed(0)} presiona inflación.` : '';
-  el.innerHTML = `<strong style="color:${cl};font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.1em">${Number(alerts).toFixed(1)}/8 SCORE HOWELL · ${label}</strong><br><span style="color:var(--text2)">${dxyNote} ${wtiNote}</span>`;
-  el.style.borderColor = cl.replace(')', ',.25)').replace('rgb', 'rgba');
-}
+// (P4 2026-07-08: updateSemaforoText removida — #semaforoSummary ya no existe en el DOM)
 
 // ── Mini Chart Updater ──
 function updateMiniChart(id, series, color, fill) {
@@ -6205,7 +6188,7 @@ function updatePositioning() {
 // Recibe howellResult para no volver a llamar computeHowellScore (ya ejecutado en updateHeroScore)
 function updateThreeHorizons(howellResult) {
   const { score: hScore, resVal, tgaVal, dxyVal, rrpVal } = howellResult;
-  const { score: fScore, pmiVal, hyVal } = computeFidelityScore();
+  const { score: fScore, pmiVal, hyVal, pmiYoY: fPmiYoY } = computeFidelityScore();
   const { regime, regimeColor, interp, riskPts } = computeRegime();
 
   // ── LARGO — Howell / Liquidez ──
@@ -6245,11 +6228,14 @@ function updateThreeHorizons(howellResult) {
       const reservesPast = _findValueAt(state.data.reserves, past);
       const tgaPast      = _findValueAt(state.data.tga,      past);
       const rrpPastRaw   = _findValueAt(state.data.rrp,      past);
-      const rrpPastM     = rrpPastRaw != null ? rrpPastRaw * 1000 : null;
+      // P4 (review): comparar SIEMPRE en la misma base. Si falta el RRP pasado, usar el
+      // actual como proxy (error ≈ ΔRRP); si falta el RRP ACTUAL, netLiqNum ya excluye RRP
+      // → tampoco restarlo del pasado (antes ese lado inflaba el Δ por el RRP pasado entero).
+      const rrpPastM     = rrpVal == null ? 0 : (rrpPastRaw != null ? rrpPastRaw * 1000 : rrpVal);
       if (netLiqNum == null || reservesPast == null || tgaPast == null) {
         return `<span style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono';text-transform:uppercase">${label}</span><span class="mono" style="font-size:13px;color:var(--text3)">—</span>`;
       }
-      const netLiqPast = ((reservesPast - tgaPast) - (rrpPastM != null ? rrpPastM : 0)) / 1e6;
+      const netLiqPast = ((reservesPast - tgaPast) - rrpPastM) / 1e6;
       const deltaT     = netLiqNum - netLiqPast;
       const deltaPct   = (deltaT / Math.abs(netLiqPast || 1)) * 100;
       // Thresholds en T (trillions): ámbar si flat <±0.05T (≈$50B). Δ4w usa banda más estrecha (0.03T) — ventana más corta.
@@ -6305,7 +6291,7 @@ function updateThreeHorizons(howellResult) {
   setT('h-medio-fase-desc', fFase);
 
   // IPMAN: mostrar YoY como métrica principal (sustituye al PMI clásico discontinuado)
-  const fPmiYoY = computeFidelityScore().pmiYoY;
+  // (P4: fPmiYoY ya viene destructurado arriba — antes recomputaba computeFidelityScore entero)
   if (pmiVal != null) {
     const pmiEl = document.getElementById('h-medio-pmi');
     if (pmiEl) {
@@ -6888,7 +6874,7 @@ function computeHistoricalHowell() {
   const points = [];
   const reservesAsc = [...reserves].slice(0, 52).reverse(); // viejo → nuevo
 
-  // DXY semanal desde Yahoo (si disponible). state.data.prices?.['DX-Y.NYB']?.hist es array de números (closes semanales).
+  // DXY desde Yahoo (si disponible). state.data.prices?.['DX-Y.NYB']?.hist es array de números (closes DIARIOS, interval=1d).
   const dxyHist = state.data.prices?.['DX-Y.NYB']?.hist;
   const dxyDates = state.data.prices?.['DX-Y.NYB']?.dates; // mismo length
 
@@ -7227,7 +7213,7 @@ function updateChecklist() {
     resVal != null ? `${howellLabel} · Score ${score.toFixed(1)}/8 · Reservas ${resVal < 3000000 ? 'bajo umbral crítico ($3T)' : resVal < 3300000 ? 'en zona alerta ($3.3T)' : 'nivel seguro'}` : null,
     dxyVal != null ? `DXY ${dxyVal.toFixed(1)} ${dxyVal > 103 ? '↑ contractivo — liquidez global restringida' : dxyVal > 100 ? '→ neutral — sin impacto claro' : '↓ expansivo — positivo para emergentes y oro'}` : null,
     hyVal != null  ? `${hyVal > 4.5 ? 'Recesión / Crisis Crédito' : hyVal > 3 ? 'Late Cycle → pre-recesión' : 'Mid Cycle — expansión tardía'} · HY Spread ${hyVal.toFixed(2)}%` : null,
-    (cpiYoY != null || wtiVal != null) ? `CPI YoY ${cpiYoY != null ? cpiYoY.toFixed(1)+'%' : 'N/D'}${beVal != null ? ' · BE5Y '+beVal.toFixed(2)+'%' : ''} · WTI $${wtiVal != null ? wtiVal.toFixed(0) : 'N/D'} ${wtiVal > 90 ? '— inflacionario' : wtiVal > 75 ? '— neutro' : '— deflacionario'}` : null,
+    (cpiYoY != null || wtiVal != null) ? `CPI YoY ${cpiYoY != null ? cpiYoY.toFixed(1)+'%' : 'N/D'}${beVal != null ? ' · BE5Y '+beVal.toFixed(2)+'%' : ''} · WTI ${wtiVal != null ? '$' + wtiVal.toFixed(0) + (wtiVal > 90 ? ' — inflacionario' : wtiVal > 75 ? ' — neutro' : ' — deflacionario') : 'N/D'}` : null,
     (cny && gld) ? `CNY/USD ${cny.price.toFixed(3)} · Oro en CNY ≈ ¥${Math.round(gld.price * 10 * cny.price).toLocaleString()} · ${cny.price < 7.3 ? 'PBOC comprador activo' : 'Presión cambiaria CNY'}` : null,
     (vix && vvix) ? `VIX ${vix.price.toFixed(1)} · VVIX ${vvix.price.toFixed(0)} · ${vvix.chg1m > 5 && vix.chg1m < 0 ? 'Divergencia ACTIVA — institucionales cubriendo' : 'Sin divergencia activa'}` : null,
     score > 0 ? (score >= 5 ? 'MÁXIMA CAUTELA: Cash + Oro exclusivamente. Salir de riesgo.' : score >= 4 ? 'DEFENSIVO: GLD ↑ · XLE ↑ · XLV · Reducir QQQ/IWM.' : score >= 2 ? 'DEFENSIVO SELECTIVO: Oro · defensivos · reducir tecnología.' : score >= 1 ? 'SELECTIVO: Favorecer GLD, GDX, Commodities vs tech.' : 'Sin suficientes datos para postura.') : null,
@@ -7299,13 +7285,16 @@ async function updateNextEvents() {
 
   let nextCPI = null, nextFOMC = null, nextPCE = null;
   try {
-    const r = await fetch('/api/fred-calendar');
-    if (r.ok) {
-      const evs = (await r.json()).events || [];
-      nextCPI  = evs.find(e => e.date >= todayIso && /CPI/i.test(e.name))?.date || null;
-      nextFOMC = evs.find(e => e.date >= todayIso && e.tag === 'fed')?.date || null;
-      nextPCE  = evs.find(e => e.date >= todayIso && /PCE/i.test(e.name))?.date || null;
+    // P4 (review): reusar el calendario que loadEconCalendar ya guardó en state —
+    // antes cada llamada hacía su propio fetch al mismo endpoint (2-3 requests por boot).
+    let evs = state.data.calendar?.events;
+    if (!Array.isArray(evs)) {
+      const r = await fetch('/api/fred-calendar');
+      evs = r.ok ? ((await r.json()).events || []) : [];
     }
+    nextCPI  = evs.find(e => e.date >= todayIso && /CPI/i.test(e.name))?.date || null;
+    nextFOMC = evs.find(e => e.date >= todayIso && e.tag === 'fed')?.date || null;
+    nextPCE  = evs.find(e => e.date >= todayIso && /PCE/i.test(e.name))?.date || null;
   } catch (e) { /* fallback abajo */ }
   if (!nextCPI)  nextCPI  = CPI_FALLBACK.find(d => d >= todayIso) || null;
   if (!nextFOMC) nextFOMC = FOMC_FALLBACK.find(d => d >= todayIso) || null;
@@ -7323,7 +7312,7 @@ async function updateNextEvents() {
     pmiEl.textContent = nextPCE ? fmt(nextPCE) : '—';
   }
 }
-updateNextEvents();
+// (P4 review: llamada parse-time removida — bootData la invoca en cada ciclo, incluido el load)
 
 // ══════════════════════════════════
 // CMD CENTER · ACORDEONES DENSOS (rediseño A+C, 2026-07-08)
@@ -7403,6 +7392,7 @@ function updateAccChips() {
       const norm = t.toLowerCase().replace(/[^a-z0-9áéíóúñ]/gi, ''); // dedupe "Fase 3 · Squeeze" vs "Fase 3 Squeeze" (visto en verificación visual)
       if (!t || t === '—' || t === '...' || t.length > 26 || !norm || seen.has(norm)) continue;
       if (/Cargando|Esperando/i.test(t)) continue;
+      if (/^[+\-−]?\d+([.,]\d+)?$/.test(t)) continue; // números PELADOS sin unidad ni label ("0", "+0.5") no informan; con unidad ("5.2%", "+1 bps") sí pasan
       seen.add(norm);
       chips.push('<span class="acc-chip">' + t.replace(/</g, '&lt;') + '</span>');
       if (chips.length >= 3) break;
@@ -7606,10 +7596,14 @@ function updateTechSignals(ticker) {
     document.getElementById('tv-sig-52w-handle').style.left  = pos52 + '%';
   }
 
+  // Badge de tendencia vs SMA50 (P4 2026-07-08): antes usaba SMA20 diaria con label
+  // "SMA20w" (ni 20 semanas ni coherente con el texto de setup, que ya usa SMA50) —
+  // GLD llegó a mostrar "→ LATERAL" y "tendencia dañada" a la vez.
   const trendEl = document.getElementById('tv-sig-trend');
-  if (trendEl && sma20) {
-    if (price > sma20 * 1.02) { trendEl.className='badge b-up'; trendEl.textContent='↑ ALCISTA'; }
-    else if (price < sma20 * 0.98) { trendEl.className='badge b-dn'; trendEl.textContent='↓ BAJISTA'; }
+  const sma50t = p.fiftyDayAverage;
+  if (trendEl && sma50t) {
+    if (price > sma50t * 1.02) { trendEl.className='badge b-up'; trendEl.textContent='↑ ALCISTA'; }
+    else if (price < sma50t * 0.98) { trendEl.className='badge b-dn'; trendEl.textContent='↓ BAJISTA'; }
     else { trendEl.className='badge b-neu'; trendEl.textContent='→ LATERAL'; }
   }
 
@@ -10452,7 +10446,7 @@ window.OpportunityScanner = (function () {
     if (grid) grid.innerHTML = `
       <div style="grid-column:1/-1;padding:24px;text-align:center;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.25);border-radius:6px">
         <div style="font-size:13px;color:var(--red);margin-bottom:8px">Sin conexión a datos de mercado</div>
-        <div style="font-size:10px;color:var(--text2);margin-bottom:12px">Alpha Vantage y Yahoo Finance no respondieron.</div>
+        <div style="font-size:10px;color:var(--text2);margin-bottom:12px">Yahoo Finance no respondió (única fuente de precios del scanner).</div>
         <button class="os-btn" type="button" onclick="OpportunityScanner.fetchAll(true)">Reintentar manualmente</button>
       </div>`;
     const cards = $('os-cards');
