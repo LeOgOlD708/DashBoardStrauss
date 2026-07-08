@@ -2184,6 +2184,7 @@ html.auth-ok #auth-gate{display:none}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <button id="rp-mode-sec" class="rot-btn" type="button" onclick="RelPerf.setMode('sectores')">SECTORES vs SPY</button>
         <button id="rp-mode-drill" class="rot-btn" type="button" onclick="RelPerf.setMode('drill')">HOLDINGS vs SECTOR</button>
+        <button id="rp-mode-crypto" class="rot-btn" type="button" onclick="RelPerf.setMode('crypto')">₿ CRYPTO vs BTC</button>
         <span id="rp-note" class="mono" style="font-size:9px;color:var(--text3)"></span>
       </div>
       <div style="display:flex;gap:4px">
@@ -8397,10 +8398,27 @@ function renderCapitalRotation() {
 // Construcción estándar (research playbook 10): rebase de cada serie a 0% en t₀ común;
 // leaderboard = retorno acumulado + diferencia vs benchmark al cierre de la ventana.
 const RP_PALETTE = ['#60a5fa','#4ade80','#fbbf24','#f87171','#a78bfa','#2dd4bf','#fb923c','#e879f9','#86efac','#fca5a5','#93c5fd'];
+// Canasta crypto (pedido Angel 2026-07-08, estilo CryptoLat "vs BTC"): majors con símbolo
+// Yahoo estable (los exóticos tipo HYPE/TAO usan sufijos numéricos frágiles — excluidos).
+const RP_CRYPTO = ['BTC-USD','ETH-USD','SOL-USD','XRP-USD','BNB-USD','DOGE-USD','ADA-USD','LINK-USD','AVAX-USD','LTC-USD','BCH-USD','DOT-USD'];
 const RelPerf = {
-  mode: 'sectores', win: 30,
-  setMode(m) { this.mode = m; this.render(); },
+  mode: 'sectores', win: 30, cryptoData: null, _loadingCrypto: false,
+  async setMode(m) {
+    this.mode = m;
+    if (m === 'crypto' && !this.cryptoData && !this._loadingCrypto) {
+      this._loadingCrypto = true;
+      const note = document.getElementById('rp-note');
+      if (note) note.textContent = 'Cargando canasta crypto (12 pares)…';
+      try {
+        const d = await fetch('/api/yahoo?tickers=' + RP_CRYPTO.map(encodeURIComponent).join(',')).then(r => r.json());
+        if (d && !d.error) this.cryptoData = d;
+      } catch (e) { /* botón reintenta */ }
+      this._loadingCrypto = false;
+    }
+    this.render();
+  },
   setWindow(w) { this.win = w; this.render(); },
+  _disp(tk) { return tk.replace('-USD', ''); },
   _rebase(d, win) {
     if (!d || !Array.isArray(d.hist) || !Array.isArray(d.dates) || d.hist.length < 25) return null;
     let start;
@@ -8424,8 +8442,9 @@ const RelPerf = {
     // botones activos
     const on = 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)';
     const off = 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent';
-    const bSec = document.getElementById('rp-mode-sec'), bDr = document.getElementById('rp-mode-drill');
+    const bSec = document.getElementById('rp-mode-sec'), bDr = document.getElementById('rp-mode-drill'), bCr = document.getElementById('rp-mode-crypto');
     if (bSec && bDr) { bSec.style.cssText = this.mode === 'sectores' ? on : off; bDr.style.cssText = this.mode === 'drill' ? on : off; }
+    if (bCr) bCr.style.cssText = this.mode === 'crypto' ? on : off;
     [['rp-w-30', 30], ['rp-w-90', 90], ['rp-w-ytd', 'ytd']].forEach(([id, w]) => {
       const b = document.getElementById(id); if (b) b.style.cssText = this.win === w ? on : off;
     });
@@ -8444,6 +8463,16 @@ const RelPerf = {
       benchTk = etf;
       dataOf = tk => tk === etf ? (prices[etf] || (rotIndData || {})[etf]) : CapitalDrill.universe[tk];
       titleNote = 'holdings de ' + etf + ' vs ' + etf;
+    } else if (this.mode === 'crypto') {
+      if (!this.cryptoData) {
+        if (board) board.innerHTML = '<div class="mono" style="font-size:10px;color:var(--text3);padding:10px">' + (this._loadingCrypto ? 'Cargando canasta crypto…' : 'No se pudo cargar la canasta crypto — tocá el botón de nuevo para reintentar.') + '</div>';
+        if (state.charts.relPerf) { state.charts.relPerf.destroy(); state.charts.relPerf = null; }
+        return;
+      }
+      tks = RP_CRYPTO.filter(t => t !== 'BTC-USD' && this.cryptoData[t] && !this.cryptoData[t].error);
+      benchTk = 'BTC-USD';
+      dataOf = tk => this.cryptoData[tk];
+      titleNote = 'majors crypto vs BTC (mercado 24/7)';
     } else {
       tks = Object.keys(ROT_SECTORS);
       benchTk = 'SPY';
@@ -8467,10 +8496,10 @@ const RelPerf = {
     rows.sort((a, b) => b.fin - a.fin);
     const labels = bench.dates.map(d2 => d2.slice(5));
     const datasets = rows.map((r, i) => ({
-      label: r.tk, data: r.vals, borderColor: RP_PALETTE[i % RP_PALETTE.length],
+      label: this._disp(r.tk), data: r.vals, borderColor: RP_PALETTE[i % RP_PALETTE.length],
       borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, _rp: r.tk
     }));
-    datasets.push({ label: benchTk + ' (bench)', data: bench.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
+    datasets.push({ label: this._disp(benchTk) + ' (bench)', data: bench.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
     if (state.charts.relPerf) { state.charts.relPerf.destroy(); }
     state.charts.relPerf = new Chart(cv, {
       type: 'line',
@@ -8489,18 +8518,19 @@ const RelPerf = {
     });
     if (board) {
       const bFin = bench.vals[bench.vals.length - 1];
-      board.innerHTML = '<div class="rp-row" style="cursor:default;background:transparent;color:var(--text3)"><span>#</span><span>TK</span><span style="text-align:right">RET</span><span style="text-align:right">vs ' + benchTk + '</span></div>'
+      board.innerHTML = '<div class="rp-row" style="cursor:default;background:transparent;color:var(--text3)"><span>#</span><span>TK</span><span style="text-align:right">RET</span><span style="text-align:right">vs ' + this._disp(benchTk) + '</span></div>'
         + rows.map((r, i) => {
           const col = RP_PALETTE[i % RP_PALETTE.length];
           const vsCol = r.vsB >= 0 ? 'var(--green)' : 'var(--red)';
-          return '<div class="rp-row" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
+          const tvSym = this.mode === 'crypto' ? this._disp(r.tk) + 'USD' : r.tk; // TV resuelve ETHUSD, no ETH-USD
+          return '<div class="rp-row" onclick="openTVModal(&quot;' + this._disp(r.tk) + '&quot;,&quot;' + tvSym + '&quot;,null)" title="Abrir chart ' + this._disp(r.tk) + '">'
             + '<span style="color:var(--text3)">' + (i + 1) + '</span>'
-            + '<span style="color:' + col + ';font-weight:700">' + r.tk + '</span>'
+            + '<span style="color:' + col + ';font-weight:700">' + this._disp(r.tk) + '</span>'
             + '<span style="text-align:right;color:' + (r.fin >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r.fin >= 0 ? '+' : '') + r.fin.toFixed(1) + '%</span>'
             + '<span style="text-align:right;color:' + vsCol + ';font-weight:600">' + (r.vsB >= 0 ? '+' : '') + r.vsB.toFixed(1) + '%</span>'
             + '</div>';
         }).join('')
-        + '<div class="rp-row" style="cursor:default;background:transparent"><span></span><span style="color:#f0ece4">' + benchTk + '</span><span style="text-align:right;color:var(--text2)">' + (bFin >= 0 ? '+' : '') + bFin.toFixed(1) + '%</span><span style="text-align:right;color:var(--text3)">bench</span></div>';
+        + '<div class="rp-row" style="cursor:default;background:transparent"><span></span><span style="color:#f0ece4">' + this._disp(benchTk) + '</span><span style="text-align:right;color:var(--text2)">' + (bFin >= 0 ? '+' : '') + bFin.toFixed(1) + '%</span><span style="text-align:right;color:var(--text3)">bench</span></div>';
     }
   }
 };
