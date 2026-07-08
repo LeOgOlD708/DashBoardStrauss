@@ -1220,16 +1220,24 @@ html.auth-ok #auth-gate{display:none}
         <div class="mono" id="gli-m2" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
         <div class="mono" style="font-size:9px;color:var(--text3)">M2SL mensual</div>
       </div>
-      <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
-        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">CHINA · PROXY FXI YoY</div>
+      <div style="padding:7px 9px;background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.28);border-radius:6px">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:.05em">CHINA · CRÉDITO REAL ⭐</div>
         <div class="mono" id="gli-china" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
-        <div class="mono" style="font-size:9px;color:var(--text3)">M2 China discont. en FRED → proxy honesto</div>
+        <div class="mono" style="font-size:9px;color:var(--text3)">BIS via FRED · total crédito privado YoY (rezago ~2T) · fallback FXI</div>
       </div>
       <div style="padding:7px 9px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">DXY · YoY INV</div>
         <div class="mono" id="gli-dxy" style="font-size:17px;font-weight:600;margin-top:2px">—</div>
         <div class="mono" style="font-size:9px;color:var(--text3)">USD débil → liquidez global ↑</div>
       </div>
+    </div>
+    <!-- GLI v3: pilar cross-border REAL del BIS — la pata eurodólar que antes era 0% -->
+    <div style="margin-top:7px;padding:7px 11px;background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.28);border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:.05em">CROSS-BORDER · CRÉDITO INTERNACIONAL A NON-BANKS (MUNDIAL) ⭐ REAL</div>
+        <div class="mono" style="font-size:9px;color:var(--text3);margin-top:1px">BIS WS_GLI oficial · YoY computado por el BIS · trimestral (rezago ~1T) · la pata eurodólar del GLI de Howell</div>
+      </div>
+      <div class="mono" id="gli-xb" style="font-size:19px;font-weight:600">—</div>
     </div>
     <!-- ── Ciclo de liquidez: GLI-lite semanal vs onda 65 meses (estilo CrossBorder, 2026-07-08) ── -->
     <div style="margin-top:10px;padding-top:9px;border-top:1px solid var(--border)">
@@ -1241,8 +1249,8 @@ html.auth-ok #auth-gate{display:none}
       <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px;line-height:1.5">Línea crema: GLI-lite recomputado semana a semana (~12 meses; puntos viejos usan los componentes disponibles, normalizados). Punteada roja: onda teórica de 65 meses del ciclo Howell con pico anclado en dic-2025 (Capital Wars) — es la regla del libro, NO un ajuste a los datos.</div>
     </div>
     <div style="margin-top:8px;font-size:10px;color:var(--text3);line-height:1.5">
-      Índice 0-100 tipo difusión (framework Howell): pesos Fed-flujo 22% · MOVE 18% · ECB 12% · China 12% · Fed-YoY 8% · BOJ 8% · M2 10% · DXY 8%.
-      ⭐ = los 2 pilares que Howell considera decisivos. <strong style="color:var(--text2)">Sin cross-border/eurodólar (dato propietario sin proxy gratuito)</strong> — este índice es la mejor aproximación gratuita, no el GLI oficial.
+      Índice 0-100 tipo difusión (framework Howell) · <strong style="color:var(--text2)">v3 con data REAL</strong>: pesos Fed-flujo 20% · MOVE 15% · Cross-border BIS 12% · China crédito 12% · ECB 10% · M2 9% · Fed-YoY 7% · BOJ 7% · DXY 8%.
+      ⭐ = pilares con data de primera mano. Desde v3 el cross-border/eurodólar viene del <strong style="color:var(--text2)">dataset oficial WS_GLI del BIS</strong> y China del crédito real BIS-via-FRED (antes proxy FXI) — las series trimestrales llegan con 1-2T de rezago (declarado). Lo único aún sin réplica: los flujos cross-border de ALTA frecuencia propietarios de CrossBorder Capital.
     </div>
   </div>
 
@@ -3449,7 +3457,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI'; // A063RC1+PI (2026-07-08): transfer receipts % del ingreso — dominancia fiscal
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI,CRDQCNAPABIS'; // A063RC1+PI: dominancia fiscal · CRDQCNAPABIS (GLI v3): crédito total China REAL (BIS via FRED, mata el proxy FXI)
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -3506,6 +3514,7 @@ async function bootData() {
     loadYahooData(),
     loadNewsData(),
     loadEconCalendar(),
+    loadBisData(), // GLI v3: cross-border credit real del BIS (falla tolerada — componente queda null)
   ]);
 
   if (fredResult.status === 'rejected')  console.warn('FRED:', fredResult.reason);
@@ -3562,6 +3571,8 @@ async function loadFredData() {
     // Dominancia fiscal (2026-07-08): transferencias del gobierno % del ingreso personal
     state.data.pctr      = Array.isArray(d.A063RC1)    ? d.A063RC1    : null;
     state.data.pi        = Array.isArray(d.PI)         ? d.PI         : null;
+    // GLI v3: crédito total al sector privado no-financiero de China (BIS via FRED, trimestral, rezago ~2T)
+    state.data.chinaCredit = Array.isArray(d.CRDQCNAPABIS) ? d.CRDQCNAPABIS : null;
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
     state.data.fedfunds  = Array.isArray(d.FEDFUNDS)  ? d.FEDFUNDS  : null;
@@ -3616,6 +3627,18 @@ async function loadFredData() {
     showToast('Error FRED: ' + e.message);
     throw e;
   }
+}
+
+// ── BIS: cross-border credit real (GLI v3, 2026-07-08) ──
+// "International claims on non-banks (worldwide)" YoY % — la pata eurodólar del GLI.
+// Trimestral (rezago ~1T), cache CDN 24h. state.data.xbCredit ya viene como YoY %.
+async function loadBisData() {
+  try {
+    const r = await fetch('/api/bis');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    if (Array.isArray(d.series) && d.series.length >= 8) state.data.xbCredit = d.series;
+  } catch (e) { console.warn('[BIS] cross-border no disponible:', e.message); }
 }
 
 // ── Prices: Yahoo Finance v8 vía proxy Vercel ──
@@ -5598,19 +5621,32 @@ function _gliCompsAt(when, prices) {
     return (nowV != null && past > 0) ? (nowV / past - 1) * 100 : null;
   };
   const fxiYoY = yahooYoY('FXI'), dxyYoY = yahooYoY('DX-Y.NYB');
+  // GLI v3 (2026-07-08) — dos pilares de DATA REAL reemplazan proxies:
+  //   · China: crédito total al sector privado no-financiero (BIS via FRED CRDQCNAPABIS,
+  //     trimestral, rezago ~2T). Calibración empírica 15 años: mediana YoY 9.1 (min 5.5 /
+  //     max 21.4) → neutral en 9. Fallback: proxy FXI (con su propia escala) si falta.
+  //   · Cross-border (xb): "International claims on non-banks worldwide" YoY del BIS
+  //     (WS_GLI) — LA pata eurodólar que antes era 0%. Calibración 15 años: mediana 4.1
+  //     (min −2.5 / max 11.0) → neutral en 4. La serie YA viene como crecimiento %.
+  const chinaCreditYoY = yoySer(d.chinaCredit, 365);
+  const xbYoY = when ? _findValueAt(d.xbCredit, when) : (d.xbCredit?.[0]?.value ?? null);
+  const chinaReal = chinaCreditYoY != null;
   // Cada componente → sub-score 0-100 (50 = neutral) y peso Howell-informado
   // g: sub-índice al que pertenece (split 2026-07-08 pedido por usuario) —
   //   'us' = pata Fed/USA (data casi-exacta al método Howell: flujo, balance, M2)
   //   'global' = resto del mundo + colateral (MOVE es vol de UST, pero el UST respalda
   //              el crédito GLOBAL — Howell lo trata como multiplicador mundial)
   const comps = [
-    { id: 'gli-fednet', g: 'us',     val: fedNetD13, fmt: v => (v >= 0 ? '+$' : '−$') + Math.abs(v).toFixed(0) + 'B', sc: v => clamp01(50 + v * 0.12), w: 0.22 },
-    { id: 'gli-move',   g: 'global', val: moveVal,   fmt: v => v.toFixed(0) + ' pts', sc: v => clamp01(50 + (95 - v) * 1.2), w: 0.18, inv: true },
-    { id: 'gli-walcl',  g: 'us',     val: walclYoY,  fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
-    { id: 'gli-ecb',    g: 'global', val: ecbYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.12 },
-    { id: 'gli-boj',    g: 'global', val: bojYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.08 },
-    { id: 'gli-m2',     g: 'us',     val: m2YoY,     fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + (v - 3) * 10), w: 0.10 },
-    { id: 'gli-china',  g: 'global', val: fxiYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 2.5), w: 0.12 },
+    { id: 'gli-fednet', g: 'us',     val: fedNetD13, fmt: v => (v >= 0 ? '+$' : '−$') + Math.abs(v).toFixed(0) + 'B', sc: v => clamp01(50 + v * 0.12), w: 0.20 },
+    { id: 'gli-move',   g: 'global', val: moveVal,   fmt: v => v.toFixed(0) + ' pts', sc: v => clamp01(50 + (95 - v) * 1.2), w: 0.15, inv: true },
+    { id: 'gli-xb',     g: 'global', val: xbYoY,     fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + (v - 4) * 6), w: 0.12 },
+    { id: 'gli-china',  g: 'global', val: chinaReal ? chinaCreditYoY : fxiYoY, real: chinaReal,
+      fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+      sc: chinaReal ? (v => clamp01(50 + (v - 9) * 6)) : (v => clamp01(50 + v * 2.5)), w: 0.12 },
+    { id: 'gli-ecb',    g: 'global', val: ecbYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.10 },
+    { id: 'gli-m2',     g: 'us',     val: m2YoY,     fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + (v - 3) * 10), w: 0.09 },
+    { id: 'gli-walcl',  g: 'us',     val: walclYoY,  fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.07 },
+    { id: 'gli-boj',    g: 'global', val: bojYoY,    fmt: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%', sc: v => clamp01(50 + v * 5), w: 0.07 },
     { id: 'gli-dxy',    g: 'global', val: dxyYoY,    fmt: v => (v <= 0 ? '+' : '−') + Math.abs(v).toFixed(1) + '% liq', sc: v => clamp01(50 - v * 4), w: 0.08 },
   ];
   comps.forEach(c => { c.sub = c.val != null ? c.sc(c.val) : null; });
@@ -8889,10 +8925,10 @@ const INDICATORS_GLOSSARY = {
     name: 'GLI-lite · Índice de Liquidez Global', category: 'Howell',
     source: { label: 'FRED (WALCL/ECB/BOJ/M2) + Yahoo (^MOVE, FXI, DXY)', url: 'https://fred.stlouisfed.org/series/WALCL', freq: 'Semanal/mensual' },
     what: 'Aproximación gratuita al Global Liquidity Index de Michael Howell (CrossBorder Capital): la liquidez mundial no es solo la Fed — son los bancos centrales G3+China, el multiplicador de COLATERAL (MOVE invertido: vol de Treasuries alta = haircuts repo suben = el colateral rinde menos crédito) y sobre todo los FLUJOS, no los niveles.',
-    formula: 'Índice difusión 0-100: Fed net liq Δ13sem (22%) + MOVE inv (18%) + ECB YoY (12%) + China proxy FXI YoY (12%) + M2 US YoY (10%) + Fed balance YoY (8%) + BOJ YoY (8%) + DXY YoY inv (8%). 50 = neutral.',
+    formula: 'Índice difusión 0-100 (v3, data real): Fed net liq Δ13sem (20%) + MOVE inv (15%) + Cross-border BIS YoY (12%) + China crédito real BIS YoY (12%) + ECB YoY (10%) + M2 US YoY (9%) + Fed balance YoY (7%) + BOJ YoY (7%) + DXY YoY inv (8%). 50 = neutral. Calibración empírica 15 años: cross-border neutral 4% · China neutral 9%.',
     interpret: 'GLI ≥60 = liquidez global expandiendo (viento a favor risk assets, ciclo ~65 meses en fase alcista). <45 = contrayendo. Los 2 pilares ⭐ (flujo Fed + MOVE) son los que Howell considera decisivos: el score US /8 de arriba mide NIVELES de la pata Fed; este índice mide los FLUJOS del sistema completo.',
     thresholds: [{ c: 'green', t: '≥60 → expansiva (soporte risk assets)' }, { c: 'amber', t: '45-59 → neutral / transición' }, { c: 'red', t: '<45 → contractiva (squeeze global)' }, { c: 'amber', t: 'MOVE >120 → colateral estresado (multiplicador colapsa)' }, { c: 'n', t: 'Split 🇺🇸/🌍: USA/Fed (flujo+balance+M2, fidelidad ~90% al método) vs Global ex-US (G3+China proxy+colateral, fidelidad media). Divergencia ≥15 pts = una pata gira antes que la otra' }],
-    note: 'HONESTIDAD: aproximación, NO el GLI oficial. China vía proxy FXI (la serie M2 China de FRED está discontinuada desde 2019); sin cross-border/eurodólar/FX-swaps (dato propietario de CrossBorder Capital sin proxy gratuito). Contexto Howell 2026: sitúa el pico del ciclo de ~65 meses en Q4-2025/inicio-2026 con 2026 difícil para risk assets — coherente con lecturas contractivas. El chart de la card superpone el GLI-lite semanal (~12 meses) con la onda teórica de 65 meses anclada a ese pico — es la regla del libro, no un ajuste a los datos.'
+    note: 'HONESTIDAD v3: ya NO es solo proxies — el cross-border/eurodólar viene del dataset OFICIAL del BIS (WS_GLI: international claims on non-banks worldwide, el insumo que usa el propio CrossBorder Capital) y China del crédito total real BIS-via-FRED (CRDQCNAPABIS; FXI queda de fallback). Ambas series son trimestrales con 1-2T de rezago — el índice mezcla pilares semanales (Fed) con trimestrales (declarado). Lo único irreplicable gratis: los flujos cross-border de alta frecuencia propietarios de CrossBorder. Contexto Howell 2026: pico del ciclo ~65m en Q4-25/inicio-26 — el chart de la card superpone el GLI-lite semanal con esa onda teórica (regla del libro, no fit).'
   },
   'transfer-receipts': {
     name: 'Transferencias del Gobierno % del Ingreso Personal', category: 'Fiscal · Estructural',
