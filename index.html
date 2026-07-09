@@ -11288,7 +11288,9 @@ window.OpportunityScanner = (function () {
 
   // Etiqueta visual de aceleración (badge UI). null si no aplica.
   function accelerationBadge(accel) {
-    if (accel == null) return { label: '—', cls: 'none', txt: 'sin dato' };
+    // Fix 2026-07-09 (auditoría Angel): '—' parecía dato faltante; es N/A POR DISEÑO
+    // (la aceleración solo califica tendencias alcistas: 1M < +0.5% no aplica)
+    if (accel == null) return { label: 'n/a · 1M plano/neg', cls: 'none', txt: 'no aplica: la aceleración solo califica tendencias alcistas (retorno 1M ≥ +0.5%)' };
     if (accel >= 1.5)  return { label: '↑↑ ACELERANDO', cls: 'fast', txt: 'acelerando fuerte' };
     if (accel >= 1.0)  return { label: '↑ Acelerando',  cls: 'up',   txt: 'acelerando' };
     if (accel >= 0.5)  return { label: '→ Estable',      cls: 'flat', txt: 'estable' };
@@ -11313,7 +11315,8 @@ window.OpportunityScanner = (function () {
   function dist52wPill(dist52w) {
     if (dist52w == null) return null;
     const abs = Math.abs(dist52w);
-    const txt = `${abs.toFixed(1)}% del máximo`;
+    // Fix 2026-07-09 (auditoría Angel): "1.3% del máximo" era ambiguo — ¿a 1.3% o cayó 1.3%?
+    const txt = abs < 0.05 ? 'EN máximo 52w' : `a −${abs.toFixed(1)}% del máx 52w`;
     let cls;
     if (abs < 5)       cls = 'near';   // cerca del máximo
     else if (abs <= 25) cls = 'mid';   // moderado
@@ -11693,7 +11696,7 @@ window.OpportunityScanner = (function () {
           <div class="os-cell-tooltip-row"><span>Momentum vs SPY <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('momentum-relativo-rs')">?</button></span><span class="v">${s.components.momentum}/40</span></div>
           <div class="os-cell-tooltip-row"><span>1M absoluto</span><span class="v">${chg1mTxt}</span></div>
           ${rsLine}
-          <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('aceleracion-momentum')">?</button></span><span class="v os-accel-${accelB.cls}">${accelB.label}</span></div>
+          <div class="os-cell-tooltip-row"><span>Aceleración 1W/1M <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('aceleracion-momentum')">?</button></span><span class="v os-accel-${accelB.cls}" title="${accelB.txt}">${accelB.label}</span></div>
           <div class="os-cell-tooltip-row"><span>Volumen anormal <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('volumen-anormal')">?</button></span><span class="v">${s.components.volume}/30</span></div>
           <div class="os-cell-tooltip-row"><span>Alineación Howell <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('alineacion-howell-stovall')">?</button></span><span class="v">${s.components.howell}/20</span></div>
           <div class="os-cell-tooltip-row"><span>Setup técnico <button class="help-i" type="button" style="font-size:9px;width:13px;height:13px;margin-left:3px" onclick="event.stopPropagation();openGlossary('setup-tecnico-sma50')">?</button></span><span class="v">${s.components.setup}/10</span></div>
