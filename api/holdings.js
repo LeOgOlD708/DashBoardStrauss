@@ -5,7 +5,10 @@
 
 const TIMEOUT_MS = 6000;
 const CONCURRENCY = 4;
-const TOP_N = 10;
+// 2026-07-09 (pedido Angel "cómo vemos más activos"): 10→15 por ETF — universo ~130→~200
+// evaluadas. Hecho HOY deliberadamente: con 1 solo snapshot, ampliar el universo (que mueve
+// los percentiles RS/MOM) aún no contamina el experimento del track record.
+const TOP_N = 15;
 
 async function fetchHoldings(etf) {
   const url = `https://stockanalysis.com/etf/${etf.toLowerCase()}/holdings/`;

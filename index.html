@@ -9560,7 +9560,7 @@ const TrackRecord = {
 };
 
 // ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
-const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
+const DRILL_HOLDINGS_KEY = 'drill_holdings_v3'; // v3 (2026-07-09): top-15 por ETF — invalida el cache top-10
 const CapitalDrill = {
   universe: null, rsPct: null, raws: null, _universePromise: null, currentSector: null, holdingsMap: null,
   fallbackCons() { return (window.OpportunityScanner && OpportunityScanner.config.sectorConstituents) || {}; },
