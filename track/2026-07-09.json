@@ -1,0 +1,208 @@
+{
+ "date": "2026-07-09",
+ "ts": 1783571565141,
+ "v": 1,
+ "hero": "3.0/8",
+ "postura": "DEFENSIVO SELECTIVO",
+ "quad": {
+  "q": "Q3 · STAGFLATION",
+  "conf": 27.1
+ },
+ "nfci": 69.7,
+ "gli": "47/100",
+ "spy": 745.4,
+ "sectores": [
+  {
+   "tk": "XLK",
+   "score": 53,
+   "price": 181.4
+  },
+  {
+   "tk": "XLF",
+   "score": 49,
+   "price": 54.97
+  },
+  {
+   "tk": "XLE",
+   "score": 69,
+   "price": 55.6
+  },
+  {
+   "tk": "XLV",
+   "score": 72,
+   "price": 162.3
+  },
+  {
+   "tk": "XLP",
+   "score": 60,
+   "price": 84.39
+  },
+  {
+   "tk": "XLY",
+   "score": 28,
+   "price": 115.3
+  },
+  {
+   "tk": "XLI",
+   "score": 57,
+   "price": 180.42
+  },
+  {
+   "tk": "XLB",
+   "score": 48,
+   "price": 50.16
+  },
+  {
+   "tk": "XLRE",
+   "score": 56,
+   "price": 44.15
+  },
+  {
+   "tk": "XLU",
+   "score": 46,
+   "price": 45.36
+  },
+  {
+   "tk": "XLC",
+   "score": 42,
+   "price": 109.46
+  }
+ ],
+ "candidatas": [
+  {
+   "tk": "ORKA",
+   "via": "XBI",
+   "price": 84.4,
+   "rs": 97,
+   "mom": 97,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "APGE",
+   "via": "XBI",
+   "price": 133.25,
+   "rs": 95,
+   "mom": 77,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "TWST",
+   "via": "XBI",
+   "price": 89.38,
+   "rs": 95,
+   "mom": 85,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "MRNA",
+   "via": "XBI",
+   "price": 73.8,
+   "rs": 93,
+   "mom": 59,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "FTNT",
+   "via": "IGV",
+   "price": 156.71,
+   "rs": 92,
+   "mom": 88,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "ULCC",
+   "via": "JETS",
+   "price": 7.16,
+   "rs": 91,
+   "mom": 51,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "MIRM",
+   "via": "XBI",
+   "price": 128.57,
+   "rs": 90,
+   "mom": 79,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "PANW",
+   "via": "IGV",
+   "price": 320.59,
+   "rs": 90,
+   "mom": 74,
+   "tpl": 7,
+   "pp": false
+  },
+  {
+   "tk": "CAT",
+   "via": "XLI",
+   "price": 948.08,
+   "rs": 89,
+   "mom": 96,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "CRWD",
+   "via": "IGV",
+   "price": 191.12,
+   "rs": 88,
+   "mom": 69,
+   "tpl": 7,
+   "pp": false
+  },
+  {
+   "tk": "ALGT",
+   "via": "JETS",
+   "price": 108.26,
+   "rs": 86,
+   "mom": 49,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "DAL",
+   "via": "JETS",
+   "price": 87.29,
+   "rs": 84,
+   "mom": 68,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "AAL",
+   "via": "JETS",
+   "price": 16.52,
+   "rs": 82,
+   "mom": 30,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "MNST",
+   "via": "XLP",
+   "price": 95.15,
+   "rs": 80,
+   "mom": 88,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "LLY",
+   "via": "XLV",
+   "price": 1215.83,
+   "rs": 79,
+   "mom": 62,
+   "tpl": 8,
+   "pp": false
+  }
+ ]
+}
