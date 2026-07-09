@@ -8730,6 +8730,7 @@ function renderCapitalRotation(scrubOnly) {
   if (scrubOnly === true) return; // el arrastre del slider no re-renderiza los módulos vecinos
   // FASE 1: el screener de performance relativa comparte el ciclo de render del tab
   try { if (typeof MarketMap !== 'undefined' && MarketMap.level === 'sectores') MarketMap.showSectors(); } catch (e) { /* Tanda 2b */ }
+  try { if (typeof ScannerExtras !== 'undefined') { ScannerExtras.enrich(); setTimeout(() => ScannerExtras.enrich(), 6000); } } catch (e) { /* Tanda 2c+2d — reintento por si el scanner renderiza después */ }
   try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
   try { if (typeof BumpRace !== 'undefined') BumpRace.render(); } catch (e) { /* ídem */ }
   try { if (typeof SeasonMap !== 'undefined' && !SeasonMap._init) { SeasonMap._init = true; SeasonMap.load(SeasonMap._current); } } catch (e) { /* ídem */ }
@@ -9276,6 +9277,58 @@ const MarketMap = {
       _data: { tk, name: null, chg: CapitalDrill.universe?.[tk]?.chg1d ?? null, sizeLbl: w[tk] ? w[tk].toFixed(1) + '% del ETF' : '~orden ' + (i + 1) + ' (peso no parseado)' }
     }));
     this._draw(items, d => [d.tk, (d.chg == null ? '' : (d.chg >= 0 ? '+' : '') + d.chg.toFixed(1) + '%')], d => openTVModal(d.tk, d.tk, null));
+  }
+};
+
+// ══ TANDA 2c+2d · Enriquecedores del scanner (2026-07-09) ══
+// 2c: short-ratio del PROPIO ETF sectorial (archivo FINRA, 1 llamada) — presión corta del sector
+// 2d: sparkline de la trayectoria del score (serie diaria local, se construye desde hoy)
+const ScannerExtras = {
+  _finra: null, _day: null,
+  async enrich() {
+    try {
+      const cells = document.querySelectorAll('#os-heatmap .os-cell');
+      if (!cells.length) return;
+      // — 2c: short ratio del ETF —
+      const today = new Date().toISOString().slice(0, 10);
+      if (this._day !== today || !this._finra) {
+        try {
+          const f = await fetch('/api/capital?src=finra&tickers=' + Object.keys(ROT_SECTORS).join(',')).then(r => r.json());
+          if (f?.data) { this._finra = f; this._day = today; }
+        } catch (e) {}
+      }
+      // — 2d: series de score —
+      let ser = {};
+      try { ser = JSON.parse(localStorage.getItem('os_score_series_v1') || '{}') || {}; } catch (e) {}
+      cells.forEach(cell => {
+        const tk = cell.querySelector('.os-cell-ticker')?.textContent;
+        if (!tk) return;
+        const nameEl = cell.querySelector('.os-cell-name');
+        if (nameEl && !cell.querySelector('.sshort')) {
+          const d = this._finra?.data?.[tk];
+          if (d) {
+            const col = d.ratio >= 55 ? 'var(--red)' : d.ratio <= 40 ? 'var(--green)' : 'var(--text3)';
+            nameEl.insertAdjacentHTML('beforeend', ' <span class="sshort mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME del ETF ' + tk + ' (FINRA ' + this._finra.file + '): ' + d.ratio + '% del volumen de hoy fue venta corta — presión corta sobre el SECTOR entero. >55% elevada · <40% baja (~45% normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
+          }
+        }
+        const serie = (ser[tk] || []).map(x => x.s);
+        if (serie.length >= 3 && !cell.querySelector('.sspark')) {
+          const barEl = cell.querySelector('.os-cell-bar');
+          if (barEl) {
+            const w = 46, h = 12;
+            const cvh = '<canvas class="sspark" width="' + w * 2 + '" height="' + h * 2 + '" style="width:' + w + 'px;height:' + h + 'px;position:absolute;right:8px;bottom:26px;opacity:.85" title="Trayectoria del score (' + serie.length + ' días): ' + serie.join(' → ') + '"></canvas>';
+            cell.insertAdjacentHTML('beforeend', cvh);
+            const cv = cell.querySelector('.sspark');
+            const ctx = cv.getContext('2d'); ctx.scale(2, 2);
+            const mn = Math.min(...serie), mx = Math.max(...serie), rg = mx - mn || 1;
+            ctx.strokeStyle = serie[serie.length - 1] >= serie[0] ? 'rgba(74,222,128,.9)' : 'rgba(248,113,113,.9)';
+            ctx.lineWidth = 1.2; ctx.beginPath();
+            serie.forEach((v, i) => { const x = i / (serie.length - 1) * (w - 2) + 1, y = h - 2 - (v - mn) / rg * (h - 4); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+            ctx.stroke();
+          }
+        }
+      });
+    } catch (e) {}
   }
 };
 
@@ -11941,6 +11994,19 @@ window.OpportunityScanner = (function () {
         : { d: today, ema: sc.total, emaPrev: prev ? prev.ema : null };
     }
     try { localStorage.setItem(OS_EMA_KEY, JSON.stringify(store)); } catch (e) {}
+    // Tanda 2d (2026-07-09): serie DIARIA del score por sector (cap 60d) — alimenta el
+    // sparkline de trayectoria en las celdas (la historia se construye desde hoy)
+    try {
+      const SK = 'os_score_series_v1';
+      const ser = JSON.parse(localStorage.getItem(SK) || '{}') || {};
+      const todayS = new Date().toISOString().slice(0, 10);
+      for (const sc of scores) {
+        const a = ser[sc.ticker] = ser[sc.ticker] || [];
+        if (a.length && a[a.length - 1].d === todayS) a[a.length - 1].s = sc.total;
+        else { a.push({ d: todayS, s: sc.total }); if (a.length > 60) a.shift(); }
+      }
+      localStorage.setItem(SK, JSON.stringify(ser));
+    } catch (e) {}
     const sorted = [...scores].sort((a, b) => b.total - a.total);
     let prevLeader = null;
     try { prevLeader = localStorage.getItem(OS_LEADER_KEY); } catch (e) {}
