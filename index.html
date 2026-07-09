@@ -1308,6 +1308,7 @@ html.auth-ok #auth-gate{display:none}
         <span id="nfci-badge" class="badge b-neu" style="font-size:11px">Calculando…</span>
       </div>
     </div>
+    <div id="nfci-sub" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
     <div class="ch-wrap" style="height:180px"><canvas id="nfciChart" role="img" aria-label="NFCI score vs S&P 500">NFCI vs S&P.</canvas></div>
     <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Índice oficial de la Chicago Fed (105 series, semanal, ya normalizado) convertido a score 0-100 de risk-on: Score = 100·(1−Φ(NFCI)). Bandas: &gt;70 RISK-ON (condiciones laxas) · &lt;30 RISK-OFF (tight). Línea azul: S&amp;P 500 normalizado en la misma ventana — los tramos rojos del score deberían anteceder/coincidir con los drawdowns.</div>
   </div>
@@ -3545,7 +3546,7 @@ if(_nfSkel)_nfSkel.innerHTML='<div style="padding:16px 0;font-size:10px;color:va
 // ══════════════════════════════════════════════════════════
 
 // ETF_TICKERS and ETF_META declared earlier (top of first script block) for skeleton init
-const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI,CRDQCNAPABIS,NFCI,RRSFS,PAYEMS'; // A063RC1+PI: fiscal · CRDQCNAPABIS: China real · NFCI+RRSFS+PAYEMS (FASE 2): condiciones financieras Chicago Fed + eje growth del quad engine
+const FRED_SERIES = 'WRBWFRBL,WTREGEN,SOFR,FEDFUNDS,CPIAUCSL,T5YIE,BAMLH0A0HYM2,DCOILWTICO,IPMAN,A191RL1Q225SBEA,UNRATE,T10Y2Y,RSAFS,UMCSENT,TB6MS,GS1,GS2,GS5,GS10,GS20,GS30,RRPTSYD,ICSA,INDPRO,PERMIT,PCEPILFE,T5YIFR,DFII10,BAMLC0A0CM,BAMLC0A4CBBB,DFF,WALCL,ECBASSETSW,JPNASSETS,M2SL,A063RC1,PI,CRDQCNAPABIS,NFCI,RRSFS,PAYEMS,NFCIRISK,NFCICREDIT,NFCILEVERAGE'; // fiscal · China real · quad/NFCI · subíndices NFCI (tanda 1 #3): QUÉ aprieta cuando el score cae
 
 // ── Boot on page load ──
 // Script runs near end of <body>, so DOM is already loaded.
@@ -3666,6 +3667,10 @@ async function loadFredData() {
     state.data.nfci   = Array.isArray(d.NFCI)   ? d.NFCI   : null;
     state.data.rrsfs  = Array.isArray(d.RRSFS)  ? d.RRSFS  : null;
     state.data.payems = Array.isArray(d.PAYEMS) ? d.PAYEMS : null;
+    // Subíndices NFCI (tanda 1): riesgo/vol · crédito/spreads · apalancamiento
+    state.data.nfciRisk     = Array.isArray(d.NFCIRISK)     ? d.NFCIRISK     : null;
+    state.data.nfciCredit   = Array.isArray(d.NFCICREDIT)   ? d.NFCICREDIT   : null;
+    state.data.nfciLeverage = Array.isArray(d.NFCILEVERAGE) ? d.NFCILEVERAGE : null;
     state.data.tga       = Array.isArray(d.WTREGEN)   ? d.WTREGEN   : null;
     state.data.sofr      = Array.isArray(d.SOFR)      ? d.SOFR      : null;
     state.data.fedfunds  = Array.isArray(d.FEDFUNDS)  ? d.FEDFUNDS  : null;
@@ -6106,6 +6111,21 @@ function updateNfci() {
     bdg.className = 'badge ' + (v >= 70 ? 'b-up' : v >= 30 ? 'b-neu' : 'b-dn');
     bdg.textContent = (v >= 70 ? 'RISK-ON · condiciones laxas' : v >= 30 ? 'NEUTRAL' : 'RISK-OFF · condiciones tight') + ' · NFCI ' + (s[0].value >= 0 ? '+' : '') + s[0].value.toFixed(2) + 'σ';
   }
+  // Tanda 1 (#3): desglose por subíndice — cuando el score cae, saber QUÉ aprieta
+  const subEl = document.getElementById('nfci-sub');
+  if (subEl) {
+    const subs = [
+      { n: 'RIESGO/VOL', s: state.data.nfciRisk, tip: 'volatilidad y riesgo de funding' },
+      { n: 'CRÉDITO', s: state.data.nfciCredit, tip: 'condiciones de crédito y spreads' },
+      { n: 'LEVERAGE', s: state.data.nfciLeverage, tip: 'apalancamiento (deuda/equity) — OJO: este suele LIDERAR el ciclo' },
+    ];
+    subEl.innerHTML = subs.map(x => {
+      const val = x.s?.[0]?.value;
+      if (val == null) return '';
+      const c = val > 0.3 ? 'var(--red)' : val > 0 ? 'var(--amber)' : 'var(--green)';
+      return '<span class="mono" style="font-size:9px;padding:2px 8px;border-radius:8px;border:1px solid var(--border2);color:' + c + '" title="Subíndice ' + x.n + ' del NFCI (' + x.tip + '): ' + (val >= 0 ? '+' : '') + val.toFixed(2) + 'σ — positivo = más tight que el promedio histórico">' + x.n + ' ' + (val >= 0 ? '+' : '') + val.toFixed(2) + 'σ</span>';
+    }).join(' ');
+  }
   const cv = document.getElementById('nfciChart');
   if (!cv || typeof Chart === 'undefined') return;
   // Overlay S&P normalizado 0-100 (min-max) en la MISMA ventana semanal del NFCI
@@ -7226,10 +7246,10 @@ function drawSparkline(canvas, data) {
 // Llenan el espacio vacío cuando los acordeones están cerrados, agregando contexto histórico
 function updateMotorHistoryMinis() {
   // ── Howell history shared · usado por Hero mini + Motor mini ──
-  let howellLast13 = null;
+  let howellLast13 = null, howellAll = null;
   try {
     const points = (typeof computeHistoricalHowell === 'function') ? computeHistoricalHowell() : [];
-    if (points.length) howellLast13 = points.slice(-13).map(p => p.score);
+    if (points.length) { howellLast13 = points.slice(-13).map(p => p.score); howellAll = points.map(p => p.score); }
   } catch (e) { /* swallow */ }
 
   // ── Howell mini · trayectoria score 13 semanas (Motor card en Z2) ──
@@ -7318,7 +7338,15 @@ function updateMotorHistoryMinis() {
       const arrow = delta > 0.3 ? '↑' : delta < -0.3 ? '↓' : volatil ? '↝' : '→';
       const txt = delta > 0.3 ? 'deteriora' : delta < -0.3 ? 'mejora' : volatil ? `volátil (osciló ${lo}–${hi})` : 'estable';
       const col = delta > 0.3 ? 'var(--red)' : delta < -0.3 ? 'var(--green)' : volatil ? 'var(--amber)' : 'var(--text2)';
-      trend4wEl.innerHTML = `${sign}${delta.toFixed(1)} ${arrow} <span style="font-size:11px;color:var(--text3);font-weight:400">${txt}</span>`;
+      // Tanda 1 (máximo provecho #8): percentil del score actual dentro de sus 52 semanas —
+      // ¿este 3.0 es normal, piso o techo PARA ESTE AÑO? (reusa computeHistoricalHowell)
+      let pctlTxt = '';
+      if (howellAll && howellAll.length >= 30) {
+        const p = Math.round(howellAll.filter(s => s <= cur).length / howellAll.length * 100);
+        const pCol = p >= 80 ? 'var(--red)' : p <= 20 ? 'var(--green)' : 'var(--text3)';
+        pctlTxt = ` <span style="font-size:10px;color:${pCol};font-weight:400" title="El score de hoy comparado contra sus 52 semanas: percentil ${p} (alto = más estrés que de costumbre este año)">· pctl ${p}/52sem</span>`;
+      }
+      trend4wEl.innerHTML = `${sign}${delta.toFixed(1)} ${arrow} <span style="font-size:11px;color:var(--text3);font-weight:400">${txt}</span>${pctlTxt}`;
       trend4wEl.style.color = col;
     }
   }
@@ -9499,6 +9527,11 @@ const CandidatasHoy = {
           const col = ins.buys > ins.sells ? 'var(--green)' : ins.sells > ins.buys ? 'var(--red)' : 'var(--text3)';
           const usd = ins.buyUsd >= 1e6 ? ' · $' + (ins.buyUsd / 1e6).toFixed(1) + 'M comprados' : '';
           chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="INSIDERS (SEC Form 4, 90 días, últimos ' + ins.parsed + ' de ' + ins.form4_90d + ' filings parseados): ' + ins.buys + ' compras abiertas (P) / ' + ins.sells + ' ventas (S)' + usd + '. Compras > ventas = convicción de los que más saben">👔' + ins.buys + 'C/' + ins.sells + 'V</span>');
+        }
+        // Tanda 1 #6: 8-K reciente = evento material (earnings, M&A, cambios ejecutivos) — leer antes de entrar
+        if (ins && !ins.error && ins.last8K) {
+          const d8 = Math.round((Date.now() - new Date(ins.last8K + 'T12:00:00')) / 86400000);
+          if (d8 >= 0 && d8 <= 10) chip(tk, '<span class="mono" style="font-size:8px;color:' + (d8 <= 3 ? 'var(--amber)' : 'var(--text3)') + '" title="8-K presentado el ' + ins.last8K + ' (hace ' + d8 + 'd) — evento corporativo MATERIAL reciente (SEC). Leer qué fue antes de entrar">📄8-K ' + d8 + 'd</span>');
         }
       } catch (e) {}
     }

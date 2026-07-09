@@ -29,34 +29,43 @@ module.exports = async (req, res) => {
     { role: 'user', parts: [{ text: message }] }
   ];
 
-  try {
+  // Tanda 1 #10 (2026-07-09): grounding con Google Search también en el chat (antes solo
+  // Catalysts lo tenía) — Phoenix puede citar noticias REALES. Doble intento: con tools
+  // primero; si falla (cuota/400), sin tools como siempre. maxDuration 20 en vercel.json.
+  const call = async (useGrounding) => {
+    const body = {
+      contents,
+      ...(systemPrompt && { systemInstruction: { parts: [{ text: systemPrompt }] } }),
+      // 2048: gemini-2.5 consume parte del budget en thinking; 1024 truncaba
+      // los JSON largos de la Tesis IA ("Unexpected end of JSON input")
+      generationConfig: { maxOutputTokens: 2048, temperature: 0.6 }
+    };
+    if (useGrounding) body.tools = [{ google_search: {} }];
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(8000), // Vercel free mata la función a ~10s: fallar con mensaje claro antes
-        body: JSON.stringify({
-          contents,
-          ...(systemPrompt && { systemInstruction: { parts: [{ text: systemPrompt }] } }),
-          // 2048: gemini-2.5 consume parte del budget en thinking; 1024 truncaba
-          // los JSON largos de la Tesis IA ("Unexpected end of JSON input")
-          generationConfig: { maxOutputTokens: 2048, temperature: 0.6 }
-        })
+        signal: AbortSignal.timeout(useGrounding ? 15000 : 8000),
+        body: JSON.stringify(body)
       }
     );
-
-    if (!response.ok) {
-      const errText = await response.text();
-      return res.status(502).json({ error: 'Gemini error: ' + errText });
-    }
-
+    if (!response.ok) { const t = await response.text(); const err = new Error('Gemini ' + response.status + ': ' + t.slice(0, 160)); err.status = response.status; throw err; }
     const data = await response.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
-      || 'El asistente no generó respuesta. Intenta de nuevo.';
+    const parts = data.candidates?.[0]?.content?.parts || [];
+    const reply = parts.map(p => p.text || '').join('').trim();
+    if (!reply) throw new Error('sin texto');
+    return reply;
+  };
 
-    return res.status(200).json({ reply });
-
+  try {
+    try {
+      const reply = await call(true);
+      return res.status(200).json({ reply, grounded: true });
+    } catch (e1) {
+      const reply = await call(false);
+      return res.status(200).json({ reply, grounded: false });
+    }
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }

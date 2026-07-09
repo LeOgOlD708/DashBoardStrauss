@@ -53,7 +53,11 @@ async function insiders(ticker) {
   const rec = j.filings?.recent || {};
   const since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
   const idx = [];
-  (rec.form || []).forEach((f, i) => { if (f === '4' && rec.filingDate[i] >= since) idx.push(i); });
+  let last8K = null; // tanda 1 #6: el mismo JSON trae TODOS los filings — 8-K gratis
+  (rec.form || []).forEach((f, i) => {
+    if (f === '4' && rec.filingDate[i] >= since) idx.push(i);
+    if (f === '8-K' && (!last8K || rec.filingDate[i] > last8K)) last8K = rec.filingDate[i];
+  });
   // Parsear los 6 Form 4 más recientes (transactionCode P=compra abierta, S=venta)
   let buys = 0, sells = 0, buyUsd = 0;
   for (const i of idx.slice(0, 6)) {
@@ -74,7 +78,7 @@ async function insiders(ticker) {
       });
     } catch (e) { /* form ilegible → seguir */ }
   }
-  return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd) };
+  return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), last8K };
 }
 
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
