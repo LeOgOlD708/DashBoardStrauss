@@ -9511,6 +9511,7 @@ const CapitalDrill = {
     try {
       if (benchD?.hist) renderRebasedChart('drillChart', 'drillChart', rows.map(r2 => ({ label: r2.tk, d: this.universe[r2.tk] })), { label: etf, d: benchD });
     } catch (e) { /* el chart nunca rompe la tabla */ }
+    try { this._deep3(rows.map(r2 => r2.tk), '#drill-body'); } catch (e) {}
     try { if (typeof RelPerf !== 'undefined' && RelPerf.mode === 'drill') RelPerf.render(); } catch (e) {}
   },
   async analyze(tkRaw) {
@@ -9533,6 +9534,45 @@ const CapitalDrill = {
       'RS = percentil vs el universo de ~110 holdings sectoriales (referencia, no universo total del mercado). '
       + 'Mismas métricas que el drill: U/D 50d, A/D 13w, Trend Template Minervini, dist. 52w-high. Click en fila → chart.', 'drillChart');
     try { renderRebasedChart('drillChart', 'drillChart', [{ label: tk, d: this.universe[tk] }], { label: 'SPY', d: (state.data.prices || {}).SPY }); } catch (e) {}
+    // Tanda 2a (2026-07-09): α/β a 3 AÑOS en el deep-dive individual — ventana larga, menos
+    // ruido. NO reemplaza la α de 252d de las tablas (métrica congelada mientras el track
+    // record audita el embudo — cambiar el motor a mitad del experimento lo contamina).
+    try {
+      const d3 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(tk) + ',SPY&range=3y').then(r2 => r2.json());
+      const h3 = d3?.[tk]?.hist, s3 = d3?.SPY?.hist;
+      if (h3?.length >= 400 && s3?.length >= 400) {
+        const q3 = alphaBeta(h3, s3);
+        const om3 = omega0(h3, 252);
+        const lo3 = Math.min(...h3), hi3 = Math.max(...h3);
+        const pos3 = hi3 > lo3 ? ((h3[h3.length - 1] - lo3) / (hi3 - lo3) * 100) : null;
+        const aCol = q3.alpha >= 5 ? 'var(--green)' : q3.alpha <= -5 ? 'var(--red)' : 'var(--text2)';
+        document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
+          '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">🔬 PROFUNDIDAD 3 AÑOS (' + h3.length + ' sesiones): '
+          + '<b style="color:' + aCol + '">α ' + (q3.alpha >= 0 ? '+' : '') + q3.alpha.toFixed(0) + '%</b> anualizada · β ' + q3.beta.toFixed(2) + ' · R² ' + q3.r2.toFixed(2) + ' · Ω(0) últ. año ' + om3.toFixed(2)
+          + (pos3 != null ? ' · precio en <b>percentil ' + pos3.toFixed(0) + '</b> de su rango de 3 años' : '')
+          + '<span style="color:var(--text3)"> — si difiere mucho de la α 252d de la tabla, la corta es momentum reciente, no calidad estructural</span></div>');
+      }
+    } catch (e) { /* el deep-dive nunca rompe el análisis base */ }
+  },
+  // Tanda 2a: percentil del RANGO DE 3 AÑOS (closes mensuales, fetch liviano ~120 pts/ticker)
+  // como superíndice en la columna RANGO 52w — contexto largo sin cambiar el scoring
+  async _deep3(tks, cont) {
+    try {
+      const d = await fetch('/api/yahoo?tickers=' + tks.slice(0, 15).join(',') + '&range=10y').then(r => r.json());
+      for (const tk of tks.slice(0, 15)) {
+        const h = d?.[tk]?.hist;
+        if (!h || h.length < 24) continue;
+        const h3 = h.slice(-36);
+        const lo = Math.min(...h3), hi = Math.max(...h3);
+        if (!(hi > lo)) continue;
+        const pos = (h3[h3.length - 1] - lo) / (hi - lo) * 100;
+        const cell = document.querySelector(cont + ' tr[data-tk="' + tk + '"] td:nth-last-child(2) > span');
+        if (cell && !cell.querySelector('.d3a')) {
+          const c = pos >= 85 ? 'var(--green)' : pos <= 25 ? 'var(--red)' : 'var(--text3)';
+          cell.insertAdjacentHTML('beforeend', '<sup class="d3a" style="font-size:7px;color:' + c + ';margin-left:2px" title="Rango de 3 AÑOS (mensual): el precio está en el percentil ' + pos.toFixed(0) + ' — contexto largo del bullet de 52 semanas">3A·' + pos.toFixed(0) + '</sup>');
+        }
+      }
+    } catch (e) {}
   },
   renderSectorButtons() {
     const wrap = document.getElementById('drill-sectors');
@@ -9669,6 +9709,7 @@ const CandidatasHoy = {
     body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota, 'candChart');
     try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
     try { this.enrich(r.cands); } catch (e) { /* FASE 3: enriquecimiento asíncrono, nunca rompe */ }
+    try { CapitalDrill._deep3(r.cands.map(c => c.tk), '#cand-body'); } catch (e) { /* Tanda 2a */ }
     try { this._track(r); } catch (e) { /* F4: el snapshot jamás rompe el render */ }
   },
   // ══ F4 · TRACK RECORD (2026-07-09): snapshot inmutable del embudo, 1×/día automático ══

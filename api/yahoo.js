@@ -58,8 +58,10 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
   const preYearRows = rows.filter(r => r.date < jan1);
   const ytdBase = preYearRows.length > 0 ? preYearRows[preYearRows.length - 1].close : rows[0].close;
 
-  // Return up to 252 data points (1 year of daily data)
-  const histFull = rows.slice(-252);
+  // Cap del histórico: 1 año diario por default; 3y diario (756) para el deep-dive de
+  // analyze (α/β estables); 10y mensual (~120) para estacionalidad — Tanda 2 (2026-07-09)
+  const cap = range === '3y' ? 756 : 252;
+  const histFull = rows.slice(-cap);
 
   // ── Volumen — para Opportunity Scanner (Tab 02) ──
   // regularMarketVolume: volumen del día actual (último de la serie)
@@ -147,7 +149,7 @@ module.exports = async (req, res) => {
   }
 
   // interval automático según range · 10y mensual (2026-07-08): para el heatmap de estacionalidad
-  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '10y': '1mo' };
+  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo' };
   const interval = intervalMap[range] || '1d';
 
   await Promise.all(
@@ -158,7 +160,7 @@ module.exports = async (req, res) => {
   );
 
   // Cache: 1min para intraday, 5min para 5d, 24h para 10y mensual, 15min para el resto
-  const cacheTime = range === '1d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : 900;
+  const cacheTime = range === '1d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : range === '3y' ? 21600 : 900;
   res.setHeader('Cache-Control', `s-maxage=${cacheTime}, stale-while-revalidate=60`);
   return res.status(200).json(results);
 };
