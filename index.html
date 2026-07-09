@@ -2208,7 +2208,7 @@ html.auth-ok #auth-gate{display:none}
         <!-- Time-scrubber (paquete "dimensión temporal"): reproducir la rotación hacia atrás -->
         <div style="display:flex;align-items:center;gap:8px;margin-top:7px">
           <span class="mono" style="font-size:8px;color:var(--text3);letter-spacing:.06em;white-space:nowrap">⏪ REPLAY</span>
-          <input type="range" id="rot-scrub" min="0" max="12" value="12" step="1" style="flex:1;accent-color:var(--gold);height:4px" oninput="window._rotScrub=12-(+this.value);renderCapitalRotation()" title="Arrastrá para ver dónde estaba cada sector semanas atrás — la rotación en movimiento">
+          <input type="range" id="rot-scrub" min="0" max="12" value="12" step="1" style="flex:1;accent-color:var(--gold);height:4px" oninput="window._rotScrub=12-(+this.value);renderCapitalRotation(true)" title="Arrastrá para ver dónde estaba cada sector semanas atrás — la rotación en movimiento">
           <span class="mono" id="rot-scrub-lbl" style="font-size:9px;color:var(--gold);min-width:74px;text-align:right">HOY</span>
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--text3)">
@@ -5986,10 +5986,12 @@ function computeQuadSeries() {
   // Eje GROWTH: composite de 4 proxies mensuales (z de YoY), Δ3m, z final
   const comps = [d.indpro, d.rrsfs, d.payems, d.permits].map(_yoyAsc).filter(a => a.length >= 24);
   if (comps.length < 3 || !Array.isArray(d.corePce)) return null;
+  // Review 2026-07-09: clave YYYY-MM (no la fecha cruda) — si una serie FRED cambiara el
+  // día-del-mes de sus obs, el join por string exacto vaciaba el composite en silencio
   const byDate = {};
   comps.forEach(serie => {
     const z = _zArr(serie.map(o => o.v));
-    serie.forEach((o, i) => { (byDate[o.date] = byDate[o.date] || []).push(z[i]); });
+    serie.forEach((o, i) => { const k = o.date.slice(0, 7); (byDate[k] = byDate[k] || []).push(z[i]); });
   });
   const compDates = Object.keys(byDate).filter(k => byDate[k].length >= 3).sort();
   const composite = compDates.map(k => byDate[k].reduce((x, y) => x + y, 0) / byDate[k].length);
@@ -6004,7 +6006,7 @@ function computeQuadSeries() {
     if (!pce[i - 3]?.value || !pce[i - 12]?.value) continue;
     const ann3 = (Math.pow(pce[i].value / pce[i - 3].value, 4) - 1) * 100;
     const yoy = (pce[i].value / pce[i - 12].value - 1) * 100;
-    iRaw.push(ann3 - yoy); iDates.push(pce[i].date);
+    iRaw.push(ann3 - yoy); iDates.push(pce[i].date.slice(0, 7)); // misma clave YYYY-MM del composite
   }
   if (iRaw.length < 12) return null;
   const iZ = _zArr(iRaw);
@@ -8582,7 +8584,9 @@ const rotQuadrantPlugin = {
   }
 };
 
-function renderCapitalRotation() {
+function renderCapitalRotation(scrubOnly) {
+  // scrubOnly===true: llamada desde el slider — solo el RRG cambia con el offset; no
+  // destruir/recrear RelPerf/Bump/Season en cada tick del arrastre (review 2026-07-09)
   const isInd = rotMode === 'industrias';
   const scrub = window._rotScrub || 0; // semanas hacia atrás (time-scrubber)
   const lblEl = document.getElementById('rot-scrub-lbl');
@@ -8699,6 +8703,7 @@ function renderCapitalRotation() {
   }
   // Time-scrubber: si estamos en replay, marcar la señal como vista histórica
   if (sigEl && scrub > 0) sigEl.innerHTML = '<span class="mono" style="font-size:9px;color:var(--amber)">⏪ VISTA HISTÓRICA — hace ' + scrub + ' semanas (arrastrá el slider a la derecha para volver a HOY)</span><br>' + sigEl.innerHTML;
+  if (scrubOnly === true) return; // el arrastre del slider no re-renderiza los módulos vecinos
   // FASE 1: el screener de performance relativa comparte el ciclo de render del tab
   try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
   try { if (typeof BumpRace !== 'undefined') BumpRace.render(); } catch (e) { /* ídem */ }
@@ -8797,9 +8802,12 @@ const RelPerf = {
     for (const tk of tks) {
       const rb = this._rebase(dataOf(tk), this.win);
       if (!rb) continue;
-      // alinear al largo del benchmark (mismo t₀ por construcción — ventana fija)
+      // alinear al largo del benchmark, con pad IZQUIERDO de nulls si la serie es más corta
+      // (review 2026-07-09: Chart.js mapea data[0]→labels[0] — sin pad, una serie corta se
+      // dibujaba corrida hacia el pasado en vez de anclada a hoy)
       const n = Math.min(rb.vals.length, bench.vals.length);
-      const vals = rb.vals.slice(-n);
+      const pad = bench.vals.length - n;
+      const vals = pad > 0 ? Array(pad).fill(null).concat(rb.vals.slice(-n)) : rb.vals.slice(-n);
       const fin = vals[vals.length - 1];
       rows.push({ tk, vals, fin, vsB: +(fin - bench.vals[bench.vals.length - 1]).toFixed(2) });
     }
@@ -8872,6 +8880,9 @@ function _rsNewHighFlags(itemD, benchD, windowDates) {
 function renderRebasedChart(cvId, chartKey, items, bench, win) {
   const cv = document.getElementById(cvId);
   if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
+  // Review 2026-07-09: destruir PRIMERO — los early-return de abajo dejaban un Chart vivo
+  // sobre el canvas anterior (ya desprendido por innerHTML del caller) = leak silencioso
+  if (state.charts[chartKey]) { try { state.charts[chartKey].destroy(); } catch (e) {} state.charts[chartKey] = null; }
   const b = RelPerf._rebase(bench.d, win || 30);
   if (!b) return;
   const datasets = [];
@@ -8881,8 +8892,14 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
     const n = Math.min(rb.vals.length, b.vals.length);
     const col = RP_PALETTE[i % RP_PALETTE.length];
     const winDates = rb.dates.slice(-n);
-    const flags = _rsNewHighFlags(it.d, bench.d, winDates);
-    const ds = { label: it.label, data: rb.vals.slice(-n), borderColor: col, borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false };
+    let flags = _rsNewHighFlags(it.d, bench.d, winDates);
+    // Review 2026-07-09: series más cortas que el bench se dibujaban contra los labels MÁS
+    // VIEJOS (Chart.js alinea data[0]→labels[0]) → curva corrida en el tiempo. Pad izquierdo
+    // con nulls para anclar el final a HOY.
+    const pad = b.vals.length - n;
+    const padL = (arr, fill) => pad > 0 ? Array(pad).fill(fill).concat(arr) : arr;
+    if (flags) flags = padL(flags, 0);
+    const ds = { label: it.label, data: padL(rb.vals.slice(-n), null), borderColor: col, borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, spanGaps: false };
     if (flags && flags.some(f => f)) {
       ds.pointRadius = flags.map(f => f === 2 ? 4.5 : f === 1 ? 2.5 : 0);
       ds.pointStyle = flags.map(f => f === 2 ? 'rectRot' : 'circle');
@@ -8894,7 +8911,6 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
   });
   if (!datasets.length) return;
   datasets.push({ label: bench.label + ' (bench)', data: b.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
-  if (state.charts[chartKey]) { state.charts[chartKey].destroy(); }
   state.charts[chartKey] = new Chart(cv, {
     type: 'line',
     data: { labels: b.dates.map(d2 => d2.slice(5)), datasets },
@@ -9311,6 +9327,9 @@ const CapitalDrill = {
     const body = document.getElementById('drill-body');
     if (!body) return;
     this.renderSectorButtons();
+    // Review 2026-07-09: el innerHTML de abajo desprende el canvas del chart anterior; si un
+    // early-return corta antes del render nuevo, quedaba un Chart huérfano registrado
+    if (state.charts.drillChart) { try { state.charts.drillChart.destroy(); } catch (e) {} state.charts.drillChart = null; }
     body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Cargando holdings y universo (primera vez ~8s)…</div>';
     const cons = await this.getHoldings(etf);
     if (!cons.length) { body.innerHTML = '<div style="font-size:10px;color:var(--text3)">Sin holdings disponibles para ' + etf + '.</div>'; return; }
@@ -9342,6 +9361,7 @@ const CapitalDrill = {
     if (!/^[A-Z0-9.=^-]{1,10}$/.test(tk)) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">Ticker inválido: "' + tk.slice(0, 20) + '"</div>'; return; }
     this.currentSector = null;
     this.renderSectorButtons();
+    if (state.charts.drillChart) { try { state.charts.drillChart.destroy(); } catch (e) {} state.charts.drillChart = null; } // ídem open(): sin huérfanos en early-return
     body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Analizando ' + tk + '…</div>';
     const ok = await this.ensureUniverse();
     if (!ok) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">No se pudo cargar el universo base. Reintenta.</div>'; return; }
@@ -9496,8 +9516,13 @@ const CandidatasHoy = {
   // ══ FASE 3 · "dinero real" (2026-07-08): short volume FINRA + insiders SEC + earnings ══
   // Chips asíncronos que se inyectan en la celda del ticker tras el render (no bloquean).
   async enrich(cands) {
+    // Review 2026-07-09: guard de generación — un re-scan durante el loop async inyectaba
+    // chips duplicados/stale en la tabla nueva. Solo la generación vigente escribe al DOM.
+    this._gen = (this._gen || 0) + 1;
+    const gen = this._gen;
     const tks = cands.map(r => r.tk);
     const chip = (tk, html) => {
+      if (gen !== this._gen) return;
       const cell = document.querySelector('#cand-body tr[data-tk="' + tk + '"] td');
       if (cell) cell.insertAdjacentHTML('beforeend', ' ' + html);
     };
@@ -9521,6 +9546,7 @@ const CandidatasHoy = {
     } catch (e) {}
     // 3 · Insiders SEC (top 8, secuencial — respeta el rate del SEC; cache CDN 12h por ticker)
     for (const tk of tks.slice(0, 8)) {
+      if (gen !== this._gen) return; // un re-scan nos reemplazó — abortar el loop viejo
       try {
         const ins = await fetch('/api/capital?src=insiders&tickers=' + tk).then(r2 => r2.json());
         if (ins && !ins.error && (ins.buys || ins.sells)) {
