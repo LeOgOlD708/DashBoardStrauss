@@ -20,16 +20,22 @@ async function fetchHoldings(etf) {
   const NAV_WORDS = new Set(['SCREENER', 'COMPARE', 'INDUSTRY', 'LIST', 'RANKINGS', 'SECTOR', 'NEWS', 'ANALYSIS', 'CHART', 'QUOTE', 'COMPANY']);
   const seen = new Set();
   const out = [];
+  const weights = {}; // Tanda 2b (2026-07-09): % de peso — primer "N.NN%" tras el link del símbolo
   const re = /href="\/stocks\/([a-z0-9.\-]{1,6})\/"/gi; // {1,6} coherente con el filtro de longitud de abajo
   let m;
   while ((m = re.exec(html)) !== null && out.length < TOP_N) {
     // Normalizar a formato Yahoo: mayúsculas, punto→guión (brk.b → BRK-B)
     const sym = m[1].toUpperCase().replace(/\./g, '-');
     if (NAV_WORDS.has(sym) || sym.length > 6) continue;
-    if (!seen.has(sym)) { seen.add(sym); out.push(sym); }
+    if (!seen.has(sym)) {
+      seen.add(sym); out.push(sym);
+      const ahead = html.slice(re.lastIndex, re.lastIndex + 400);
+      const wm = ahead.match(/>\s*(\d{1,2}(?:\.\d{1,2})?)%\s*</);
+      if (wm) { const w = parseFloat(wm[1]); if (w > 0 && w <= 60) weights[sym] = w; }
+    }
   }
   if (!out.length) throw new Error('parse vacío (¿cambió el HTML?)');
-  return out;
+  return { syms: out, weights };
 }
 
 module.exports = async (req, res) => {
@@ -44,12 +50,13 @@ module.exports = async (req, res) => {
   if (tickers.some(t => !/^[A-Z]{2,6}$/.test(t))) return res.status(400).json({ error: 'Ticker inválido' });
 
   const holdings = {};
+  const weights = {}; // paralelo a holdings — no rompe consumidores existentes (arrays)
   const errors = [];
   // Lotes con concurrencia limitada (11 scrapes seriales serían lentos; 11 paralelos, agresivos)
   for (let i = 0; i < tickers.length; i += CONCURRENCY) {
     const chunk = tickers.slice(i, i + CONCURRENCY);
     await Promise.all(chunk.map(async etf => {
-      try { holdings[etf] = await fetchHoldings(etf); }
+      try { const r2 = await fetchHoldings(etf); holdings[etf] = r2.syms; weights[etf] = r2.weights; }
       catch (e) { errors.push(`${etf}=${e.message}`); }
     }));
   }
@@ -59,5 +66,5 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', okCount >= tickers.length / 2
     ? 's-maxage=86400, stale-while-revalidate=43200'
     : 'max-age=0, no-cache');
-  return res.status(200).json({ holdings, errors, fetched: new Date().toISOString() });
+  return res.status(200).json({ holdings, weights, errors, fetched: new Date().toISOString() });
 };

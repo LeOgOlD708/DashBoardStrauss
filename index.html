@@ -7,6 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%94%A5%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=Playfair+Display:ital,wght@0,700;0,900;1,400&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -2287,6 +2288,16 @@ html.auth-ok #auth-gate{display:none}
   </div>
 
   <div class="sh"><div class="sh-tag">Activos</div><div class="sh-title">ETFs + Heatmap Sectorial</div><div class="sh-line"></div></div>
+
+  <!-- ══ TANDA 2b · TREEMAP — mapa del mercado por TAMAÑO real (2026-07-09) ══ -->
+  <div class="card" style="margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <span class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.08em">🗺 TREEMAP — TAMAÑO REAL DEL CAPITAL (estilo Finviz)</span>
+      <button id="mm-back" type="button" onclick="MarketMap.showSectors()" style="display:none;font-size:9px;font-family:'IBM Plex Mono',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent">← VOLVER A SECTORES</button>
+    </div>
+    <div class="ch-wrap" style="height:300px"><canvas id="mmChart" role="img" aria-label="Treemap del mercado">Treemap.</canvas></div>
+    <div class="mono" id="mm-note" style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Rectángulos = AUM del ETF sectorial (dónde está el PESO real del capital) · color = rendimiento del día · <b>click en un sector → sus holdings por % de peso</b>. A diferencia del heatmap de scores, acá un sector chico subiendo fuerte no engaña: el tamaño te dice cuánto mueve al índice.</div>
+  </div>
 
   <!-- RANGE SELECTOR -->
   <div class="range-bar" style="margin-bottom:10px">
@@ -8718,6 +8729,7 @@ function renderCapitalRotation(scrubOnly) {
   if (sigEl && scrub > 0) sigEl.innerHTML = '<span class="mono" style="font-size:9px;color:var(--amber)">⏪ VISTA HISTÓRICA — hace ' + scrub + ' semanas (arrastrá el slider a la derecha para volver a HOY)</span><br>' + sigEl.innerHTML;
   if (scrubOnly === true) return; // el arrastre del slider no re-renderiza los módulos vecinos
   // FASE 1: el screener de performance relativa comparte el ciclo de render del tab
+  try { if (typeof MarketMap !== 'undefined' && MarketMap.level === 'sectores') MarketMap.showSectors(); } catch (e) { /* Tanda 2b */ }
   try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
   try { if (typeof BumpRace !== 'undefined') BumpRace.render(); } catch (e) { /* ídem */ }
   try { if (typeof SeasonMap !== 'undefined' && !SeasonMap._init) { SeasonMap._init = true; SeasonMap.load(SeasonMap._current); } } catch (e) { /* ídem */ }
@@ -9198,6 +9210,75 @@ const SeasonMap = {
   }
 };
 
+// ══ TANDA 2b · MarketMap — treemap 2 niveles (2026-07-09, research visual idea #1) ══
+// Nivel sectores: tamaño = AUM del SPDR (FlowTracker) · color = chg1d.
+// Nivel holdings: tamaño = % de peso en el ETF (api/holdings weights) · color = chg1d.
+const MarketMap = {
+  level: 'sectores', _etf: null,
+  _color(chg) {
+    if (chg == null) return 'rgba(125,111,99,.35)';
+    const a = Math.min(Math.abs(chg) / 2.5, 1) * 0.65 + 0.15;
+    return chg >= 0 ? 'rgba(34,197,94,' + a.toFixed(2) + ')' : 'rgba(239,68,68,' + a.toFixed(2) + ')';
+  },
+  _draw(items, labelFn, onClick) {
+    const cv = document.getElementById('mmChart');
+    if (!cv || typeof Chart === 'undefined' || !Chart.registry.controllers.get('treemap')) return false;
+    if (state.charts.mmChart) { try { state.charts.mmChart.destroy(); } catch (e) {} }
+    state.charts.mmChart = new Chart(cv, {
+      type: 'treemap',
+      data: { datasets: [{
+        tree: items, key: 'size',
+        backgroundColor: c => c.raw?._data ? this._color(c.raw._data.chg) : 'transparent',
+        borderColor: 'rgba(8,5,10,.7)', borderWidth: 1.5, spacing: 1,
+        labels: { display: true, color: '#f0ece4', font: [{ size: 12, weight: 700, family: "'IBM Plex Mono',monospace" }, { size: 9, family: "'IBM Plex Mono',monospace" }],
+          formatter: c => c.raw?._data ? labelFn(c.raw._data) : '' }
+      }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+        onClick: (e, els) => { if (els?.length && onClick) { const d = els[0].element?.$context?.raw?._data; if (d) onClick(d); } },
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: {
+            title: it => it[0]?.raw?._data?.tk || '',
+            label: it => { const d = it.raw?._data; return d ? [d.name || '', 'Tamaño: ' + d.sizeLbl, 'Hoy: ' + (d.chg == null ? '—' : (d.chg >= 0 ? '+' : '') + d.chg.toFixed(2) + '%')] : ''; }
+          } } }
+      }
+    });
+    return true;
+  },
+  showSectors() {
+    this.level = 'sectores'; this._etf = null;
+    const back = document.getElementById('mm-back'); if (back) back.style.display = 'none';
+    const note = document.getElementById('mm-note');
+    if (note) note.innerHTML = 'Rectángulos = AUM del ETF sectorial (dónde está el PESO real del capital) · color = rendimiento del día · <b>click en un sector → sus holdings por % de peso</b>. A diferencia del heatmap de scores, acá un sector chico subiendo fuerte no engaña: el tamaño te dice cuánto mueve al índice.';
+    const prices = state.data.prices || {};
+    const items = Object.entries(ROT_SECTORS).map(([tk, name]) => {
+      const aum = (() => { try { const a = FlowTracker.hist?.[tk]; return a?.length ? a[a.length - 1].aum : null; } catch (e) { return null; } })();
+      const size = aum || 1e9; // sin AUM aún (1ª visita del día): iguales — honesto en el tooltip
+      return { size, _data: { tk, name, chg: prices[tk]?.chg1d ?? null, sizeLbl: aum ? '$' + (aum / 1e9).toFixed(0) + 'B AUM' : 'AUM pendiente de muestreo' } };
+    });
+    this._draw(items, d => [d.tk, (d.chg == null ? '' : (d.chg >= 0 ? '+' : '') + d.chg.toFixed(1) + '%')], d => this.showHoldings(d.tk));
+  },
+  async showHoldings(etf) {
+    this.level = 'holdings'; this._etf = etf;
+    const back = document.getElementById('mm-back'); if (back) back.style.display = '';
+    const note = document.getElementById('mm-note');
+    if (note) note.textContent = 'Holdings de ' + etf + ' — tamaño = % de peso dentro del ETF · color = rendimiento del día · click en una acción abre su chart TradingView.';
+    await CapitalDrill.loadHoldingsMap();
+    let w = CapitalDrill.weightsMap?.[etf];
+    if (!w || !Object.keys(w).length) { // cache de holdings viejo sin pesos → fetch directo
+      try { const j = await fetch('/api/holdings?tickers=' + etf).then(r => r.json()); w = j.weights?.[etf] || {}; (CapitalDrill.weightsMap = CapitalDrill.weightsMap || {})[etf] = w; } catch (e) { w = {}; }
+    }
+    const cons = CapitalDrill.holdingsMap?.[etf] || [];
+    if (!cons.length) { if (note) note.textContent = 'Sin holdings para ' + etf + '.'; return; }
+    await CapitalDrill.ensureUniverse();
+    const items = cons.map((tk, i) => ({
+      size: w[tk] || Math.max(1, 8 - i), // sin peso parseado: aprox por orden (la tabla viene ordenada por peso)
+      _data: { tk, name: null, chg: CapitalDrill.universe?.[tk]?.chg1d ?? null, sizeLbl: w[tk] ? w[tk].toFixed(1) + '% del ETF' : '~orden ' + (i + 1) + ' (peso no parseado)' }
+    }));
+    this._draw(items, d => [d.tk, (d.chg == null ? '' : (d.chg >= 0 ? '+' : '') + d.chg.toFixed(1) + '%')], d => openTVModal(d.tk, d.tk, null));
+  }
+};
+
 // ══ F4 · TrackRecord — auditoría forward del embudo (2026-07-09) ══
 // Compara cada snapshot pasado contra los precios de HOY: retorno medio de las candidatas
 // vs SPY desde la fecha del snapshot, hit-rate, y buckets por horizonte. HONESTIDAD: con
@@ -9292,6 +9373,7 @@ const CapitalDrill = {
   fallbackCons() { return (window.OpportunityScanner && OpportunityScanner.config.sectorConstituents) || {}; },
   async loadHoldingsMap() {
     if (this.holdingsMap) return this.holdingsMap;
+    try { this.weightsMap = JSON.parse(localStorage.getItem('drill_weights') || '{}'); } catch (e) { this.weightsMap = {}; }
     try {
       const c = JSON.parse(localStorage.getItem(DRILL_HOLDINGS_KEY) || 'null');
       if (c && c.map && Date.now() - c.ts < 86400000) { this.holdingsMap = c.map; return c.map; }
@@ -9299,7 +9381,7 @@ const CapitalDrill = {
     let map = {};
     try {
       const r = await fetch('/api/holdings?tickers=' + Object.keys(ROT_SECTORS).join(','));
-      if (r.ok) map = (await r.json()).holdings || {};
+      if (r.ok) { const j = await r.json(); map = j.holdings || {}; this.weightsMap = j.weights || {}; try { localStorage.setItem('drill_weights', JSON.stringify(this.weightsMap)); } catch (e2) {} }
     } catch (e) { console.warn('[Drill] holdings API:', e.message); }
     const fb = this.fallbackCons();
     for (const tk of Object.keys(ROT_SECTORS)) {
