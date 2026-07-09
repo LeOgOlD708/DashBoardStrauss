@@ -9255,6 +9255,8 @@ const MarketMap = {
     const cv = document.getElementById('mmChart');
     if (!cv || typeof Chart === 'undefined' || !Chart.registry.controllers.get('treemap')) return false;
     if (state.charts.mmChart) { try { state.charts.mmChart.destroy(); } catch (e) {} }
+    // NOTA: el plugin envuelve cada item del tree en raw._data — los campos van PLANOS
+    // en el item (un campo propio llamado _data producía doble anidado → "undefined")
     state.charts.mmChart = new Chart(cv, {
       type: 'treemap',
       data: { datasets: [{
@@ -9262,11 +9264,11 @@ const MarketMap = {
         backgroundColor: c => c.raw?._data ? this._color(c.raw._data.chg) : 'transparent',
         borderColor: 'rgba(8,5,10,.7)', borderWidth: 1.5, spacing: 1,
         labels: { display: true, color: '#f0ece4', font: [{ size: 12, weight: 700, family: "'IBM Plex Mono',monospace" }, { size: 9, family: "'IBM Plex Mono',monospace" }],
-          formatter: c => c.raw?._data ? labelFn(c.raw._data) : '' }
+          formatter: c => c.raw?._data?.tk ? labelFn(c.raw._data) : '' }
       }] },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-        onClick: (e, els) => { if (els?.length && onClick) { const d = els[0].element?.$context?.raw?._data; if (d) onClick(d); } },
+        onClick: (e, els) => { if (els?.length && onClick) { const d = els[0].element?.$context?.raw?._data; if (d?.tk) onClick(d); } },
         plugins: { legend: { display: false },
           tooltip: { callbacks: {
             title: it => it[0]?.raw?._data?.tk || '',
@@ -9285,7 +9287,7 @@ const MarketMap = {
     const items = Object.entries(ROT_SECTORS).map(([tk, name]) => {
       const aum = (() => { try { const a = FlowTracker.hist?.[tk]; return a?.length ? a[a.length - 1].aum : null; } catch (e) { return null; } })();
       const size = aum || 1e9; // sin AUM aún (1ª visita del día): iguales — honesto en el tooltip
-      return { size, _data: { tk, name, chg: prices[tk]?.chg1d ?? null, sizeLbl: aum ? '$' + (aum / 1e9).toFixed(0) + 'B AUM' : 'AUM pendiente de muestreo' } };
+      return { size, tk, name, chg: prices[tk]?.chg1d ?? null, sizeLbl: aum ? '$' + (aum / 1e9).toFixed(0) + 'B AUM' : 'AUM pendiente de muestreo' };
     });
     this._draw(items, d => [d.tk, (d.chg == null ? '' : (d.chg >= 0 ? '+' : '') + d.chg.toFixed(1) + '%')], d => this.showHoldings(d.tk));
   },
@@ -9304,7 +9306,7 @@ const MarketMap = {
     await CapitalDrill.ensureUniverse();
     const items = cons.map((tk, i) => ({
       size: w[tk] || Math.max(1, 8 - i), // sin peso parseado: aprox por orden (la tabla viene ordenada por peso)
-      _data: { tk, name: null, chg: CapitalDrill.universe?.[tk]?.chg1d ?? null, sizeLbl: w[tk] ? w[tk].toFixed(1) + '% del ETF' : '~orden ' + (i + 1) + ' (peso no parseado)' }
+      tk, name: null, chg: CapitalDrill.universe?.[tk]?.chg1d ?? null, sizeLbl: w[tk] ? w[tk].toFixed(1) + '% del ETF' : '~orden ' + (i + 1) + ' (peso no parseado)'
     }));
     this._draw(items, d => [d.tk, (d.chg == null ? '' : (d.chg >= 0 ? '+' : '') + d.chg.toFixed(1) + '%')], d => openTVModal(d.tk, d.tk, null));
   }
