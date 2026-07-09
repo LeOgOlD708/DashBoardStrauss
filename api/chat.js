@@ -46,7 +46,8 @@ module.exports = async (req, res) => {
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(useGrounding ? 15000 : 8000),
+        // 11s + 7s = 18s < maxDuration 20 (review: 15+8=23 excedía y Vercel mataba el fallback)
+        signal: AbortSignal.timeout(useGrounding ? 11000 : 7000),
         body: JSON.stringify(body)
       }
     );
@@ -63,8 +64,15 @@ module.exports = async (req, res) => {
       const reply = await call(true);
       return res.status(200).json({ reply, grounded: true });
     } catch (e1) {
-      const reply = await call(false);
-      return res.status(200).json({ reply, grounded: false });
+      // 400/401/403 no son reintentables (body malo / key mala): fallar rápido con el error REAL
+      if ([400, 401, 403].includes(e1.status)) throw e1;
+      try {
+        const reply = await call(false);
+        return res.status(200).json({ reply, grounded: false });
+      } catch (e2) {
+        e2.message = 'grounded: ' + e1.message + ' · fallback: ' + e2.message; // no enmascarar el primero
+        throw e2;
+      }
     }
   } catch (e) {
     return res.status(500).json({ error: e.message });

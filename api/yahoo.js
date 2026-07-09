@@ -77,12 +77,15 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     ? parseFloat((last50Closes.reduce((a, b) => a + b, 0) / last50Closes.length).toFixed(2))
     : null;
 
+  // Review 2026-07-09: con interval=1mo los offsets 5/22/66/20 son MESES, no días —
+  // los campos de ventana corta serían basura silenciosa. Solo hist/dates son válidos.
+  const daily = interval === '1d';
   return {
     price:  parseFloat(price.toFixed(2)),
-    chg1d:  parseFloat(((price / prevClose    - 1) * 100).toFixed(2)),
-    chg5d:  parseFloat(((price / fiveDaysAgo  - 1) * 100).toFixed(2)),
-    chg1m:  parseFloat(((price / monthAgo     - 1) * 100).toFixed(1)),
-    chg3m:  parseFloat(((price / threeMonAgo  - 1) * 100).toFixed(1)),
+    chg1d:  daily ? parseFloat(((price / prevClose    - 1) * 100).toFixed(2)) : null,
+    chg5d:  daily ? parseFloat(((price / fiveDaysAgo  - 1) * 100).toFixed(2)) : null,
+    chg1m:  daily ? parseFloat(((price / monthAgo     - 1) * 100).toFixed(1)) : null,
+    chg3m:  daily ? parseFloat(((price / threeMonAgo  - 1) * 100).toFixed(1)) : null,
     ytd:    parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
     hist:   histFull.map(r => parseFloat(r.close.toFixed(2))),
     dates:  histFull.map(r => r.date),
@@ -90,10 +93,10 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     // para U/D Volume Ratio 50d y A/D proxy 13w — huella institucional computada client-side
     vols:   histFull.map(r => (r.volume != null && !isNaN(r.volume)) ? r.volume : null),
     // Campos nuevos para Opportunity Scanner — additivos, no rompen callers existentes
-    regularMarketVolume,
-    averageVolume,
-    fiftyDayAverage,
-    regularMarketChangePercent: parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
+    regularMarketVolume: daily ? regularMarketVolume : null,
+    averageVolume: daily ? averageVolume : null,
+    fiftyDayAverage: daily ? fiftyDayAverage : null,
+    regularMarketChangePercent: daily ? parseFloat(((price / prevClose - 1) * 100).toFixed(2)) : null,
     regularMarketPrice: parseFloat(price.toFixed(2)),
   };
 }

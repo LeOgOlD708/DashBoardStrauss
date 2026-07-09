@@ -9,14 +9,17 @@ const SEC_UA = { 'User-Agent': 'DashBoardStrauss jssulopez@gmail.com' }; // SEC 
 
 // ── FINRA Reg SHO: ratio de venta corta del día (busca el último día hábil con archivo) ──
 async function finraShort(tickers) {
+  const t0 = Date.now();
+  let lastErr = null;
   for (let d = 0; d < 8; d++) {
+    if (Date.now() - t0 > 15000) throw new Error('FINRA lento — abortado a 15s' + (lastErr ? ' · último error: ' + lastErr : ''));
     const dt = new Date(Date.now() - d * 86400000);
     const dow = dt.getUTCDay();
     if (dow === 0 || dow === 6) continue;
     const ymd = dt.toISOString().slice(0, 10).replace(/-/g, '');
     let r;
-    try { r = await fetch(`https://cdn.finra.org/equity/regsho/daily/CNMSshvol${ymd}.txt`, { signal: AbortSignal.timeout(8000) }); }
-    catch (e) { continue; }
+    try { r = await fetch(`https://cdn.finra.org/equity/regsho/daily/CNMSshvol${ymd}.txt`, { signal: AbortSignal.timeout(6000) }); }
+    catch (e) { lastErr = e.message; continue; }
     if (!r.ok) continue;
     const txt = await r.text();
     const want = new Set(tickers);
@@ -58,24 +61,31 @@ async function insiders(ticker) {
     if (f === '4' && rec.filingDate[i] >= since) idx.push(i);
     if (f === '8-K' && (!last8K || rec.filingDate[i] > last8K)) last8K = rec.filingDate[i];
   });
-  // Parsear los 6 Form 4 más recientes (transactionCode P=compra abierta, S=venta)
+  // Parsear los 6 Form 4 más recientes. Review 2026-07-09: parsear POR BLOQUE de transacción
+  // (tres regex globales zipeadas por índice se desalineaban cuando una fila sin precio —
+  // regalo código G, award A — acortaba px[] → buyUsd con precios de OTRA transacción).
+  // Solo tabla non-derivative: las compras/ventas de mercado abierto viven ahí.
   let buys = 0, sells = 0, buyUsd = 0;
+  const t0 = Date.now();
   for (const i of idx.slice(0, 6)) {
+    if (Date.now() - t0 > 18000) break; // presupuesto: lejos del maxDuration 30 (SEC lento no nos mata)
     try {
       const acc = rec.accessionNumber[i].replace(/-/g, '');
       // primaryDocument suele venir como "xslF345X06/wk-form4_x.xml" (versión RENDERIZADA
       // por XSL → HTML sin <transactionCode>); el XML crudo es el basename (cazado en prod)
       const doc = rec.primaryDocument[i].split('/').pop();
-      const x = await fetch(`https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${acc}/${doc}`, { headers: SEC_UA, signal: AbortSignal.timeout(7000) });
+      const x = await fetch(`https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${acc}/${doc}`, { headers: SEC_UA, signal: AbortSignal.timeout(5000) });
       if (!x.ok) continue;
       const xml = await x.text();
-      const codes = [...xml.matchAll(/<transactionCode>([A-Z])<\/transactionCode>/g)].map(m => m[1]);
-      const shares = [...xml.matchAll(/<transactionShares>\s*<value>([\d.]+)/g)].map(m => +m[1]);
-      const px = [...xml.matchAll(/<transactionPricePerShare>\s*<value>([\d.]+)/g)].map(m => +m[1]);
-      codes.forEach((c, k) => {
-        if (c === 'P') { buys++; buyUsd += (shares[k] || 0) * (px[k] || 0); }
-        else if (c === 'S') sells++;
-      });
+      for (const b of xml.matchAll(/<nonDerivativeTransaction>([\s\S]*?)<\/nonDerivativeTransaction>/g)) {
+        const code = b[1].match(/<transactionCode>([A-Z])<\/transactionCode>/)?.[1];
+        if (code === 'P') {
+          buys++;
+          const sh = +(b[1].match(/<transactionShares>\s*<value>([\d.]+)/)?.[1] || 0);
+          const pr = +(b[1].match(/<transactionPricePerShare>\s*<value>([\d.]+)/)?.[1] || 0);
+          buyUsd += sh * pr;
+        } else if (code === 'S') sells++;
+      }
     } catch (e) { /* form ilegible → seguir */ }
   }
   return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), last8K };
