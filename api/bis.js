@@ -5,8 +5,15 @@
 // Capital usa como insumo de su GLI. API pública, sin key. Cache CDN 24h.
 // Calibración empírica 15 años (2026-07-08): min −2.5 · mediana 4.1 · max 11.0.
 
-const SERIES_KEY = 'Q.TO1.5J.N.B.I.A.771';
-const BIS_URL = `https://stats.bis.org/api/v1/data/WS_GLI/${SERIES_KEY}/all?lastNObservations=60&format=csv`;
+// Tanda 2e (2026-07-09): ?serie= parametrizada con ALLOWLIST — claves VERIFICADAS contra la
+// API real (USD EMEs +6.2 / EUR EMEs +11.6 / JPY EMEs +2.5 / USD global +8.5 al validar).
+const SERIES = {
+  xb:      { key: 'Q.TO1.5J.N.B.I.A.771',  name: 'International claims on non-banks (worldwide) · YoY %' },
+  usd_eme: { key: 'Q.USD.4T.N.A.I.B.771',  name: 'Crédito USD a no-bancos en EMEs · YoY %' },
+  eur_eme: { key: 'Q.EUR.4T.N.A.I.B.771',  name: 'Crédito EUR a no-bancos en EMEs · YoY %' },
+  jpy_eme: { key: 'Q.JPY.4T.N.A.I.B.771',  name: 'Crédito JPY a no-bancos en EMEs · YoY %' },
+  usd_gl:  { key: 'Q.USD.3P.N.A.I.B.771',  name: 'Crédito USD a no-bancos fuera de USA · YoY %' },
+};
 
 // 2026-Q1 → 2026-03-31 (fecha fin de trimestre, formato FRED-compatible)
 const Q_END = { 1: '-03-31', 2: '-06-30', 3: '-09-30', 4: '-12-31' };
@@ -15,6 +22,9 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const sel = SERIES[String(req.query.serie || 'xb')] || SERIES.xb;
+  const BIS_URL = `https://stats.bis.org/api/v1/data/WS_GLI/${sel.key}/all?lastNObservations=60&format=csv`;
 
   try {
     const r = await fetch(BIS_URL, {
@@ -41,8 +51,8 @@ module.exports = async (req, res) => {
     res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=43200');
     return res.status(200).json({
       series: obs,
-      name: 'International claims on non-banks (worldwide) · YoY %',
-      source: 'BIS WS_GLI ' + SERIES_KEY,
+      name: sel.name,
+      source: 'BIS WS_GLI ' + sel.key,
       fetched: new Date().toISOString()
     });
   } catch (e) {

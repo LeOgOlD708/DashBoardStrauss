@@ -1193,6 +1193,8 @@ html.auth-ok #auth-gate{display:none}
       </div>
     </div>
     <div id="gli-split-note" class="mono" style="display:none;font-size:9px;color:var(--amber);margin:-3px 0 8px;padding:4px 10px;background:rgba(251,191,36,.05);border-left:2px solid rgba(251,191,36,.4);border-radius:0 4px 4px 0;line-height:1.5"></div>
+    <!-- Tanda 2e: bloques de liquidez por moneda (BIS WS_GLI, claves verificadas) -->
+    <div id="gli-bloques" style="display:none;gap:6px;flex-wrap:wrap;margin:0 0 8px"></div>
     <div class="g4" style="gap:7px;margin-bottom:7px">
       <div style="padding:7px 9px;background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.28);border-radius:6px">
         <div style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--blue);letter-spacing:.05em">FED NET LIQ · Δ13 SEM ⭐</div>
@@ -5812,7 +5814,35 @@ function _gliSubIndices(comps) {
     global: _gliIndexFrom(comps.filter(c => c.g === 'global')),
   };
 }
+// Tanda 2e (2026-07-09): bloques de liquidez por moneda→EMEs (BIS WS_GLI, 1×/carga, CDN 24h)
+async function loadGliBloques() {
+  if (window.__gliBloquesDone) return;
+  window.__gliBloquesDone = true;
+  const el = document.getElementById('gli-bloques');
+  if (!el) return;
+  const defs = [
+    { s: 'usd_gl',  lbl: '$ USD→mundo', tip: 'Crédito en DÓLARES a no-bancos FUERA de USA (el eurodólar literal)' },
+    { s: 'usd_eme', lbl: '$ USD→EMEs', tip: 'Crédito en dólares a no-bancos en emergentes — la correa de transmisión clásica' },
+    { s: 'eur_eme', lbl: '€ EUR→EMEs', tip: 'Crédito en euros a emergentes — el carry del euro como fuente de liquidez' },
+    { s: 'jpy_eme', lbl: '¥ JPY→EMEs', tip: 'Crédito en yenes a emergentes — el carry del yen' },
+  ];
+  const pills = [];
+  for (const d of defs) {
+    try {
+      const j = await fetch('/api/bis?serie=' + d.s).then(r => r.json());
+      const v = j?.series?.[0]?.value;
+      if (v == null) continue;
+      const col = v >= 6 ? 'var(--green)' : v >= 0 ? 'var(--text2)' : 'var(--red)';
+      pills.push('<span class="mono" style="font-size:9px;padding:2px 8px;border-radius:8px;border:1px solid var(--border2);color:' + col + '" title="' + d.tip + ' · YoY ' + (v >= 0 ? '+' : '') + v.toFixed(1) + '% (BIS ' + (j.series[0].date || '') + ', trimestral rezago ~1T). Verde ≥+6 (expansión fuerte) · rojo <0 (contracción)">' + d.lbl + ' ' + (v >= 0 ? '+' : '') + v.toFixed(1) + '%</span>');
+    } catch (e) {}
+  }
+  if (pills.length) {
+    el.innerHTML = '<span class="mono" style="font-size:8px;color:var(--text3);letter-spacing:.06em;align-self:center">BLOQUES (BIS):</span> ' + pills.join(' ');
+    el.style.display = 'flex';
+  }
+}
 function updateGlobalLiquidity(prices) {
+  try { loadGliBloques(); } catch (e) { /* Tanda 2e — aislado */ }
   const { comps, fedNetD13 } = _gliCompsAt(null, prices);
   for (const c of comps) {
     const el = document.getElementById(c.id);
@@ -9361,6 +9391,7 @@ const TrackRecord = {
       // precios actuales de todos los tickers involucrados (batches de 20)
       const tks = new Set(['SPY']);
       snaps.forEach(s => s.candidatas.forEach(c => tks.add(c.tk)));
+      snaps.forEach(s => (s.lideres || []).forEach(L => { tks.add(L.sector); L.stocks.forEach(st => tks.add(st.tk)); })); // F4.2
       const arr = [...tks], priceNow = {};
       for (let i = 0; i < arr.length; i += 20) {
         try {
@@ -9412,6 +9443,29 @@ const TrackRecord = {
             + '<td>' + r2.hitPct.toFixed(0) + '%</td><td style="font-size:9px;color:var(--text3)">' + escHtml(r2.postura) + '</td></tr>';
         }).join('')
         + '</tbody></table></div>'
+        // ── F4.2 · ¿EL SECTOR LÍDER PAGA? (pedido Angel: efecto real de las oportunidades del líder) ──
+        + (() => {
+          const lrows = [];
+          for (const s of snaps) {
+            for (const L of (s.lideres || [])) {
+              const evals = L.stocks.filter(st => st.price > 0 && priceNow[st.tk] > 0).map(st => (priceNow[st.tk] / st.price - 1) * 100);
+              if (evals.length < 4 || !s.spy || !spyNow) continue;
+              const retStocks = evals.reduce((a, b) => a + b, 0) / evals.length;
+              const retSpy2 = (spyNow / s.spy - 1) * 100;
+              const retEtf = (L.price > 0 && priceNow[L.sector] > 0) ? (priceNow[L.sector] / L.price - 1) * 100 : null;
+              lrows.push({ date: s.date, sector: L.sector, score: L.score, n: evals.length, retStocks, retSpy: retSpy2, retEtf, exVsSpy: retStocks - retSpy2, exVsEtf: retEtf != null ? retStocks - retEtf : null });
+            }
+          }
+          if (!lrows.length) return '<div style="font-size:9px;color:var(--text3);margin-top:10px">🏆 ¿EL SECTOR LÍDER PAGA? — los snapshots registran las oportunidades del sector líder desde el 2026-07-10; esta sección se activa sola cuando haya historia.</div>';
+          const exM = lrows.reduce((a, b) => a + b.exVsSpy, 0) / lrows.length;
+          return '<div class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.06em;margin:12px 0 6px">🏆 ¿EL SECTOR LÍDER PAGA? — holdings del sector top del scanner, forward (' + lrows.length + ' registros · excess medio vs SPY ' + (exM >= 0 ? '+' : '') + exM.toFixed(1) + '%)</div>'
+            + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FECHA</th><th>SECTOR</th><th>SCORE</th><th>HOLDINGS (n)</th><th>RET HOLDINGS</th><th>vs SPY</th><th>vs SU ETF</th></tr></thead><tbody>'
+            + lrows.slice().reverse().map(l2 => '<tr><td class="mono">' + l2.date + '</td><td style="color:var(--gold)">' + l2.sector + '</td><td>' + l2.score + '</td><td>' + l2.n + '</td>'
+              + '<td style="color:' + (l2.retStocks >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.retStocks >= 0 ? '+' : '') + l2.retStocks.toFixed(1) + '%</td>'
+              + '<td style="color:' + (l2.exVsSpy >= 0 ? 'var(--green)' : 'var(--red)') + ';font-weight:700">' + (l2.exVsSpy >= 0 ? '+' : '') + l2.exVsSpy.toFixed(1) + '%</td>'
+              + '<td style="color:' + (l2.exVsEtf == null ? 'var(--text3)' : l2.exVsEtf >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.exVsEtf == null ? '—' : (l2.exVsEtf >= 0 ? '+' : '') + l2.exVsEtf.toFixed(1) + '%') + '</td></tr>').join('')
+            + '</tbody></table></div>';
+        })()
         + '<div style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Metodología: basket equiponderado de las candidatas de cada snapshot, retorno simple desde el precio grabado hasta hoy, sin costos ni slippage — mide la CALIDAD DE LA SELECCIÓN, no una estrategia ejecutable. Snapshots inmutables en <span class="mono">track/</span> del repo (first-write-wins, verificable por git).</div>';
     } catch (e) {
       body.innerHTML = '<div style="color:var(--red)">Error en la auditoría: ' + escHtml(e.message) + '</div>';
@@ -9859,8 +9913,24 @@ const CandidatasHoy = {
       return { tk, score: parseInt(c.querySelector('.os-cell-score')?.textContent) || null,
         price: state.data.prices?.[tk]?.price ?? null }; // precio del ETF → habilita auditar el scanner (F4.2)
     }).filter(s => s.score != null);
+    // F4.2 (pedido Angel: "si hoy semis es líder, marcar sus posibles oportunidades para ver
+    // si realmente hay efecto"): top-2 sectores por score con sus holdings VALORADOS — el
+    // universo ya está cargado por el scan, así que es gratis. Auditable forward.
+    let lideres = [];
+    try {
+      const top2 = [...sectores].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 2);
+      for (const s of top2) {
+        const cons = (CapitalDrill.holdingsMap?.[s.tk] || []).slice(0, 10);
+        const stocks = cons.map(tk => {
+          if (!CapitalDrill.universe?.[tk]) return null;
+          const row = CapitalDrill.stockRow(tk);
+          return row ? { tk, price: row.price, rs: row.rs, mom: row.mom, tpl: row.tpl?.passed ?? null } : null;
+        }).filter(Boolean);
+        if (stocks.length >= 5) lideres.push({ sector: s.tk, score: s.score, price: s.price, stocks });
+      }
+    } catch (e) {}
     const snap = {
-      date: today, ts: Date.now(), v: 1,
+      date: today, ts: Date.now(), v: 2, lideres,
       hero: document.getElementById('diag-score-total')?.textContent?.trim() || null,
       postura: document.getElementById('hero-postura')?.textContent?.trim() || null,
       quad: window.__quad ? { q: window.__quad.quad, conf: +window.__quad.conf.toFixed(1) } : null,

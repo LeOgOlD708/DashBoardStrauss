@@ -158,26 +158,37 @@ async function quoteMini(sym) { // precio + chg1d server-side (mismo criterio pe
   } catch (e) { return null; }
 }
 async function digest() {
+  // v2 (pedido Angel 2026-07-09): el digest lee el último snapshot del track record y arma
+  // el CONTEXTO COMPLETO del sistema — no solo cotizaciones.
   const [spy, vix, gld, dxy] = await Promise.all(['SPY', '^VIX', 'GLD', 'DX-Y.NYB'].map(quoteMini));
   const f = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
-  let track = '';
+  const fecha = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' });
+  const L = ['🌅 <b>Rebirth Capital</b> · ' + fecha];
+  L.push('📊 SPY ' + (spy ? spy.p.toFixed(2) + ' (' + f(spy.chg) + ')' : '—')
+    + ' · VIX ' + (vix ? vix.p.toFixed(1) : '—')
+    + ' · GLD ' + (gld ? f(gld.chg) : '—')
+    + ' · DXY ' + (dxy ? f(dxy.chg) : '—'));
+  if (vix?.p >= 25) L.push('⚠️ <b>VIX ' + vix.p.toFixed(1) + ' — zona de stress: sizing reducido, solo setups A</b>');
   try {
     const l = await trackList();
     if (l.dates?.length) {
       const s = await trackGet(l.dates[l.dates.length - 1]);
-      track = '\n🧾 Último snapshot (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: '
-        + s.candidatas.slice(0, 3).map(c => c.tk).join(', ') + (s.postura ? ' · ' + s.postura : '');
+      const reg = [];
+      if (s.postura) reg.push('🧭 ' + s.postura);
+      if (s.quad?.q) reg.push(s.quad.q.replace(/·\s*/, '') + (s.quad.conf != null ? ' (' + Math.round(s.quad.conf) + '%' + (s.quad.conf < 40 ? ' difuso' : '') + ')' : ''));
+      if (s.nfci != null) reg.push('NFCI ' + Math.round(s.nfci) + '/100');
+      if (s.gli) reg.push('GLI ' + s.gli);
+      if (reg.length) L.push(reg.join(' · '));
+      const secs = [...(s.sectores || [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+      if (secs.length >= 2) L.push('🏆 Líder: <b>' + secs[0].tk + ' ' + secs[0].score + '</b>/100 · 2º ' + secs[1].tk + ' ' + secs[1].score + (secs.length > 2 ? ' · cola: ' + secs[secs.length - 1].tk + ' ' + secs[secs.length - 1].score : ''));
+      if (s.lideres?.[0]?.stocks?.length) L.push('🔎 Dentro de ' + s.lideres[0].sector + ': ' + s.lideres[0].stocks.slice(0, 4).map(st => st.tk + ' RS' + st.rs).join(' · '));
+      if (s.candidatas?.length) L.push('🎯 Embudo (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: ' + s.candidatas.slice(0, 3).map(c => c.tk).join(', '));
+    } else {
+      L.push('🧾 Sin snapshots aún — abrí el dashboard y escaneá candidatas para arrancar el registro del día.');
     }
-  } catch (e) { /* sin GITHUB_TOKEN todavía — el digest de mercado sale igual */ }
-  const alerta = (vix?.p >= 25 ? '\n⚠️ <b>VIX ' + vix.p.toFixed(1) + ' — zona de stress</b>' : '');
-  const text = '🌅 <b>Rebirth Capital — digest pre-apertura</b>\n'
-    + 'SPY ' + (spy ? spy.p.toFixed(2) + ' (' + f(spy.chg) + ')' : '—')
-    + ' · VIX ' + (vix ? vix.p.toFixed(1) : '—')
-    + ' · GLD ' + (gld ? f(gld.chg) : '—')
-    + ' · DXY ' + (dxy ? f(dxy.chg) : '—')
-    + alerta + track
-    + '\n<a href="https://dash-board-strauss.vercel.app/">Abrir dashboard</a>';
-  await tgSend(text);
+  } catch (e) { /* sin GITHUB_TOKEN — el digest de mercado sale igual */ }
+  L.push('<a href="https://dash-board-strauss.vercel.app/">Abrir dashboard</a>');
+  await tgSend(L.join('\n'));
   return { sent: true, ts: new Date().toISOString() };
 }
 
