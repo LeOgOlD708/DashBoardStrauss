@@ -8735,6 +8735,11 @@ const RelPerf = {
   },
   setWindow(w) { this.win = w; this.render(); },
   _disp(tk) { return tk.replace('-USD', ''); },
+  toggle(tk) { // 👁 del leaderboard: oculta/muestra la línea (persiste entre ventanas/modos)
+    this._hidden = this._hidden || new Set();
+    this._hidden.has(tk) ? this._hidden.delete(tk) : this._hidden.add(tk);
+    this.render();
+  },
   _rebase(d, win) {
     if (!d || !Array.isArray(d.hist) || !Array.isArray(d.dates) || d.hist.length < 25) return null;
     let start;
@@ -8814,9 +8819,10 @@ const RelPerf = {
     if (!rows.length) return;
     rows.sort((a, b) => b.fin - a.fin);
     const labels = bench.dates.map(d2 => d2.slice(5));
+    this._hidden = this._hidden || new Set(); // pedido Angel 2026-07-09: ocultar activos (ruido)
     const datasets = rows.map((r, i) => ({
       label: this._disp(r.tk), data: r.vals, borderColor: RP_PALETTE[i % RP_PALETTE.length],
-      borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, _rp: r.tk
+      borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, _rp: r.tk, hidden: this._hidden.has(r.tk)
     }));
     datasets.push({ label: this._disp(benchTk) + ' (bench)', data: bench.vals, borderColor: '#f0ece4', borderWidth: 2.2, borderDash: [6, 4], pointRadius: 0, tension: .25, fill: false });
     if (state.charts.relPerf) { state.charts.relPerf.destroy(); }
@@ -8842,9 +8848,10 @@ const RelPerf = {
           const col = RP_PALETTE[i % RP_PALETTE.length];
           const vsCol = r.vsB >= 0 ? 'var(--green)' : 'var(--red)';
           const tvSym = this.mode === 'crypto' ? this._disp(r.tk) + 'USD' : r.tk; // TV resuelve ETHUSD, no ETH-USD
-          return '<div class="rp-row" onclick="openTVModal(&quot;' + this._disp(r.tk) + '&quot;,&quot;' + tvSym + '&quot;,null)" title="Abrir chart ' + this._disp(r.tk) + '">'
+          const oculto = this._hidden.has(r.tk);
+          return '<div class="rp-row" onclick="openTVModal(&quot;' + this._disp(r.tk) + '&quot;,&quot;' + tvSym + '&quot;,null)" title="Abrir chart ' + this._disp(r.tk) + ' · el 👁 lo oculta/muestra en la gráfica"' + (oculto ? ' style="opacity:.4"' : '') + '>'
             + '<span style="color:var(--text3)">' + (i + 1) + '</span>'
-            + '<span style="color:' + col + ';font-weight:700">' + this._disp(r.tk) + '</span>'
+            + '<span style="color:' + col + ';font-weight:700' + (oculto ? ';text-decoration:line-through' : '') + '">' + this._disp(r.tk) + ' <span onclick="event.stopPropagation();RelPerf.toggle(&quot;' + r.tk + '&quot;)" style="cursor:pointer;opacity:.6" title="' + (oculto ? 'Mostrar' : 'Ocultar') + ' en la gráfica">👁</span></span>'
             + '<span style="text-align:right;color:' + (r.fin >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r.fin >= 0 ? '+' : '') + r.fin.toFixed(1) + '%</span>'
             + '<span style="text-align:right;color:' + vsCol + ';font-weight:600">' + (r.vsB >= 0 ? '+' : '') + r.vsB.toFixed(1) + '%</span>'
             + '</div>';
@@ -8898,7 +8905,8 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
   const cv = document.getElementById(cvId);
   if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
   win = win || RB_STATE[chartKey]?.win || 30;
-  RB_STATE[chartKey] = { cvId, items, bench, win };
+  const hidden = RB_STATE[chartKey]?.hidden || new Set(); // ocultos persisten entre ventanas/sectores
+  RB_STATE[chartKey] = { cvId, items, bench, win, hidden };
   rbPaintBtns(chartKey, win);
   // Review 2026-07-09: destruir PRIMERO — los early-return de abajo dejaban un Chart vivo
   // sobre el canvas anterior (ya desprendido por innerHTML del caller) = leak silencioso
@@ -8919,7 +8927,7 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
     const pad = b.vals.length - n;
     const padL = (arr, fill) => pad > 0 ? Array(pad).fill(fill).concat(arr) : arr;
     if (flags) flags = padL(flags, 0);
-    const ds = { label: it.label, data: padL(rb.vals.slice(-n), null), borderColor: col, borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, spanGaps: false };
+    const ds = { label: it.label, data: padL(rb.vals.slice(-n), null), borderColor: col, borderWidth: 1.3, pointRadius: 0, tension: .25, fill: false, spanGaps: false, hidden: hidden.has(it.label) };
     if (flags && flags.some(f => f)) {
       ds.pointRadius = flags.map(f => f === 2 ? 4.5 : f === 1 ? 2.5 : 0);
       ds.pointStyle = flags.map(f => f === 2 ? 'rectRot' : 'circle');
@@ -8937,7 +8945,17 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
     options: {
       responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
       plugins: {
-        legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+        legend: {
+          display: true, position: 'top',
+          labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 },
+          // Pedido Angel 2026-07-09: ocultar activos para sacar ruido — el toggle nativo de
+          // Chart.js + registro en RB_STATE para que sobreviva cambios de ventana y de sector
+          onClick: (e, item, legend) => {
+            const s = RB_STATE[chartKey]?.hidden;
+            if (s) { const lbl = item.text; s.has(lbl) ? s.delete(lbl) : s.add(lbl); }
+            Chart.defaults.plugins.legend.onClick.call(legend, e, item, legend);
+          }
+        },
         tooltip: { mode: 'nearest', intersect: false, callbacks: { label: c => {
           const f = c.dataset._rsFlags?.[c.dataIndex];
           return c.dataset.label + ': ' + (c.parsed.y >= 0 ? '+' : '') + c.parsed.y.toFixed(1) + '%'
@@ -8960,7 +8978,7 @@ function rebasedChartHtml(cvId, titulo) {
     + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em">' + titulo + '</div>'
     + '<div style="display:flex;gap:4px;align-items:center">' + btns + '</div>'
     + '</div>'
-    + '<div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:4px">● = línea RS hace máximo anual · <span style="color:#f8d794">◆ = RS new-high ANTES que el precio (IBD: liderazgo temprano)</span></div>'
+    + '<div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:4px">● = línea RS hace máximo anual · <span style="color:#f8d794">◆ = RS new-high ANTES que el precio (IBD: liderazgo temprano)</span> · 👁 click en un nombre de la leyenda lo OCULTA/MUESTRA (sacá el ruido)</div>'
     + '<div class="ch-wrap" style="height:235px"><canvas id="' + cvId + '" role="img" aria-label="' + titulo + '">Chart rebaseado.</canvas></div>'
     + '</div>';
 }
