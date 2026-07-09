@@ -8877,9 +8877,29 @@ function _rsNewHighFlags(itemD, benchD, windowDates) {
   });
   return windowDates.map(dt => flag[dt] || 0);
 }
+// Ventanas temporales de los charts rebaseados (pedido Angel 2026-07-09): el helper guarda
+// sus propios args por chartKey; los botones 30D/90D/YTD/1A re-renderizan con la ventana nueva.
+// La elección persiste por chart (cambiar de sector en el drill respeta tu ventana).
+const RB_STATE = {};
+function rbSetWin(key, w) {
+  const s = RB_STATE[key];
+  if (!s) return;
+  renderRebasedChart(s.cvId, key, s.items, s.bench, w);
+}
+function rbPaintBtns(key, win) {
+  [30, 90, 'ytd', 252].forEach(w => {
+    const b = document.getElementById('rbw-' + key + '-' + w);
+    if (b) b.style.cssText = (String(w) === String(win))
+      ? 'font-size:8px;font-family:IBM Plex Mono,monospace;padding:2px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)'
+      : 'font-size:8px;font-family:IBM Plex Mono,monospace;padding:2px 7px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent';
+  });
+}
 function renderRebasedChart(cvId, chartKey, items, bench, win) {
   const cv = document.getElementById(cvId);
   if (!cv || typeof Chart === 'undefined' || typeof RelPerf === 'undefined') return;
+  win = win || RB_STATE[chartKey]?.win || 30;
+  RB_STATE[chartKey] = { cvId, items, bench, win };
+  rbPaintBtns(chartKey, win);
   // Review 2026-07-09: destruir PRIMERO — los early-return de abajo dejaban un Chart vivo
   // sobre el canvas anterior (ya desprendido por innerHTML del caller) = leak silencioso
   if (state.charts[chartKey]) { try { state.charts[chartKey].destroy(); } catch (e) {} state.charts[chartKey] = null; }
@@ -8931,13 +8951,16 @@ function renderRebasedChart(cvId, chartKey, items, bench, win) {
     }
   });
 }
-// HTML del wrapper del chart rebaseado (título + canvas + leyenda de señales RS)
+// HTML del wrapper del chart rebaseado (título + botones de ventana + canvas + leyenda RS)
 function rebasedChartHtml(cvId, titulo) {
+  const btns = [[30, '30D'], [90, '90D'], ['ytd', 'YTD'], [252, '1A']]
+    .map(([w, lbl]) => '<button id="rbw-' + cvId + '-' + w + '" type="button" onclick="rbSetWin(\'' + cvId + '\',' + (w === 'ytd' ? '\'ytd\'' : w) + ')" title="Rendimiento rebaseado a ' + lbl + '">' + lbl + '</button>').join('');
   return '<div style="margin-bottom:10px">'
-    + '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:4px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px">'
     + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em">' + titulo + '</div>'
-    + '<div class="mono" style="font-size:8px;color:var(--text3)">● = línea RS hace máximo anual · <span style="color:#f8d794">◆ = RS new-high ANTES que el precio (IBD: liderazgo temprano)</span></div>'
+    + '<div style="display:flex;gap:4px;align-items:center">' + btns + '</div>'
     + '</div>'
+    + '<div class="mono" style="font-size:8px;color:var(--text3);margin-bottom:4px">● = línea RS hace máximo anual · <span style="color:#f8d794">◆ = RS new-high ANTES que el precio (IBD: liderazgo temprano)</span></div>'
     + '<div class="ch-wrap" style="height:235px"><canvas id="' + cvId + '" role="img" aria-label="' + titulo + '">Chart rebaseado.</canvas></div>'
     + '</div>';
 }
@@ -9344,7 +9367,7 @@ const CapitalDrill = {
     if (!benchD || !benchD.hist) {
       try { Object.assign(this.universe, await this.fetchBatch([etf])); benchD = this.universe[etf]; } catch (e) {}
     }
-    body.innerHTML = rebasedChartHtml('drillChart', 'TOP HOLDINGS DE ' + etf + ' vs ' + etf + ' · 30 DÍAS REBASEADO — liderazgo interno sin la beta del sector')
+    body.innerHTML = rebasedChartHtml('drillChart', 'TOP HOLDINGS DE ' + etf + ' vs ' + etf + ' · REBASEADO — liderazgo interno sin la beta del sector')
       + this._rowsTableHtml(rows,
       secName + ' (' + etf + ') — top holdings rankeados por RS',
       '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · 🚀 = Pocket Pivot · 💤 = Volume Dry-Up · Click en fila → chart TradingView · '
@@ -9368,7 +9391,7 @@ const CapitalDrill = {
     if (!this.universe[tk]) Object.assign(this.universe, await this.fetchBatch([tk]));
     const row = this.stockRow(tk);
     if (!row) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">Sin datos Yahoo para "' + tk + '" (¿ticker correcto?).</div>'; return; }
-    body.innerHTML = rebasedChartHtml('drillChart', tk + ' vs SPY · 30 DÍAS REBASEADO')
+    body.innerHTML = rebasedChartHtml('drillChart', tk + ' vs SPY · REBASEADO')
       + this._rowsTableHtml([row],
       'Análisis libre: ' + tk,
       'RS = percentil vs el universo de ~110 holdings sectoriales (referencia, no universo total del mercado). '
@@ -9505,10 +9528,8 @@ const CandidatasHoy = {
     }
     const titulo = '🎯 ' + r.cands.length + ' candidata' + (r.cands.length === 1 ? '' : 's') + ' de ' + r.evaluated + ' evaluadas · vías en flujo: ' + flowsTxt;
     const nota = 'NO es una recomendación de compra: es el filtro cuantitativo del embudo. El timing de entrada (setup, stop, sizing) es decisión del trader — y el veto macro de arriba manda. Cache 15 min · umbrales en el glosario (botón ?).';
-    const chartHtml = '<div style="margin-bottom:10px">'
-      + '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">TOP ' + Math.min(10, r.cands.length) + ' CANDIDATAS vs SPY · 30 DÍAS REBASEADO (0% = t₀ común) — ¿desde cuándo lideran y con qué pendiente?</div>'
-      + '<div class="ch-wrap" style="height:235px"><canvas id="candChart" role="img" aria-label="Candidatas vs SPY rebaseado">Candidatas vs SPY.</canvas></div>'
-      + '</div>';
+    // 2026-07-09: usa el helper compartido → hereda botones de ventana 30D/90D/YTD/1A y dots RS
+    const chartHtml = rebasedChartHtml('candChart', 'TOP ' + Math.min(10, r.cands.length) + ' CANDIDATAS vs SPY · REBASEADO (0% = t₀ común) — ¿desde cuándo lideran y con qué pendiente?');
     body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota);
     try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
     try { this.enrich(r.cands); } catch (e) { /* FASE 3: enriquecimiento asíncrono, nunca rompe */ }
