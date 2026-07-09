@@ -8893,6 +8893,19 @@ function rbSetWin(key, w) {
   if (!s) return;
   renderRebasedChart(s.cvId, key, s.items, s.bench, w);
 }
+// 👁 por fila de tabla (pedido Angel 2026-07-09): mismo hidden-set que la leyenda del chart
+function rbToggleTk(key, tk) {
+  const s = RB_STATE[key];
+  if (!s) return;
+  s.hidden.has(tk) ? s.hidden.delete(tk) : s.hidden.add(tk);
+  renderRebasedChart(s.cvId, key, s.items, s.bench, s.win);
+  const oculto = s.hidden.has(tk);
+  const cont = key === 'candChart' ? '#cand-body' : '#drill-body'; // no tocar la tabla del otro módulo
+  document.querySelectorAll(cont + ' tr[data-tk="' + tk + '"] .rb-tkn').forEach(nm => {
+    nm.style.textDecoration = oculto ? 'line-through' : '';
+    nm.style.opacity = oculto ? '.5' : '';
+  });
+}
 function rbPaintBtns(key, win) {
   [30, 90, 'ytd', 252].forEach(w => {
     const b = document.getElementById('rbw-' + key + '-' + w);
@@ -9299,10 +9312,15 @@ const CapitalDrill = {
     }
     return { tk, price: d.price, chg1d: d.chg1d, chg1m: d.chg1m, rs, ud, ad, tpl, dist52, volAnom, mom, q, om, pp, vdu, pos52, sma50pos, rsLinePctl };
   },
-  _rowsTableHtml(rows, titulo, nota) {
+  _rowsTableHtml(rows, titulo, nota, eyeKey) {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
     const hasSec = rows.some(r2 => r2.sec);
-    const rowsHtml = rows.map(r => {
+    const rowsHtml = rows.map((r, idx) => {
+      // 👁 solo en las filas graficadas (top-10); sincronizado con la leyenda del chart
+      const oculto = eyeKey && RB_STATE[eyeKey]?.hidden?.has(r.tk);
+      const eye = (eyeKey && idx < 10)
+        ? ' <span class="rb-eye" onclick="event.stopPropagation();rbToggleTk(\'' + eyeKey + '\',\'' + r.tk + '\')" style="cursor:pointer;opacity:.45;font-size:9px" title="Ocultar/mostrar ' + r.tk + ' en la gráfica de arriba (sacá el ruido)">👁</span>'
+        : '';
       const rsCol = r.rs == null ? 'var(--text3)' : r.rs >= 80 ? '#4ade80' : r.rs >= 60 ? '#86efac' : r.rs >= 40 ? '#a89f93' : '#f87171';
       const udCol = r.ud == null ? 'var(--text3)' : r.ud >= 1.5 ? 'var(--green)' : r.ud >= 1 ? 'var(--text2)' : 'var(--red)';
       const inst = r.ud != null && r.ud >= 1.5 ? ' <span title="U/D >=1.5 - acumulacion institucional">🏦</span>' : '';
@@ -9335,7 +9353,7 @@ const CapitalDrill = {
         + '<span style="position:absolute;left:calc(' + Math.max(2, Math.min(98, r.pos52)).toFixed(0) + '% - 3px);top:-1px;width:6px;height:9px;border-radius:2px;background:' + d52col + ';border:1px solid rgba(8,5,10,.7)"></span>'
         + '</span><span style="color:' + d52col + '">' + fmtP(r.dist52) + '</span></span>';
       return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
-        + '<td style="font-weight:600;color:var(--text)">' + r.tk + inst + volTag + ppTag + vduTag + '</td>'
+        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + r.tk + '</span>' + eye + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
@@ -9389,7 +9407,7 @@ const CapitalDrill = {
       + this._rowsTableHtml(rows,
       secName + ' (' + etf + ') — top holdings rankeados por RS',
       '🏦 = U/D >=1.5 (acumulacion institucional) · ⚡ = volumen anormal hoy · 🚀 = Pocket Pivot · 💤 = Volume Dry-Up · Click en fila → chart TradingView · '
-      + 'Universo RS: top-10 holdings × 11 sectores (auto vía /api/holdings, cache 24h). Proxies de precio/volumen (IBD-style) — no son flujos literales.');
+      + 'Universo RS: top-10 holdings × 11 sectores (auto vía /api/holdings, cache 24h). Proxies de precio/volumen (IBD-style) — no son flujos literales.', 'drillChart');
     try {
       if (benchD?.hist) renderRebasedChart('drillChart', 'drillChart', rows.map(r2 => ({ label: r2.tk, d: this.universe[r2.tk] })), { label: etf, d: benchD });
     } catch (e) { /* el chart nunca rompe la tabla */ }
@@ -9413,7 +9431,7 @@ const CapitalDrill = {
       + this._rowsTableHtml([row],
       'Análisis libre: ' + tk,
       'RS = percentil vs el universo de ~110 holdings sectoriales (referencia, no universo total del mercado). '
-      + 'Mismas métricas que el drill: U/D 50d, A/D 13w, Trend Template Minervini, dist. 52w-high. Click en fila → chart.');
+      + 'Mismas métricas que el drill: U/D 50d, A/D 13w, Trend Template Minervini, dist. 52w-high. Click en fila → chart.', 'drillChart');
     try { renderRebasedChart('drillChart', 'drillChart', [{ label: tk, d: this.universe[tk] }], { label: 'SPY', d: (state.data.prices || {}).SPY }); } catch (e) {}
   },
   renderSectorButtons() {
@@ -9548,7 +9566,7 @@ const CandidatasHoy = {
     const nota = 'NO es una recomendación de compra: es el filtro cuantitativo del embudo. El timing de entrada (setup, stop, sizing) es decisión del trader — y el veto macro de arriba manda. Cache 15 min · umbrales en el glosario (botón ?).';
     // 2026-07-09: usa el helper compartido → hereda botones de ventana 30D/90D/YTD/1A y dots RS
     const chartHtml = rebasedChartHtml('candChart', 'TOP ' + Math.min(10, r.cands.length) + ' CANDIDATAS vs SPY · REBASEADO (0% = t₀ común) — ¿desde cuándo lideran y con qué pendiente?');
-    body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota);
+    body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota, 'candChart');
     try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
     try { this.enrich(r.cands); } catch (e) { /* FASE 3: enriquecimiento asíncrono, nunca rompe */ }
   },
