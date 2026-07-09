@@ -181,7 +181,12 @@ async function digest() {
       if (reg.length) L.push(reg.join(' · '));
       const secs = [...(s.sectores || [])].sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
       if (secs.length >= 2) L.push('🏆 Líder: <b>' + secs[0].tk + ' ' + secs[0].score + '</b>/100 · 2º ' + secs[1].tk + ' ' + secs[1].score + (secs.length > 2 ? ' · cola: ' + secs[secs.length - 1].tk + ' ' + secs[secs.length - 1].score : ''));
-      if (s.lideres?.[0]?.stocks?.length) L.push('🔎 Dentro de ' + s.lideres[0].sector + ': ' + s.lideres[0].stocks.slice(0, 4).map(st => st.tk + ' RS' + st.rs).join(' · '));
+      if (s.lideres?.[0]?.stocks?.length) {
+        const L0 = s.lideres[0], pk = L0.picks || [];
+        L.push(pk.length
+          ? '🔎 <b>Picks en ' + L0.sector + '</b> (RS≥75+template+U/D): ' + pk.slice(0, 4).join(' · ')
+          : '🔎 Dentro de ' + L0.sector + ': ' + L0.stocks.slice(0, 4).map(st => st.tk + ' RS' + st.rs).join(' · ') + ' (sin picks que pasen el filtro hoy)');
+      }
       if (s.candidatas?.length) L.push('🎯 Embudo (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: ' + s.candidatas.slice(0, 3).map(c => c.tk).join(', '));
     } else {
       L.push('🧾 Sin snapshots aún — abrí el dashboard y escaneá candidatas para arrancar el registro del día.');

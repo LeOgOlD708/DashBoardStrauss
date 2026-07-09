@@ -2136,9 +2136,13 @@ html.auth-ok #auth-gate{display:none}
         <span class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.08em">🧾 SNAPSHOTS INMUTABLES DEL EMBUDO → PERFORMANCE FORWARD vs SPY</span>
         <button class="help-i" type="button" onclick="openGlossary('track-record')" title="¿Cómo funciona?">?</button>
       </div>
-      <button type="button" onclick="TrackRecord.audit()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">⚖ AUDITAR AHORA</button>
+      <div style="display:flex;gap:6px">
+        <button type="button" onclick="TrackRecord.audit()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">⚖ AUDITAR AHORA</button>
+        <button type="button" onclick="TrackRecord.paper()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--blue);color:var(--blue);background:rgba(96,165,250,.06)">📈 CARTERA VIRTUAL</button>
+      </div>
     </div>
-    <div id="trk-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">Cada día que el embudo escanea, las candidatas quedan grabadas (fecha, precio de entrada, métricas, régimen) en un archivo INMUTABLE del repo — el primer escaneo del día gana y la historia no se puede reescribir. Este botón compara cada snapshot pasado contra los precios de HOY: ¿las candidatas le ganaron al SPY desde que el sistema las señaló? Con 20+ snapshots la respuesta empieza a ser estadística y no anécdota.</div>
+    <div id="trk-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">Cada día que el embudo escanea, las candidatas quedan grabadas (fecha, precio de entrada, métricas, régimen) en un archivo INMUTABLE del repo — el primer escaneo del día gana y la historia no se puede reescribir. ⚖ compara cada snapshot pasado contra los precios de HOY. 📈 CARTERA VIRTUAL: simula comprar las top-3 candidatas de cada snapshot y rotar al siguiente — la equity curve REAL del sistema vs SPY (se activa con 3+ snapshots). Con 20+ snapshots la respuesta empieza a ser estadística y no anécdota.</div>
+    <div id="trk-paper" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6;margin-top:8px"></div>
   </div>
 
   <div class="sh"><div class="sh-tag">Scanner</div><div class="sh-title">Opportunity Scanner — Detección Táctica de Sectores</div><div class="sh-line"></div></div>
@@ -9369,6 +9373,76 @@ const ScannerExtras = {
 // vs SPY desde la fecha del snapshot, hit-rate, y buckets por horizonte. HONESTIDAD: con
 // n<20 el resultado se etiqueta como anécdota, no estadística.
 const TrackRecord = {
+  // Compounding puro (testeable): recibe [{ret, retSpy}] en %, devuelve equity acumulada
+  _compound(legs) {
+    let eq = 1, eqSpy = 1;
+    for (const l of legs) { eq *= 1 + l.ret / 100; eqSpy *= 1 + l.retSpy / 100; }
+    return { eq: (eq - 1) * 100, eqSpy: (eqSpy - 1) * 100 };
+  },
+  // 📈 F4.5 · CARTERA VIRTUAL: compra las top-3 candidatas de cada snapshot, rota al
+  // snapshot siguiente (último tramo: hasta hoy). Equiponderada, sin costos — la equity
+  // curve del SISTEMA como estrategia, no solo la calidad de selección.
+  async paper() {
+    const body = document.getElementById('trk-paper');
+    if (!body) return;
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Reconstruyendo la cartera virtual…</div>';
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const list = await fetch('/api/capital?src=tracklist').then(r => r.json());
+      const dates = (list.dates || []).filter(d => d <= today);
+      if (dates.length < 3) {
+        body.innerHTML = '📈 <b style="color:var(--text2)">CARTERA VIRTUAL — construyéndose:</b> día <b>' + Math.max(dates.length, 1) + '</b> de 3 mínimos. Cada snapshot diario es una rotación de la cartera (top-3 candidatas, equiponderada). La equity curve aparece sola cuando haya 3+ snapshots — <i>la paciencia es parte del método</i>.';
+        return;
+      }
+      const snaps = (await Promise.all(dates.slice(-40).map(d => fetch('/api/capital?src=trackget&date=' + d).then(r => r.json()).catch(() => null)))).filter(s => s?.candidatas?.length >= 3 && s.spy > 0);
+      if (snaps.length < 3) { body.innerHTML = 'Snapshots insuficientes con candidatas evaluables (' + snaps.length + '/3).'; return; }
+      snaps.sort((a, b) => a.date < b.date ? -1 : 1);
+      // histórico 1y de todos los tickers top-3 (para cierres a fecha de rotación)
+      const tks = new Set(['SPY']);
+      snaps.forEach(s => s.candidatas.slice(0, 3).forEach(c => tks.add(c.tk)));
+      const arr = [...tks], hists = {};
+      for (let i = 0; i < arr.length; i += 15) {
+        try {
+          const j = await fetch('/api/yahoo?tickers=' + arr.slice(i, i + 15).join(',')).then(r => r.json());
+          Object.entries(j).forEach(([k, v]) => { if (v?.hist && v?.dates) hists[k] = v; });
+        } catch (e) {}
+      }
+      const closeAt = (tk, date) => { // último cierre <= date
+        const h = hists[tk]; if (!h) return null;
+        for (let i = h.dates.length - 1; i >= 0; i--) if (h.dates[i] <= date) return h.hist[i];
+        return null;
+      };
+      const legs = [];
+      for (let i = 0; i < snaps.length; i++) {
+        const s = snaps[i];
+        const toDate = i + 1 < snaps.length ? snaps[i + 1].date : today;
+        const top3 = s.candidatas.slice(0, 3).filter(c => c.price > 0);
+        const rets = top3.map(c => { const px = closeAt(c.tk, toDate); return px ? (px / c.price - 1) * 100 : null; }).filter(v => v != null);
+        const spyPx = closeAt('SPY', toDate);
+        if (rets.length < 2 || !spyPx) continue;
+        legs.push({ from: s.date, to: toDate, tks: top3.map(c => c.tk).join('·'), ret: rets.reduce((a, b) => a + b, 0) / rets.length, retSpy: (spyPx / s.spy - 1) * 100 });
+      }
+      if (legs.length < 2) { body.innerHTML = 'Tramos insuficientes para la equity curve (' + legs.length + ').'; return; }
+      const { eq, eqSpy } = this._compound(legs);
+      const exceso = eq - eqSpy;
+      const col = exceso > 1 ? 'var(--green)' : exceso < -1 ? 'var(--red)' : 'var(--amber)';
+      body.innerHTML = '<div class="mono" style="font-size:10px;color:var(--blue);letter-spacing:.06em;margin-bottom:6px">📈 CARTERA VIRTUAL — top-3 de cada snapshot, rotación por snapshot, equiponderada, sin costos</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+        + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">CARTERA</div><div style="font-size:17px;font-weight:700;color:' + (eq >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (eq >= 0 ? '+' : '') + eq.toFixed(1) + '%</div></div>'
+        + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">SPY MISMO PERÍODO</div><div style="font-size:17px;font-weight:700;color:var(--text2)">' + (eqSpy >= 0 ? '+' : '') + eqSpy.toFixed(1) + '%</div></div>'
+        + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">EXCESO (EL VEREDICTO)</div><div style="font-size:17px;font-weight:700;color:' + col + '">' + (exceso >= 0 ? '+' : '') + exceso.toFixed(1) + '%</div></div>'
+        + '</div>'
+        + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>TRAMO</th><th>CARTERA (top-3)</th><th>RET</th><th>SPY</th><th>EXCESO</th></tr></thead><tbody>'
+        + legs.slice().reverse().map(l => '<tr><td class="mono">' + l.from + ' → ' + l.to + '</td><td class="mono" style="font-size:9px">' + l.tks + '</td>'
+          + '<td style="color:' + (l.ret >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l.ret >= 0 ? '+' : '') + l.ret.toFixed(1) + '%</td>'
+          + '<td>' + (l.retSpy >= 0 ? '+' : '') + l.retSpy.toFixed(1) + '%</td>'
+          + '<td style="color:' + (l.ret - l.retSpy >= 0 ? 'var(--green)' : 'var(--red)') + ';font-weight:700">' + (l.ret - l.retSpy >= 0 ? '+' : '') + (l.ret - l.retSpy).toFixed(1) + '%</td></tr>').join('')
+        + '</tbody></table></div>'
+        + '<div style="font-size:9px;color:var(--text3);margin-top:5px">Sin costos ni slippage; rotación al precio de cierre del día del snapshot siguiente. Con ' + legs.length + ' tramos' + (legs.length < 15 ? ' — todavía ANÉCDOTA, el veredicto serio llega con 15+' : '') + '.</div>';
+    } catch (e) {
+      body.innerHTML = '<div style="color:var(--red)">Error en la cartera virtual: ' + escHtml(e.message) + '</div>';
+    }
+  },
   async audit() {
     const body = document.getElementById('trk-body');
     if (!body) return;
@@ -9450,21 +9524,27 @@ const TrackRecord = {
           const lrows = [];
           for (const s of snaps) {
             for (const L of (s.lideres || [])) {
-              const evals = L.stocks.filter(st => st.price > 0 && priceNow[st.tk] > 0).map(st => (priceNow[st.tk] / st.price - 1) * 100);
+              const priced = L.stocks.filter(st => st.price > 0 && priceNow[st.tk] > 0);
+              const evals = priced.map(st => (priceNow[st.tk] / st.price - 1) * 100);
               if (evals.length < 4 || !s.spy || !spyNow) continue;
               const retStocks = evals.reduce((a, b) => a + b, 0) / evals.length;
               const retSpy2 = (spyNow / s.spy - 1) * 100;
               const retEtf = (L.price > 0 && priceNow[L.sector] > 0) ? (priceNow[L.sector] / L.price - 1) * 100 : null;
-              lrows.push({ date: s.date, sector: L.sector, score: L.score, n: evals.length, retStocks, retSpy: retSpy2, retEtf, exVsSpy: retStocks - retSpy2, exVsEtf: retEtf != null ? retStocks - retEtf : null });
+              // PICKS (pedido Angel): ¿elegir con nuestras variables agrega valor sobre el sector entero?
+              const pk = priced.filter(st => (L.picks || []).includes(st.tk)).map(st => (priceNow[st.tk] / st.price - 1) * 100);
+              const retPicks = pk.length ? pk.reduce((a, b) => a + b, 0) / pk.length : null;
+              lrows.push({ date: s.date, sector: L.sector, score: L.score, n: evals.length, nPk: pk.length, retStocks, retPicks, retSpy: retSpy2, retEtf, exVsSpy: retStocks - retSpy2, exVsEtf: retEtf != null ? retStocks - retEtf : null, exPicks: retPicks != null ? retPicks - retStocks : null });
             }
           }
-          if (!lrows.length) return '<div style="font-size:9px;color:var(--text3);margin-top:10px">🏆 ¿EL SECTOR LÍDER PAGA? — los snapshots registran las oportunidades del sector líder desde el 2026-07-10; esta sección se activa sola cuando haya historia.</div>';
+          if (!lrows.length) return '<div style="font-size:9px;color:var(--text3);margin-top:10px">🏆 ¿EL SECTOR LÍDER PAGA? — los snapshots registran al líder con sus holdings Y los PICKS (filtrados por RS≥75 + template≥6 + U/D≥1) desde el 2026-07-10; esta sección se activa sola cuando haya historia.</div>';
           const exM = lrows.reduce((a, b) => a + b.exVsSpy, 0) / lrows.length;
-          return '<div class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.06em;margin:12px 0 6px">🏆 ¿EL SECTOR LÍDER PAGA? — holdings del sector top del scanner, forward (' + lrows.length + ' registros · excess medio vs SPY ' + (exM >= 0 ? '+' : '') + exM.toFixed(1) + '%)</div>'
-            + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FECHA</th><th>SECTOR</th><th>SCORE</th><th>HOLDINGS (n)</th><th>RET HOLDINGS</th><th>vs SPY</th><th>vs SU ETF</th></tr></thead><tbody>'
-            + lrows.slice().reverse().map(l2 => '<tr><td class="mono">' + l2.date + '</td><td style="color:var(--gold)">' + l2.sector + '</td><td>' + l2.score + '</td><td>' + l2.n + '</td>'
-              + '<td style="color:' + (l2.retStocks >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.retStocks >= 0 ? '+' : '') + l2.retStocks.toFixed(1) + '%</td>'
-              + '<td style="color:' + (l2.exVsSpy >= 0 ? 'var(--green)' : 'var(--red)') + ';font-weight:700">' + (l2.exVsSpy >= 0 ? '+' : '') + l2.exVsSpy.toFixed(1) + '%</td>'
+          return '<div class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.06em;margin:12px 0 6px">🏆 ¿EL SECTOR LÍDER PAGA? — 3 niveles: PICKS (nuestras variables) vs TODOS los holdings vs su ETF · forward (' + lrows.length + ' registros · excess holdings vs SPY ' + (exM >= 0 ? '+' : '') + exM.toFixed(1) + '%)</div>'
+            + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FECHA</th><th>SECTOR</th><th>SCORE</th><th>RET PICKS (n)</th><th>RET TODOS (n)</th><th>PICKS − TODOS</th><th>vs SPY</th><th>vs SU ETF</th></tr></thead><tbody>'
+            + lrows.slice().reverse().map(l2 => '<tr><td class="mono">' + l2.date + '</td><td style="color:var(--gold)">' + l2.sector + '</td><td>' + l2.score + '</td>'
+              + '<td style="color:' + (l2.retPicks == null ? 'var(--text3)' : l2.retPicks >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.retPicks == null ? 'sin picks' : (l2.retPicks >= 0 ? '+' : '') + l2.retPicks.toFixed(1) + '% (' + l2.nPk + ')') + '</td>'
+              + '<td style="color:' + (l2.retStocks >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.retStocks >= 0 ? '+' : '') + l2.retStocks.toFixed(1) + '% (' + l2.n + ')</td>'
+              + '<td style="color:' + (l2.exPicks == null ? 'var(--text3)' : l2.exPicks >= 0 ? 'var(--green)' : 'var(--red)') + ';font-weight:700" title="El valor agregado de FILTRAR con nuestras variables dentro del líder">' + (l2.exPicks == null ? '—' : (l2.exPicks >= 0 ? '+' : '') + l2.exPicks.toFixed(1) + '%') + '</td>'
+              + '<td style="color:' + (l2.exVsSpy >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.exVsSpy >= 0 ? '+' : '') + l2.exVsSpy.toFixed(1) + '%</td>'
               + '<td style="color:' + (l2.exVsEtf == null ? 'var(--text3)' : l2.exVsEtf >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (l2.exVsEtf == null ? '—' : (l2.exVsEtf >= 0 ? '+' : '') + l2.exVsEtf.toFixed(1) + '%') + '</td></tr>').join('')
             + '</tbody></table></div>';
         })()
@@ -9926,9 +10006,12 @@ const CandidatasHoy = {
         const stocks = cons.map(tk => {
           if (!CapitalDrill.universe?.[tk]) return null;
           const row = CapitalDrill.stockRow(tk);
-          return row ? { tk, price: row.price, rs: row.rs, mom: row.mom, tpl: row.tpl?.passed ?? null } : null;
+          return row ? { tk, price: row.price, rs: row.rs, mom: row.mom, tpl: row.tpl?.passed ?? null, ud: row.ud ?? null } : null;
         }).filter(Boolean);
-        if (stocks.length >= 5) lideres.push({ sector: s.tk, score: s.score, price: s.price, stocks });
+        // PICKS (pedido Angel): las que son OPORTUNIDAD según nuestras variables — el
+        // experimento de 3 niveles: ¿picks > todos los holdings > ETF cuando el sector lidera?
+        const picks = stocks.filter(st => (st.rs ?? 0) >= 75 && (st.tpl == null || st.tpl >= 6) && (st.ud == null || st.ud >= 1.0)).map(st => st.tk);
+        if (stocks.length >= 5) lideres.push({ sector: s.tk, score: s.score, price: s.price, stocks, picks });
       }
     } catch (e) {}
     const snap = {
