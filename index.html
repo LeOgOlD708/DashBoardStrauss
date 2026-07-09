@@ -2222,7 +2222,13 @@ html.auth-ok #auth-gate{display:none}
   <!-- ══ VIZ paquete D · Bump chart — carrera de ranking sectorial 26 semanas ══ -->
   <div class="sh"><div class="sh-tag">Ranking</div><div class="sh-title">Carrera de Ranking — ¿quién sube y quién cae en la tabla?</div><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
-    <div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:5px">POSICIÓN SEMANAL DE CADA SECTOR POR RETORNO 1M (26 SEMANAS) — #1 arriba · los CRUCES son las rotaciones de liderazgo</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px">
+      <div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em">POSICIÓN SEMANAL POR RETORNO 1M — #1 arriba · <b style="color:var(--text2)">a color: el TOP 5 de hoy</b> · gris: el resto · los CRUCES son las rotaciones</div>
+      <div style="display:flex;gap:4px">
+        <button id="bump-w-13" type="button" onclick="BumpRace.setWeeks(13)">13 SEM</button>
+        <button id="bump-w-26" type="button" onclick="BumpRace.setWeeks(26)">26 SEM</button>
+      </div>
+    </div>
     <div class="ch-wrap" style="height:280px"><canvas id="bumpChart" role="img" aria-label="Carrera de ranking sectorial">Bump chart.</canvas></div>
     <div class="mono" style="font-size:9px;color:var(--text3);margin-top:5px">Complementa al RRG: el cuadrante muestra el ESTADO (dónde está el capital), esta carrera muestra la SECUENCIA (cómo llegó ahí). Un sector cruzando de #9 a #3 en pocas semanas = rotación entrante en curso.</div>
   </div>
@@ -8895,14 +8901,44 @@ function rebasedChartHtml(cvId, titulo) {
 // ══ VIZ paquete D · BumpRace — ranking semanal de sectores por retorno 1M (26 semanas) ══
 // Computado del hist diario existente (cero data nueva): en cada semana w, rank 1-11 por
 // retorno trailing 21d. Los cruces de líneas = rotaciones de liderazgo (complemento del RRG).
+// Fix legibilidad 2026-07-09 (reporte visual Angel): 26 sem × 11 líneas iguales = espagueti.
+// Ahora: JERARQUÍA (top-5 de HOY a color y gruesos, el resto gris translúcido — el ojo va a
+// lo que importa), etiquetas de ticker al borde derecho con anti-colisión (patrón del RRG),
+// 13 semanas por defecto (toggle 13/26), tensión baja y leyenda fuera (las líneas se nombran solas).
+const bumpLabelsPlugin = {
+  id: 'bumpLabels',
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea: a } = chart;
+    ctx.font = "600 9px 'IBM Plex Mono', monospace";
+    const labs = [];
+    chart.data.datasets.forEach((ds, i) => {
+      if (!ds._bumpTk) return;
+      const meta = chart.getDatasetMeta(i);
+      const el = meta.data[meta.data.length - 1];
+      if (!el) return;
+      labs.push({ txt: '#' + ds._bumpRank + ' ' + ds._bumpTk, col: ds._bumpTop ? ds.borderColor : '#7d6f63', x: el.x + 7, y: el.y + 3, top: ds._bumpTop });
+    });
+    labs.sort((p, q) => p.y - q.y);
+    for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 11) labs[i].y = labs[i - 1].y + 11;
+    for (const L of labs) {
+      const w = ctx.measureText(L.txt).width;
+      ctx.fillStyle = 'rgba(8,5,10,.85)';
+      ctx.fillRect(Math.min(L.x, a.right + 2) - 2, L.y - 8, w + 4, 11);
+      ctx.fillStyle = L.col;
+      ctx.fillText(L.txt, Math.min(L.x, a.right + 2), L.y);
+    }
+  }
+};
 const BumpRace = {
+  weeks: 13,
+  setWeeks(w) { this.weeks = w; this.render(); },
   render() {
     const cv = document.getElementById('bumpChart');
     if (!cv || typeof Chart === 'undefined') return;
     const prices = state.data.prices || {};
     const tks = Object.keys(ROT_SECTORS).filter(tk => prices[tk]?.hist?.length >= 160);
     if (tks.length < 6) return;
-    const WEEKS = 26;
+    const WEEKS = this.weeks;
     const ranksByTk = {}; tks.forEach(tk => ranksByTk[tk] = []);
     const labels = [];
     for (let w = WEEKS - 1; w >= 0; w--) {
@@ -8918,21 +8954,36 @@ const BumpRace = {
       tks.forEach(tk => ranksByTk[tk].push(rank[tk] ?? null));
       labels.push(w === 0 ? 'HOY' : '-' + w + 'w');
     }
-    const datasets = tks.map((tk, i) => ({
-      label: tk, data: ranksByTk[tk], borderColor: RP_PALETTE[i % RP_PALETTE.length],
-      borderWidth: ranksByTk[tk][ranksByTk[tk].length - 1] <= 3 ? 2.2 : 1.1, // top 3 actual más gruesos
-      pointRadius: ranksByTk[tk].map((_, j) => j === ranksByTk[tk].length - 1 ? 4 : 0),
-      pointBackgroundColor: RP_PALETTE[i % RP_PALETTE.length],
-      tension: .35, fill: false, spanGaps: true
-    }));
+    const datasets = tks.map((tk, i) => {
+      const serie = ranksByTk[tk];
+      const cur = serie[serie.length - 1];
+      const top = cur != null && cur <= 5;
+      return {
+        label: tk, data: serie, _bumpTk: tk, _bumpRank: cur, _bumpTop: top,
+        borderColor: top ? RP_PALETTE[i % RP_PALETTE.length] : 'rgba(125,111,99,.28)',
+        borderWidth: top ? (cur <= 3 ? 2.4 : 1.8) : 0.9,
+        pointRadius: serie.map((_, j) => j === serie.length - 1 && top ? 3.5 : 0),
+        pointBackgroundColor: RP_PALETTE[i % RP_PALETTE.length],
+        tension: .2, fill: false, spanGaps: true, order: top ? 0 : 1
+      };
+    });
+    // botones 13/26
+    ['bump-w-13', 'bump-w-26'].forEach(id => {
+      const b = document.getElementById(id);
+      if (b) b.style.cssText = (+id.slice(-2) === WEEKS)
+        ? 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:2px 8px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)'
+        : 'font-size:9px;font-family:IBM Plex Mono,monospace;padding:2px 8px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent';
+    });
     if (state.charts.bumpChart) state.charts.bumpChart.destroy();
     state.charts.bumpChart = new Chart(cv, {
       type: 'line',
       data: { labels, datasets },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+        layout: { padding: { right: 62 } }, // espacio para las etiquetas de borde
         plugins: {
-          legend: { display: true, position: 'top', labels: { color: '#a89f93', font: { size: 8, family: "'IBM Plex Mono',monospace" }, boxWidth: 9, boxHeight: 2 } },
+          legend: { display: false },
+          bumpLabels: {},
           tooltip: { mode: 'index', intersect: false, itemSort: (a, b) => a.parsed.y - b.parsed.y,
             callbacks: { label: c => '#' + c.parsed.y + ' ' + c.dataset.label } }
         },
@@ -8940,7 +8991,8 @@ const BumpRace = {
           x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 10, maxRotation: 0 } },
           y: { reverse: true, min: 1, max: 11, grid: { color: 'rgba(45,30,30,.25)' }, ticks: { stepSize: 1, color: '#7d6f63', font: { size: 8 }, callback: v => '#' + v } }
         }
-      }
+      },
+      plugins: [bumpLabelsPlugin]
     });
   }
 };
@@ -9542,17 +9594,30 @@ const FlowTracker = {
     }
     const maxAbs = Math.max(...withData.map(x => Math.abs(x.f.usd)), 1);
     const days = withData[0].f.days;
+    // Fix 2026-07-09 (reporte visual Angel): 11 barras verdes "+$0K" idénticas confundían.
+    // Cero = sin barra y en gris; y si TODO es ~0, un solo mensaje honesto en vez de la lista.
+    const ZERO = 1e5; // <$100K ≈ sin cambio material de shares
+    const allZero = withData.every(x => Math.abs(x.f.usd) < ZERO);
+    if (allZero) {
+      el.innerHTML = head
+        + '<div style="font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.6;padding:7px 9px;background:var(--surface2);border-radius:4px">'
+        + '≈ <b style="color:var(--text2)">Sin creations/redemptions materiales</b> entre las muestras (' + days + 'd de ventana, 11 sectores).<br>'
+        + 'Los shares outstanding no cambiaron — los Authorized Participants no crearon ni redimieron (o la fuente aún no actualizó, T+1). '
+        + 'La señal aparece cuando el dinero LITERAL entra o sale; con 3+ días de historia el panel toma forma.</div>';
+      return;
+    }
     const rows = withData.sort((a, b) => b.f.usd - a.f.usd).map(({ tk, f }) => {
-      const pct = Math.max(4, Math.round(Math.abs(f.usd) / maxAbs * 100));
-      const col = f.usd >= 0 ? 'var(--green)' : 'var(--red)';
-      return '<div style="display:grid;grid-template-columns:38px 1fr 74px;gap:7px;align-items:center;margin-bottom:3px" title="' + tk + ' · flujo desde ' + f.from + ' (' + f.days + 'd) · AUM ' + fmtAum(f.aum) + '">'
+      const zero = Math.abs(f.usd) < ZERO;
+      const pct = zero ? 0 : Math.max(4, Math.round(Math.abs(f.usd) / maxAbs * 100));
+      const col = zero ? 'var(--text3)' : (f.usd >= 0 ? 'var(--green)' : 'var(--red)');
+      return '<div style="display:grid;grid-template-columns:38px 1fr 74px;gap:7px;align-items:center;margin-bottom:3px" title="' + tk + ' · flujo desde ' + f.from + ' (' + f.days + 'd) · AUM ' + fmtAum(f.aum) + (zero ? ' · sin cambio material de shares entre muestras' : '') + '">'
         + '<span style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;color:var(--text)">' + tk + '</span>'
-        + '<span style="height:7px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;display:block"><span style="display:block;height:100%;width:' + pct + '%;background:' + col + ';border-radius:3px"></span></span>'
-        + '<span style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;color:' + col + ';text-align:right">' + this.fmtUsd(f.usd) + '</span>'
+        + '<span style="height:7px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;display:block">' + (zero ? '' : '<span style="display:block;height:100%;width:' + pct + '%;background:' + col + ';border-radius:3px"></span>') + '</span>'
+        + '<span style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;color:' + col + ';text-align:right">' + (zero ? '— sin Δ' : this.fmtUsd(f.usd)) + '</span>'
         + '</div>';
     }).join('');
     el.innerHTML = head
-      + '<div style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:6px">Δ shares out × precio · ventana: últimos ' + days + 'd de muestreo</div>'
+      + '<div style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;margin-bottom:6px">Δ shares out × precio · ventana: últimos ' + days + 'd de muestreo · gris "— sin Δ" = shares sin cambio (no es dato faltante)</div>'
       + rows;
   }
 };
