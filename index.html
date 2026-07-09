@@ -2125,6 +2125,19 @@ html.auth-ok #auth-gate{display:none}
        Filosofía: Mercado vivo (80%) + Ciclo Howell (20%)
        Spec: raw/opportunity-scanner-prompt-maestro.md
   ══════════════════════════════════════════════════ -->
+  <!-- ══ F4 · TRACK RECORD — auditoría de veracidad del embudo (2026-07-09) ══ -->
+  <div class="sh"><div class="sh-tag">Auditoría</div><div class="sh-title">Track Record — ¿el sistema realmente funciona?</div><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.08em">🧾 SNAPSHOTS INMUTABLES DEL EMBUDO → PERFORMANCE FORWARD vs SPY</span>
+        <button class="help-i" type="button" onclick="openGlossary('track-record')" title="¿Cómo funciona?">?</button>
+      </div>
+      <button type="button" onclick="TrackRecord.audit()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">⚖ AUDITAR AHORA</button>
+    </div>
+    <div id="trk-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">Cada día que el embudo escanea, las candidatas quedan grabadas (fecha, precio de entrada, métricas, régimen) en un archivo INMUTABLE del repo — el primer escaneo del día gana y la historia no se puede reescribir. Este botón compara cada snapshot pasado contra los precios de HOY: ¿las candidatas le ganaron al SPY desde que el sistema las señaló? Con 20+ snapshots la respuesta empieza a ser estadística y no anécdota.</div>
+  </div>
+
   <div class="sh"><div class="sh-tag">Scanner</div><div class="sh-title">Opportunity Scanner — Detección Táctica de Sectores</div><div class="sh-line"></div></div>
 
   <!-- HEADER del Scanner: ciclo, postura, timestamp, countdown, botón refresh -->
@@ -9185,6 +9198,93 @@ const SeasonMap = {
   }
 };
 
+// ══ F4 · TrackRecord — auditoría forward del embudo (2026-07-09) ══
+// Compara cada snapshot pasado contra los precios de HOY: retorno medio de las candidatas
+// vs SPY desde la fecha del snapshot, hit-rate, y buckets por horizonte. HONESTIDAD: con
+// n<20 el resultado se etiqueta como anécdota, no estadística.
+const TrackRecord = {
+  async audit() {
+    const body = document.getElementById('trk-body');
+    if (!body) return;
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Cargando snapshots y precios actuales…</div>';
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      // snapshots remotos (inmutables) + locales (fallback pre-token)
+      const list = await fetch('/api/capital?src=tracklist').then(r => r.json());
+      const loc = JSON.parse(localStorage.getItem('trk_local') || '{}');
+      if (list.code === 'NO_TOKEN' && !Object.keys(loc).length) {
+        body.innerHTML = '<div style="color:var(--amber);line-height:1.6">⚠ ' + escHtml(list.error) + '<br>Mientras tanto los snapshots se guardan en este navegador (localStorage) — no se pierden días, pero el registro inmutable multi-dispositivo necesita el token (2 min, como la de Finnhub).</div>';
+        return;
+      }
+      const remoteDates = (list.dates || []).filter(d => d < today);
+      const snaps = (await Promise.all(remoteDates.slice(-60).map(d => fetch('/api/capital?src=trackget&date=' + d).then(r => r.json()).catch(() => null)))).filter(s => s?.candidatas?.length);
+      Object.entries(loc).forEach(([d, s]) => { if (d < today && !remoteDates.includes(d) && s?.candidatas?.length) snaps.push(s); });
+      snaps.sort((a, b) => a.date < b.date ? -1 : 1);
+      if (!snaps.length) {
+        body.innerHTML = 'Todavía no hay snapshots de días PASADOS para auditar. Se crean solos cada día que el embudo escanea (hoy: ' + (localStorage.getItem('trk_sent_' + today) || Object.keys(loc).includes(today) ? '✓ registrado' : 'pendiente de escaneo') + '). Volvé en unos días — la paciencia es parte del método.';
+        return;
+      }
+      // precios actuales de todos los tickers involucrados (batches de 20)
+      const tks = new Set(['SPY']);
+      snaps.forEach(s => s.candidatas.forEach(c => tks.add(c.tk)));
+      const arr = [...tks], priceNow = {};
+      for (let i = 0; i < arr.length; i += 20) {
+        try {
+          const j = await fetch('/api/yahoo?tickers=' + arr.slice(i, i + 20).join(',') + '&priceOnly=true').then(r => r.json());
+          Object.entries(j).forEach(([k, v]) => { if (v?.price) priceNow[k] = v.price; });
+        } catch (e) {}
+      }
+      const spyNow = priceNow.SPY || state.data.prices?.SPY?.price;
+      // evaluación por snapshot
+      const rows = [];
+      for (const s of snaps) {
+        if (!s.spy || !spyNow) continue;
+        const dias = Math.round((Date.now() - new Date(s.date + 'T16:00:00')) / 86400000);
+        const evals = s.candidatas.filter(c => c.price > 0 && priceNow[c.tk] > 0)
+          .map(c => ({ tk: c.tk, ret: (priceNow[c.tk] / c.price - 1) * 100 }));
+        if (!evals.length) continue;
+        const retSpy = (spyNow / s.spy - 1) * 100;
+        const retMed = evals.reduce((a, b) => a + b.ret, 0) / evals.length;
+        const hits = evals.filter(e => e.ret > retSpy).length;
+        rows.push({ date: s.date, dias, n: evals.length, retMed, retSpy, excess: retMed - retSpy, hitPct: hits / evals.length * 100, postura: s.postura || '—' });
+      }
+      if (!rows.length) { body.innerHTML = 'Snapshots encontrados pero sin precios evaluables (¿tickers deslistados?).'; return; }
+      // agregados
+      const n = rows.length;
+      const exMed = rows.reduce((a, b) => a + b.excess, 0) / n;
+      const hitGlobal = rows.reduce((a, b) => a + b.hitPct, 0) / n;
+      const ganadores = rows.filter(r2 => r2.excess > 0).length;
+      const tile = (lbl, val, col, tip) => '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px" title="' + tip + '"><div style="font-size:8px;color:var(--text3);letter-spacing:.06em">' + lbl + '</div><div style="font-size:17px;font-weight:700;color:' + col + '">' + val + '</div></div>';
+      const exCol = exMed > 1 ? 'var(--green)' : exMed < -1 ? 'var(--red)' : 'var(--amber)';
+      const veredicto = n < 20
+        ? '<span style="color:var(--amber)">⚠ n=' + n + ' snapshots — esto es ANÉCDOTA, no estadística. El veredicto serio necesita 20+ (seguí escaneando a diario).</span>'
+        : (exMed > 1 && hitGlobal > 50 ? '<span style="color:var(--green)">✓ Con n=' + n + ', el embudo muestra edge positivo vs SPY.</span>'
+          : exMed < -1 ? '<span style="color:var(--red)">✗ Con n=' + n + ', el embudo NO está batiendo al SPY — revisar criterios antes de confiarle capital.</span>'
+          : '<span style="color:var(--amber)">≈ Con n=' + n + ', el embudo empata con el SPY — el edge no es distinguible todavía.</span>');
+      body.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'
+        + tile('SNAPSHOTS (n)', n, 'var(--text)', 'Días auditados (solo pasados; el de hoy no cuenta)')
+        + tile('EXCESS MEDIO vs SPY', (exMed >= 0 ? '+' : '') + exMed.toFixed(1) + '%', exCol, 'Promedio del (retorno medio de candidatas − retorno SPY) por snapshot, desde cada fecha hasta hoy')
+        + tile('HIT RATE', hitGlobal.toFixed(0) + '%', hitGlobal > 55 ? 'var(--green)' : hitGlobal < 45 ? 'var(--red)' : 'var(--amber)', '% de candidatas que superaron al SPY (promedio entre snapshots)')
+        + tile('DÍAS GANADORES', ganadores + '/' + n, ganadores / n > 0.5 ? 'var(--green)' : 'var(--red)', 'Snapshots donde el basket de candidatas le ganó al SPY')
+        + '</div>'
+        + '<div style="margin-bottom:8px;font-size:10px">' + veredicto + '</div>'
+        + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FECHA</th><th>HACE</th><th>N CAND</th><th>RET MEDIO</th><th>SPY</th><th>EXCESS</th><th>HIT</th><th>POSTURA ESE DÍA</th></tr></thead><tbody>'
+        + rows.slice().reverse().map(r2 => {
+          const ec = r2.excess > 0 ? 'var(--green)' : 'var(--red)';
+          return '<tr><td class="mono">' + r2.date + '</td><td>' + r2.dias + 'd</td><td>' + r2.n + '</td>'
+            + '<td style="color:' + (r2.retMed >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r2.retMed >= 0 ? '+' : '') + r2.retMed.toFixed(1) + '%</td>'
+            + '<td>' + (r2.retSpy >= 0 ? '+' : '') + r2.retSpy.toFixed(1) + '%</td>'
+            + '<td style="color:' + ec + ';font-weight:700">' + (r2.excess >= 0 ? '+' : '') + r2.excess.toFixed(1) + '%</td>'
+            + '<td>' + r2.hitPct.toFixed(0) + '%</td><td style="font-size:9px;color:var(--text3)">' + escHtml(r2.postura) + '</td></tr>';
+        }).join('')
+        + '</tbody></table></div>'
+        + '<div style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Metodología: basket equiponderado de las candidatas de cada snapshot, retorno simple desde el precio grabado hasta hoy, sin costos ni slippage — mide la CALIDAD DE LA SELECCIÓN, no una estrategia ejecutable. Snapshots inmutables en <span class="mono">track/</span> del repo (first-write-wins, verificable por git).</div>';
+    } catch (e) {
+      body.innerHTML = '<div style="color:var(--red)">Error en la auditoría: ' + escHtml(e.message) + '</div>';
+    }
+  }
+};
+
 // ── CapitalDrill v2: holdings automaticos top-10 + industrias + buscador libre ──
 const DRILL_HOLDINGS_KEY = 'drill_holdings_v2';
 const CapitalDrill = {
@@ -9569,6 +9669,39 @@ const CandidatasHoy = {
     body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota, 'candChart');
     try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
     try { this.enrich(r.cands); } catch (e) { /* FASE 3: enriquecimiento asíncrono, nunca rompe */ }
+    try { this._track(r); } catch (e) { /* F4: el snapshot jamás rompe el render */ }
+  },
+  // ══ F4 · TRACK RECORD (2026-07-09): snapshot inmutable del embudo, 1×/día automático ══
+  // El server aplica first-write-wins; acá solo evitamos reintentos del mismo navegador.
+  // Sin GITHUB_TOKEN configurada → fallback a localStorage (no se pierden días).
+  async _track(r) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('trk_sent_' + today)) return;
+    if (!r?.cands?.length) return;
+    const sectores = [...document.querySelectorAll('.os-cell')].map(c => ({
+      tk: c.querySelector('.os-cell-ticker')?.textContent || '?',
+      score: parseInt(c.querySelector('.os-cell-score')?.textContent) || null
+    })).filter(s => s.score != null);
+    const snap = {
+      date: today, ts: Date.now(), v: 1,
+      hero: document.getElementById('diag-score-total')?.textContent?.trim() || null,
+      postura: document.getElementById('hero-postura')?.textContent?.trim() || null,
+      quad: window.__quad ? { q: window.__quad.quad, conf: +window.__quad.conf.toFixed(1) } : null,
+      nfci: window.__nfci ? +window.__nfci.score.toFixed(1) : null,
+      gli: document.getElementById('gli-score')?.textContent?.trim() || null,
+      spy: state.data.prices?.SPY?.price ?? null,
+      sectores, // top scanner del día — habilita auditar el scanner sectorial a futuro
+      candidatas: r.cands.slice(0, 15).map(c => ({ tk: c.tk, via: c.sec || null, price: c.price, rs: c.rs, mom: c.mom, tpl: c.tpl?.passed ?? null, pp: !!c.pp }))
+    };
+    try {
+      const resp = await fetch('/api/capital?src=track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snap) }).then(x => x.json());
+      if (resp.saved || resp.skipped) { localStorage.setItem('trk_sent_' + today, '1'); return; }
+      if (resp.code === 'NO_TOKEN') {
+        const loc = JSON.parse(localStorage.getItem('trk_local') || '{}');
+        if (!loc[today]) { loc[today] = snap; localStorage.setItem('trk_local', JSON.stringify(loc)); }
+        console.warn('[track] snapshot en localStorage (configurar GITHUB_TOKEN para el registro inmutable):', resp.error);
+      }
+    } catch (e) { /* red caída: se reintenta en el próximo render del día */ }
   },
   // ══ FASE 3 · "dinero real" (2026-07-08): short volume FINRA + insiders SEC + earnings ══
   // Chips asíncronos que se inyectan en la celda del ticker tras el render (no bloquean).
@@ -9824,6 +9957,20 @@ const INDICATORS_GLOSSARY = {
       { c: 'n', t: 'Complementa al GLI (liquidez global) y al Howell (liquidez USA): NFCI mide las CONDICIONES del sistema financiero USA' }
     ],
     note: 'FASE 2. Subíndices disponibles a futuro: NFCIRISK / NFCICREDIT / NFCILEVERAGE y ANFCI (aislado del ciclo económico). Ventana del chart: ~2 años semanales (limit 104 del proxy FRED).'
+  },
+  'track-record': {
+    name: 'Track Record — Auditoría del embudo', category: 'Sistema · Auditoría',
+    source: { label: 'Snapshots propios en track/ del repo (GitHub, inmutables)', url: 'https://github.com/LeOgOlD708/DashBoardStrauss/tree/main/track', freq: 'Diario (1er escaneo del día)' },
+    formula: 'Por snapshot: excess = media(ret de candidatas desde su precio grabado) − ret SPY mismo período · hit rate = % de candidatas que superan al SPY · Agregado: promedio entre snapshots.',
+    what: 'El sistema se audita a sí mismo: cada día que el embudo escanea, las candidatas quedan grabadas (precio, métricas, régimen) en un archivo que NO se puede reescribir (first-write-wins + historial git). La auditoría compara esas fotos contra los precios de hoy.',
+    interpret: 'La única pregunta que importa: ¿las candidatas le ganan al SPY DESPUÉS de ser señaladas? Excess medio >+1% con hit rate >50% y n≥20 = el embudo tiene edge. Excess negativo sostenido = el embudo selecciona gráficos bonitos, no oportunidades — y hay que revisar criterios, no ignorar el dato.',
+    thresholds: [
+      { c: 'green', t: 'Excess >+1% y hit >55% con n≥20 → edge real' },
+      { c: 'amber', t: 'n<20 → ANÉCDOTA: ni confirmar ni descartar' },
+      { c: 'red', t: 'Excess <−1% con n≥20 → el sistema no funciona como está: revisar' },
+      { c: 'n', t: 'Basket equiponderado sin costos: mide calidad de SELECCIÓN, no estrategia ejecutable' }
+    ],
+    note: 'F4 (2026-07-09). Requiere env GITHUB_TOKEN en Vercel (fine-grained, solo Contents RW de este repo); sin token los snapshots caen a localStorage del navegador (fallback). El snapshot también graba scanner sectorial + quad + NFCI del día → habilita auditar esas capas a futuro.'
   },
   'performance-relativa': {
     name: 'Performance Relativa (rebaseada)', category: 'Sectores',

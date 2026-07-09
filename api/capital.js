@@ -91,6 +91,47 @@ async function insiders(ticker) {
   return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), last8K };
 }
 
+// ── F4 · TRACK RECORD: snapshots inmutables del embudo en el propio repo (GitHub API) ──
+// Diseño para AUDITABILIDAD: un JSON por día en track/, first-write-wins (el primer escaneo
+// del día queda grabado; los siguientes se ignoran — la historia no se reescribe), historial
+// completo via git. '[vercel skip]' en el commit para no disparar un deploy por snapshot.
+const GH_REPO = 'LeOgOlD708/DashBoardStrauss';
+async function ghReq(path, opts = {}) {
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) { const e = new Error('GITHUB_TOKEN no configurada — crear fine-grained token (solo Contents Read/Write de este repo) en github.com/settings/personal-access-tokens y agregarlo en Vercel'); e.code = 'NO_TOKEN'; throw e; }
+  return fetch('https://api.github.com/repos/' + GH_REPO + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'DashBoardStrauss', ...(opts.headers || {}) },
+    signal: AbortSignal.timeout(9000)
+  });
+}
+async function trackSave(body) {
+  const date = String(body?.date || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('date inválida');
+  if (JSON.stringify(body).length > 60000) throw new Error('snapshot demasiado grande');
+  const path = '/contents/track/' + date + '.json';
+  const exists = await ghReq(path);
+  if (exists.ok) return { skipped: true, reason: 'snapshot de ' + date + ' ya existe (first-write-wins)' };
+  const content = Buffer.from(JSON.stringify(body, null, 1)).toString('base64');
+  const put = await ghReq(path, { method: 'PUT', body: JSON.stringify({ message: 'track: snapshot ' + date + ' [vercel skip]', content }) });
+  if (!put.ok) throw new Error('GitHub PUT ' + put.status + ': ' + (await put.text()).slice(0, 140));
+  return { saved: true, date };
+}
+async function trackList() {
+  const r = await ghReq('/contents/track');
+  if (r.status === 404) return { dates: [] }; // carpeta aún no existe = cero snapshots
+  if (!r.ok) throw new Error('GitHub list HTTP ' + r.status);
+  const j = await r.json();
+  return { dates: j.filter(f => f.name.endsWith('.json')).map(f => f.name.replace('.json', '')).sort() };
+}
+async function trackGet(date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) throw new Error('date inválida');
+  const r = await ghReq('/contents/track/' + date + '.json');
+  if (!r.ok) throw new Error('GitHub get HTTP ' + r.status);
+  const j = await r.json();
+  return JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -110,10 +151,34 @@ async function earnings(tickers) {
 
 module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   const src = String(req.query.src || '');
+
+  // F4 · track record (no requieren ?tickers=)
+  try {
+    if (src === 'track') {
+      if (req.method !== 'POST') return res.status(405).json({ error: 'track es POST' });
+      const out = await trackSave(req.body || {});
+      res.setHeader('Cache-Control', 'max-age=0, no-cache');
+      return res.status(200).json(out);
+    }
+    if (src === 'tracklist') {
+      const out = await trackList();
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
+      return res.status(200).json(out);
+    }
+    if (src === 'trackget') {
+      const out = await trackGet(req.query.date);
+      res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=86400'); // inmutable
+      return res.status(200).json(out);
+    }
+  } catch (e) {
+    return res.status(e.code === 'NO_TOKEN' ? 200 : 502).json({ error: e.message, code: e.code || null });
+  }
+
   const tickers = String(req.query.tickers || '').split(',').map(t => t.trim().toUpperCase())
     .filter(t => /^[A-Z0-9.\-]{1,7}$/.test(t)).slice(0, 25);
   if (!tickers.length) return res.status(400).json({ error: 'Falta ?tickers=' });
