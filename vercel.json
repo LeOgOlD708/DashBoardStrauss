@@ -16,5 +16,8 @@
     "api/capital.js": {
       "maxDuration": 30
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/capital?src=digest", "schedule": "30 13 * * 1-5" }
+  ]
 }

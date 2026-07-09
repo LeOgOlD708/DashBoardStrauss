@@ -132,6 +132,55 @@ async function trackGet(date) {
   return JSON.parse(Buffer.from(j.content, 'base64').toString('utf8'));
 }
 
+// ── F5 · TELEGRAM: digest diario pre-apertura via Vercel Cron (bot gratis de @BotFather) ──
+async function tgSend(text) {
+  const tok = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
+  if (!tok || !chat) { const e = new Error('TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID no configuradas — crear bot con @BotFather en Telegram y agregar ambas env vars en Vercel'); e.code = 'NO_TG'; throw e; }
+  const r = await fetch('https://api.telegram.org/bot' + tok + '/sendMessage', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+    signal: AbortSignal.timeout(8000)
+  });
+  const j = await r.json();
+  if (!j.ok) throw new Error('Telegram API: ' + (j.description || r.status));
+  return true;
+}
+async function quoteMini(sym) { // precio + chg1d server-side (mismo criterio penúltimo-cierre que api/yahoo)
+  try {
+    const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(sym) + '?interval=1d&range=5d', { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }, signal: AbortSignal.timeout(7000) });
+    const j = await r.json();
+    const res0 = j?.chart?.result?.[0];
+    const p = res0?.meta?.regularMarketPrice;
+    if (p == null) return null;
+    const closes = (res0?.indicators?.quote?.[0]?.close || []).filter(c => c > 0);
+    const prev = closes.length >= 2 ? closes[closes.length - 2] : null;
+    return { p, chg: prev ? (p / prev - 1) * 100 : null };
+  } catch (e) { return null; }
+}
+async function digest() {
+  const [spy, vix, gld, dxy] = await Promise.all(['SPY', '^VIX', 'GLD', 'DX-Y.NYB'].map(quoteMini));
+  const f = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+  let track = '';
+  try {
+    const l = await trackList();
+    if (l.dates?.length) {
+      const s = await trackGet(l.dates[l.dates.length - 1]);
+      track = '\n🧾 Último snapshot (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: '
+        + s.candidatas.slice(0, 3).map(c => c.tk).join(', ') + (s.postura ? ' · ' + s.postura : '');
+    }
+  } catch (e) { /* sin GITHUB_TOKEN todavía — el digest de mercado sale igual */ }
+  const alerta = (vix?.p >= 25 ? '\n⚠️ <b>VIX ' + vix.p.toFixed(1) + ' — zona de stress</b>' : '');
+  const text = '🌅 <b>Rebirth Capital — digest pre-apertura</b>\n'
+    + 'SPY ' + (spy ? spy.p.toFixed(2) + ' (' + f(spy.chg) + ')' : '—')
+    + ' · VIX ' + (vix ? vix.p.toFixed(1) : '—')
+    + ' · GLD ' + (gld ? f(gld.chg) : '—')
+    + ' · DXY ' + (dxy ? f(dxy.chg) : '—')
+    + alerta + track
+    + '\n<a href="https://dash-board-strauss.vercel.app/">Abrir dashboard</a>';
+  await tgSend(text);
+  return { sent: true, ts: new Date().toISOString() };
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -157,8 +206,16 @@ module.exports = async (req, res) => {
 
   const src = String(req.query.src || '');
 
-  // F4 · track record (no requieren ?tickers=)
+  // F4 · track record + F5 · digest (no requieren ?tickers=)
   try {
+    if (src === 'digest') {
+      // protegido: si CRON_SECRET está configurada, solo el cron de Vercel puede dispararlo
+      const sec = process.env.CRON_SECRET;
+      if (sec && req.headers.authorization !== 'Bearer ' + sec) return res.status(401).json({ error: 'no autorizado' });
+      const out = await digest();
+      res.setHeader('Cache-Control', 'max-age=0, no-cache');
+      return res.status(200).json(out);
+    }
     if (src === 'track') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'track es POST' });
       const out = await trackSave(req.body || {});
@@ -176,7 +233,7 @@ module.exports = async (req, res) => {
       return res.status(200).json(out);
     }
   } catch (e) {
-    return res.status(e.code === 'NO_TOKEN' ? 200 : 502).json({ error: e.message, code: e.code || null });
+    return res.status(e.code === 'NO_TOKEN' || e.code === 'NO_TG' ? 200 : 502).json({ error: e.message, code: e.code || null });
   }
 
   const tickers = String(req.query.tickers || '').split(',').map(t => t.trim().toUpperCase())

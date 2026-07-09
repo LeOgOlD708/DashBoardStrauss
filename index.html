@@ -9678,10 +9678,11 @@ const CandidatasHoy = {
     const today = new Date().toISOString().slice(0, 10);
     if (localStorage.getItem('trk_sent_' + today)) return;
     if (!r?.cands?.length) return;
-    const sectores = [...document.querySelectorAll('.os-cell')].map(c => ({
-      tk: c.querySelector('.os-cell-ticker')?.textContent || '?',
-      score: parseInt(c.querySelector('.os-cell-score')?.textContent) || null
-    })).filter(s => s.score != null);
+    const sectores = [...document.querySelectorAll('.os-cell')].map(c => {
+      const tk = c.querySelector('.os-cell-ticker')?.textContent || '?';
+      return { tk, score: parseInt(c.querySelector('.os-cell-score')?.textContent) || null,
+        price: state.data.prices?.[tk]?.price ?? null }; // precio del ETF → habilita auditar el scanner (F4.2)
+    }).filter(s => s.score != null);
     const snap = {
       date: today, ts: Date.now(), v: 1,
       hero: document.getElementById('diag-score-total')?.textContent?.trim() || null,
