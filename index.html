@@ -2747,7 +2747,7 @@ html.auth-ok #auth-gate{display:none}
 ══════════════════════════════════════════════════ -->
 <div id="tab-inst" class="page">
 
-  <div class="sh"><div class="sh-tag">Institucional</div><div class="sh-title">Radiografía Institucional — ¿dónde está y qué hace el dinero grande?</div><button class="glossary-btn" onclick="openGlossary('niveles-institucionales')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="sh"><div class="sh-tag">Institucional</div><div class="sh-title">Radiografía Institucional — ¿dónde está y qué hace el dinero grande?</div><button class="glossary-btn" onclick="openGlossary('radiografia-institucional')" title="¿Cómo se lee este apartado?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <input id="instt-search" placeholder="Analizar cualquier ticker: NVDA, PLTR, ORKA, SPY…" onkeydown="if(event.key==='Enter')InstTab.analyze(this.value)" style="flex:1;max-width:340px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 8px;outline:none">
@@ -2768,13 +2768,13 @@ html.auth-ok #auth-gate{display:none}
   </div>
 
   <!-- ── Niveles + dark pools + ownership del ticker analizado ── -->
-  <div class="sh"><div class="sh-tag">Radiografía</div><div class="sh-title">Niveles, Dark Pools y Ownership del activo</div><div class="sh-line"></div></div>
+  <div class="sh"><div class="sh-tag">Radiografía</div><div class="sh-title">Niveles, Dark Pools y Ownership del activo</div><button class="glossary-btn" onclick="openGlossary('niveles-institucionales')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card teal-a" style="margin-bottom:14px"><div class="card-accent"></div>
     <div id="instd-body"><div class="mono" style="font-size:10px;color:var(--text3);padding:6px 0">La radiografía del activo aparece aquí al analizar: perfil de volumen con POC/Value Area, AVWAPs, niveles ordenados por cercanía, dark pools semana a semana y ownership institucional.</div></div>
   </div>
 
   <!-- ── COT macro (posicionamiento futuros CFTC) ── -->
-  <div class="sh"><div class="sh-tag">Futuros</div><div class="sh-title">COT — Posicionamiento especulativo en futuros (macro)</div><div class="sh-line"></div></div>
+  <div class="sh"><div class="sh-tag">Futuros</div><div class="sh-title">COT — Posicionamiento especulativo en futuros (macro)</div><button class="glossary-btn" onclick="openGlossary('cot-posicionamiento')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="border-color:rgba(167,139,250,.2);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
     <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
       <span>🏦 COT · Posicionamiento en Futuros <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('cot-posicionamiento')">?</button></span>
@@ -9392,7 +9392,7 @@ const InstDeep = {
       if (s2 && (s2.instOwn != null || s2.shortFloat != null)) {
         const sfCol = s2.shortFloat >= 15 ? 'var(--red)' : s2.shortFloat >= 8 ? 'var(--amber)' : 'var(--text2)';
         parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '🏛 OWNERSHIP: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
+          + '🏛 OWNERSHIP <button class="help-i" type="button" onclick="openGlossary(\'ownership-institucional\')" title="¿Qué es esto?">?</button>: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
           + ' · insiders ' + (s2.insiderOwn != null ? s2.insiderOwn.toFixed(1) + '%' : '—')
           + ' · short float <b style="color:' + sfCol + '">' + (s2.shortFloat != null ? s2.shortFloat.toFixed(1) + '%' : '—') + '</b>'
           + (s2.daysToCover != null ? ' · days-to-cover ' + s2.daysToCover.toFixed(1) : '')
@@ -10793,6 +10793,34 @@ const INDICATORS_GLOSSARY = {
     ],
     note: 'F-I4 del proyecto Institucional (2026-07-10). Códigos de contrato verificados contra la API. Complementa a AAII/NAAIM (retail/asesores) con el lado de los FUTUROS — juntos cubren el espectro completo del posicionamiento.'
   },
+  'radiografia-institucional': {
+    name: 'Radiografía Institucional (Tab 09)', category: 'Institucional · Guía',
+    source: { label: '4 fuentes oficiales/gratis: CBOE (opciones) · Yahoo intradía (perfil) · FINRA (dark pools) · stockanalysis (ownership) + CFTC (COT macro)', url: 'https://dash-board-strauss.vercel.app/', freq: 'Por consulta · caches 15min-24h según fuente' },
+    formula: 'Escribe un ticker → el tab arma 4 vistas del MISMO activo: (1) muros de gamma/OI — dónde las opciones fuerzan al precio; (2) niveles — dónde se acumuló volumen (POC/Value Area) y el precio promedio institucional (AVWAP); (3) dark pools — cuánto volumen se cruzó oculto y en qué venues; (4) ownership — quién es dueño y cuánto short hay. Abajo, COT = posicionamiento en futuros (macro, no por acción).',
+    what: 'El apartado dedicado a UNA pregunta: ¿dónde está y qué hace el dinero grande en este activo? Cada sección responde una dimensión distinta: comportamiento forzado del precio (opciones), memoria de precios (volumen), ejecución oculta (dark pools) y propiedad (ownership).',
+    interpret: 'La lectura potente es la CONFLUENCIA entre secciones, no cada dato aislado: un put wall + POC + AVWAP en la misma zona = soporte de alta calidad para stop/entrada. dp% de dark pools subiendo + precio aguantando ese soporte + insiders comprando = huella de acumulación coherente. Precio pegado al call wall + specs crowded long en COT = techo probable, no perseguir.',
+    thresholds: [
+      { c: 'green', t: 'Confluencia de 2+ fuentes DISTINTAS en la misma zona de precio → nivel de alta calidad' },
+      { c: 'amber', t: 'Señales mezcladas entre secciones → el dinero grande no tiene consenso: reducir convicción' },
+      { c: 'red', t: 'Cada fuente tiene su REZAGO (opciones 15 min · perfil 15 min · dark pools 2-4 SEMANAS · ownership trimestral) — nunca leerlas como si fueran del mismo instante' },
+      { c: 'n', t: 'Los botones ? de cada sección explican la fuente, la fórmula y las limitaciones de esa capa' }
+    ],
+    note: 'Proyecto Institucional F-I1→F-I5 (2026-07-10). Todo 100% automático y gratis (fuentes oficiales o toleradas). Lo que NO existe gratis y quedó fuera: 13F agregado por ticker (solo APIs pagas; el sustituto es ownership% + COT). ETFs: la sección ownership no aplica (stockanalysis solo la publica para acciones).'
+  },
+  'ownership-institucional': {
+    name: 'Ownership institucional + Short interest', category: 'Institucional · Flujo',
+    source: { label: 'stockanalysis.com /statistics/ (scraping, misma infra que holdings)', url: 'https://stockanalysis.com/', freq: 'Ownership: trimestral (13F agregado) · short interest: quincenal (FINRA)' },
+    formula: 'Instituciones % = acciones en manos de fondos/gestoras (agregado de sus 13F) ÷ shares out. Insiders % = directivos y fundadores. Short float % = acciones vendidas en corto ÷ float. Days-to-cover = short interest ÷ volumen diario promedio (días que tardarían los cortos en cerrar).',
+    what: 'Quién es DUEÑO del activo y cuánta apuesta en contra tiene: la foto de propiedad institucional (lenta, trimestral) y la presión corta (quincenal). Es el contexto de fondo sobre el que se mueven las señales rápidas.',
+    interpret: 'InstOwn 60-90% = normal en large caps (el radar institucional ya la tiene); MUY bajo en una small cap fuerte = aún no la descubren (combustible si entra). Insiders alto = los que más saben tienen la piel en el juego. Short float >15% con days-to-cover alto = terreno de SQUEEZE: cualquier catalizador alcista obliga a los cortos a comprar — volatilidad extra en ambas direcciones, sizing acorde.',
+    thresholds: [
+      { c: 'amber', t: 'Short float ≥15% → terreno de squeeze: movimientos amplificados, no es señal direccional por sí sola' },
+      { c: 'red', t: 'Short float ≥15% + days-to-cover ≥5 → squeeze de libro si hay catalizador — y caída violenta si los cortos tienen razón' },
+      { c: 'green', t: 'InstOwn subiendo trimestre a trimestre + insiders comprando (chip 👔) → acumulación con convicción' },
+      { c: 'n', t: 'El ownership es TRIMESTRAL con ~45 días de rezago (viene de los 13F) — es contexto, no timing' }
+    ],
+    note: 'F-I5 del proyecto Institucional (2026-07-10). Para ETFs no aplica (stockanalysis solo publica ownership de acciones). El short interest quincenal complementa al short VOLUME diario (chip 🩳): uno es el stock de cortos, el otro el flujo del día.'
+  },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {
     name: 'Reservas Bancarias Fed',
@@ -11652,7 +11680,8 @@ function _glRenderIndex() {
     'Crédito · Estrés', 'Crédito · Stress',
     'Cross-Asset · Macro', 'Macro · Posicionamiento',
     'Leading · Empleo', 'Leading · Manufactura', 'Leading · Housing',
-    'Régimen · Corto Plazo', 'Mercado · Volatilidad', 'Mercado · Volatilidad Inst.', 'Mercado · Tail Risk', 'Mercado · Recesión', 'Mercado · Tendencia', 'Mercado · Niveles Técnicos'
+    'Régimen · Corto Plazo', 'Mercado · Volatilidad', 'Mercado · Volatilidad Inst.', 'Mercado · Tail Risk', 'Mercado · Recesión', 'Mercado · Tendencia', 'Mercado · Niveles Técnicos',
+    'Institucional · Guía', 'Institucional · Niveles', 'Institucional · Flujo'
   ];
   const orderedCats = catOrder.filter(c => byCat[c]).concat(Object.keys(byCat).filter(c => !catOrder.includes(c)));
 
