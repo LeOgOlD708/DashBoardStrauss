@@ -1,5 +1,5 @@
 // api/capital.js — FASE 3 "dinero real" (2026-07-08, research playbook 10)
-// Fuentes de flujo de capital REAL en UN endpoint (?src=finra|insiders|earnings|opt)
+// Fuentes de flujo de capital REAL en UN endpoint (?src=finra|insiders|earnings|opt|ats|cot|stats)
 // — un solo archivo por el límite de 12 serverless functions del plan Hobby de Vercel.
 //   · finra:    short volume DIARIO por ticker (CDN público de FINRA Reg SHO, sin auth)
 //   · insiders: compras/ventas de insiders 90d (SEC EDGAR Form 4, oficial, sin key)
@@ -165,7 +165,20 @@ async function quoteMini(sym) { // precio + chg1d server-side (mismo criterio pe
 async function digest() {
   // v2 (pedido Angel 2026-07-09): el digest lee el último snapshot del track record y arma
   // el CONTEXTO COMPLETO del sistema — no solo cotizaciones.
-  const [spy, vix, gld, dxy] = await Promise.all(['SPY', '^VIX', 'GLD', 'DX-Y.NYB'].map(quoteMini));
+  // Review 2026-07-10: los awaits secuenciales sumaban ~45s de peor caso (> maxDuration 30)
+  // → GitHub+CBOE+CFTC lentos a la vez mataban la función antes del tgSend y el Telegram no
+  // salía ese día. Ahora: TODO en paralelo con presupuesto duro por bloque — peor caso ~20s.
+  const budget = (p, ms) => Promise.race([p, new Promise(res => setTimeout(() => res(null), ms))]);
+  const [quotes, snapLast, instData] = await Promise.all([
+    Promise.all(['SPY', '^VIX', 'GLD', 'DX-Y.NYB'].map(quoteMini)), // quoteMini ya trae timeout 7s
+    budget((async () => {
+      const l = await trackList();
+      if (!l.dates?.length) return { empty: true };
+      return { s: await trackGet(l.dates[l.dates.length - 1]) };
+    })().catch(() => null), 12000),
+    budget(Promise.all([optAgg('QQQ').catch(() => null), cotPositioning().catch(() => null)]), 12000)
+  ]);
+  const [spy, vix, gld, dxy] = quotes;
   const f = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
   const fecha = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' });
   const L = ['🌅 <b>Rebirth Capital</b> · ' + fecha];
@@ -175,9 +188,8 @@ async function digest() {
     + ' · DXY ' + (dxy ? f(dxy.chg) : '—'));
   if (vix?.p >= 25) L.push('⚠️ <b>VIX ' + vix.p.toFixed(1) + ' — zona de stress: sizing reducido, solo setups A</b>');
   try {
-    const l = await trackList();
-    if (l.dates?.length) {
-      const s = await trackGet(l.dates[l.dates.length - 1]);
+    if (snapLast && !snapLast.empty && snapLast.s) {
+      const s = snapLast.s;
       const reg = [];
       if (s.postura) reg.push('🧭 ' + s.postura);
       if (s.quad?.q) reg.push(s.quad.q.replace(/·\s*/, '') + (s.quad.conf != null ? ' (' + Math.round(s.quad.conf) + '%' + (s.quad.conf < 40 ? ' difuso' : '') + ')' : ''));
@@ -193,13 +205,13 @@ async function digest() {
           : '🔎 Dentro de ' + L0.sector + ': ' + L0.stocks.slice(0, 4).map(st => st.tk + ' RS' + st.rs).join(' · ') + ' (sin picks que pasen el filtro hoy)');
       }
       if (s.candidatas?.length) L.push('🎯 Embudo (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: ' + s.candidatas.slice(0, 3).map(c => c.tk).join(', '));
-    } else {
+    } else if (snapLast?.empty) {
       L.push('🧾 Sin snapshots aún — abrí el dashboard y escaneá candidatas para arrancar el registro del día.');
     }
   } catch (e) { /* sin GITHUB_TOKEN — el digest de mercado sale igual */ }
   // F-I5: línea institucional — solo agregados de MERCADO (si falla, el digest sale igual)
   try {
-    const [q, cot] = await Promise.all([optAgg('QQQ').catch(() => null), cotPositioning().catch(() => null)]);
+    const [q, cot] = instData || [null, null];
     const parts = [];
     if (q) parts.push('QQQ P/C ' + (q.pcVol ?? '—') + ' · GEX $' + q.gexTotalBn + 'bn (walls ' + q.putWall + '/' + q.callWall + (q.gammaFlip != null ? ' · flip ' + q.gammaFlip : '') + ')');
     if (cot?.mkts) {
@@ -210,7 +222,7 @@ async function digest() {
     }
     if (parts.length) L.push('🏛 ' + parts.join(' · '));
   } catch (e) { /* la línea institucional jamás rompe el digest */ }
-  L.push('<a href="https://dash-board-strauss.vercel.app/">Abrir dashboard</a>');
+  L.push('<a href="https://dash-board-strauss.vercel.app/#act">Abrir dashboard → Activos</a>'); // #act = deep-link al tab del embudo (menos fricción digest→scan)
   await tgSend(L.join('\n'));
   return { sent: true, ts: new Date().toISOString() };
 }

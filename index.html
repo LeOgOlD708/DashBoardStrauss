@@ -2085,12 +2085,7 @@ html.auth-ok #auth-gate{display:none}
 
 
 <!-- ══════════════════════════════════════════════════
-     02 · ACTIVOS  (antes 03)
-══════════════════════════════════════════════════ -->
-
-
-<!-- ══════════════════════════════════════════════════
-     03 · ACTIVOS
+     02 · ACTIVOS
 ══════════════════════════════════════════════════ -->
 <div id="tab-act" class="page">
 
@@ -2364,7 +2359,7 @@ html.auth-ok #auth-gate{display:none}
 
 
 <!-- ══════════════════════════════════════════════════
-     04 · DXY & CHINA
+     03 · DXY & CHINA
 ══════════════════════════════════════════════════ -->
 <div id="tab-dxy" class="page">
   <div class="sh"><div class="sh-tag">DXY & China</div><div class="sh-title">Válvula Maestra y Motor Desincronizado</div><div class="sh-line"></div></div>
@@ -2412,7 +2407,7 @@ html.auth-ok #auth-gate{display:none}
 
 
 <!-- ══════════════════════════════════════════════════
-     05 · TESIS
+     04 · TESIS
 ══════════════════════════════════════════════════ -->
 <div id="tab-tesis" class="page">
   <div class="sh"><div class="sh-tag">Tesis</div><div class="sh-title">Contexto Macro — 3 Horizontes</div><div class="sh-line"></div></div>
@@ -2492,7 +2487,7 @@ html.auth-ok #auth-gate{display:none}
 
 
 <!-- ══════════════════════════════════════════════════
-     06 · CHECKLIST
+     05 · CHECKLIST
 ══════════════════════════════════════════════════ -->
 <div id="tab-check" class="page">
   <div class="sh"><div class="sh-tag">Checklist</div><div class="sh-title">7 Pasos de Diagnóstico Semanal</div><div class="sh-line"></div></div>
@@ -2526,7 +2521,7 @@ html.auth-ok #auth-gate{display:none}
 
 
 <!-- ══════════════════════════════════════════════════
-     07 · VOLATILIDAD & FLUJOS (NEW — JJ. Montoya)
+     06 · VOLATILIDAD & FLUJOS
 ══════════════════════════════════════════════════ -->
 <div id="tab-vol" class="page">
   <div class="sh">
@@ -2606,7 +2601,7 @@ html.auth-ok #auth-gate{display:none}
 
 
 <!-- ══════════════════════════════════════════════════
-     08 · NOTICIAS — Multi-fuente con categorías
+     07 · NOTICIAS — Multi-fuente con categorías
 ══════════════════════════════════════════════════ -->
 <div id="tab-news" class="page">
   <div class="sh">
@@ -2738,7 +2733,7 @@ html.auth-ok #auth-gate{display:none}
 </div>
 
 <!-- ══════════════════════════════════════════════════
-     09 · TÉCNICO — Swing & Day Trading
+     08 · TÉCNICO — Swing & Day Trading
 ══════════════════════════════════════════════════ -->
 <!-- ══════════════════════════════════════════════════
      09 · INSTITUCIONAL — proyecto Institucional F-I1→F-I5 (2026-07-10)
@@ -4478,7 +4473,12 @@ function scheduleRefresh() {
       const s = Math.floor((rem % 60000) / 1000);
       cdown.textContent = m + ':' + String(s).padStart(2, '0');
     }
-    if (elapsed >= INTERVAL) { bootData(); return; }
+    if (elapsed >= INTERVAL) {
+      // Review 2026-07-10: bootData completo cada 15 min AUNQUE la pestaña estuviera en
+      // background — ahora espera a que el usuario vuelva (chequeo cada 5s, refresca al volver)
+      if (document.hidden) { state.refreshTimer = setTimeout(step, 5000); return; }
+      bootData(); return;
+    }
     state.refreshTimer = setTimeout(step, 1000);
   };
   state.refreshTimer = setTimeout(step, 1000);
@@ -4885,6 +4885,9 @@ function startPriceLoop() {
   const PRICE_INTERVAL = 60 * 1000;
   const loop = async () => {
     if (!state.data.prices) { state.priceTimer = setTimeout(loop, PRICE_INTERVAL); return; }
+    // Review 2026-07-10: en background el loop quemaba un fetch Yahoo/60s sin que nadie mirara
+    // (el scanner SÍ se pausa con document.hidden — ahora consistente). El timer sigue vivo.
+    if (document.hidden) { state.priceTimer = setTimeout(loop, PRICE_INTERVAL); return; }
     try {
       const tickers = ALL_YF_TICKERS.map(encodeURIComponent).join(',');
       const res = await fetch(`/api/yahoo?tickers=${tickers}&priceOnly=true`);
@@ -8215,6 +8218,14 @@ document.addEventListener('keydown', e => {
     if (tabEls[i]) go(tabs[i], tabEls[i]);
   }
 });
+// Deep-link del digest Telegram: /#act abre directo el Tab 02 Activos (menos fricción
+// digest→scan). Script inline al final del body: el DOM de tabs ya existe.
+try {
+  if (location.hash === '#act') {
+    const elAct = [...document.querySelectorAll('.tab')].find(t => t.textContent.includes('Activos'));
+    if (elAct) setTimeout(() => go('act', elAct), 300); // tras el primer paint
+  }
+} catch (e) { /* nunca romper el boot */ }
 
 // ── Loading State ──
 function showLoadingState() {
@@ -8596,7 +8607,8 @@ function avwap(closes, vols, fromIdx) {
 // denominador del dp% (el server FINRA solo conoce el volumen off-exchange).
 function weekVolOf(dU, weekStart) {
   if (!dU?.dates || !dU?.vols) return null;
-  const end = new Date(new Date(weekStart + 'T12:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10);
+  // Anclado en UTC (review: con parse local + toISOString, husos >+12h corrían el fin de semana un día)
+  const end = new Date(new Date(weekStart + 'T00:00:00Z').getTime() + 6 * 86400000).toISOString().slice(0, 10);
   let s = 0, n = 0;
   for (let i = 0; i < dU.dates.length; i++)
     if (dU.dates[i] >= weekStart && dU.dates[i] <= end && dU.vols[i] > 0) { s += dU.vols[i]; n++; }
@@ -9209,12 +9221,15 @@ const InstPanel = {
     let d = (c && Date.now() - c.ts < 1800000) ? c.d : null;
     if (!d) {
       strip.innerHTML = '<span style="color:var(--text3)">Cargando muros de ' + tk + '…</span>';
+      this._pend = this._pend || {}; // promesa en vuelo compartida — InstDeep la reusa (fetch opt único por análisis)
       try {
-        const r = await fetch('/api/capital?src=opt&tickers=' + tk);
-        d = await r.json();
-        if (!r.ok || d.error) throw new Error(d.error || 'HTTP ' + r.status);
+        if (!this._pend[tk]) this._pend[tk] = fetch('/api/capital?src=opt&tickers=' + tk).then(r => r.json());
+        d = await this._pend[tk];
+        delete this._pend[tk];
+        if (!d || d.error) throw new Error(d?.error || 'sin respuesta');
         this._cache[tk] = { d, ts: Date.now() };
       } catch (e) {
+        delete this._pend[tk];
         strip.innerHTML = '<span style="color:var(--red)">⚠ Sin data de opciones: ' + escHtml(e.message) + '</span>';
         return;
       }
@@ -9256,7 +9271,7 @@ const InstPanel = {
       + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>' + drift(d.callWall, prev?.cw, 'Call wall')
       + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + drift(d.putWall, prev?.pw, 'Put wall')
       + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
-      + ' <span style="color:var(--text3)">· CBOE ' + (d.updated || '') + '</span>';
+      + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>';
     // Filtrar strikes para legibilidad: fuera el ruido (<3% del |GEX| máximo), cap 40 barras
     let rows = d.strikes.filter(s => s.gex !== 0);
     const gMax = Math.max(...rows.map(s => Math.abs(s.gex)), 1);
@@ -9315,11 +9330,12 @@ const InstTab = {
     try { InstDeep.analyze(tk); } catch (e) {}
   },
   // Puente desde drill/candidatas (botón 🏛 por fila): cambia al Tab 09 con el análisis cargado.
+  // Review 2026-07-10: analyze ANTES de go — con _cur ya seteado, el hook de go() no dispara
+  // el QQQ default (primer uso del botón lanzaba ~6 fetches de QQQ que se descartaban).
   goto(tk) {
-    const tabs = document.querySelectorAll('.tab');
-    const el = [...tabs].find(t => t.textContent.includes('Institucional'));
-    if (el) go('inst', el);
     this.analyze(tk);
+    const el = [...document.querySelectorAll('.tab')].find(t => t.textContent.includes('Institucional'));
+    if (el) go('inst', el);
   }
 };
 // InstDeep — radiografía del ticker: niveles (perfil 60d + AVWAP + muros) + dark pools + ownership.
@@ -9335,7 +9351,14 @@ const InstDeep = {
     const [y1, d60, opt, ats, st] = await Promise.all([
       jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=1y'),
       jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
-      jf('/api/capital?src=opt&tickers=' + encodeURIComponent(tk)),
+      (() => { // reusar cache/promesa-en-vuelo de InstPanel (mismo endpoint) — sin fetch opt duplicado
+        try {
+          const c = InstPanel._cache?.[tk];
+          if (c && Date.now() - c.ts < 1800000) return Promise.resolve(c.d);
+          if (InstPanel._pend?.[tk]) return InstPanel._pend[tk].catch(() => null);
+        } catch (e) {}
+        return jf('/api/capital?src=opt&tickers=' + encodeURIComponent(tk));
+      })(),
       jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)),
       jf('/api/capital?src=stats&tickers=' + encodeURIComponent(tk))
     ]);
@@ -9361,7 +9384,12 @@ const InstDeep = {
       let iMin = 0; dU.hist.forEach((p2, i2) => { if (p2 < dU.hist[iMin]) iMin = i2; });
       const lv = [];
       const add = (lbl, v, src2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, dist: (v / spot - 1) * 100 }); };
-      if (vp) { add('POC 60d (5m)', vp.poc, 'perfil'); add('VAH 60d', vp.vah, 'perfil'); add('VAL 60d', vp.val, 'perfil'); }
+      if (vp) {
+        add('POC 60d (5m)', vp.poc, 'perfil'); add('VAH 60d', vp.vah, 'perfil'); add('VAL 60d', vp.val, 'perfil');
+        // Review 2026-07-10: los HVN se computaban y se tiraban — son zonas de acumulación
+        // reales y alimentan gratis la detección de confluencia (top 2 para no saturar)
+        vp.hvn.slice(0, 2).forEach((h2, ih) => add('HVN 60d' + (ih ? ' ②' : ''), h2, 'perfil'));
+      }
       if (vp1y) add('POC 1 año (diario)', vp1y.poc, 'perfil');
       if (iYtd != null) add('AVWAP desde 1-ene', avwap(dU.hist, dU.vols, iYtd), 'avwap');
       add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap');
@@ -9375,7 +9403,7 @@ const InstDeep = {
           const zones = [];
           let cur = [byP[0]];
           for (let i2 = 1; i2 < byP.length; i2++) {
-            if ((byP[i2].v - cur[cur.length - 1].v) / spot <= 0.012) cur.push(byP[i2]);
+            if ((byP[i2].v - cur[0].v) / spot <= 0.012) cur.push(byP[i2]); // vs el ANCLA del cluster (review: contra el último se encadenaba y la "zona" podía estirarse >1.2%)
             else { zones.push(cur); cur = [byP[i2]]; }
           }
           zones.push(cur);
@@ -9430,8 +9458,8 @@ const InstDeep = {
         const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
         const fmtM = v => (v / 1e6).toFixed(1) + 'M';
         const lagD = Math.round((Date.now() - new Date(L2.week + 'T12:00:00')) / 86400000);
-        const venues = (d.topATS || []).map(v => v.name.replace(/\s+(LLC|INC\.?|,)$/i, '') + ' ' + fmtM(v.sh)).join(' · ');
-        const internal = (d.topOTC || []).map(v => v.name.split(' ')[0] + ' ' + fmtM(v.sh)).join(' · ');
+        const venues = (d.topATS || []).map(v => escHtml(v.name.replace(/\s+(LLC|INC\.?|,)$/i, '')) + ' ' + fmtM(v.sh)).join(' · ');
+        const internal = (d.topOTC || []).map(v => escHtml(v.name.split(' ')[0]) + ' ' + fmtM(v.sh)).join(' · ');
         const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
         parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
           + '🕶 DARK POOLS <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
@@ -9508,7 +9536,7 @@ const CotCard = {
           + '<polyline points="' + pts + '" fill="none" stroke="' + (arr[arr.length - 1] >= arr[0] ? 'var(--green)' : 'var(--red)') + '" stroke-width="1.1"/></svg>';
       };
       const rows = d.mkts.map(m => {
-        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + m.lbl + '</td><td colspan="6" style="color:var(--text3)">' + m.error + '</td></tr>';
+        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + m.lbl + '</td><td colspan="6" style="color:var(--text3)">' + escHtml(m.error) + '</td></tr>';
         const p = m.pctil3y;
         const flag = p >= 90 ? { c: 'var(--red)', t: 'CROWDED LONG', tip: 'especuladores en su percentil ' + p + ' de largos en 3 años — posicionamiento saturado: contrarian BAJISTA (riesgo de unwind)' }
           : p <= 10 ? { c: 'var(--teal)', t: 'CROWDED SHORT', tip: 'especuladores en su percentil ' + p + ' (cortos extremos) en 3 años — combustible de short squeeze: contrarian ALCISTA' }
