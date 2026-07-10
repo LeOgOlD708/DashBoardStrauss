@@ -7,6 +7,8 @@
 //   · opt:      cadena de opciones agregada (CBOE delayed, sin auth) → GEX por strike,
 //               muros call/put, gamma flip, max pain, P/C — proyecto Institucional F-I1
 //   · ats:      dark pools por ticker (FINRA ATS weeklySummary, sin auth) — F-I3
+//   · cot:      posicionamiento futuros CFTC 8 mercados (Socrata, sin key) — F-I4
+//   · stats:    ownership institucional + short interest (stockanalysis) — F-I5
 
 const SEC_UA = { 'User-Agent': 'DashBoardStrauss jssulopez@gmail.com' }; // SEC exige contacto; <10 req/s
 
@@ -195,6 +197,19 @@ async function digest() {
       L.push('🧾 Sin snapshots aún — abrí el dashboard y escaneá candidatas para arrancar el registro del día.');
     }
   } catch (e) { /* sin GITHUB_TOKEN — el digest de mercado sale igual */ }
+  // F-I5: línea institucional — solo agregados de MERCADO (si falla, el digest sale igual)
+  try {
+    const [q, cot] = await Promise.all([optAgg('QQQ').catch(() => null), cotPositioning().catch(() => null)]);
+    const parts = [];
+    if (q) parts.push('QQQ P/C ' + (q.pcVol ?? '—') + ' · GEX $' + q.gexTotalBn + 'bn (walls ' + q.putWall + '/' + q.callWall + (q.gammaFlip != null ? ' · flip ' + q.gammaFlip : '') + ')');
+    if (cot?.mkts) {
+      const nq = cot.mkts.find(m => m.code === '209742');
+      if (nq && !nq.error) parts.push('COT NQ p' + nq.pctil3y + (nq.pctil3y >= 90 ? ' ⚠️ crowded long' : nq.pctil3y <= 10 ? ' ⚡ crowded short' : ''));
+      const ext = cot.mkts.filter(m => !m.error && m.code !== '209742' && (m.pctil3y >= 90 || m.pctil3y <= 10));
+      if (ext.length) parts.push('extremos COT: ' + ext.map(m => m.lbl.split(' ')[0] + ' p' + m.pctil3y).join(', '));
+    }
+    if (parts.length) L.push('🏛 ' + parts.join(' · '));
+  } catch (e) { /* la línea institucional jamás rompe el digest */ }
   L.push('<a href="https://dash-board-strauss.vercel.app/">Abrir dashboard</a>');
   await tgSend(L.join('\n'));
   return { sent: true, ts: new Date().toISOString() };
@@ -359,6 +374,39 @@ async function cotPositioning() {
   return { mkts: out, updated: out.find(o => o.date)?.date || null };
 }
 
+// ── F-I5 · stockanalysis /statistics/: ownership institucional + short interest ──
+// Misma infra de scraping tolerada que holdings.js/flows.js. La página incrusta un JSON
+// limpio {id:"sharesInstitutions",title:"...",value:"69.07%"} — verificado 2026-07-10.
+async function ownStats(tickers) {
+  const data = {}, errors = [];
+  const one = async (tk) => {
+    const r = await fetch('https://stockanalysis.com/stocks/' + tk.toLowerCase() + '/statistics/', {
+      signal: AbortSignal.timeout(6000),
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RebirthCapital-Dashboard/1.0)' }
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const html = await r.text();
+    const grab = (id) => {
+      const m = html.match(new RegExp('\\{id:"' + id + '",title:"[^"]+",value:"([^"]*)"'));
+      if (!m || m[1] === 'n/a' || m[1] === '') return null;
+      const v = parseFloat(m[1].replace(/[%,$]/g, ''));
+      return isFinite(v) ? v : null;
+    };
+    const instOwn = grab('sharesInstitutions'), insiderOwn = grab('sharesInsiders');
+    const shortFloat = grab('shortFloat'), daysToCover = grab('shortRatio');
+    if (instOwn == null && shortFloat == null) throw new Error('parse vacío (¿cambió el HTML?)');
+    // Sanity (patrón flows.js): porcentajes en rango
+    if (instOwn != null && (instOwn < 0 || instOwn > 105)) throw new Error('instOwn fuera de rango: ' + instOwn);
+    return { instOwn, insiderOwn, shortFloat, daysToCover };
+  };
+  for (let i = 0; i < tickers.length; i += 3) {
+    await Promise.all(tickers.slice(i, i + 3).map(async tk => {
+      try { data[tk] = await one(tk); } catch (e) { errors.push(tk + '=' + e.message); }
+    }));
+  }
+  return { data, errors };
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -456,7 +504,12 @@ module.exports = async (req, res) => {
       res.setHeader('Cache-Control', 's-maxage=43200, stale-while-revalidate=43200'); // 12h — dato semanal con lag
       return res.status(200).json(out);
     }
-    return res.status(400).json({ error: 'src debe ser finra | insiders | earnings | opt | ats' });
+    if (src === 'stats') {
+      const out = await ownStats(tickers.slice(0, 5)); // scraping: pocos y con concurrency 3
+      res.setHeader('Cache-Control', Object.keys(out.data).length ? 's-maxage=86400, stale-while-revalidate=43200' : 'max-age=0, no-cache'); // dato trimestral/quincenal
+      return res.status(200).json(out);
+    }
+    return res.status(400).json({ error: 'src debe ser finra | insiders | earnings | opt | ats | stats' });
   } catch (e) {
     return res.status(502).json({ error: e.message });
   }

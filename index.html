@@ -10172,6 +10172,21 @@ const CapitalDrill = {
           + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>');
       }
     } catch (e) { /* dark pools nunca rompen el análisis base */ }
+    // F-I5 (2026-07-10): OWNERSHIP — % institucional/insiders + short interest (stockanalysis).
+    try {
+      const st = await fetch('/api/capital?src=stats&tickers=' + encodeURIComponent(tk)).then(r2 => r2.json()).catch(() => null);
+      const s2 = st?.data?.[tk];
+      if (s2 && (s2.instOwn != null || s2.shortFloat != null)) {
+        const sfCol = s2.shortFloat >= 15 ? 'var(--red)' : s2.shortFloat >= 8 ? 'var(--amber)' : 'var(--text2)';
+        document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
+          '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
+          + '🏛 OWNERSHIP: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
+          + ' · insiders ' + (s2.insiderOwn != null ? s2.insiderOwn.toFixed(1) + '%' : '—')
+          + ' · short float <b style="color:' + sfCol + '">' + (s2.shortFloat != null ? s2.shortFloat.toFixed(1) + '%' : '—') + '</b>'
+          + (s2.daysToCover != null ? ' · days-to-cover ' + s2.daysToCover.toFixed(1) : '')
+          + ' <span style="color:var(--text3)">— short float >15% + días altos = terreno de squeeze; instOwn muy bajo = radar institucional aún no la ve (stockanalysis)</span></div>');
+      }
+    } catch (e) { /* ownership nunca rompe el análisis base */ }
   },
   // Tanda 2a: percentil del RANGO DE 3 AÑOS (closes mensuales, fetch liviano ~120 pts/ticker)
   // como superíndice en la columna RANGO 52w — contexto largo sin cambiar el scoring
@@ -10426,6 +10441,15 @@ const CandidatasHoy = {
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="Próximos EARNINGS: ' + d.date + (d.hour ? ' (' + d.hour + ')' : '') + (days <= 7 ? ' — ¡a ' + days + ' días! Entrar la víspera es lotería, no setup' : '') + ' · Finnhub">📅' + d.date.slice(5) + '</span>');
       });
       else console.warn('[F3 earnings]', ea.error);
+    } catch (e) {}
+    // 2b · F-I5 Ownership institucional (top 5 — scraping con concurrency limitada server-side)
+    try {
+      const st = await fetch('/api/capital?src=stats&tickers=' + tks.slice(0, 5).join(',')).then(r2 => r2.json());
+      Object.entries(st.data || {}).forEach(([tk, d]) => {
+        if (d.instOwn == null) return;
+        const hot = d.shortFloat != null && d.shortFloat >= 15;
+        chip(tk, '<span class="mono" style="font-size:8px;color:' + (hot ? 'var(--amber)' : 'var(--text3)') + '" title="OWNERSHIP (stockanalysis): instituciones ' + d.instOwn.toFixed(1) + '%' + (d.insiderOwn != null ? ' · insiders ' + d.insiderOwn.toFixed(1) + '%' : '') + (d.shortFloat != null ? ' · short float ' + d.shortFloat.toFixed(1) + '%' + (d.daysToCover != null ? ' (' + d.daysToCover.toFixed(1) + ' días para cubrir)' : '') : '') + (hot ? ' — short float alto: terreno de squeeze, volatilidad extra en ambas direcciones' : '') + '">🏛' + d.instOwn.toFixed(0) + '%</span>');
+      });
     } catch (e) {}
     // 3 · Insiders SEC (top 8, secuencial — respeta el rate del SEC; cache CDN 12h por ticker)
     for (const tk of tks.slice(0, 8)) {
