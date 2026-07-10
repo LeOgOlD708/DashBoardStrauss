@@ -500,9 +500,16 @@ module.exports = async (req, res) => {
       }
     }
     if (src === 'ats') {
-      const out = await atsWeekly(tickers.slice(0, 10)); // 1 request FINRA para todos (domainFilters)
-      res.setHeader('Cache-Control', 's-maxage=43200, stale-while-revalidate=43200'); // 12h — dato semanal con lag
-      return res.status(200).json(out);
+      // FINRA a veces se cae (504/500 visto 2026-07-10) → 200 con {error} sin cache
+      // (consola limpia; el cliente degrada y se reintenta cuando FINRA vuelva)
+      try {
+        const out = await atsWeekly(tickers.slice(0, 10)); // 1 request FINRA para todos (domainFilters)
+        res.setHeader('Cache-Control', 's-maxage=43200, stale-while-revalidate=43200'); // 12h — dato semanal con lag
+        return res.status(200).json(out);
+      } catch (e) {
+        res.setHeader('Cache-Control', 'max-age=0, no-cache');
+        return res.status(200).json({ error: 'FINRA no disponible: ' + e.message });
+      }
     }
     if (src === 'stats') {
       const out = await ownStats(tickers.slice(0, 5)); // scraping: pocos y con concurrency 3
