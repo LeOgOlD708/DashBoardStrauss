@@ -2122,6 +2122,20 @@ html.auth-ok #auth-gate{display:none}
     <div id="cand-body"><div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:6px 0">Pulsa ESCANEAR AHORA — corre el embudo completo sobre las acciones de los sectores e industrias que están recibiendo capital (~120 tickers, primera vez ~10s). Cache 15 min.</div></div>
   </div>
 
+  <!-- ══ F-I1 · INSTITUCIONAL — muros de gamma/OI de opciones (proyecto Institucional 2026-07-10) ══ -->
+  <div class="sh"><div class="sh-tag">Institucional</div><div class="sh-title">Niveles Institucionales — ¿dónde están los muros del dinero grande?</div><button class="glossary-btn" onclick="openGlossary('gex-oi-walls')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <span class="mono" style="font-size:10px;color:var(--text2)">GEX por strike (opciones CBOE, delayed 15 min, vencimientos ≤45d) — los muros de gamma actúan como imanes/frenos del precio.</span>
+      <div style="display:flex;gap:6px">
+        <button id="inst-btn-QQQ" type="button" onclick="InstPanel.load('QQQ')" style="font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:4px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent">QQQ</button>
+        <button id="inst-btn-SPY" type="button" onclick="InstPanel.load('SPY')" style="font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:4px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent">SPY</button>
+      </div>
+    </div>
+    <div id="inst-strip" class="mono" style="font-size:10px;color:var(--text3);margin-bottom:8px;line-height:1.7">Se carga al abrir el tab…</div>
+    <div class="ch-wrap" style="height:300px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
+  </div>
+
   <!-- ══════════════════════════════════════════════════
        OPPORTUNITY SCANNER · Tab 02 ACTIVOS
        Sistema de detección de oportunidades sectoriales
@@ -8768,6 +8782,7 @@ function renderCapitalRotation(scrubOnly) {
   try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
   try { if (typeof BumpRace !== 'undefined') BumpRace.render(); } catch (e) { /* ídem */ }
   try { if (typeof SeasonMap !== 'undefined' && !SeasonMap._init) { SeasonMap._init = true; SeasonMap.load(SeasonMap._current); } } catch (e) { /* ídem */ }
+  try { if (typeof InstPanel !== 'undefined' && !InstPanel._init) { InstPanel._init = true; InstPanel.load('QQQ'); } } catch (e) { /* F-I1 — nunca romper la rotación */ }
 }
 
 // ══ FASE 1 · Performance Relativa — chart rebaseado + leaderboard (estilo CryptoLat) ══
@@ -9059,6 +9074,126 @@ function rebasedChartHtml(cvId, titulo) {
     + '<div class="ch-wrap" style="height:235px"><canvas id="' + cvId + '" role="img" aria-label="' + titulo + '">Chart rebaseado.</canvas></div>'
     + '</div>';
 }
+
+// ══ F-I1 · InstPanel — muros de gamma/OI de opciones (proyecto Institucional 2026-07-10) ══
+// Fuente: /api/capital?src=opt (CBOE delayed agregado server-side a ~8 KB). El chart pinta
+// GEX por strike; las líneas spot/flip/maxPain se dibujan con plugin (category axis → se
+// interpola el pixel entre strikes vecinos). Cache client 30 min (el server ya cachea 1h CDN).
+const instLinesPlugin = {
+  id: 'instLines',
+  afterDatasetsDraw(chart) {
+    const marks = chart.config.options._instMarks;
+    if (!marks) return;
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    const ks = chart.data.labels.map(Number); // strikes DESC (precio alto arriba)
+    const pixFor = v => {
+      if (v == null || !ks.length) return null;
+      if (v >= ks[0]) return y.getPixelForValue(0);
+      if (v <= ks[ks.length - 1]) return y.getPixelForValue(ks.length - 1);
+      for (let i = 0; i < ks.length - 1; i++) {
+        if (v <= ks[i] && v >= ks[i + 1]) {
+          const f = (ks[i] - v) / (ks[i] - ks[i + 1] || 1);
+          return y.getPixelForValue(i) + f * (y.getPixelForValue(i + 1) - y.getPixelForValue(i));
+        }
+      }
+      return null;
+    };
+    ctx.save();
+    ctx.font = "600 8px 'IBM Plex Mono', monospace";
+    for (const m of marks) {
+      const py = pixFor(m.v);
+      if (py == null) continue;
+      ctx.strokeStyle = m.col; ctx.setLineDash(m.dash || [5, 4]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(a.left, py); ctx.lineTo(a.right, py); ctx.stroke();
+      ctx.fillStyle = m.col;
+      ctx.fillText(m.txt, a.left + 4, py - 3);
+    }
+    ctx.restore();
+  }
+};
+const InstPanel = {
+  _cur: 'QQQ', _cache: {}, _chart: null, _init: false,
+  async load(tk) {
+    tk = String(tk || 'QQQ').toUpperCase();
+    this._cur = tk;
+    ['QQQ', 'SPY'].forEach(b => {
+      const el = document.getElementById('inst-btn-' + b);
+      if (el) { const on = b === tk; el.style.borderColor = on ? 'var(--gold)' : 'var(--border2)'; el.style.color = on ? 'var(--gold)' : 'var(--text2)'; el.style.background = on ? 'rgba(230,180,80,.08)' : 'transparent'; }
+    });
+    const strip = document.getElementById('inst-strip');
+    if (!strip) return;
+    const c = this._cache[tk];
+    let d = (c && Date.now() - c.ts < 1800000) ? c.d : null;
+    if (!d) {
+      strip.innerHTML = '<span style="color:var(--text3)">Cargando muros de ' + tk + '…</span>';
+      try {
+        const r = await fetch('/api/capital?src=opt&tickers=' + tk);
+        d = await r.json();
+        if (!r.ok || d.error) throw new Error(d.error || 'HTTP ' + r.status);
+        this._cache[tk] = { d, ts: Date.now() };
+      } catch (e) {
+        strip.innerHTML = '<span style="color:var(--red)">⚠ Sin data de opciones: ' + escHtml(e.message) + '</span>';
+        return;
+      }
+    }
+    if (this._cur !== tk) return; // el toggle cambió mientras cargaba — descartar
+    this._render(d);
+  },
+  _render(d) {
+    const strip = document.getElementById('inst-strip');
+    const fK = v => v == null ? '—' : (+v).toLocaleString('en-US');
+    const gexCol = d.gexTotalBn >= 0 ? 'var(--green)' : 'var(--red)';
+    strip.innerHTML =
+      '<b style="color:var(--text)">' + d.tk + '</b> spot ' + d.spot.toFixed(2)
+      + ' · P/C vol <b>' + (d.pcVol ?? '—') + '</b> · P/C OI <b>' + (d.pcOI ?? '—') + '</b>'
+      + ' · GEX neto <b style="color:' + gexCol + '">$' + d.gexTotalBn + 'bn</b>'
+      + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>'
+      + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>'
+      + ' · ⚖ Flip ' + fK(d.gammaFlip) + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
+      + ' <span style="color:var(--text3)">· CBOE ' + (d.updated || '') + '</span>';
+    // Filtrar strikes para legibilidad: fuera el ruido (<3% del |GEX| máximo), cap 40 barras
+    let rows = d.strikes.filter(s => s.gex !== 0);
+    const gMax = Math.max(...rows.map(s => Math.abs(s.gex)), 1);
+    rows = rows.filter(s => Math.abs(s.gex) >= gMax * 0.03);
+    if (rows.length > 40) rows = [...rows].sort((a, b) => Math.abs(b.gex) - Math.abs(a.gex)).slice(0, 40);
+    rows.sort((a, b) => b.k - a.k); // precio alto arriba, como un DOM
+    const cv = document.getElementById('inst-gex-cv');
+    if (!cv || typeof Chart === 'undefined' || !rows.length) return;
+    if (this._chart) { try { this._chart.destroy(); } catch (e) {} this._chart = null; }
+    this._chart = new Chart(cv, {
+      type: 'bar',
+      data: {
+        labels: rows.map(s => s.k),
+        datasets: [{
+          data: rows.map(s => s.gex),
+          backgroundColor: rows.map(s => s.gex >= 0 ? 'rgba(52,211,153,.65)' : 'rgba(248,113,113,.65)'),
+          borderWidth: 0, barPercentage: .85, categoryPercentage: .9,
+          _rows: rows
+        }]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        _instMarks: [
+          { v: d.spot, txt: 'SPOT ' + d.spot.toFixed(0), col: '#f0ece4', dash: [2, 3] },
+          d.gammaFlip != null ? { v: d.gammaFlip, txt: 'FLIP ' + d.gammaFlip, col: '#e6b450' } : null,
+          d.maxPain != null ? { v: d.maxPain, txt: 'MAX PAIN ' + d.maxPain, col: '#a78bfa', dash: [6, 5] } : null
+        ].filter(Boolean),
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: c => {
+            const s = c.dataset._rows[c.dataIndex];
+            return 'GEX $' + s.gex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString();
+          } } }
+        },
+        scales: {
+          x: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, callback: v => '$' + v + 'M' } },
+          y: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, autoSkip: true, maxTicksLimit: 24 } }
+        }
+      },
+      plugins: [instLinesPlugin]
+    });
+  }
+};
 
 // ══ VIZ paquete D · BumpRace — ranking semanal de sectores por retorno 1M (26 semanas) ══
 // Computado del hist diario existente (cero data nueva): en cada semana w, rank 1-11 por
@@ -10325,6 +10460,20 @@ const INDICATORS_GLOSSARY = {
     interpret: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
     thresholds: [{ c: 'green', t: 'X>100 y Y>100 → Líder (el capital ESTÁ aquí)' }, { c: 'green', t: 'X<100 y Y>100 → Mejorando (el capital ENTRA)' }, { c: 'amber', t: 'X>100 y Y<100 → Debilitándose (el capital SALE)' }, { c: 'red', t: 'X<100 y Y<100 → Rezagado (capital ya salió)' }],
     note: 'La estela muestra 6 semanas. Señal integrada: se cruza con la fase Howell. HONESTIDAD METODOLÓGICA: es una aproximación NO propietaria del RRG de JdK/StockCharts (falta el escalado por desviación estándar y la normalización contra el universo) — interpretar SOLO el cuadrante y la dirección del giro, NO la distancia al centro ni comparar magnitudes entre sectores de distinta volatilidad.'
+  },
+  'gex-oi-walls': {
+    name: 'Muros de Gamma/OI (GEX)', category: 'Institucional · Niveles',
+    source: { label: 'CBOE delayed quotes (cadena de opciones completa, sin key)', url: 'https://www.cboe.com/delayed_quotes/', freq: 'Delayed 15 min · agregado server-side, cache 1h' },
+    formula: 'GEX por strike = Σcalls(Γ·OI·100·S²·1%) − Σputs(Γ·OI·100·S²·1%) — dólares que los dealers deben cubrir por cada 1% de movimiento. Ventana: vencimientos ≤45 días, strikes ±15% del spot. Flip = strike donde el GEX acumulado cruza a positivo. Max pain = strike que minimiza el pago total a holders (vencimiento más cercano).',
+    what: 'Dónde está posicionado el dinero grande en opciones y cómo esa posición FUERZA el comportamiento del precio: los market makers cubren su gamma comprando/vendiendo el subyacente, y eso convierte los strikes con open interest masivo en imanes, techos y pisos.',
+    interpret: 'CALL WALL (GEX máximo) = imán/resistencia — el precio tiende a gravitar hacia él y frenarse ahí. PUT WALL (GEX mínimo) = soporte donde los dealers compran al cubrir. Sobre el FLIP los dealers amortiguan el movimiento (mercado pegajoso); bajo el flip lo AMPLIFICAN (moves violentos — zona de crashes y squeezes). MAX PAIN: hacia dónde conviene que expire el precio a quien vendió las opciones (gravedad de fin de semana de expiración).',
+    thresholds: [
+      { c: 'green', t: 'Precio entre put wall y call wall con GEX total positivo → rango contenido, comprar soportes/vender techos funciona' },
+      { c: 'amber', t: 'Precio acercándose al call wall → el upside se FRENA ahí; mover stops, no perseguir' },
+      { c: 'red', t: 'Precio BAJO el gamma flip → régimen de gamma negativa: los dealers venden caídas y compran subidas — movimientos amplificados, sizing reducido' },
+      { c: 'n', t: 'Los muros se recalculan a diario (el OI cambia con cada vencimiento) — son niveles TÁCTICOS de días/semanas, no estructurales' }
+    ],
+    note: 'F-I1 del proyecto Institucional (2026-07-10). SUPUESTO DECLARADO: la convención estándar asume dealers largos en calls y cortos en puts — es una aproximación (el posicionamiento real no es observable); interpretarlo como mapa de zonas, no como predicción puntual. Data delayed 15 min: sirve para NIVELES, no para timing de ejecución.'
   },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {

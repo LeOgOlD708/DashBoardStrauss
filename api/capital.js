@@ -1,9 +1,11 @@
 // api/capital.js — FASE 3 "dinero real" (2026-07-08, research playbook 10)
-// Tres fuentes de flujo de capital REAL en UN endpoint (?src=finra|insiders|earnings)
+// Fuentes de flujo de capital REAL en UN endpoint (?src=finra|insiders|earnings|opt)
 // — un solo archivo por el límite de 12 serverless functions del plan Hobby de Vercel.
 //   · finra:    short volume DIARIO por ticker (CDN público de FINRA Reg SHO, sin auth)
 //   · insiders: compras/ventas de insiders 90d (SEC EDGAR Form 4, oficial, sin key)
 //   · earnings: próxima fecha de earnings por ticker (Finnhub free tier — env FINNHUB_KEY)
+//   · opt:      cadena de opciones agregada (CBOE delayed, sin auth) → GEX por strike,
+//               muros call/put, gamma flip, max pain, P/C — proyecto Institucional F-I1
 
 const SEC_UA = { 'User-Agent': 'DashBoardStrauss jssulopez@gmail.com' }; // SEC exige contacto; <10 req/s
 
@@ -197,6 +199,73 @@ async function digest() {
   return { sent: true, ts: new Date().toISOString() };
 }
 
+// ── F-I1 · CBOE delayed options: agregados institucionales por ticker ──
+// El raw de SPY pesa ~6 MB (14k contratos) — se parsea AQUÍ y al cliente viajan ~8 KB.
+// GEX convención dealer estándar (largos calls +, cortos puts −), $ por movimiento de 1%.
+// Delayed 15 min — son niveles, no timing.
+async function optAgg(tk) {
+  let r = await fetch(`https://cdn.cboe.com/api/global/delayed_quotes/options/${tk}.json`, { signal: AbortSignal.timeout(12000) });
+  if (r.status === 404) // índices llevan prefijo _ en CBOE (_SPX, _VIX); ETFs/acciones no
+    r = await fetch(`https://cdn.cboe.com/api/global/delayed_quotes/options/_${tk}.json`, { signal: AbortSignal.timeout(12000) });
+  if (!r.ok) throw new Error('CBOE HTTP ' + r.status + ' para ' + tk + ' (¿ticker sin opciones listadas?)');
+  const j = await r.json();
+  const data = j.data || {};
+  const spot = data.current_price;
+  if (!(spot > 0)) throw new Error('sin current_price CBOE para ' + tk);
+  const today = new Date().toISOString().slice(0, 10);
+  const maxExp = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
+  const reSym = /(\d{6})([CP])(\d{8})$/; // TICKER + YYMMDD + C/P + strike*1000
+  const byStrike = new Map();
+  let cVolT = 0, pVolT = 0, cOIT = 0, pOIT = 0, nearestExp = null;
+  const expiries = new Set(), nearRows = [];
+  for (const o of (data.options || [])) {
+    const m = reSym.exec(o.option || '');
+    if (!m) continue;
+    const exp = '20' + m[1].slice(0, 2) + '-' + m[1].slice(2, 4) + '-' + m[1].slice(4, 6);
+    if (exp < today || exp > maxExp) continue; // ventana ≤45 días
+    const isCall = m[2] === 'C';
+    const k = +m[3] / 1000;
+    const oi = +o.open_interest || 0, vol = +o.volume || 0, gamma = +o.gamma || 0;
+    expiries.add(exp);
+    if (!nearestExp || exp < nearestExp) nearestExp = exp;
+    if (isCall) { cVolT += vol; cOIT += oi; } else { pVolT += vol; pOIT += oi; } // P/C: toda la ventana
+    if (exp === nearestExp) nearRows.push({ k, isCall, oi, exp });
+    if (k < spot * 0.85 || k > spot * 1.15) continue; // GEX: solo strikes ±15% del spot
+    let row = byStrike.get(k);
+    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0 }; byStrike.set(k, row); }
+    const gexUsd = gamma * oi * 100 * spot * spot * 0.01;
+    if (isCall) { row.cOI += oi; row.gex += gexUsd; } else { row.pOI += oi; row.gex -= gexUsd; }
+  }
+  const near = nearRows.filter(x => x.exp === nearestExp); // pudo acumular exps que "eran" nearest
+  const strikes = [...byStrike.values()].sort((a, b) => a.k - b.k);
+  if (!strikes.length) throw new Error('sin strikes ≤45d dentro de ±15% para ' + tk);
+  let callWall = strikes[0], putWall = strikes[0], gexTotal = 0;
+  for (const s of strikes) {
+    gexTotal += s.gex;
+    if (s.gex > callWall.gex) callWall = s;
+    if (s.gex < putWall.gex) putWall = s;
+  }
+  let flip = null, cum = 0, prevCum = 0; // strike donde el GEX acumulado cruza a positivo
+  for (const s of strikes) {
+    prevCum = cum; cum += s.gex;
+    if (prevCum < 0 && cum >= 0) { flip = s.k; break; }
+  }
+  let maxPain = null, best = Infinity; // expiración más cercana: argmin del payout a holders
+  for (const K of [...new Set(near.map(x => x.k))].sort((a, b) => a - b)) {
+    let pay = 0;
+    for (const x of near) pay += x.isCall ? x.oi * Math.max(0, K - x.k) : x.oi * Math.max(0, x.k - K);
+    if (pay < best) { best = pay; maxPain = K; }
+  }
+  return {
+    tk, spot, updated: j.timestamp || null, nearestExp, expiries: expiries.size,
+    pcVol: cVolT > 0 ? +(pVolT / cVolT).toFixed(2) : null,
+    pcOI: cOIT > 0 ? +(pOIT / cOIT).toFixed(2) : null,
+    gexTotalBn: +(gexTotal / 1e9).toFixed(2),
+    callWall: callWall.k, putWall: putWall.k, gammaFlip: flip, maxPain,
+    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1) })) // gex $M
+  };
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -272,7 +341,12 @@ module.exports = async (req, res) => {
       res.setHeader('Cache-Control', out.error ? 'max-age=0, no-cache' : 's-maxage=43200, stale-while-revalidate=21600'); // 12h
       return res.status(200).json(out);
     }
-    return res.status(400).json({ error: 'src debe ser finra | insiders | earnings' });
+    if (src === 'opt') {
+      const out = await optAgg(tickers[0]); // 1 ticker por llamada (raw grande + cache CDN por URL)
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // 1h — muros se mueven lento
+      return res.status(200).json(out);
+    }
+    return res.status(400).json({ error: 'src debe ser finra | insiders | earnings | opt' });
   } catch (e) {
     return res.status(502).json({ error: e.message });
   }
