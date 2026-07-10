@@ -342,9 +342,16 @@ module.exports = async (req, res) => {
       return res.status(200).json(out);
     }
     if (src === 'opt') {
-      const out = await optAgg(tickers[0]); // 1 ticker por llamada (raw grande + cache CDN por URL)
-      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // 1h — muros se mueven lento
-      return res.status(200).json(out);
+      // 1 ticker por llamada (raw grande + cache CDN por URL). Ticker sin opciones (CBOE
+      // 403/404) NO es un error del sistema → 200 con {error} (patrón insiders, consola limpia)
+      try {
+        const out = await optAgg(tickers[0]);
+        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // 1h — muros se mueven lento
+        return res.status(200).json(out);
+      } catch (e) {
+        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // el "sin opciones" tampoco cambia en 1h
+        return res.status(200).json({ error: e.message });
+      }
     }
     return res.status(400).json({ error: 'src debe ser finra | insiders | earnings | opt' });
   } catch (e) {
