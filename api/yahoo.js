@@ -59,8 +59,9 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
   const ytdBase = preYearRows.length > 0 ? preYearRows[preYearRows.length - 1].close : rows[0].close;
 
   // Cap del histórico: 1 año diario por default; 3y diario (756) para el deep-dive de
-  // analyze (α/β estables); 10y mensual (~120) para estacionalidad — Tanda 2 (2026-07-09)
-  const cap = range === '3y' ? 756 : 252;
+  // analyze (α/β estables); 10y mensual (~120) para estacionalidad — Tanda 2 (2026-07-09);
+  // 60d/5m (~4700 barras) para volume profile intradía — F-I2 (2026-07-10)
+  const cap = range === '60d' ? 5000 : range === '3y' ? 756 : 252;
   const histFull = rows.slice(-cap);
 
   // ── Volumen — para Opportunity Scanner (Tab 02) ──
@@ -82,13 +83,16 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
   // Review 2026-07-09: con interval=1mo los offsets 5/22/66/20 son MESES, no días —
   // los campos de ventana corta serían basura silenciosa. Solo hist/dates son válidos.
   const daily = interval === '1d';
+  // F-I2: en intradía (5m/30m) el rango no cruza el año previo → ytdBase sería el inicio
+  // del rango y el "ytd" saldría como retorno del rango — basura silenciosa. Null.
+  const intraday = interval === '5m' || interval === '30m';
   return {
     price:  parseFloat(price.toFixed(2)),
     chg1d:  daily ? parseFloat(((price / prevClose    - 1) * 100).toFixed(2)) : null,
     chg5d:  daily ? parseFloat(((price / fiveDaysAgo  - 1) * 100).toFixed(2)) : null,
     chg1m:  daily ? parseFloat(((price / monthAgo     - 1) * 100).toFixed(1)) : null,
     chg3m:  daily ? parseFloat(((price / threeMonAgo  - 1) * 100).toFixed(1)) : null,
-    ytd:    parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
+    ytd:    intraday ? null : parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
     hist:   histFull.map(r => parseFloat(r.close.toFixed(2))),
     dates:  histFull.map(r => r.date),
     // Fase A Pipeline de Capital 2026-07-07: serie diaria de volúmenes (alineada con hist)
@@ -149,7 +153,8 @@ module.exports = async (req, res) => {
   }
 
   // interval automático según range · 10y mensual (2026-07-08): para el heatmap de estacionalidad
-  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo' };
+  // · 60d/5m (2026-07-10 F-I2): volume profile intradía (Yahoo permite 5m hasta 60 días)
+  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo', '60d': '5m' };
   const interval = intervalMap[range] || '1d';
 
   await Promise.all(

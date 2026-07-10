@@ -8515,6 +8515,47 @@ function volumeDryUp(vols) {
   return (s5 / n5) < 0.6 * (s50 / n50);
 }
 
+// ══ F-I2 · Primitivas de niveles institucionales (2026-07-10) ══
+// Volume Profile por bins de precio. APROXIMACIÓN DECLARADA: el volumen de cada barra se
+// asigna íntegro al bin de su CLOSE (sin distribución intra-barra — el proxy no expone H/L).
+// Con barras de 5m el error es marginal; con diarias es un perfil estructural grueso.
+function volumeProfile(closes, vols, nBins) {
+  if (!Array.isArray(closes) || !Array.isArray(vols) || closes.length < 30) return null;
+  const pts = [];
+  for (let i = 0; i < closes.length; i++) if (closes[i] > 0 && vols[i] > 0) pts.push([closes[i], vols[i]]);
+  if (pts.length < 30) return null;
+  let lo = Infinity, hi = -Infinity;
+  for (const [c] of pts) { if (c < lo) lo = c; if (c > hi) hi = c; }
+  if (!(hi > lo)) return null;
+  const n = nBins || 50, w = (hi - lo) / n, bins = new Array(n).fill(0);
+  for (const [c, v] of pts) bins[Math.min(n - 1, Math.floor((c - lo) / w))] += v;
+  const total = bins.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return null;
+  let pocIdx = 0;
+  for (let i = 1; i < n; i++) if (bins[i] > bins[pocIdx]) pocIdx = i;
+  // Value Area 70%: expandir desde el POC hacia el vecino de mayor volumen
+  let vaLo = pocIdx, vaHi = pocIdx, acc = bins[pocIdx];
+  while (acc < total * 0.7 && (vaLo > 0 || vaHi < n - 1)) {
+    const dn = vaLo > 0 ? bins[vaLo - 1] : -1, up = vaHi < n - 1 ? bins[vaHi + 1] : -1;
+    if (up >= dn) { vaHi++; acc += bins[vaHi]; } else { vaLo--; acc += bins[vaLo]; }
+  }
+  const mid = i => lo + (i + 0.5) * w;
+  // HVN: máximos locales con volumen ≥ percentil 85 de los bins
+  const sorted = [...bins].sort((a, b) => a - b), p85 = sorted[Math.floor(n * 0.85)];
+  const hvn = [];
+  for (let i = 1; i < n - 1; i++) if (bins[i] >= p85 && bins[i] >= bins[i - 1] && bins[i] >= bins[i + 1] && i !== pocIdx) hvn.push(mid(i));
+  return { poc: mid(pocIdx), vah: mid(vaHi), val: mid(vaLo), hvn: hvn.slice(0, 4), bins, lo, w };
+}
+// AVWAP: precio promedio ponderado por volumen desde un ancla (por closes — sin typical price,
+// el proxy no expone H/L; declarado en el glosario).
+function avwap(closes, vols, fromIdx) {
+  if (!Array.isArray(closes) || !Array.isArray(vols)) return null;
+  let pv = 0, vv = 0;
+  for (let i = Math.max(0, fromIdx || 0); i < closes.length; i++)
+    if (closes[i] > 0 && vols[i] > 0) { pv += closes[i] * vols[i]; vv += vols[i]; }
+  return vv > 0 ? pv / vv : null;
+}
+
 function trendTemplate(hist, rsRating) {
   if (!Array.isArray(hist) || hist.length < 200) return null;
   const price = hist[hist.length - 1];
@@ -9963,6 +10004,73 @@ const CapitalDrill = {
           + '<span style="color:var(--text3)"> — si difiere mucho de la α 252d de la tabla, la corta es momentum reciente, no calidad estructural</span></div>');
       }
     } catch (e) { /* el deep-dive nunca rompe el análisis base */ }
+    // F-I2 (2026-07-10): NIVELES INSTITUCIONALES por ticker — perfil de volumen 60d/5m
+    // (POC/VAH/VAL/HVN) + AVWAPs (YTD, mínimo 52w) + muros de opciones (?src=opt).
+    // Bloque 100% aditivo: cualquier fallo (ticker sin opciones, Yahoo sin intradía) degrada limpio.
+    try {
+      const dU = this.universe[tk];
+      const spot = dU?.hist?.[dU.hist.length - 1];
+      if (dU?.hist?.length >= 200 && spot > 0) {
+        const [d60, opt] = await Promise.all([
+          fetch('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d').then(r2 => r2.json()).catch(() => null),
+          fetch('/api/capital?src=opt&tickers=' + encodeURIComponent(tk)).then(r2 => r2.json()).catch(() => null)
+        ]);
+        const h60 = d60?.[tk]?.hist, v60 = d60?.[tk]?.vols;
+        const vp = (h60?.length >= 500) ? volumeProfile(h60, v60, 50) : null;
+        const vp1y = volumeProfile(dU.hist, dU.vols, 40); // perfil estructural 1y (data ya cargada)
+        const jan1 = new Date().getFullYear() + '-01-01';
+        let iYtd = dU.dates?.findIndex(dd => dd >= jan1); if (iYtd < 0) iYtd = null;
+        let iMin = 0; dU.hist.forEach((p2, i2) => { if (p2 < dU.hist[iMin]) iMin = i2; });
+        const lv = [];
+        const add = (lbl, v, src2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, dist: (v / spot - 1) * 100 }); };
+        if (vp) { add('POC 60d (5m)', vp.poc, 'perfil'); add('VAH 60d', vp.vah, 'perfil'); add('VAL 60d', vp.val, 'perfil'); }
+        if (vp1y) add('POC 1 año (diario)', vp1y.poc, 'perfil');
+        if (iYtd != null) add('AVWAP desde 1-ene', avwap(dU.hist, dU.vols, iYtd), 'avwap');
+        add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap');
+        if (opt && !opt.error) { add('Call wall (GEX máx)', opt.callWall, 'opciones'); add('Put wall (GEX mín)', opt.putWall, 'opciones'); if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones'); if (opt.maxPain != null) add('Max pain ' + (opt.nearestExp || ''), opt.maxPain, 'opciones'); }
+        if (lv.length) {
+          lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
+          const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)' };
+          const rowsH = lv.map(L2 => {
+            const c2 = L2.dist <= 0 ? 'var(--green)' : 'var(--red)';
+            const rol = L2.dist <= 0 ? 'soporte' : 'resistencia';
+            return '<tr><td style="padding:2px 8px 2px 0;color:var(--text2)"><span style="color:' + srcCol[L2.src] + '">●</span> ' + L2.lbl + '</td>'
+              + '<td style="padding:2px 8px;text-align:right;color:var(--text)">' + L2.v.toFixed(2) + '</td>'
+              + '<td style="padding:2px 0;text-align:right;color:' + c2 + '" title="' + rol + ' (el precio está ' + (L2.dist <= 0 ? 'arriba' : 'abajo') + ')">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
+          }).join('');
+          document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
+            '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
+            + '📐 NIVELES INSTITUCIONALES <button class="help-i" type="button" onclick="openGlossary(\'niveles-institucionales\')" title="¿Qué es esto?">?</button>'
+            + '<span style="color:var(--text3)"> — ordenados por cercanía al precio (' + spot.toFixed(2) + ')</span>'
+            + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:6px">'
+            + (vp ? '<canvas id="inst-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
+            + '<table style="border-collapse:collapse;font-size:10px;flex:1;min-width:230px"><tbody>' + rowsH + '</tbody></table>'
+            + '</div>'
+            + '<div style="color:var(--text3);font-size:8px;margin-top:4px">● <span style="color:var(--blue)">perfil de volumen</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones (CBOE delayed)</span> — verde = soporte bajo el precio · rojo = resistencia arriba' + (opt && opt.error ? ' · sin cadena de opciones para ' + tk : '') + '</div>'
+            + '</div>');
+          // canvas puro del perfil (sin instancia Chart.js — muere con el innerHTML)
+          if (vp) {
+            const cv2 = document.getElementById('inst-vp-cv');
+            if (cv2) {
+              const cx = cv2.getContext('2d'), W2 = cv2.width, H2 = cv2.height, n2 = vp.bins.length;
+              const vMax = Math.max(...vp.bins), bh = H2 / n2;
+              for (let i2 = 0; i2 < n2; i2++) {
+                const price2 = vp.lo + (i2 + 0.5) * vp.w;
+                const y2 = H2 - (i2 + 1) * bh; // precio bajo abajo
+                const inVA = price2 >= vp.val && price2 <= vp.vah;
+                cx.fillStyle = Math.abs(price2 - vp.poc) < vp.w ? '#e6b450' : inVA ? 'rgba(96,165,250,.55)' : 'rgba(125,111,99,.35)';
+                cx.fillRect(0, y2, Math.max(1, vp.bins[i2] / vMax * (W2 - 4)), Math.max(1, bh - 1));
+              }
+              const ySpot = H2 - ((spot - vp.lo) / vp.w) * bh;
+              if (ySpot >= 0 && ySpot <= H2) {
+                cx.strokeStyle = '#f0ece4'; cx.setLineDash([3, 3]);
+                cx.beginPath(); cx.moveTo(0, ySpot); cx.lineTo(W2, ySpot); cx.stroke();
+              }
+            }
+          }
+        }
+      }
+    } catch (e) { /* niveles institucionales nunca rompen el análisis base */ }
   },
   // Tanda 2a: percentil del RANGO DE 3 AÑOS (closes mensuales, fetch liviano ~120 pts/ticker)
   // como superíndice en la columna RANGO 52w — contexto largo sin cambiar el scoring
@@ -10474,6 +10582,20 @@ const INDICATORS_GLOSSARY = {
       { c: 'n', t: 'Los muros se recalculan a diario (el OI cambia con cada vencimiento) — son niveles TÁCTICOS de días/semanas, no estructurales' }
     ],
     note: 'F-I1 del proyecto Institucional (2026-07-10). SUPUESTO DECLARADO: la convención estándar asume dealers largos en calls y cortos en puts — es una aproximación (el posicionamiento real no es observable); interpretarlo como mapa de zonas, no como predicción puntual. Data delayed 15 min: sirve para NIVELES, no para timing de ejecución.'
+  },
+  'niveles-institucionales': {
+    name: 'Niveles Institucionales por ticker', category: 'Institucional · Niveles',
+    source: { label: 'Computado: Yahoo intradía 60d/5m + hist 1y + CBOE opciones', url: 'https://finance.yahoo.com', freq: 'Perfil 60d cache 15 min · opciones cache 1h' },
+    formula: 'Volume Profile: el volumen de cada barra de 5 min se asigna al bin de precio de su close (50 bins sobre el rango 60d). POC = bin con más volumen · Value Area = 70% del volumen alrededor del POC (VAH techo, VAL piso). AVWAP = Σ(precio·vol)/Σvol desde el ancla (1-enero y mínimo 52w). Muros de opciones: ver glosario GEX.',
+    what: 'La radiografía de niveles de UN activo: dónde acumuló volumen el dinero grande (perfil), cuál es su precio promedio desde anclas relevantes (AVWAP — la referencia de los desks para saber si la posición institucional va ganando), y dónde están los muros de opciones.',
+    interpret: 'Los niveles se ordenan por CERCANÍA al precio actual: verde = soporte (el precio está arriba), rojo = resistencia (está abajo). Confluencia de 2+ niveles de fuentes DISTINTAS (ej: POC 60d + AVWAP + put wall en la misma zona) = nivel de alta calidad para stops/entradas. Precio sobre AVWAP desde el mínimo 52w = los compradores de ese giro siguen en ganancia (tendencia sana).',
+    thresholds: [
+      { c: 'green', t: 'Precio sobre VAH con POC abajo → aceptación alcista: el perfil es soporte' },
+      { c: 'amber', t: 'Precio DENTRO de la Value Area → zona de rotación/ruido: niveles poco direccionales' },
+      { c: 'red', t: 'Precio bajo VAL y bajo AVWAPs → los institucionales promedio están perdiendo: cada rebote encuentra vendedores' },
+      { c: 'n', t: 'El canvas muestra el perfil 60d: barra dorada = POC, azules = Value Area, línea punteada = precio actual' }
+    ],
+    note: 'F-I2 del proyecto Institucional (2026-07-10). APROXIMACIONES DECLARADAS: el perfil asigna el volumen al CLOSE de cada barra (sin distribución intra-barra) y el AVWAP usa closes (el proxy no expone high/low) — para barras de 5 min el error es marginal. Yahoo 5m cubre solo sesión regular (sin pre/post market).'
   },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {
