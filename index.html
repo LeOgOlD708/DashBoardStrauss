@@ -8555,6 +8555,16 @@ function avwap(closes, vols, fromIdx) {
     if (closes[i] > 0 && vols[i] > 0) { pv += closes[i] * vols[i]; vv += vols[i]; }
   return vv > 0 ? pv / vv : null;
 }
+// F-I3: volumen total de la semana [weekStart, weekStart+6d] del hist diario ya cargado —
+// denominador del dp% (el server FINRA solo conoce el volumen off-exchange).
+function weekVolOf(dU, weekStart) {
+  if (!dU?.dates || !dU?.vols) return null;
+  const end = new Date(new Date(weekStart + 'T12:00:00').getTime() + 6 * 86400000).toISOString().slice(0, 10);
+  let s = 0, n = 0;
+  for (let i = 0; i < dU.dates.length; i++)
+    if (dU.dates[i] >= weekStart && dU.dates[i] <= end && dU.vols[i] > 0) { s += dU.vols[i]; n++; }
+  return n >= 3 ? s : null; // semana con <3 sesiones = denominador no confiable
+}
 
 function trendTemplate(hist, rsRating) {
   if (!Array.isArray(hist) || hist.length < 200) return null;
@@ -10071,6 +10081,39 @@ const CapitalDrill = {
         }
       }
     } catch (e) { /* niveles institucionales nunca rompen el análisis base */ }
+    // F-I3 (2026-07-10): DARK POOLS del ticker — FINRA ATS semanal (lag ~2-3 sem, SIEMPRE etiquetado).
+    try {
+      const dU = this.universe[tk];
+      const ats = await fetch('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)).then(r2 => r2.json()).catch(() => null);
+      const d = ats?.data?.[tk];
+      if (d && !d.error && d.weeks?.length) {
+        const wks = d.weeks.slice(-4);
+        const rows2 = wks.map(w => {
+          const tot = weekVolOf(dU, w.week);
+          const dp = tot ? (w.ats / tot * 100) : null;
+          const off = tot ? ((w.ats + w.otc) / tot * 100) : null;
+          return { ...w, dp, off };
+        });
+        const L2 = rows2[rows2.length - 1], P2 = rows2.length > 1 ? rows2[rows2.length - 2] : null;
+        const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
+        const fmtM = v => (v / 1e6).toFixed(1) + 'M';
+        const lagD = Math.round((Date.now() - new Date(L2.week + 'T12:00:00')) / 86400000);
+        const venues = (d.topATS || []).map(v => v.name.replace(/\s+(LLC|INC\.?|,)$/i, '') + ' ' + fmtM(v.sh)).join(' · ');
+        const internal = (d.topOTC || []).map(v => v.name.split(' ')[0] + ' ' + fmtM(v.sh)).join(' · ');
+        const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
+        document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
+          '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
+          + '🕶 DARK POOLS <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
+          + ' <span style="color:var(--amber)">semana del ' + L2.week + ' (dato con ~' + lagD + 'd de rezago — FINRA publica con lag)</span><br>'
+          + (L2.dp != null
+            ? 'Dark pools: <b>' + L2.dp.toFixed(1) + '%</b> del volumen semanal (' + fmtM(L2.ats) + ')'
+              + (L2.off != null ? ' · off-exchange total (ATS+internalizadores): <b>' + Math.min(99, L2.off).toFixed(0) + '%</b>' : '')
+              + (dTrend != null ? ' · Δ vs sem. anterior: <span style="color:' + (dTrend >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dTrend >= 0 ? '+' : '') + dTrend.toFixed(1) + 'pp</span>' : '')
+            : 'ATS: ' + fmtM(L2.ats) + ' shares (sin denominador local para %)')
+          + '<br><span style="color:var(--text3)">Trayectoria dp%: ' + histTxt
+          + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>');
+      }
+    } catch (e) { /* dark pools nunca rompen el análisis base */ }
   },
   // Tanda 2a: percentil del RANGO DE 3 AÑOS (closes mensuales, fetch liviano ~120 pts/ticker)
   // como superíndice en la columna RANGO 52w — contexto largo sin cambiar el scoring
@@ -10301,6 +10344,19 @@ const CandidatasHoy = {
       Object.entries(f.data || {}).forEach(([tk, d]) => {
         const col = d.ratio >= 55 ? 'var(--red)' : d.ratio <= 40 ? 'var(--green)' : 'var(--text3)';
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME (FINRA Reg SHO, archivo ' + d.file + '): ' + d.ratio + '% del volumen del día fue venta corta (' + (d.shortVol/1e6).toFixed(1) + 'M de ' + (d.totalVol/1e6).toFixed(1) + 'M). >55% presión corta elevada · <40% baja — umbrales PROVISIONALES (el ~45% es normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
+      });
+    } catch (e) {}
+    // 1b · F-I3 Dark pool % (1 llamada batched para top 10; lag ~2-3 sem SIEMPRE declarado)
+    try {
+      const a = await fetch('/api/capital?src=ats&tickers=' + tks.slice(0, 10).join(',')).then(r2 => r2.json());
+      Object.entries(a.data || {}).forEach(([tk, d]) => {
+        if (d.error || !d.weeks?.length) return;
+        const dps = d.weeks.slice(-4).map(w => { const t = weekVolOf(CapitalDrill.universe[tk], w.week); return t ? w.ats / t * 100 : null; }).filter(v2 => v2 != null);
+        if (!dps.length) return;
+        const cur = dps[dps.length - 1], wk = d.weeks[d.weeks.length - 1].week;
+        const base = dps.length > 1 ? dps.slice(0, -1).reduce((x, y) => x + y, 0) / (dps.length - 1) : null;
+        const hot = base != null && cur > base * 1.3 && cur >= 12; // subiendo fuerte vs su propio hist
+        chip(tk, '<span class="mono" style="font-size:8px;color:' + (hot ? 'var(--amber)' : 'var(--text3)') + '" title="DARK POOLS (FINRA ATS, semana del ' + wk + ' — dato con ~2-3 semanas de rezago): ' + cur.toFixed(1) + '% del volumen semanal se cruzó en dark pools' + (base != null ? ' (promedio 3 sem previas: ' + base.toFixed(1) + '%)' : '') + '. Alto y subiendo = actividad institucional inusual — NO es direccional (puede ser acumulación o distribución)">🕶' + cur.toFixed(0) + '%</span>');
       });
     } catch (e) {}
     // 2 · Earnings (1 llamada; requiere FINNHUB_KEY en Vercel — falla silenciosa si no está)
@@ -10596,6 +10652,19 @@ const INDICATORS_GLOSSARY = {
       { c: 'n', t: 'El canvas muestra el perfil 60d: barra dorada = POC, azules = Value Area, línea punteada = precio actual' }
     ],
     note: 'F-I2 del proyecto Institucional (2026-07-10). APROXIMACIONES DECLARADAS: el perfil asigna el volumen al CLOSE de cada barra (sin distribución intra-barra) y el AVWAP usa closes (el proxy no expone high/low) — para barras de 5 min el error es marginal. Yahoo 5m cubre solo sesión regular (sin pre/post market).'
+  },
+  'dark-pools': {
+    name: 'Dark Pools (FINRA ATS)', category: 'Institucional · Flujo',
+    source: { label: 'FINRA OTC Transparency · weeklySummary (oficial, sin key)', url: 'https://otctransparency.finra.org/', freq: 'Semanal · publicado con ~2 sem de rezago (Tier 1)' },
+    formula: 'dp% = shares ATS de la semana ÷ volumen total de esa semana (Yahoo). Off-exchange = (ATS + internalizadores non-ATS) ÷ total. Los venues (UBS ATS, Sigma X2, Level…) y los internalizadores (Citadel, Virtu…) salen del desglose por firma del mismo dataset.',
+    what: 'Qué parte del volumen del activo se negoció FUERA de los exchanges: en dark pools (ATS — donde las instituciones ejecutan sin mostrar sus órdenes) y con internalizadores mayoristas (el flujo retail). Es la huella de ejecución institucional, publicada por el regulador.',
+    interpret: 'Un dp% ALTO Y SUBIENDO vs su propio histórico = alguien grande está trabajando una posición sin mostrar la mano — pero el dato NO dice si compra o vende (acumulación y distribución se ven igual). Se lee con el contexto: dp% subiendo + precio aguantando soportes + U/D alto = huele a acumulación; dp% subiendo + precio sin avanzar en resistencia = distribución. El tamaño del internalizador (Citadel/Virtu) es flujo RETAIL, no institucional.',
+    thresholds: [
+      { c: 'amber', t: 'dp% >30% o >1.3× su promedio de 3 semanas → actividad oculta inusual: investigar con precio/volumen' },
+      { c: 'n', t: 'dp% 10-25% es lo NORMAL en large caps — el nivel absoluto importa menos que el CAMBIO' },
+      { c: 'red', t: 'El dato llega con ~2-3 SEMANAS de rezago (se etiqueta la semana exacta): sirve para acumulación sostenida, JAMÁS para timing del día' }
+    ],
+    note: 'F-I3 del proyecto Institucional (2026-07-10). El tamaño medio de orden en ATS hoy es pequeño (las instituciones trocean todo en órdenes hijas) — por eso NO usamos "tamaño de bloque" como señal, solo el % y su tendencia. Tier 2/OTC publican con 4 semanas de rezago.'
   },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {

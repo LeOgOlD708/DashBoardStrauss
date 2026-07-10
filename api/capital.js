@@ -6,6 +6,7 @@
 //   · earnings: próxima fecha de earnings por ticker (Finnhub free tier — env FINNHUB_KEY)
 //   · opt:      cadena de opciones agregada (CBOE delayed, sin auth) → GEX por strike,
 //               muros call/put, gamma flip, max pain, P/C — proyecto Institucional F-I1
+//   · ats:      dark pools por ticker (FINRA ATS weeklySummary, sin auth) — F-I3
 
 const SEC_UA = { 'User-Agent': 'DashBoardStrauss jssulopez@gmail.com' }; // SEC exige contacto; <10 req/s
 
@@ -266,6 +267,49 @@ async function optAgg(tk) {
   };
 }
 
+// ── F-I3 · FINRA ATS weeklySummary: dark pools por ticker (sin auth, validado en dev) ──
+// summaryTypeCode: ATS_W_SMBL = total dark pools símbolo/semana · ATS_W_SMBL_FIRM = por venue
+// · OTC_W_SMBL(_FIRM) = internalizadores non-ATS (Citadel/Virtu/...). Lag publicación:
+// ~2 sem (Tier 1) a 4 sem (Tier 2/OTC) — el cliente SIEMPRE etiqueta la semana del dato.
+async function atsWeekly(tickers) {
+  const since = new Date(Date.now() - 42 * 86400000).toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const r = await fetch('https://api.finra.org/data/group/otcMarket/name/weeklySummary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    body: JSON.stringify({
+      limit: 8000,
+      domainFilters: [{ fieldName: 'issueSymbolIdentifier', values: tickers }],
+      dateRangeFilters: [{ fieldName: 'weekStartDate', startDate: since, endDate: today }]
+    }),
+    signal: AbortSignal.timeout(12000)
+  });
+  if (!r.ok) throw new Error('FINRA ATS HTTP ' + r.status);
+  const rows = await r.json();
+  if (!Array.isArray(rows)) throw new Error('FINRA ATS: respuesta no es lista');
+  const data = {};
+  const wkMap = {};
+  for (const x of rows) {
+    const tk = x.issueSymbolIdentifier;
+    if (!tickers.includes(tk)) continue;
+    const m = wkMap[tk] || (wkMap[tk] = {});
+    const w = m[x.weekStartDate] || (m[x.weekStartDate] = { week: x.weekStartDate, ats: 0, atsTrades: 0, otc: 0 });
+    if (x.summaryTypeCode === 'ATS_W_SMBL') { w.ats = +x.totalWeeklyShareQuantity || 0; w.atsTrades = +x.totalWeeklyTradeCount || 0; }
+    else if (x.summaryTypeCode === 'OTC_W_SMBL') w.otc = +x.totalWeeklyShareQuantity || 0;
+  }
+  for (const tk of tickers) {
+    const weeks = Object.values(wkMap[tk] || {}).sort((a, b) => a.week < b.week ? -1 : 1);
+    if (!weeks.length) { data[tk] = { error: 'sin data ATS' }; continue; }
+    const last = weeks[weeks.length - 1].week;
+    const top = (code) => rows
+      .filter(x => x.issueSymbolIdentifier === tk && x.summaryTypeCode === code && x.weekStartDate === last)
+      .sort((a, b) => b.totalWeeklyShareQuantity - a.totalWeeklyShareQuantity).slice(0, 3)
+      .map(x => ({ name: (x.marketParticipantName || x.MPID || '?').trim(), sh: +x.totalWeeklyShareQuantity || 0 }));
+    data[tk] = { weeks, topATS: top('ATS_W_SMBL_FIRM'), topOTC: top('OTC_W_SMBL_FIRM') };
+  }
+  return { data, since };
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -353,7 +397,12 @@ module.exports = async (req, res) => {
         return res.status(200).json({ error: e.message });
       }
     }
-    return res.status(400).json({ error: 'src debe ser finra | insiders | earnings | opt' });
+    if (src === 'ats') {
+      const out = await atsWeekly(tickers.slice(0, 10)); // 1 request FINRA para todos (domainFilters)
+      res.setHeader('Cache-Control', 's-maxage=43200, stale-while-revalidate=43200'); // 12h — dato semanal con lag
+      return res.status(200).json(out);
+    }
+    return res.status(400).json({ error: 'src debe ser finra | insiders | earnings | opt | ats' });
   } catch (e) {
     return res.status(502).json({ error: e.message });
   }
