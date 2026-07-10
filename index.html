@@ -1367,6 +1367,15 @@ html.auth-ok #auth-gate{display:none}
     </div>
   </div>
 
+  <!-- ── F-I4 · COT — posicionamiento institucional en futuros (CFTC, proyecto Institucional 2026-07-10) ── -->
+  <div class="card" style="border-color:rgba(167,139,250,.2);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
+    <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🏦 COT · Posicionamiento en Futuros <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('cot-posicionamiento')">?</button></span>
+      <span id="cot-updated" style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-weight:400">—</span>
+    </div>
+    <div id="cot-body" class="mono" style="font-size:10px;color:var(--text3);margin-top:8px">Cargando posicionamiento CFTC…</div>
+  </div>
+
   <div class="zone-divider">Ciclo Económico · Modelo Fidelity</div>
 
   <!-- ── CICLO ECONÓMICO FIDELITY ── -->
@@ -3665,6 +3674,7 @@ async function bootData() {
   updateNavTickers();
   updateHeroScore();
   updateLastUpdate();
+  try { if (typeof CotCard !== 'undefined') CotCard.load(); } catch (e) { /* F-I4: la card COT nunca rompe el boot */ }
   hideLoadingState();
   setNavStatus('EN VIVO', '#2dd4bf');
   document.getElementById('data-strip')?.classList.remove('hidden');
@@ -9246,6 +9256,54 @@ const InstPanel = {
   }
 };
 
+// ══ F-I4 · CotCard — posicionamiento semanal en futuros (CFTC COT, Tab 01) ══
+// Contrarian en extremos: pctil 3y ≥90 = specs crowded LONG (riesgo de unwind) ·
+// ≤10 = crowded SHORT (combustible de squeeze). Spark SVG inline (26 sem, sin Chart.js).
+const CotCard = {
+  _ts: 0,
+  async load() {
+    const body = document.getElementById('cot-body');
+    if (!body || Date.now() - this._ts < 3 * 3600000) return; // 1 carga por sesión larga (server cachea 6h)
+    try {
+      const d = await fetch('/api/capital?src=cot').then(r => r.json());
+      if (!d?.mkts?.length) throw new Error(d?.error || 'sin data');
+      this._ts = Date.now();
+      const el = document.getElementById('cot-updated');
+      if (el) el.textContent = 'data del martes ' + (d.updated || '—') + ' · CFTC';
+      const fK = v => (v >= 0 ? '+' : '−') + (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(Math.abs(v) >= 100000 ? 0 : 1) + 'K' : Math.abs(v));
+      const spark = (arr) => {
+        if (!arr?.length) return '';
+        const lo = Math.min(...arr), hi = Math.max(...arr), rg = hi - lo || 1;
+        const pts = arr.map((v, i) => (i / (arr.length - 1) * 60).toFixed(1) + ',' + (14 - (v - lo) / rg * 12).toFixed(1)).join(' ');
+        const zeroY = (lo < 0 && hi > 0) ? (14 - (0 - lo) / rg * 12).toFixed(1) : null;
+        return '<svg width="62" height="16" style="vertical-align:middle">'
+          + (zeroY != null ? '<line x1="0" y1="' + zeroY + '" x2="60" y2="' + zeroY + '" stroke="rgba(125,111,99,.4)" stroke-width="0.5"/>' : '')
+          + '<polyline points="' + pts + '" fill="none" stroke="' + (arr[arr.length - 1] >= arr[0] ? 'var(--green)' : 'var(--red)') + '" stroke-width="1.1"/></svg>';
+      };
+      const rows = d.mkts.map(m => {
+        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + m.lbl + '</td><td colspan="5" style="color:var(--text3)">' + m.error + '</td></tr>';
+        const p = m.pctil3y;
+        const flag = p >= 90 ? { c: 'var(--red)', t: 'CROWDED LONG', tip: 'especuladores en su percentil ' + p + ' de largos en 3 años — posicionamiento saturado: contrarian BAJISTA (riesgo de unwind)' }
+          : p <= 10 ? { c: 'var(--teal)', t: 'CROWDED SHORT', tip: 'especuladores en su percentil ' + p + ' (cortos extremos) en 3 años — combustible de short squeeze: contrarian ALCISTA' }
+          : { c: 'var(--text3)', t: 'p' + p, tip: 'percentil ' + p + ' del net de especuladores en 3 años (161 semanas) — sin extremo' };
+        return '<tr>'
+          + '<td style="padding:3px 8px 3px 0;color:var(--text2);white-space:nowrap">' + m.lbl + '</td>'
+          + '<td style="padding:3px 8px;text-align:right;color:' + (m.net >= 0 ? 'var(--green)' : 'var(--red)') + '" title="posición NETA de especuladores (non-commercials): largos − cortos, en contratos">' + fK(m.net) + '</td>'
+          + '<td style="padding:3px 8px;text-align:right;color:' + (m.dWeek >= 0 ? 'var(--green)' : 'var(--red)') + '" title="cambio vs la semana anterior">' + fK(m.dWeek) + '</td>'
+          + '<td style="padding:3px 8px;text-align:right;color:var(--text3)" title="net como % del open interest total del contrato">' + (m.netPctOI != null ? m.netPctOI + '%' : '—') + '</td>'
+          + '<td style="padding:3px 8px;text-align:center"><span style="color:' + flag.c + ';font-weight:600" title="' + flag.tip + '">' + flag.t + '</span></td>'
+          + '<td style="padding:3px 0" title="net de especuladores, últimas 26 semanas">' + spark(m.spark) + '</td></tr>';
+      }).join('');
+      body.innerHTML = '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:10px;width:100%"><thead><tr style="color:var(--text3);font-size:8px;letter-spacing:.08em">'
+        + '<th style="text-align:left;padding:0 8px 4px 0">MERCADO</th><th style="text-align:right;padding:0 8px 4px">NET SPECS</th><th style="text-align:right;padding:0 8px 4px">Δ SEM</th><th style="text-align:right;padding:0 8px 4px">% OI</th><th style="padding:0 8px 4px">PERCENTIL 3A</th><th style="text-align:left;padding:0 0 4px">26 SEM</th></tr></thead>'
+        + '<tbody>' + rows + '</tbody></table></div>'
+        + '<div style="font-size:8px;color:var(--text3);margin-top:5px">Net de ESPECULADORES (non-commercials) por contrato · dato del martes, publicado el viernes (CFTC legacy) · extremos = señal contrarian, no timing</div>';
+    } catch (e) {
+      body.innerHTML = '<span style="color:var(--text3)">COT no disponible: ' + escHtml(e.message) + '</span>';
+    }
+  }
+};
+
 // ══ VIZ paquete D · BumpRace — ranking semanal de sectores por retorno 1M (26 semanas) ══
 // Computado del hist diario existente (cero data nueva): en cada semana w, rank 1-11 por
 // retorno trailing 21d. Los cruces de líneas = rotaciones de liderazgo (complemento del RRG).
@@ -10665,6 +10723,20 @@ const INDICATORS_GLOSSARY = {
       { c: 'red', t: 'El dato llega con ~2-3 SEMANAS de rezago (se etiqueta la semana exacta): sirve para acumulación sostenida, JAMÁS para timing del día' }
     ],
     note: 'F-I3 del proyecto Institucional (2026-07-10). El tamaño medio de orden en ATS hoy es pequeño (las instituciones trocean todo en órdenes hijas) — por eso NO usamos "tamaño de bloque" como señal, solo el % y su tendencia. Tier 2/OTC publican con 4 semanas de rezago.'
+  },
+  'cot-posicionamiento': {
+    name: 'COT — Posicionamiento en Futuros', category: 'Institucional · Flujo',
+    source: { label: 'CFTC Commitments of Traders (Legacy, Socrata API oficial sin key)', url: 'https://publicreporting.cftc.gov/', freq: 'Semanal: data del martes, publicada el viernes' },
+    formula: 'Net specs = posiciones largas − cortas de non-commercials (especuladores/fondos). %OI = net ÷ open interest total. Percentil 3A = ranking del net actual dentro de las ~161 semanas de 3 años. Mercados: ES, NQ, GOLD, DXY, 10Y, EUR, BTC (CME), VIX.',
+    what: 'El reporte regulatorio donde CADA jugador grande de futuros declara su posición: commercials (hedgers — productores, bancos cubriendo) vs non-commercials (especuladores — CTAs, macro funds). Es el posicionamiento institucional REAL, no una encuesta.',
+    interpret: 'Se lee CONTRARIAN en los extremos: percentil ≥90 = especuladores saturados de largos — no queda quién compre, el riesgo es el unwind (bajista). Percentil ≤10 = cortos extremos — combustible de short squeeze (alcista). Entre 10 y 90 el dato es tendencial, no señal. Los commercials suelen ser el smart money en los extremos (van contra los specs). VIX es el clásico: specs crowded short en VIX = complacencia = techo de mercado cerca.',
+    thresholds: [
+      { c: 'red', t: 'Percentil ≥90 → CROWDED LONG: posicionamiento agotado, vulnerable a unwind' },
+      { c: 'green', t: 'Percentil ≤10 → CROWDED SHORT: capitulación especulativa, combustible contrarian' },
+      { c: 'amber', t: 'Δ semanal grande contra la posición (specs cubriendo) → el giro puede estar en marcha' },
+      { c: 'n', t: 'Futuros ≠ exposición total (swaps y opciones quedan fuera) · lag de 3 días (martes→viernes)' }
+    ],
+    note: 'F-I4 del proyecto Institucional (2026-07-10). Códigos de contrato verificados contra la API. Complementa a AAII/NAAIM (retail/asesores) con el lado de los FUTUROS — juntos cubren el espectro completo del posicionamiento.'
   },
   // ── HOWELL (largo plazo, liquidez) ──
   'reservas-fed': {

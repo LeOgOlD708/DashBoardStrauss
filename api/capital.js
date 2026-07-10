@@ -310,6 +310,55 @@ async function atsWeekly(tickers) {
   return { data, since };
 }
 
+// ── F-I4 · CFTC COT (Socrata, sin key): posicionamiento semanal en futuros ──
+// Legacy Futures-Only. Códigos confirmados contra la API 2026-07-10 ($select distinct).
+// Percentil 3 AÑOS del net de especuladores: >=90 crowded long / <=10 crowded short (contrarian).
+const COT_MKTS = [
+  { code: '13874A', lbl: 'ES · S&P 500' },
+  { code: '209742', lbl: 'NQ · Nasdaq 100' },
+  { code: '088691', lbl: 'GOLD' },
+  { code: '098662', lbl: 'DXY · US Dollar Idx' },
+  { code: '043602', lbl: '10Y · T-Note' },
+  { code: '099741', lbl: 'EUR · Euro FX' },
+  { code: '133741', lbl: 'BTC · CME' },
+  { code: '1170E1', lbl: 'VIX · futuros' }
+];
+async function cotPositioning() {
+  const since = new Date(Date.now() - 3.1 * 365 * 86400000).toISOString().slice(0, 10);
+  const codes = COT_MKTS.map(m => "'" + m.code + "'").join(',');
+  const url = 'https://publicreporting.cftc.gov/resource/6dca-aqww.json'
+    + '?$select=cftc_contract_market_code,report_date_as_yyyy_mm_dd,noncomm_positions_long_all,noncomm_positions_short_all,comm_positions_long_all,comm_positions_short_all,open_interest_all'
+    + '&$where=' + encodeURIComponent('cftc_contract_market_code in(' + codes + ") AND report_date_as_yyyy_mm_dd>='" + since + "'")
+    + '&$order=report_date_as_yyyy_mm_dd&$limit=2500';
+  const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error('CFTC Socrata HTTP ' + r.status);
+  const rows = await r.json();
+  const byCode = {};
+  for (const x of rows) (byCode[x.cftc_contract_market_code] || (byCode[x.cftc_contract_market_code] = [])).push(x);
+  const out = [];
+  for (const m of COT_MKTS) {
+    const hist = (byCode[m.code] || []).map(x => ({
+      d: x.report_date_as_yyyy_mm_dd.slice(0, 10),
+      net: (+x.noncomm_positions_long_all || 0) - (+x.noncomm_positions_short_all || 0),
+      netComm: (+x.comm_positions_long_all || 0) - (+x.comm_positions_short_all || 0),
+      oi: +x.open_interest_all || 0
+    }));
+    if (hist.length < 30) { out.push({ ...m, error: 'hist insuficiente (' + hist.length + ')' }); continue; }
+    const cur = hist[hist.length - 1], prev = hist[hist.length - 2];
+    const rank = hist.filter(h => h.net <= cur.net).length / hist.length * 100;
+    out.push({
+      code: m.code, lbl: m.lbl, date: cur.d,
+      net: cur.net, netComm: cur.netComm,
+      netPctOI: cur.oi > 0 ? +(cur.net / cur.oi * 100).toFixed(1) : null,
+      dWeek: cur.net - prev.net,
+      pctil3y: +rank.toFixed(0),
+      weeks: hist.length,
+      spark: hist.slice(-26).map(h => h.net)
+    });
+  }
+  return { mkts: out, updated: out.find(o => o.date)?.date || null };
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -335,8 +384,13 @@ module.exports = async (req, res) => {
 
   const src = String(req.query.src || '');
 
-  // F4 · track record + F5 · digest (no requieren ?tickers=)
+  // F4 · track record + F5 · digest + F-I4 · COT (no requieren ?tickers=)
   try {
+    if (src === 'cot') {
+      const out = await cotPositioning();
+      res.setHeader('Cache-Control', 's-maxage=21600, stale-while-revalidate=43200'); // 6h — publica viernes
+      return res.status(200).json(out);
+    }
     if (src === 'digest') {
       // protegido: si CRON_SECRET está configurada, solo el cron de Vercel puede dispararlo
       const sec = process.env.CRON_SECRET;
