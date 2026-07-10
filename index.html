@@ -915,6 +915,7 @@ html.auth-ok #auth-gate{display:none}
   <div class="tab tab-new" onclick="go('vol',this)">06 · Volatilidad</div>
   <div class="tab tab-new" onclick="go('news',this)">07 · Noticias</div>
   <div class="tab tab-new" onclick="go('tecnico',this)">08 · Técnico</div>
+  <div class="tab tab-new" onclick="go('inst',this)">09 · Institucional</div>
 </div>
 
 <div class="main">
@@ -1365,15 +1366,6 @@ html.auth-ok #auth-gate{display:none}
         <div id="pos-pcc-int" style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.3">—</div>
       </div>
     </div>
-  </div>
-
-  <!-- ── F-I4 · COT — posicionamiento institucional en futuros (CFTC, proyecto Institucional 2026-07-10) ── -->
-  <div class="card" style="border-color:rgba(167,139,250,.2);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
-    <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
-      <span>🏦 COT · Posicionamiento en Futuros <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('cot-posicionamiento')">?</button></span>
-      <span id="cot-updated" style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-weight:400">—</span>
-    </div>
-    <div id="cot-body" class="mono" style="font-size:10px;color:var(--text3);margin-top:8px">Cargando posicionamiento CFTC…</div>
   </div>
 
   <div class="zone-divider">Ciclo Económico · Modelo Fidelity</div>
@@ -2131,20 +2123,6 @@ html.auth-ok #auth-gate{display:none}
     <div id="cand-body"><div style="font-size:10px;color:var(--text3);font-family:'IBM Plex Mono',monospace;padding:6px 0">Pulsa ESCANEAR AHORA — corre el embudo completo sobre las acciones de los sectores e industrias que están recibiendo capital (~120 tickers, primera vez ~10s). Cache 15 min.</div></div>
   </div>
 
-  <!-- ══ F-I1 · INSTITUCIONAL — muros de gamma/OI de opciones (proyecto Institucional 2026-07-10) ══ -->
-  <div class="sh"><div class="sh-tag">Institucional</div><div class="sh-title">Niveles Institucionales — ¿dónde están los muros del dinero grande?</div><button class="glossary-btn" onclick="openGlossary('gex-oi-walls')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
-  <div class="card" style="margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <span class="mono" style="font-size:10px;color:var(--text2)">GEX por strike (opciones CBOE, delayed 15 min, vencimientos ≤45d) — los muros de gamma actúan como imanes/frenos del precio.</span>
-      <div style="display:flex;gap:6px">
-        <button id="inst-btn-QQQ" type="button" onclick="InstPanel.load('QQQ')" style="font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:4px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent">QQQ</button>
-        <button id="inst-btn-SPY" type="button" onclick="InstPanel.load('SPY')" style="font-size:10px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:4px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent">SPY</button>
-      </div>
-    </div>
-    <div id="inst-strip" class="mono" style="font-size:10px;color:var(--text3);margin-bottom:8px;line-height:1.7">Se carga al abrir el tab…</div>
-    <div class="ch-wrap" style="height:300px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
-  </div>
-
   <!-- ══════════════════════════════════════════════════
        OPPORTUNITY SCANNER · Tab 02 ACTIVOS
        Sistema de detección de oportunidades sectoriales
@@ -2762,6 +2740,51 @@ html.auth-ok #auth-gate{display:none}
 <!-- ══════════════════════════════════════════════════
      09 · TÉCNICO — Swing & Day Trading
 ══════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════
+     09 · INSTITUCIONAL — proyecto Institucional F-I1→F-I5 (2026-07-10)
+     Apartado dedicado (pedido Angel): buscador propio → radiografía completa
+     del activo (muros gamma/OI + niveles + dark pools + ownership) + COT macro.
+══════════════════════════════════════════════════ -->
+<div id="tab-inst" class="page">
+
+  <div class="sh"><div class="sh-tag">Institucional</div><div class="sh-title">Radiografía Institucional — ¿dónde está y qué hace el dinero grande?</div><button class="glossary-btn" onclick="openGlossary('niveles-institucionales')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="instt-search" placeholder="Analizar cualquier ticker: NVDA, PLTR, ORKA, SPY…" onkeydown="if(event.key==='Enter')InstTab.analyze(this.value)" style="flex:1;max-width:340px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 8px;outline:none">
+      <button onclick="InstTab.analyze(document.getElementById('instt-search').value)" style="font-size:9px;font-family:'IBM Plex Mono',monospace;padding:5px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">ANALIZAR</button>
+      <span class="mono" style="font-size:8px;color:var(--text3)">rápido:</span>
+      <button type="button" onclick="InstTab.analyze('QQQ')" class="rot-btn" style="color:var(--text2)">QQQ</button>
+      <button type="button" onclick="InstTab.analyze('SPY')" class="rot-btn" style="color:var(--text2)">SPY</button>
+    </div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px">Muros de gamma (CBOE) · perfil de volumen 60d + AVWAP (Yahoo intradía) · dark pools (FINRA) · ownership (stockanalysis) — todo gratis, oficial y por activo.</div>
+  </div>
+
+  <!-- ── Muros de gamma/OI del ticker analizado ── -->
+  <div class="sh"><div class="sh-tag">Opciones</div><div class="sh-title">Muros de Gamma/OI — imanes, techos y pisos del precio</div><button class="glossary-btn" onclick="openGlossary('gex-oi-walls')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-bottom:8px">GEX por strike (opciones CBOE, delayed 15 min, vencimientos ≤45d). Barras verdes = gamma de calls (frena/atrae) · rojas = de puts (soporte/acelerador).</div>
+    <div id="inst-strip" class="mono" style="font-size:10px;color:var(--text3);margin-bottom:8px;line-height:1.7">Escribe un ticker arriba (o abre el tab: carga QQQ por default)…</div>
+    <div class="ch-wrap" style="height:300px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
+  </div>
+
+  <!-- ── Niveles + dark pools + ownership del ticker analizado ── -->
+  <div class="sh"><div class="sh-tag">Radiografía</div><div class="sh-title">Niveles, Dark Pools y Ownership del activo</div><div class="sh-line"></div></div>
+  <div class="card teal-a" style="margin-bottom:14px"><div class="card-accent"></div>
+    <div id="instd-body"><div class="mono" style="font-size:10px;color:var(--text3);padding:6px 0">La radiografía del activo aparece aquí al analizar: perfil de volumen con POC/Value Area, AVWAPs, niveles ordenados por cercanía, dark pools semana a semana y ownership institucional.</div></div>
+  </div>
+
+  <!-- ── COT macro (posicionamiento futuros CFTC) ── -->
+  <div class="sh"><div class="sh-tag">Futuros</div><div class="sh-title">COT — Posicionamiento especulativo en futuros (macro)</div><div class="sh-line"></div></div>
+  <div class="card" style="border-color:rgba(167,139,250,.2);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
+    <div class="lbl" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🏦 COT · Posicionamiento en Futuros <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('cot-posicionamiento')">?</button></span>
+      <span id="cot-updated" style="font-size:9px;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-weight:400">—</span>
+    </div>
+    <div id="cot-body" class="mono" style="font-size:10px;color:var(--text3);margin-top:8px">Cargando posicionamiento CFTC…</div>
+  </div>
+
+</div>
+
 <div id="tab-tecnico" class="page">
   <div class="sh">
     <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Técnico</div>
@@ -2928,6 +2951,10 @@ function go(id,el){
   if (id === 'tecnico') initTechTab();
   if (id === 'tesis') generateTesisIA();
   if (id === 'act') { setTimeout(renderCapitalRotation, 60); setTimeout(() => FlowTracker.refresh(), 900); }
+  if (id === 'inst') { // Tab 09 Institucional: QQQ por default al primer open + COT
+    try { if (typeof InstTab !== 'undefined' && !InstTab._cur) InstTab.analyze('QQQ'); } catch (e) {}
+    try { if (typeof CotCard !== 'undefined') CotCard.load(); } catch (e) {}
+  }
 
   // ── Lifecycle Opportunity Scanner (Tab 02 ACTIVOS) — init/destroy lazy ──
   // Solo se inicializa al entrar; se destruye al salir para liberar timers y no consumir API calls.
@@ -3679,7 +3706,7 @@ async function bootData() {
   setNavStatus('EN VIVO', '#2dd4bf');
   document.getElementById('data-strip')?.classList.remove('hidden');
   if (state.firstLoad) {
-    setTimeout(() => showToast('Tip: teclas 1–8 para navegar entre tabs'), 1800);
+    setTimeout(() => showToast('Tip: teclas 1–9 para navegar entre tabs'), 1800);
     state.firstLoad = false;
   }
   scheduleRefresh();
@@ -8181,7 +8208,7 @@ hideLoadingState = function () {
 // ── Keyboard shortcuts ──
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.contentEditable === 'true' || e.metaKey || e.ctrlKey) return;
-  const tabs = ['diag','act','dxy','tesis','check','vol','news','tecnico'];
+  const tabs = ['diag','act','dxy','tesis','check','vol','news','tecnico','inst'];
   const i = parseInt(e.key) - 1;
   if (i >= 0 && i < tabs.length) {
     const tabEls = document.querySelectorAll('.tab');
@@ -8843,7 +8870,6 @@ function renderCapitalRotation(scrubOnly) {
   try { if (typeof RelPerf !== 'undefined') RelPerf.render(); } catch (e) { /* nunca romper la rotación */ }
   try { if (typeof BumpRace !== 'undefined') BumpRace.render(); } catch (e) { /* ídem */ }
   try { if (typeof SeasonMap !== 'undefined' && !SeasonMap._init) { SeasonMap._init = true; SeasonMap.load(SeasonMap._current); } } catch (e) { /* ídem */ }
-  try { if (typeof InstPanel !== 'undefined' && !InstPanel._init) { InstPanel._init = true; InstPanel.load('QQQ'); } } catch (e) { /* F-I1 — nunca romper la rotación */ }
 }
 
 // ══ FASE 1 · Performance Relativa — chart rebaseado + leaderboard (estilo CryptoLat) ══
@@ -9176,11 +9202,7 @@ const InstPanel = {
   _cur: 'QQQ', _cache: {}, _chart: null, _init: false,
   async load(tk) {
     tk = String(tk || 'QQQ').toUpperCase();
-    this._cur = tk;
-    ['QQQ', 'SPY'].forEach(b => {
-      const el = document.getElementById('inst-btn-' + b);
-      if (el) { const on = b === tk; el.style.borderColor = on ? 'var(--gold)' : 'var(--border2)'; el.style.color = on ? 'var(--gold)' : 'var(--text2)'; el.style.background = on ? 'rgba(230,180,80,.08)' : 'transparent'; }
-    });
+    this._cur = tk; // Tab 09: cualquier ticker (los quick-buttons QQQ/SPY viven en InstTab)
     const strip = document.getElementById('inst-strip');
     if (!strip) return;
     const c = this._cache[tk];
@@ -9256,7 +9278,153 @@ const InstPanel = {
   }
 };
 
-// ══ F-I4 · CotCard — posicionamiento semanal en futuros (CFTC COT, Tab 01) ══
+// ══ Tab 09 · InstTab — orquestador del apartado Institucional (pedido Angel 2026-07-10:
+// "nuevo apartado para poder ver el análisis" — nada institucional vive ya en drill/candidatas) ══
+const InstTab = {
+  _cur: null,
+  analyze(tkRaw) {
+    const tk = String(tkRaw || '').trim().toUpperCase().replace(/\s+/g, '');
+    if (!/^[A-Z0-9.=^-]{1,10}$/.test(tk)) return;
+    this._cur = tk;
+    const inp = document.getElementById('instt-search');
+    if (inp && inp.value !== tk) inp.value = tk;
+    try { InstPanel.load(tk); } catch (e) {}
+    try { InstDeep.analyze(tk); } catch (e) {}
+  }
+};
+// InstDeep — radiografía del ticker: niveles (perfil 60d + AVWAP + muros) + dark pools + ownership.
+// Data propia (no depende del universo del Tab 02): yahoo 1y + 60d + opt + ats + stats en paralelo.
+const InstDeep = {
+  _gen: 0,
+  async analyze(tk) {
+    const body = document.getElementById('instd-body');
+    if (!body) return;
+    const gen = ++this._gen;
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Radiografiando ' + tk + '…</div>';
+    const jf = u => fetch(u).then(r => r.json()).catch(() => null);
+    const [y1, d60, opt, ats, st] = await Promise.all([
+      jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=1y'),
+      jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
+      jf('/api/capital?src=opt&tickers=' + encodeURIComponent(tk)),
+      jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)),
+      jf('/api/capital?src=stats&tickers=' + encodeURIComponent(tk))
+    ]);
+    if (gen !== this._gen) return; // el usuario pidió otro ticker mientras cargaba
+    const dU = y1?.[tk];
+    if (!dU || dU.error || !dU.hist?.length) {
+      body.innerHTML = '<div class="mono" style="font-size:10px;color:var(--red)">Sin datos Yahoo para "' + escHtml(tk) + '" (¿ticker correcto?).</div>';
+      return;
+    }
+    const spot = dU.hist[dU.hist.length - 1];
+    const parts = [];
+    // ── cabecera ──
+    parts.push('<div class="mono" style="font-size:11px;color:var(--text);margin-bottom:8px"><b>' + escHtml(tk) + '</b> $' + spot.toFixed(2)
+      + (dU.chg1d != null ? ' · 1D <span style="color:' + (dU.chg1d >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dU.chg1d >= 0 ? '+' : '') + dU.chg1d + '%</span>' : '')
+      + (dU.ytd != null ? ' · YTD ' + (dU.ytd >= 0 ? '+' : '') + dU.ytd + '%' : '') + '</div>');
+    // ── 📐 niveles ──
+    try {
+      const h60 = d60?.[tk]?.hist, v60 = d60?.[tk]?.vols;
+      const vp = (h60?.length >= 500) ? volumeProfile(h60, v60, 50) : null;
+      const vp1y = volumeProfile(dU.hist, dU.vols, 40);
+      const jan1 = new Date().getFullYear() + '-01-01';
+      let iYtd = dU.dates?.findIndex(dd => dd >= jan1); if (iYtd < 0) iYtd = null;
+      let iMin = 0; dU.hist.forEach((p2, i2) => { if (p2 < dU.hist[iMin]) iMin = i2; });
+      const lv = [];
+      const add = (lbl, v, src2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, dist: (v / spot - 1) * 100 }); };
+      if (vp) { add('POC 60d (5m)', vp.poc, 'perfil'); add('VAH 60d', vp.vah, 'perfil'); add('VAL 60d', vp.val, 'perfil'); }
+      if (vp1y) add('POC 1 año (diario)', vp1y.poc, 'perfil');
+      if (iYtd != null) add('AVWAP desde 1-ene', avwap(dU.hist, dU.vols, iYtd), 'avwap');
+      add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap');
+      if (opt && !opt.error) { add('Call wall (GEX máx)', opt.callWall, 'opciones'); add('Put wall (GEX mín)', opt.putWall, 'opciones'); if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones'); if (opt.maxPain != null) add('Max pain ' + (opt.nearestExp || ''), opt.maxPain, 'opciones'); }
+      if (lv.length) {
+        lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
+        const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)' };
+        const rowsH = lv.map(L2 => {
+          const c2 = L2.dist <= 0 ? 'var(--green)' : 'var(--red)';
+          const rol = L2.dist <= 0 ? 'soporte' : 'resistencia';
+          return '<tr><td style="padding:2px 8px 2px 0;color:var(--text2)"><span style="color:' + srcCol[L2.src] + '">●</span> ' + L2.lbl + '</td>'
+            + '<td style="padding:2px 8px;text-align:right;color:var(--text)">' + L2.v.toFixed(2) + '</td>'
+            + '<td style="padding:2px 0;text-align:right;color:' + c2 + '" title="' + rol + ' (el precio está ' + (L2.dist <= 0 ? 'arriba' : 'abajo') + ')">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
+        }).join('');
+        parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
+          + '📐 NIVELES INSTITUCIONALES <button class="help-i" type="button" onclick="openGlossary(\'niveles-institucionales\')" title="¿Qué es esto?">?</button>'
+          + '<span style="color:var(--text3)"> — ordenados por cercanía al precio (' + spot.toFixed(2) + ')</span>'
+          + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:6px">'
+          + (vp ? '<canvas id="instd-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
+          + '<table style="border-collapse:collapse;font-size:10px;flex:1;min-width:230px"><tbody>' + rowsH + '</tbody></table>'
+          + '</div>'
+          + '<div style="color:var(--text3);font-size:8px;margin-top:4px">● <span style="color:var(--blue)">perfil de volumen</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones (CBOE delayed)</span> — verde = soporte bajo el precio · rojo = resistencia arriba' + (opt && opt.error ? ' · sin cadena de opciones para ' + escHtml(tk) : '') + '</div>'
+          + '</div>');
+        this._vp = vp; // el canvas se pinta tras el innerHTML
+      } else { this._vp = null; }
+    } catch (e) { this._vp = null; }
+    // ── 🕶 dark pools ──
+    try {
+      const d = ats?.data?.[tk];
+      if (d && !d.error && d.weeks?.length) {
+        const wks = d.weeks.slice(-4);
+        const rows2 = wks.map(w => {
+          const tot = weekVolOf(dU, w.week);
+          return { ...w, dp: tot ? (w.ats / tot * 100) : null, off: tot ? ((w.ats + w.otc) / tot * 100) : null };
+        });
+        const L2 = rows2[rows2.length - 1], P2 = rows2.length > 1 ? rows2[rows2.length - 2] : null;
+        const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
+        const fmtM = v => (v / 1e6).toFixed(1) + 'M';
+        const lagD = Math.round((Date.now() - new Date(L2.week + 'T12:00:00')) / 86400000);
+        const venues = (d.topATS || []).map(v => v.name.replace(/\s+(LLC|INC\.?|,)$/i, '') + ' ' + fmtM(v.sh)).join(' · ');
+        const internal = (d.topOTC || []).map(v => v.name.split(' ')[0] + ' ' + fmtM(v.sh)).join(' · ');
+        const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
+        parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
+          + '🕶 DARK POOLS <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
+          + ' <span style="color:var(--amber)">semana del ' + L2.week + ' (dato con ~' + lagD + 'd de rezago — FINRA publica con lag)</span><br>'
+          + (L2.dp != null
+            ? 'Dark pools: <b>' + L2.dp.toFixed(1) + '%</b> del volumen semanal (' + fmtM(L2.ats) + ')'
+              + (L2.off != null ? ' · off-exchange total (ATS+internalizadores): <b>' + Math.min(99, L2.off).toFixed(0) + '%</b>' : '')
+              + (dTrend != null ? ' · Δ vs sem. anterior: <span style="color:' + (dTrend >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dTrend >= 0 ? '+' : '') + dTrend.toFixed(1) + 'pp</span>' : '')
+            : 'ATS: ' + fmtM(L2.ats) + ' shares (sin denominador local para %)')
+          + '<br><span style="color:var(--text3)">Trayectoria dp%: ' + histTxt
+          + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>');
+      }
+    } catch (e) {}
+    // ── 🏛 ownership ──
+    try {
+      const s2 = st?.data?.[tk];
+      if (s2 && (s2.instOwn != null || s2.shortFloat != null)) {
+        const sfCol = s2.shortFloat >= 15 ? 'var(--red)' : s2.shortFloat >= 8 ? 'var(--amber)' : 'var(--text2)';
+        parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
+          + '🏛 OWNERSHIP: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
+          + ' · insiders ' + (s2.insiderOwn != null ? s2.insiderOwn.toFixed(1) + '%' : '—')
+          + ' · short float <b style="color:' + sfCol + '">' + (s2.shortFloat != null ? s2.shortFloat.toFixed(1) + '%' : '—') + '</b>'
+          + (s2.daysToCover != null ? ' · days-to-cover ' + s2.daysToCover.toFixed(1) : '')
+          + ' <span style="color:var(--text3)">— short float >15% + días altos = terreno de squeeze; instOwn muy bajo = radar institucional aún no la ve (stockanalysis; ETFs no aplican)</span></div>');
+      }
+    } catch (e) {}
+    body.innerHTML = parts.join('');
+    // canvas del perfil (puro, muere con el innerHTML — patrón SeasonMap)
+    const vp = this._vp;
+    if (vp) {
+      const cv2 = document.getElementById('instd-vp-cv');
+      if (cv2) {
+        const cx = cv2.getContext('2d'), W2 = cv2.width, H2 = cv2.height, n2 = vp.bins.length;
+        const vMax = Math.max(...vp.bins), bh = H2 / n2;
+        for (let i2 = 0; i2 < n2; i2++) {
+          const price2 = vp.lo + (i2 + 0.5) * vp.w;
+          const y2 = H2 - (i2 + 1) * bh;
+          const inVA = price2 >= vp.val && price2 <= vp.vah;
+          cx.fillStyle = Math.abs(price2 - vp.poc) < vp.w ? '#e6b450' : inVA ? 'rgba(96,165,250,.55)' : 'rgba(125,111,99,.35)';
+          cx.fillRect(0, y2, Math.max(1, vp.bins[i2] / vMax * (W2 - 4)), Math.max(1, bh - 1));
+        }
+        const ySpot = H2 - ((spot - vp.lo) / vp.w) * bh;
+        if (ySpot >= 0 && ySpot <= H2) {
+          cx.strokeStyle = '#f0ece4'; cx.setLineDash([3, 3]);
+          cx.beginPath(); cx.moveTo(0, ySpot); cx.lineTo(W2, ySpot); cx.stroke();
+        }
+      }
+    }
+  }
+};
+
+// ══ F-I4 · CotCard — posicionamiento semanal en futuros (CFTC COT, Tab 09) ══
 // Contrarian en extremos: pctil 3y ≥90 = specs crowded LONG (riesgo de unwind) ·
 // ≤10 = crowded SHORT (combustible de squeeze). Spark SVG inline (26 sem, sin Chart.js).
 const CotCard = {
@@ -10072,121 +10240,6 @@ const CapitalDrill = {
           + '<span style="color:var(--text3)"> — si difiere mucho de la α 252d de la tabla, la corta es momentum reciente, no calidad estructural</span></div>');
       }
     } catch (e) { /* el deep-dive nunca rompe el análisis base */ }
-    // F-I2 (2026-07-10): NIVELES INSTITUCIONALES por ticker — perfil de volumen 60d/5m
-    // (POC/VAH/VAL/HVN) + AVWAPs (YTD, mínimo 52w) + muros de opciones (?src=opt).
-    // Bloque 100% aditivo: cualquier fallo (ticker sin opciones, Yahoo sin intradía) degrada limpio.
-    try {
-      const dU = this.universe[tk];
-      const spot = dU?.hist?.[dU.hist.length - 1];
-      if (dU?.hist?.length >= 200 && spot > 0) {
-        const [d60, opt] = await Promise.all([
-          fetch('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d').then(r2 => r2.json()).catch(() => null),
-          fetch('/api/capital?src=opt&tickers=' + encodeURIComponent(tk)).then(r2 => r2.json()).catch(() => null)
-        ]);
-        const h60 = d60?.[tk]?.hist, v60 = d60?.[tk]?.vols;
-        const vp = (h60?.length >= 500) ? volumeProfile(h60, v60, 50) : null;
-        const vp1y = volumeProfile(dU.hist, dU.vols, 40); // perfil estructural 1y (data ya cargada)
-        const jan1 = new Date().getFullYear() + '-01-01';
-        let iYtd = dU.dates?.findIndex(dd => dd >= jan1); if (iYtd < 0) iYtd = null;
-        let iMin = 0; dU.hist.forEach((p2, i2) => { if (p2 < dU.hist[iMin]) iMin = i2; });
-        const lv = [];
-        const add = (lbl, v, src2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, dist: (v / spot - 1) * 100 }); };
-        if (vp) { add('POC 60d (5m)', vp.poc, 'perfil'); add('VAH 60d', vp.vah, 'perfil'); add('VAL 60d', vp.val, 'perfil'); }
-        if (vp1y) add('POC 1 año (diario)', vp1y.poc, 'perfil');
-        if (iYtd != null) add('AVWAP desde 1-ene', avwap(dU.hist, dU.vols, iYtd), 'avwap');
-        add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap');
-        if (opt && !opt.error) { add('Call wall (GEX máx)', opt.callWall, 'opciones'); add('Put wall (GEX mín)', opt.putWall, 'opciones'); if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones'); if (opt.maxPain != null) add('Max pain ' + (opt.nearestExp || ''), opt.maxPain, 'opciones'); }
-        if (lv.length) {
-          lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
-          const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)' };
-          const rowsH = lv.map(L2 => {
-            const c2 = L2.dist <= 0 ? 'var(--green)' : 'var(--red)';
-            const rol = L2.dist <= 0 ? 'soporte' : 'resistencia';
-            return '<tr><td style="padding:2px 8px 2px 0;color:var(--text2)"><span style="color:' + srcCol[L2.src] + '">●</span> ' + L2.lbl + '</td>'
-              + '<td style="padding:2px 8px;text-align:right;color:var(--text)">' + L2.v.toFixed(2) + '</td>'
-              + '<td style="padding:2px 0;text-align:right;color:' + c2 + '" title="' + rol + ' (el precio está ' + (L2.dist <= 0 ? 'arriba' : 'abajo') + ')">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
-          }).join('');
-          document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
-            '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-            + '📐 NIVELES INSTITUCIONALES <button class="help-i" type="button" onclick="openGlossary(\'niveles-institucionales\')" title="¿Qué es esto?">?</button>'
-            + '<span style="color:var(--text3)"> — ordenados por cercanía al precio (' + spot.toFixed(2) + ')</span>'
-            + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:6px">'
-            + (vp ? '<canvas id="inst-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
-            + '<table style="border-collapse:collapse;font-size:10px;flex:1;min-width:230px"><tbody>' + rowsH + '</tbody></table>'
-            + '</div>'
-            + '<div style="color:var(--text3);font-size:8px;margin-top:4px">● <span style="color:var(--blue)">perfil de volumen</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones (CBOE delayed)</span> — verde = soporte bajo el precio · rojo = resistencia arriba' + (opt && opt.error ? ' · sin cadena de opciones para ' + tk : '') + '</div>'
-            + '</div>');
-          // canvas puro del perfil (sin instancia Chart.js — muere con el innerHTML)
-          if (vp) {
-            const cv2 = document.getElementById('inst-vp-cv');
-            if (cv2) {
-              const cx = cv2.getContext('2d'), W2 = cv2.width, H2 = cv2.height, n2 = vp.bins.length;
-              const vMax = Math.max(...vp.bins), bh = H2 / n2;
-              for (let i2 = 0; i2 < n2; i2++) {
-                const price2 = vp.lo + (i2 + 0.5) * vp.w;
-                const y2 = H2 - (i2 + 1) * bh; // precio bajo abajo
-                const inVA = price2 >= vp.val && price2 <= vp.vah;
-                cx.fillStyle = Math.abs(price2 - vp.poc) < vp.w ? '#e6b450' : inVA ? 'rgba(96,165,250,.55)' : 'rgba(125,111,99,.35)';
-                cx.fillRect(0, y2, Math.max(1, vp.bins[i2] / vMax * (W2 - 4)), Math.max(1, bh - 1));
-              }
-              const ySpot = H2 - ((spot - vp.lo) / vp.w) * bh;
-              if (ySpot >= 0 && ySpot <= H2) {
-                cx.strokeStyle = '#f0ece4'; cx.setLineDash([3, 3]);
-                cx.beginPath(); cx.moveTo(0, ySpot); cx.lineTo(W2, ySpot); cx.stroke();
-              }
-            }
-          }
-        }
-      }
-    } catch (e) { /* niveles institucionales nunca rompen el análisis base */ }
-    // F-I3 (2026-07-10): DARK POOLS del ticker — FINRA ATS semanal (lag ~2-3 sem, SIEMPRE etiquetado).
-    try {
-      const dU = this.universe[tk];
-      const ats = await fetch('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)).then(r2 => r2.json()).catch(() => null);
-      const d = ats?.data?.[tk];
-      if (d && !d.error && d.weeks?.length) {
-        const wks = d.weeks.slice(-4);
-        const rows2 = wks.map(w => {
-          const tot = weekVolOf(dU, w.week);
-          const dp = tot ? (w.ats / tot * 100) : null;
-          const off = tot ? ((w.ats + w.otc) / tot * 100) : null;
-          return { ...w, dp, off };
-        });
-        const L2 = rows2[rows2.length - 1], P2 = rows2.length > 1 ? rows2[rows2.length - 2] : null;
-        const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
-        const fmtM = v => (v / 1e6).toFixed(1) + 'M';
-        const lagD = Math.round((Date.now() - new Date(L2.week + 'T12:00:00')) / 86400000);
-        const venues = (d.topATS || []).map(v => v.name.replace(/\s+(LLC|INC\.?|,)$/i, '') + ' ' + fmtM(v.sh)).join(' · ');
-        const internal = (d.topOTC || []).map(v => v.name.split(' ')[0] + ' ' + fmtM(v.sh)).join(' · ');
-        const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
-        document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
-          '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '🕶 DARK POOLS <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
-          + ' <span style="color:var(--amber)">semana del ' + L2.week + ' (dato con ~' + lagD + 'd de rezago — FINRA publica con lag)</span><br>'
-          + (L2.dp != null
-            ? 'Dark pools: <b>' + L2.dp.toFixed(1) + '%</b> del volumen semanal (' + fmtM(L2.ats) + ')'
-              + (L2.off != null ? ' · off-exchange total (ATS+internalizadores): <b>' + Math.min(99, L2.off).toFixed(0) + '%</b>' : '')
-              + (dTrend != null ? ' · Δ vs sem. anterior: <span style="color:' + (dTrend >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dTrend >= 0 ? '+' : '') + dTrend.toFixed(1) + 'pp</span>' : '')
-            : 'ATS: ' + fmtM(L2.ats) + ' shares (sin denominador local para %)')
-          + '<br><span style="color:var(--text3)">Trayectoria dp%: ' + histTxt
-          + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>');
-      }
-    } catch (e) { /* dark pools nunca rompen el análisis base */ }
-    // F-I5 (2026-07-10): OWNERSHIP — % institucional/insiders + short interest (stockanalysis).
-    try {
-      const st = await fetch('/api/capital?src=stats&tickers=' + encodeURIComponent(tk)).then(r2 => r2.json()).catch(() => null);
-      const s2 = st?.data?.[tk];
-      if (s2 && (s2.instOwn != null || s2.shortFloat != null)) {
-        const sfCol = s2.shortFloat >= 15 ? 'var(--red)' : s2.shortFloat >= 8 ? 'var(--amber)' : 'var(--text2)';
-        document.getElementById('drill-body')?.insertAdjacentHTML('beforeend',
-          '<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '🏛 OWNERSHIP: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
-          + ' · insiders ' + (s2.insiderOwn != null ? s2.insiderOwn.toFixed(1) + '%' : '—')
-          + ' · short float <b style="color:' + sfCol + '">' + (s2.shortFloat != null ? s2.shortFloat.toFixed(1) + '%' : '—') + '</b>'
-          + (s2.daysToCover != null ? ' · days-to-cover ' + s2.daysToCover.toFixed(1) : '')
-          + ' <span style="color:var(--text3)">— short float >15% + días altos = terreno de squeeze; instOwn muy bajo = radar institucional aún no la ve (stockanalysis)</span></div>');
-      }
-    } catch (e) { /* ownership nunca rompe el análisis base */ }
   },
   // Tanda 2a: percentil del RANGO DE 3 AÑOS (closes mensuales, fetch liviano ~120 pts/ticker)
   // como superíndice en la columna RANGO 52w — contexto largo sin cambiar el scoring
@@ -10419,19 +10472,6 @@ const CandidatasHoy = {
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME (FINRA Reg SHO, archivo ' + d.file + '): ' + d.ratio + '% del volumen del día fue venta corta (' + (d.shortVol/1e6).toFixed(1) + 'M de ' + (d.totalVol/1e6).toFixed(1) + 'M). >55% presión corta elevada · <40% baja — umbrales PROVISIONALES (el ~45% es normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
       });
     } catch (e) {}
-    // 1b · F-I3 Dark pool % (1 llamada batched para top 10; lag ~2-3 sem SIEMPRE declarado)
-    try {
-      const a = await fetch('/api/capital?src=ats&tickers=' + tks.slice(0, 10).join(',')).then(r2 => r2.json());
-      Object.entries(a.data || {}).forEach(([tk, d]) => {
-        if (d.error || !d.weeks?.length) return;
-        const dps = d.weeks.slice(-4).map(w => { const t = weekVolOf(CapitalDrill.universe[tk], w.week); return t ? w.ats / t * 100 : null; }).filter(v2 => v2 != null);
-        if (!dps.length) return;
-        const cur = dps[dps.length - 1], wk = d.weeks[d.weeks.length - 1].week;
-        const base = dps.length > 1 ? dps.slice(0, -1).reduce((x, y) => x + y, 0) / (dps.length - 1) : null;
-        const hot = base != null && cur > base * 1.3 && cur >= 12; // subiendo fuerte vs su propio hist
-        chip(tk, '<span class="mono" style="font-size:8px;color:' + (hot ? 'var(--amber)' : 'var(--text3)') + '" title="DARK POOLS (FINRA ATS, semana del ' + wk + ' — dato con ~2-3 semanas de rezago): ' + cur.toFixed(1) + '% del volumen semanal se cruzó en dark pools' + (base != null ? ' (promedio 3 sem previas: ' + base.toFixed(1) + '%)' : '') + '. Alto y subiendo = actividad institucional inusual — NO es direccional (puede ser acumulación o distribución)">🕶' + cur.toFixed(0) + '%</span>');
-      });
-    } catch (e) {}
     // 2 · Earnings (1 llamada; requiere FINNHUB_KEY en Vercel — falla silenciosa si no está)
     try {
       const ea = await fetch('/api/capital?src=earnings&tickers=' + tks.join(',')).then(r2 => r2.json());
@@ -10441,15 +10481,6 @@ const CandidatasHoy = {
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="Próximos EARNINGS: ' + d.date + (d.hour ? ' (' + d.hour + ')' : '') + (days <= 7 ? ' — ¡a ' + days + ' días! Entrar la víspera es lotería, no setup' : '') + ' · Finnhub">📅' + d.date.slice(5) + '</span>');
       });
       else console.warn('[F3 earnings]', ea.error);
-    } catch (e) {}
-    // 2b · F-I5 Ownership institucional (top 5 — scraping con concurrency limitada server-side)
-    try {
-      const st = await fetch('/api/capital?src=stats&tickers=' + tks.slice(0, 5).join(',')).then(r2 => r2.json());
-      Object.entries(st.data || {}).forEach(([tk, d]) => {
-        if (d.instOwn == null) return;
-        const hot = d.shortFloat != null && d.shortFloat >= 15;
-        chip(tk, '<span class="mono" style="font-size:8px;color:' + (hot ? 'var(--amber)' : 'var(--text3)') + '" title="OWNERSHIP (stockanalysis): instituciones ' + d.instOwn.toFixed(1) + '%' + (d.insiderOwn != null ? ' · insiders ' + d.insiderOwn.toFixed(1) + '%' : '') + (d.shortFloat != null ? ' · short float ' + d.shortFloat.toFixed(1) + '%' + (d.daysToCover != null ? ' (' + d.daysToCover.toFixed(1) + ' días para cubrir)' : '') : '') + (hot ? ' — short float alto: terreno de squeeze, volatilidad extra en ambas direcciones' : '') + '">🏛' + d.instOwn.toFixed(0) + '%</span>');
-      });
     } catch (e) {}
     // 3 · Insiders SEC (top 8, secuencial — respeta el rate del SEC; cache CDN 12h por ticker)
     for (const tk of tks.slice(0, 8)) {
