@@ -9222,17 +9222,40 @@ const InstPanel = {
     if (this._cur !== tk) return; // el toggle cambió mientras cargaba — descartar
     this._render(d);
   },
+  // Mejora post-Tab09: memoria diaria de muros (localStorage, 1 lectura/día, cap 30d × 20 tickers)
+  // — habilita leer la DERIVA (¿el call wall lleva días subiendo? ¿el put wall se desplomó?).
+  _hist(d) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const all = JSON.parse(localStorage.getItem('inst_walls_v1') || '{}');
+      const arr = all[d.tk] || [];
+      if (!arr.length || arr[arr.length - 1].d !== today) {
+        arr.push({ d: today, cw: d.callWall, pw: d.putWall, fl: d.gammaFlip, gex: d.gexTotalBn, pc: d.pcVol });
+        all[d.tk] = arr.slice(-30);
+        const tks = Object.keys(all);
+        if (tks.length > 20) { // el ticker con lectura más vieja sale
+          tks.sort((a, b) => ((all[a][all[a].length - 1] || {}).d || '') < ((all[b][all[b].length - 1] || {}).d || '') ? -1 : 1);
+          delete all[tks[0]];
+        }
+        localStorage.setItem('inst_walls_v1', JSON.stringify(all));
+      }
+      return arr.length >= 2 ? arr[arr.length - 2] : null; // última lectura de OTRO día
+    } catch (e) { return null; }
+  },
   _render(d) {
     const strip = document.getElementById('inst-strip');
     const fK = v => v == null ? '—' : (+v).toLocaleString('en-US');
     const gexCol = d.gexTotalBn >= 0 ? 'var(--green)' : 'var(--red)';
+    const prev = this._hist(d);
+    const drift = (cur, old, lbl) => (prev && old != null && cur != null && old !== cur)
+      ? ' <span style="color:var(--text3);font-size:8px" title="' + lbl + ' en la última lectura de otro día (' + prev.d + '): ' + old + ' — la deriva del muro cuenta cómo se están acomodando los dealers">' + (cur > old ? '↗' : '↘') + prev.d.slice(5) + ':' + old + '</span>' : '';
     strip.innerHTML =
       '<b style="color:var(--text)">' + d.tk + '</b> spot ' + d.spot.toFixed(2)
       + ' · P/C vol <b>' + (d.pcVol ?? '—') + '</b> · P/C OI <b>' + (d.pcOI ?? '—') + '</b>'
-      + ' · GEX neto <b style="color:' + gexCol + '">$' + d.gexTotalBn + 'bn</b>'
-      + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>'
-      + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>'
-      + ' · ⚖ Flip ' + fK(d.gammaFlip) + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
+      + ' · GEX neto <b style="color:' + gexCol + '">$' + d.gexTotalBn + 'bn</b>' + drift(d.gexTotalBn, prev?.gex, 'GEX neto')
+      + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>' + drift(d.callWall, prev?.cw, 'Call wall')
+      + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + drift(d.putWall, prev?.pw, 'Put wall')
+      + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
       + ' <span style="color:var(--text3)">· CBOE ' + (d.updated || '') + '</span>';
     // Filtrar strikes para legibilidad: fuera el ruido (<3% del |GEX| máximo), cap 40 barras
     let rows = d.strikes.filter(s => s.gex !== 0);
@@ -9290,6 +9313,13 @@ const InstTab = {
     if (inp && inp.value !== tk) inp.value = tk;
     try { InstPanel.load(tk); } catch (e) {}
     try { InstDeep.analyze(tk); } catch (e) {}
+  },
+  // Puente desde drill/candidatas (botón 🏛 por fila): cambia al Tab 09 con el análisis cargado.
+  goto(tk) {
+    const tabs = document.querySelectorAll('.tab');
+    const el = [...tabs].find(t => t.textContent.includes('Institucional'));
+    if (el) go('inst', el);
+    this.analyze(tk);
   }
 };
 // InstDeep — radiografía del ticker: niveles (perfil 60d + AVWAP + muros) + dark pools + ownership.
@@ -9337,6 +9367,34 @@ const InstDeep = {
       add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap');
       if (opt && !opt.error) { add('Call wall (GEX máx)', opt.callWall, 'opciones'); add('Put wall (GEX mín)', opt.putWall, 'opciones'); if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones'); if (opt.maxPain != null) add('Max pain ' + (opt.nearestExp || ''), opt.maxPain, 'opciones'); }
       if (lv.length) {
+        // ⭐ Mejora post-Tab09: CONFLUENCIA automática — niveles a <1.2% entre sí y de ≥2
+        // fuentes DISTINTAS = zona de alta calidad (la lectura que el glosario predica, computada).
+        let confHtml = '';
+        try {
+          const byP = [...lv].sort((a2, b2) => a2.v - b2.v);
+          const zones = [];
+          let cur = [byP[0]];
+          for (let i2 = 1; i2 < byP.length; i2++) {
+            if ((byP[i2].v - cur[cur.length - 1].v) / spot <= 0.012) cur.push(byP[i2]);
+            else { zones.push(cur); cur = [byP[i2]]; }
+          }
+          zones.push(cur);
+          const good = zones
+            .filter(z => z.length >= 2 && new Set(z.map(x => x.src)).size >= 2)
+            .map(z => ({ z, lo: z[0].v, hi: z[z.length - 1].v, mid: (z[0].v + z[z.length - 1].v) / 2, nsrc: new Set(z.map(x => x.src)).size }))
+            .sort((a2, b2) => (b2.nsrc - a2.nsrc) || (b2.z.length - a2.z.length) || (Math.abs(a2.mid - spot) - Math.abs(b2.mid - spot)))
+            .slice(0, 2);
+          confHtml = good.map(g => {
+            const dist = (g.mid / spot - 1) * 100;
+            const rol = dist <= 0 ? 'SOPORTE' : 'RESISTENCIA';
+            const col = dist <= 0 ? 'var(--green)' : 'var(--red)';
+            const bg = dist <= 0 ? 'rgba(74,222,128,.06)' : 'rgba(248,113,113,.06)';
+            const rango = g.lo.toFixed(2) + (g.hi > g.lo * 1.0005 ? '–' + g.hi.toFixed(2) : '');
+            return '<div style="border:1px solid ' + col + ';border-left-width:3px;border-radius:5px;padding:5px 9px;margin-top:6px;background:' + bg + '" title="' + g.z.length + ' niveles de ' + g.nsrc + ' fuentes distintas convergen en esta zona (a <1.2% entre sí) — confluencia = nivel de alta calidad para stop/entrada">'
+              + '<b style="color:' + col + '">⭐ CONFLUENCIA ' + rol + ' ' + rango + '</b> <span style="color:var(--text3)">(' + (dist >= 0 ? '+' : '') + dist.toFixed(1) + '% del precio)</span>: '
+              + '<span style="color:var(--text2)">' + g.z.map(x => x.lbl).join(' + ') + '</span></div>';
+          }).join('');
+        } catch (e) { confHtml = ''; }
         lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
         const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)' };
         const rowsH = lv.map(L2 => {
@@ -9349,6 +9407,7 @@ const InstDeep = {
         parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
           + '📐 NIVELES INSTITUCIONALES <button class="help-i" type="button" onclick="openGlossary(\'niveles-institucionales\')" title="¿Qué es esto?">?</button>'
           + '<span style="color:var(--text3)"> — ordenados por cercanía al precio (' + spot.toFixed(2) + ')</span>'
+          + confHtml
           + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:6px">'
           + (vp ? '<canvas id="instd-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
           + '<table style="border-collapse:collapse;font-size:10px;flex:1;min-width:230px"><tbody>' + rowsH + '</tbody></table>'
@@ -9449,7 +9508,7 @@ const CotCard = {
           + '<polyline points="' + pts + '" fill="none" stroke="' + (arr[arr.length - 1] >= arr[0] ? 'var(--green)' : 'var(--red)') + '" stroke-width="1.1"/></svg>';
       };
       const rows = d.mkts.map(m => {
-        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + m.lbl + '</td><td colspan="5" style="color:var(--text3)">' + m.error + '</td></tr>';
+        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + m.lbl + '</td><td colspan="6" style="color:var(--text3)">' + m.error + '</td></tr>';
         const p = m.pctil3y;
         const flag = p >= 90 ? { c: 'var(--red)', t: 'CROWDED LONG', tip: 'especuladores en su percentil ' + p + ' de largos en 3 años — posicionamiento saturado: contrarian BAJISTA (riesgo de unwind)' }
           : p <= 10 ? { c: 'var(--teal)', t: 'CROWDED SHORT', tip: 'especuladores en su percentil ' + p + ' (cortos extremos) en 3 años — combustible de short squeeze: contrarian ALCISTA' }
@@ -9457,13 +9516,14 @@ const CotCard = {
         return '<tr>'
           + '<td style="padding:3px 8px 3px 0;color:var(--text2);white-space:nowrap">' + m.lbl + '</td>'
           + '<td style="padding:3px 8px;text-align:right;color:' + (m.net >= 0 ? 'var(--green)' : 'var(--red)') + '" title="posición NETA de especuladores (non-commercials): largos − cortos, en contratos">' + fK(m.net) + '</td>'
-          + '<td style="padding:3px 8px;text-align:right;color:' + (m.dWeek >= 0 ? 'var(--green)' : 'var(--red)') + '" title="cambio vs la semana anterior">' + fK(m.dWeek) + '</td>'
+          + '<td style="padding:3px 8px;text-align:right;color:var(--text3)" title="posición NETA de COMMERCIALS (hedgers: productores, bancos cubriendo — el otro lado del mercado). En los extremos suelen ser el smart money: van contra los especuladores por necesidad de cobertura, no por opinión">' + (m.netComm != null ? fK(m.netComm) : '—') + '</td>'
+          + '<td style="padding:3px 8px;text-align:right;color:' + (m.dWeek >= 0 ? 'var(--green)' : 'var(--red)') + '" title="cambio vs la semana anterior (specs)">' + fK(m.dWeek) + '</td>'
           + '<td style="padding:3px 8px;text-align:right;color:var(--text3)" title="net como % del open interest total del contrato">' + (m.netPctOI != null ? m.netPctOI + '%' : '—') + '</td>'
           + '<td style="padding:3px 8px;text-align:center"><span style="color:' + flag.c + ';font-weight:600" title="' + flag.tip + '">' + flag.t + '</span></td>'
           + '<td style="padding:3px 0" title="net de especuladores, últimas 26 semanas">' + spark(m.spark) + '</td></tr>';
       }).join('');
       body.innerHTML = '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:10px;width:100%"><thead><tr style="color:var(--text3);font-size:8px;letter-spacing:.08em">'
-        + '<th style="text-align:left;padding:0 8px 4px 0">MERCADO</th><th style="text-align:right;padding:0 8px 4px">NET SPECS</th><th style="text-align:right;padding:0 8px 4px">Δ SEM</th><th style="text-align:right;padding:0 8px 4px">% OI</th><th style="padding:0 8px 4px">PERCENTIL 3A</th><th style="text-align:left;padding:0 0 4px">26 SEM</th></tr></thead>'
+        + '<th style="text-align:left;padding:0 8px 4px 0">MERCADO</th><th style="text-align:right;padding:0 8px 4px">NET SPECS</th><th style="text-align:right;padding:0 8px 4px">NET COMM</th><th style="text-align:right;padding:0 8px 4px">Δ SEM</th><th style="text-align:right;padding:0 8px 4px">% OI</th><th style="padding:0 8px 4px">PERCENTIL 3A</th><th style="text-align:left;padding:0 0 4px">26 SEM</th></tr></thead>'
         + '<tbody>' + rows + '</tbody></table></div>'
         + '<div style="font-size:8px;color:var(--text3);margin-top:5px">Net de ESPECULADORES (non-commercials) por contrato · dato del martes, publicado el viernes (CFTC legacy) · extremos = señal contrarian, no timing</div>';
     } catch (e) {
@@ -10139,8 +10199,10 @@ const CapitalDrill = {
         + (r.sma50pos != null ? '<span style="position:absolute;left:' + r.sma50pos.toFixed(0) + '%;top:-2px;width:1px;height:11px;background:var(--text3)"></span>' : '')
         + '<span style="position:absolute;left:calc(' + Math.max(2, Math.min(98, r.pos52)).toFixed(0) + '% - 3px);top:-1px;width:6px;height:9px;border-radius:2px;background:' + d52col + ';border:1px solid rgba(8,5,10,.7)"></span>'
         + '</span><span style="color:' + d52col + '">' + fmtP(r.dist52) + '</span></span>';
+      // Puente al Tab 09 (mejora post-Institucional): radiografía del ticker en 1 click
+      const instNav = ' <span onclick="event.stopPropagation();InstTab.goto(\'' + r.tk + '\')" style="cursor:pointer;opacity:.5;font-size:9px" title="Ver radiografía institucional de ' + r.tk + ' en el Tab 09 (muros de gamma, niveles, dark pools, ownership)">🏛</span>';
       return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
-        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + r.tk + '</span>' + eye + inst + volTag + ppTag + vduTag + '</td>'
+        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + r.tk + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
@@ -10430,8 +10492,23 @@ const CandidatasHoy = {
         if (stocks.length >= 5) lideres.push({ sector: s.tk, score: s.score, price: s.price, stocks, picks });
       }
     } catch (e) {}
+    // Régimen institucional de MERCADO (OK Angel 2026-07-10): claves NUEVAS, v:2 intacto,
+    // candidatas/picks idénticos — habilita correlacionar a futuro "¿el embudo rinde distinto
+    // según régimen de gamma/COT?" (esta data no se puede reconstruir hacia atrás).
+    let inst = null;
+    try {
+      const [q, cot] = await Promise.all([
+        fetch('/api/capital?src=opt&tickers=QQQ').then(r2 => r2.json()).catch(() => null),
+        fetch('/api/capital?src=cot').then(r2 => r2.json()).catch(() => null)
+      ]);
+      if (q && !q.error) {
+        const nq = cot?.mkts?.find(m => m.code === '209742');
+        const es = cot?.mkts?.find(m => m.code === '13874A');
+        inst = { qqqSpot: q.spot, qqqPC: q.pcVol, qqqGexBn: q.gexTotalBn, flip: q.gammaFlip, callWall: q.callWall, putWall: q.putWall, cotNqPctil: nq?.pctil3y ?? null, cotEsPctil: es?.pctil3y ?? null };
+      }
+    } catch (e) { /* sin inst — el snapshot sale igual */ }
     const snap = {
-      date: today, ts: Date.now(), v: 2, lideres,
+      date: today, ts: Date.now(), v: 2, lideres, inst,
       hero: document.getElementById('diag-score-total')?.textContent?.trim() || null,
       postura: document.getElementById('hero-postura')?.textContent?.trim() || null,
       quad: window.__quad ? { q: window.__quad.quad, conf: +window.__quad.conf.toFixed(1) } : null,
