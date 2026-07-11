@@ -2784,6 +2784,7 @@ html.auth-ok #auth-gate{display:none}
     </div>
     <div id="inst-strip" class="mono" style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.9">Escribe un ticker arriba (o abre el tab: carga QQQ por default)…</div>
     <div class="ch-wrap" style="height:380px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
+    <div id="inst-flow" style="margin-top:14px"></div>
   </div>
 
   <!-- ── Niveles + dark pools + ownership del ticker analizado ── -->
@@ -9481,7 +9482,9 @@ const InstPanel = {
           legend: { display: false },
           tooltip: { callbacks: { label: c => {
             const s = c.dataset._rows[c.dataIndex];
-            return 'GEX $' + s.gex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString();
+            let t = 'GEX $' + s.gex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString();
+            if (s.cV != null) t += ' · vol hoy C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString();
+            return t;
           } } }
         },
         scales: {
@@ -9490,6 +9493,110 @@ const InstPanel = {
         }
       },
       plugins: [instLinesPlugin]
+    });
+    this._flow(d);
+  },
+  // ── FLUJO E1b (2026-07-11): memoria diaria de OI POR STRIKE (patrón inst_walls_v1) ──
+  // Solo ventana default 'm' y solo CBOE — mezclar ventanas/fuentes contaminaría la serie.
+  // Guarda las últimas 2 lecturas de días DISTINTOS por ticker (solo se necesita ayer vs hoy).
+  _oiHist(d) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const all = JSON.parse(localStorage.getItem('inst_oi_v1') || '{}');
+      const arr = all[d.tk] || [];
+      const snap = {};
+      for (const s of (d.strikes || [])) snap[s.k] = [s.cOI, s.pOI];
+      if (!arr.length || arr[arr.length - 1].d !== today) arr.push({ d: today, s: snap });
+      else arr[arr.length - 1].s = snap; // misma sesión: el OI de cierre no cambia intradía, refrescar es inocuo
+      all[d.tk] = arr.slice(-2);
+      const tks = Object.keys(all);
+      if (tks.length > 12) { // cap: el ticker con lectura más vieja sale
+        tks.sort((a, b) => ((all[a][all[a].length - 1] || {}).d || '') < ((all[b][all[b].length - 1] || {}).d || '') ? -1 : 1);
+        delete all[tks[0]];
+      }
+      localStorage.setItem('inst_oi_v1', JSON.stringify(all));
+      return arr.length >= 2 ? arr[arr.length - 2] : null; // lectura previa de OTRO día
+    } catch (e) { return null; }
+  },
+  // ── FLUJO E1b: bloque "¿dónde está entrando dinero HOY?" — prima negociada + aperturas + ΔOI ──
+  _flow(d) {
+    const box = document.getElementById('inst-flow');
+    if (!box) return;
+    if (this._doiChart) { try { this._doiChart.destroy(); } catch (e) {} this._doiChart = null; }
+    if (d.premCallsM == null) { // Deribit u opt viejo en cache — shape-based, sin romper
+      box.innerHTML = '<div class="mono" style="font-size:10.5px;color:var(--text3)">⚡ Flujo del día no disponible para esta fuente (solo tickers CBOE).</div>';
+      return;
+    }
+    const esIdx = /^(QQQ|SPY|IWM|DIA)$/.test(d.tk);
+    const net = d.netPremM, netCol = net >= 0 ? 'var(--green)' : 'var(--red)';
+    const tot = Math.max(d.premCallsM + d.premPutsM, 0.01);
+    const cw = Math.round(d.premCallsM / tot * 100), pw = 100 - cw;
+    const fM = v => '$' + Math.abs(v).toFixed(1) + 'M';
+    // Aperturas nuevas: vol del lado > OI del lado (posición abriéndose HOY), rankeadas por |prima|
+    const th = esIdx ? 1000 : 200; // umbral de contratos: índices/ETFs tienen ruido 0DTE
+    const nuevas = (d.strikes || [])
+      .map(s => {
+        const cNew = s.cV > s.cOI && s.cV >= th, pNew = s.pV > s.pOI && s.pV >= th;
+        if (!cNew && !pNew) return null;
+        return { k: s.k, lado: cNew && pNew ? 'C+P' : cNew ? 'C' : 'P', v: (cNew ? s.cV : 0) + (pNew ? s.pV : 0), prem: s.prem };
+      })
+      .filter(Boolean).sort((a, b) => Math.abs(b.prem) - Math.abs(a.prem)).slice(0, 6);
+    const prev = (this._exp === 'm' && !instOptFetch(d.tk || this._cur).crypto) ? this._oiHist(d) : null;
+    box.innerHTML =
+      '<div class="mono" style="font-size:12px;color:var(--text);margin-bottom:6px"><b>⚡ FLUJO DE HOY</b> <span style="color:var(--text3)">— prima negociada (delayed 15 min, sin clasificar agresor)</span>' + helpIcon('flujo-de-hoy') + '</div>'
+      + '<div class="mono" style="font-size:11.5px;line-height:1.9">'
+      + '<span style="color:var(--green)">CALLS <b>' + fM(d.premCallsM) + '</b></span> · <span style="color:var(--red)">PUTS <b>' + fM(d.premPutsM) + '</b></span>'
+      + ' · NET <b style="color:' + netCol + '">' + (net >= 0 ? '+' : '−') + fM(net) + '</b>'
+      + '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin:4px 0 8px;max-width:420px">'
+      + '<div style="width:' + cw + '%;background:rgba(52,211,153,.75)"></div><div style="width:' + pw + '%;background:rgba(248,113,113,.75)"></div></div>'
+      + (nuevas.length
+        ? '<span style="color:var(--text2)">APERTURAS NUEVAS (vol&gt;OI):</span> ' + nuevas.map(n =>
+            '<span title="strike ' + n.k + n.lado + ' · ' + n.v.toLocaleString() + ' contratos hoy contra menos OI previo · prima neta ' + fM(n.prem) + '">'
+            + '<b>' + n.k + n.lado + '</b> <span style="color:' + (n.prem >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fM(n.prem) + '</span></span>').join(' · ')
+          + (esIdx ? ' <span style="color:var(--text3);font-size:9.5px">(índice con dailies: vol&gt;OI es normal en la exp del día — el ΔOI overnight de abajo es la señal limpia)</span>' : '')
+        : '<span style="color:var(--text3)">Sin aperturas nuevas relevantes (vol&gt;OI) en la ventana.</span>')
+      + '</div>'
+      + '<div id="inst-doi-wrap" style="margin-top:10px"></div>';
+    // ΔOI overnight: dónde se CONSTRUYÓ posicionamiento desde la última sesión
+    const wrap = document.getElementById('inst-doi-wrap');
+    if (!prev) {
+      if (this._exp === 'm') wrap.innerHTML = '<div class="mono" style="font-size:10.5px;color:var(--text3)">📥 Primera lectura de OI registrada hoy — el mapa <b>ΔOI overnight</b> (dónde se construyó posicionamiento nuevo) aparece con la lectura de la próxima sesión.</div>';
+      else wrap.innerHTML = '<div class="mono" style="font-size:10.5px;color:var(--text3)">El ΔOI overnight solo se calcula con la ventana default ≤45d (serie no contaminada).</div>';
+      return;
+    }
+    const rows = [];
+    for (const s of (d.strikes || [])) {
+      const p = prev.s[s.k];
+      if (!p) continue;
+      const dc = s.cOI - p[0], dp = s.pOI - p[1];
+      if (dc === 0 && dp === 0) continue;
+      rows.push({ k: s.k, dc, dp, mag: Math.abs(dc) + Math.abs(dp) });
+    }
+    rows.sort((a, b) => b.mag - a.mag);
+    const top = rows.slice(0, 20).sort((a, b) => b.k - a.k);
+    if (!top.length) { wrap.innerHTML = '<div class="mono" style="font-size:10.5px;color:var(--text3)">ΔOI vs ' + prev.d + ': sin cambios de posicionamiento relevantes.</div>'; return; }
+    wrap.innerHTML = '<div class="mono" style="font-size:11px;color:var(--text2);margin-bottom:4px">ΔOI OVERNIGHT vs ' + prev.d + ' <span style="color:var(--text3)">— posicionamiento NUEVO (verde=calls, rojo=puts; barra a la izquierda = unwinding)</span></div>'
+      + '<div class="ch-wrap" style="height:' + Math.max(140, top.length * 14 + 40) + 'px"><canvas id="inst-doi-cv"></canvas></div>';
+    const cv2 = document.getElementById('inst-doi-cv');
+    if (!cv2 || typeof Chart === 'undefined') return;
+    this._doiChart = new Chart(cv2, {
+      type: 'bar',
+      data: {
+        labels: top.map(s => s.k),
+        datasets: [
+          { label: 'ΔOI calls', data: top.map(s => s.dc), backgroundColor: 'rgba(52,211,153,.8)', borderWidth: 0, borderRadius: 2 },
+          { label: 'ΔOI puts', data: top.map(s => s.dp), backgroundColor: 'rgba(248,113,113,.8)', borderWidth: 0, borderRadius: 2 }
+        ]
+      },
+      options: {
+        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: c =>
+          (c.datasetIndex === 0 ? 'ΔOI calls ' : 'ΔOI puts ') + (c.raw >= 0 ? '+' : '') + (+c.raw).toLocaleString() + ' contratos vs ' + prev.d } } },
+        scales: {
+          x: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#a89f93', font: { size: 10, family: "'IBM Plex Mono',monospace" } } },
+          y: { grid: { display: false }, ticks: { color: '#a89f93', font: { size: 10, family: "'IBM Plex Mono',monospace" }, autoSkip: true, maxTicksLimit: 20 } }
+        }
+      }
     });
   }
 };
@@ -11774,6 +11881,14 @@ const INDICATORS_GLOSSARY = {
     interpret: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
     thresholds: [{ c: 'green', t: 'X>100 y Y>100 → Líder (el capital ESTÁ aquí)' }, { c: 'green', t: 'X<100 y Y>100 → Mejorando (el capital ENTRA)' }, { c: 'amber', t: 'X>100 y Y<100 → Debilitándose (el capital SALE)' }, { c: 'red', t: 'X<100 y Y<100 → Rezagado (capital ya salió)' }],
     note: 'La estela muestra 6 semanas. Señal integrada: se cruza con la fase Howell. HONESTIDAD METODOLÓGICA: es una aproximación NO propietaria del RRG de JdK/StockCharts (falta el escalado por desviación estándar y la normalización contra el universo) — interpretar SOLO el cuadrante y la dirección del giro, NO la distancia al centro ni comparar magnitudes entre sectores de distinta volatilidad.'
+  },
+  'flujo-de-hoy': {
+    name: 'Flujo de Hoy (prima + aperturas + ΔOI)', category: 'Institucional · Flujo',
+    source: { label: 'CBOE delayed quotes — mismos datos de la cadena, campos de FLUJO (volume, last_trade_price)', url: 'https://www.cboe.com/delayed_quotes/', freq: 'Delayed 15 min · el ΔOI se compara contra la lectura del día anterior (localStorage propio)' },
+    formula: 'Prima negociada = Σ(volumen × last × 100) por lado. NET = calls − puts. Apertura nueva: volumen del día > open interest previo en ese strike (posición que NO existía). ΔOI overnight = OI hoy − OI última sesión, por strike — dónde se CONSTRUYÓ (o deshizo) posicionamiento.',
+    interpret: 'Es la versión delayed del "Premium Flow": cuántos DÓLARES de prima se movieron hoy y en qué strikes está entrando dinero NUEVO. El OI es dato de cierre, así que el delay de 15 min no afecta al ΔOI — es la señal temprana más limpia de la cadena (evidencia: el P/C de OI anticipa ~12 días vs ~2.5 del P/C de volumen; Zhou).',
+    thresholds: [{ c: 'green', t: 'NET fuertemente positivo + ΔOI calls creciendo en strikes arriba del spot → posicionamiento alcista nuevo' }, { c: 'red', t: 'NET negativo + ΔOI puts creciendo bajo el spot → cobertura/apuesta bajista nueva' }, { c: 'amber', t: 'vol>OI en índices con dailies (0DTE) es NORMAL en la expiración del día — usar el ΔOI overnight, no el intradía' }],
+    note: 'HONESTIDAD: sin feed tick-a-tick NO se puede clasificar al agresor (¿la prima la pagó el comprador o el vendedor?) — esto mide magnitud y ubicación del flujo, no su dirección exacta. La dirección se infiere cruzando con DEX/semáforo. La serie ΔOI vive en tu navegador (inst_oi_v1, últimas 2 lecturas, 12 tickers).'
   },
   'gex-oi-walls': {
     name: 'Muros de Gamma/OI (GEX)', category: 'Institucional · Niveles',
