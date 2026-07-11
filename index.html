@@ -9676,22 +9676,23 @@ const InstDeep = {
       const sig = semaphoreSignals(tk, dU, opt, ats?.data?.[tk], st?.data?.[tk], (ins && !ins.error) ? ins : null);
       let verdes = sig.verdes, rojas = sig.rojas;
       const pillsArr = [...sig.pills];
+      const extra = []; // IV-rank + crypto (necesitan estado/async) — se insertan tras la píldora DEX para conservar el orden histórico
       if (opt && !opt.error) {
         const ivr = this._ivRank(tk, opt.ivAtm);
-        if (ivr) pillsArr.push({ icon: '💨', lbl: ivr.txt, col: ivr.col, tip: ivr.tip });
+        if (ivr) extra.push({ icon: '💨', lbl: ivr.txt, col: ivr.col, tip: ivr.tip });
         // ── píldoras CRYPTO (Deribit + OKX + alternative.me) ──
         if (opt.crypto) {
           const f2 = opt.crypto.funding;
           if (f2 != null) {
-            if (f2 >= 0.03) { pillsArr.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--amber)', tip: 'Funding ALTO: los largos apalancados pagan caro por mantener posición — mercado caliente, vulnerable a long squeeze' }); rojas++; }
-            else if (f2 <= -0.005) { pillsArr.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--green)', tip: 'Funding NEGATIVO: los cortos pagan — posicionamiento bajista pagando por sostenerse = combustible contrarian alcista' }); verdes++; }
-            else pillsArr.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--text3)', tip: 'Funding en rango normal (~0.01%/8h) — apalancamiento equilibrado' });
+            if (f2 >= 0.03) { extra.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--amber)', tip: 'Funding ALTO: los largos apalancados pagan caro por mantener posición — mercado caliente, vulnerable a long squeeze' }); rojas++; }
+            else if (f2 <= -0.005) { extra.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--green)', tip: 'Funding NEGATIVO: los cortos pagan — posicionamiento bajista pagando por sostenerse = combustible contrarian alcista' }); verdes++; }
+            else extra.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--text3)', tip: 'Funding en rango normal (~0.01%/8h) — apalancamiento equilibrado' });
           }
           const fgv = opt.crypto.fearGreed;
           if (fgv) {
-            if (fgv.v <= 25) { pillsArr.push({ icon: '😱', lbl: 'F&G ' + fgv.v + ' ' + fgv.txt, col: 'var(--green)', tip: 'Fear & Greed en MIEDO: históricamente zona de acumulación contrarian (comprar miedo, vender codicia)' }); verdes++; }
-            else if (fgv.v >= 75) { pillsArr.push({ icon: '🤑', lbl: 'F&G ' + fgv.v + ' ' + fgv.txt, col: 'var(--amber)', tip: 'Fear & Greed en CODICIA extrema: zona de distribución — cautela con nuevas entradas' }); rojas++; }
-            else pillsArr.push({ icon: '😐', lbl: 'F&G ' + fgv.v, col: 'var(--text3)', tip: 'Fear & Greed neutral (' + fgv.txt + ')' });
+            if (fgv.v <= 25) { extra.push({ icon: '😱', lbl: 'F&G ' + fgv.v + ' ' + fgv.txt, col: 'var(--green)', tip: 'Fear & Greed en MIEDO: históricamente zona de acumulación contrarian (comprar miedo, vender codicia)' }); verdes++; }
+            else if (fgv.v >= 75) { extra.push({ icon: '🤑', lbl: 'F&G ' + fgv.v + ' ' + fgv.txt, col: 'var(--amber)', tip: 'Fear & Greed en CODICIA extrema: zona de distribución — cautela con nuevas entradas' }); rojas++; }
+            else extra.push({ icon: '😐', lbl: 'F&G ' + fgv.v, col: 'var(--text3)', tip: 'Fear & Greed neutral (' + fgv.txt + ')' });
           }
           if (/^BTC/.test(tk)) {
             try {
@@ -9699,14 +9700,15 @@ const InstDeep = {
               const btc2 = cot2?.mkts?.find(m2 => m2.code === '133741');
               if (btc2 && !btc2.error) {
                 const p2 = btc2.pctil3y;
-                if (p2 >= 90) { pillsArr.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--red)', tip: 'Especuladores de futuros BTC en percentil ' + p2 + ' de 3 años = CROWDED LONG — posicionamiento saturado, contrarian bajista' }); rojas++; }
-                else if (p2 <= 10) { pillsArr.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--green)', tip: 'Especuladores en percentil ' + p2 + ' = crowded short — combustible de squeeze alcista' }); verdes++; }
-                else pillsArr.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--text3)', tip: 'Posicionamiento de especuladores en futuros BTC CME: percentil ' + p2 + ' de 3 años, sin extremo' });
+                if (p2 >= 90) { extra.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--red)', tip: 'Especuladores de futuros BTC en percentil ' + p2 + ' de 3 años = CROWDED LONG — posicionamiento saturado, contrarian bajista' }); rojas++; }
+                else if (p2 <= 10) { extra.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--green)', tip: 'Especuladores en percentil ' + p2 + ' = crowded short — combustible de squeeze alcista' }); verdes++; }
+                else extra.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--text3)', tip: 'Posicionamiento de especuladores en futuros BTC CME: percentil ' + p2 + ' de 3 años, sin extremo' });
               }
             } catch (e4) {}
           }
         }
       }
+      if (extra.length) { const iDex = pillsArr.findIndex(p9 => p9.icon === '🛡'); pillsArr.splice(iDex >= 0 ? iDex + 1 : pillsArr.length, 0, ...extra); }
       const pillH = p => '<span class="mono" style="font-size:11px;padding:5px 13px;border-radius:11px;border:1px solid ' + p.col + ';color:' + p.col + ';background:rgba(0,0,0,.18);cursor:default" title="' + p.tip.replace(/"/g, '&quot;') + '">' + p.icon + ' ' + p.lbl + '</span>';
       const ver2 = verdes >= 3 && rojas === 0 ? { t: '🟢 FLUJO ENTRANDO (' + verdes + ' señales a favor)', c: 'var(--green)' }
         : rojas >= 2 ? { t: '🔴 FLUJO EN CONTRA', c: 'var(--red)' }
