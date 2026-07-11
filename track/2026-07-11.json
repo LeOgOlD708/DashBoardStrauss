@@ -1,0 +1,428 @@
+{
+ "date": "2026-07-11",
+ "ts": 1783741172209,
+ "v": 2,
+ "lideres": [
+  {
+   "sector": "XLK",
+   "score": 76,
+   "price": 185.78,
+   "stocks": [
+    {
+     "tk": "NVDA",
+     "price": 210.96,
+     "rs": 64,
+     "mom": 59,
+     "tpl": 6,
+     "ud": 0.819061074218274
+    },
+    {
+     "tk": "AAPL",
+     "price": 315.32,
+     "rs": 76,
+     "mom": 79,
+     "tpl": 8,
+     "ud": 1.4873587980227714
+    },
+    {
+     "tk": "MSFT",
+     "price": 385.1,
+     "rs": 5,
+     "mom": 5,
+     "tpl": 0,
+     "ud": 0.9717665104686181
+    },
+    {
+     "tk": "AVGO",
+     "price": 399.97,
+     "rs": 71,
+     "mom": 65,
+     "tpl": 7,
+     "ud": 0.860835578543309
+    },
+    {
+     "tk": "AMD",
+     "price": 557.89,
+     "rs": 97,
+     "mom": 97,
+     "tpl": 8,
+     "ud": 1.4556202325027168
+    },
+    {
+     "tk": "MU",
+     "price": 979.3,
+     "rs": 98,
+     "mom": 99,
+     "tpl": 8,
+     "ud": 1.3515388221439995
+    },
+    {
+     "tk": "INTC",
+     "price": 109.84,
+     "rs": 96,
+     "mom": 98,
+     "tpl": 7,
+     "ud": 1.0202257939350845
+    },
+    {
+     "tk": "AMAT",
+     "price": 602.5,
+     "rs": 95,
+     "mom": 95,
+     "tpl": 8,
+     "ud": 1.7539620204432953
+    },
+    {
+     "tk": "CSCO",
+     "price": 121.31,
+     "rs": 89,
+     "mom": 95,
+     "tpl": 8,
+     "ud": 1.4267010765542094
+    },
+    {
+     "tk": "LRCX",
+     "price": 350.33,
+     "rs": 95,
+     "mom": 97,
+     "tpl": 8,
+     "ud": 1.3513762959389686
+    }
+   ],
+   "picks": [
+    "AAPL",
+    "AMD",
+    "MU",
+    "INTC",
+    "AMAT",
+    "CSCO",
+    "LRCX"
+   ]
+  },
+  {
+   "sector": "XLE",
+   "score": 69,
+   "price": 55.08,
+   "stocks": [
+    {
+     "tk": "XOM",
+     "price": 138.88,
+     "rs": 40,
+     "mom": 79,
+     "tpl": 5,
+     "ud": 0.796408815242251
+    },
+    {
+     "tk": "CVX",
+     "price": 176.4,
+     "rs": 34,
+     "mom": 72,
+     "tpl": 4,
+     "ud": 0.8689147568406111
+    },
+    {
+     "tk": "COP",
+     "price": 109.04,
+     "rs": 32,
+     "mom": 67,
+     "tpl": 4,
+     "ud": 0.5845201073656547
+    },
+    {
+     "tk": "MPC",
+     "price": 283.74,
+     "rs": 87,
+     "mom": 89,
+     "tpl": 8,
+     "ud": 1.1412794346560386
+    },
+    {
+     "tk": "PSX",
+     "price": 188.36,
+     "rs": 79,
+     "mom": 78,
+     "tpl": 8,
+     "ud": 1.268435539663076
+    },
+    {
+     "tk": "VLO",
+     "price": 280.69,
+     "rs": 87,
+     "mom": 89,
+     "tpl": 8,
+     "ud": 1.0023836957813337
+    },
+    {
+     "tk": "SLB",
+     "price": 47.76,
+     "rs": 53,
+     "mom": 82,
+     "tpl": 5,
+     "ud": 0.7269623307479873
+    },
+    {
+     "tk": "EOG",
+     "price": 134.1,
+     "rs": 50,
+     "mom": 71,
+     "tpl": 6,
+     "ud": 0.8495686872239037
+    },
+    {
+     "tk": "WMB",
+     "price": 75.02,
+     "rs": 59,
+     "mom": 74,
+     "tpl": 7,
+     "ud": 1.1534590490169234
+    },
+    {
+     "tk": "KMI",
+     "price": 32.12,
+     "rs": 43,
+     "mom": 66,
+     "tpl": 5,
+     "ud": 0.8418932335608308
+    }
+   ],
+   "picks": [
+    "MPC",
+    "PSX",
+    "VLO"
+   ]
+  }
+ ],
+ "inst": {
+  "qqqSpot": 726.3,
+  "qqqPC": 1.36,
+  "qqqGexBn": -0.14,
+  "flip": null,
+  "callWall": 740,
+  "putWall": 700,
+  "cotNqPctil": 17,
+  "cotEsPctil": 77
+ },
+ "zonas": [
+  {
+   "tk": "ERAS",
+   "lo": 12.85,
+   "hi": 12.85,
+   "score": 2,
+   "tests": 2,
+   "spot": 18.53,
+   "comp": "AVWAP 1-ene"
+  },
+  {
+   "tk": "RVMD",
+   "lo": 170,
+   "hi": 170,
+   "score": 2.5,
+   "tests": 0,
+   "spot": 186.88,
+   "comp": "Put wall"
+  }
+ ],
+ "hero": "3.5/8",
+ "postura": "DEFENSIVO SELECTIVO",
+ "quad": {
+  "q": "Q3 · STAGFLATION",
+  "conf": 27.1
+ },
+ "nfci": 69.7,
+ "gli": "52/100",
+ "spy": 754.95,
+ "sectores": [
+  {
+   "tk": "XLK",
+   "score": 76,
+   "price": 185.78
+  },
+  {
+   "tk": "XLF",
+   "score": 49,
+   "price": 55.71
+  },
+  {
+   "tk": "XLE",
+   "score": 69,
+   "price": 55.08
+  },
+  {
+   "tk": "XLV",
+   "score": 47,
+   "price": 160.84
+  },
+  {
+   "tk": "XLP",
+   "score": 40,
+   "price": 84.12
+  },
+  {
+   "tk": "XLY",
+   "score": 38,
+   "price": 117.24
+  },
+  {
+   "tk": "XLI",
+   "score": 63,
+   "price": 181.92
+  },
+  {
+   "tk": "XLB",
+   "score": 49,
+   "price": 50.89
+  },
+  {
+   "tk": "XLRE",
+   "score": 55,
+   "price": 44.45
+  },
+  {
+   "tk": "XLU",
+   "score": 30,
+   "price": 45.41
+  },
+  {
+   "tk": "XLC",
+   "score": 47,
+   "price": 111.64
+  }
+ ],
+ "candidatas": [
+  {
+   "tk": "SLS",
+   "via": "XBI",
+   "price": 12.76,
+   "rs": 99,
+   "mom": 94,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "ERAS",
+   "via": "XBI",
+   "price": 18.53,
+   "rs": 99,
+   "mom": 99,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "RVMD",
+   "via": "XBI",
+   "price": 186.88,
+   "rs": 97,
+   "mom": 97,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "APGE",
+   "via": "XBI",
+   "price": 133.65,
+   "rs": 96,
+   "mom": 75,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "TWST",
+   "via": "XBI",
+   "price": 90.64,
+   "rs": 95,
+   "mom": 88,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "FTNT",
+   "via": "IGV",
+   "price": 157.51,
+   "rs": 94,
+   "mom": 87,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "DDOG",
+   "via": "IGV",
+   "price": 257.54,
+   "rs": 94,
+   "mom": 81,
+   "tpl": 7,
+   "pp": true
+  },
+  {
+   "tk": "MRNA",
+   "via": "XBI",
+   "price": 68.27,
+   "rs": 93,
+   "mom": 62,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "KYMR",
+   "via": "XBI",
+   "price": 119.35,
+   "rs": 93,
+   "mom": 62,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "CRS",
+   "via": "ITA",
+   "price": 578.61,
+   "rs": 92,
+   "mom": 90,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "PANW",
+   "via": "IGV",
+   "price": 325.91,
+   "rs": 92,
+   "mom": 75,
+   "tpl": 7,
+   "pp": false
+  },
+  {
+   "tk": "ULCC",
+   "via": "JETS",
+   "price": 6.94,
+   "rs": 91,
+   "mom": 56,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "CRWD",
+   "via": "IGV",
+   "price": 187.18,
+   "rs": 91,
+   "mom": 71,
+   "tpl": 7,
+   "pp": false
+  },
+  {
+   "tk": "MIRM",
+   "via": "XBI",
+   "price": 122.13,
+   "rs": 89,
+   "mom": 80,
+   "tpl": 8,
+   "pp": false
+  },
+  {
+   "tk": "CYTK",
+   "via": "XBI",
+   "price": 84.87,
+   "rs": 88,
+   "mom": 70,
+   "tpl": 8,
+   "pp": false
+  }
+ ]
+}
