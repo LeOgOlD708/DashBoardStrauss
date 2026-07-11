@@ -9446,6 +9446,78 @@ const InstTab = {
     if (el) go('inst', el);
   }
 };
+// ══ E2 · entryMapPlugin — bandas de zonas sobre el chart de precio (Mapa de Entrada) ══
+// Anti line-clutter (metodología): zonas como BANDAS con opacidad ∝ score, no líneas sueltas.
+// En linear axis la banda es fillRect directo entre getPixelForValue(hi) y (lo) — sin interpolación.
+const entryMapPlugin = {
+  id: 'entryMap',
+  beforeDatasetsDraw(chart) {
+    const m = chart.config.options._emap;
+    if (!m) return;
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    ctx.save();
+    // banda de expected move (azul tenue, punteada en los bordes)
+    if (m.em) {
+      const yT = y.getPixelForValue(m.em.hi), yB = y.getPixelForValue(m.em.lo);
+      ctx.fillStyle = 'rgba(96,165,250,.05)';
+      ctx.fillRect(a.left, Math.max(yT, a.top), a.right - a.left, Math.min(yB, a.bottom) - Math.max(yT, a.top));
+      ctx.strokeStyle = 'rgba(96,165,250,.5)'; ctx.setLineDash([3, 4]); ctx.lineWidth = 1;
+      for (const yy of [yT, yB]) if (yy > a.top && yy < a.bottom) { ctx.beginPath(); ctx.moveTo(a.left, yy); ctx.lineTo(a.right, yy); ctx.stroke(); }
+      ctx.setLineDash([]);
+    }
+    // zonas: opacidad proporcional al score (cap 0.30)
+    for (const z of (m.zones || [])) {
+      const yT = y.getPixelForValue(z.hi), yB = y.getPixelForValue(z.lo);
+      if (yB < a.top || yT > a.bottom) continue;
+      const alpha = Math.min(0.30, 0.07 + Math.max(z.score, 0) * 0.055);
+      const rgb = z.cat === 'IMAN' ? '167,139,250' : z.side === 'soporte' ? '74,222,128' : '248,113,113';
+      ctx.fillStyle = 'rgba(' + rgb + ',' + alpha.toFixed(2) + ')';
+      const top2 = Math.max(Math.min(yT, yB) - 1, a.top), bot2 = Math.min(Math.max(yT, yB) + 1, a.bottom);
+      ctx.fillRect(a.left, top2, a.right - a.left, Math.max(bot2 - top2, 2));
+    }
+    // LVN: franja gris punteada (air pocket)
+    for (const l of (m.lvns || [])) {
+      const yT = y.getPixelForValue(l.hi), yB = y.getPixelForValue(l.lo);
+      if (yB < a.top || yT > a.bottom) continue;
+      ctx.fillStyle = 'rgba(125,111,99,.12)';
+      ctx.fillRect(a.left, Math.min(yT, yB), a.right - a.left, Math.max(Math.abs(yB - yT), 2));
+    }
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart) {
+    const m = chart.config.options._emap;
+    if (!m) return;
+    const { ctx, chartArea: a, scales: { y } } = chart;
+    ctx.save();
+    ctx.font = "600 8px 'IBM Plex Mono', monospace";
+    const labs = [];
+    for (const z of (m.zones || [])) {
+      const yy = y.getPixelForValue(z.mid);
+      if (yy < a.top + 4 || yy > a.bottom - 4) continue;
+      const col = z.cat === 'IMAN' ? '#a78bfa' : z.side === 'soporte' ? '#4ade80' : '#f87171';
+      labs.push({ y: yy, txt: (z.cat === 'IMAN' ? '🧲' : '⭐') + z.score + (z.degradada ? '⚠' : '') + ' ' + z.lo.toFixed(z.lo >= 1000 ? 0 : 2) + (z.hi > z.lo * 1.0005 ? '-' + z.hi.toFixed(z.hi >= 1000 ? 0 : 2) : ''), col });
+    }
+    if (m.em) labs.push({ y: y.getPixelForValue(m.em.hi), txt: 'EM +' + m.em.pct + '%', col: '#60a5fa' }, { y: y.getPixelForValue(m.em.lo), txt: 'EM −' + m.em.pct + '%', col: '#60a5fa' });
+    labs.sort((p, q) => p.y - q.y);
+    for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 10) labs[i].y = labs[i - 1].y + 10;
+    for (const L of labs) {
+      if (L.y < a.top + 4 || L.y > a.bottom) continue;
+      const w = ctx.measureText(L.txt).width;
+      ctx.fillStyle = 'rgba(8,5,10,.8)';
+      ctx.fillRect(a.right - w - 6, L.y - 8, w + 5, 10);
+      ctx.fillStyle = L.col;
+      ctx.fillText(L.txt, a.right - w - 4, L.y);
+    }
+    // marcador del spot
+    const ySpot = y.getPixelForValue(m.spot);
+    if (ySpot > a.top && ySpot < a.bottom) {
+      ctx.strokeStyle = '#f0ece4'; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(a.left, ySpot); ctx.lineTo(a.right, ySpot); ctx.stroke();
+    }
+    ctx.restore();
+  }
+};
+
 // InstDeep — radiografía del ticker: niveles (perfil 60d + AVWAP + muros) + dark pools + ownership.
 // Data propia (no depende del universo del Tab 02): yahoo 1y + 60d + opt + ats + stats en paralelo.
 const InstDeep = {
@@ -9544,6 +9616,8 @@ const InstDeep = {
         parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
           + '🎯 ZONAS DE ENTRADA <button class="help-i" type="button" onclick="openGlossary(\'zonas-de-entrada\')" title="¿Cómo se computan?">?</button>'
           + '<span style="color:var(--text3)"> — motor v2: diversidad de fuentes × timeframe × degradación por tests · precio ' + spot.toFixed(2) + emH + '</span>'
+          + '<div class="ch-wrap" style="height:280px;margin-top:8px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
+          + '<div style="color:var(--text3);font-size:8px;margin-top:2px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual</div>'
           + zonesHtml + lvnHtml
           + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">'
           + (vp ? '<canvas id="instd-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
@@ -9596,6 +9670,8 @@ const InstDeep = {
       }
     } catch (e) {}
     body.innerHTML = parts.join('');
+    // E2: el Mapa de Entrada — precio diario 90d con las zonas del motor como bandas
+    try { this._renderMap(tk, dU, opt); } catch (e) { /* el mapa nunca rompe la radiografía */ }
     // canvas del perfil (puro, muere con el innerHTML — patrón SeasonMap)
     const vp = this._vp;
     if (vp) {
@@ -9617,6 +9693,50 @@ const InstDeep = {
         }
       }
     }
+  },
+  // E2 · El Mapa: precio diario (90d) + bandas de zonas del motor + banda EM + LVN.
+  // Eje Y linear expandido para incluir las zonas mostradas (no solo el rango del precio).
+  _renderMap(tk, dU, opt) {
+    const cv = document.getElementById('instd-map-cv');
+    if (!cv || typeof Chart === 'undefined' || !dU?.hist?.length) return;
+    if (this._mapChart) { try { this._mapChart.destroy(); } catch (e) {} this._mapChart = null; }
+    const N = Math.min(90, dU.hist.length);
+    const closes = dU.hist.slice(-N), dates = dU.dates.slice(-N);
+    const spot = closes[closes.length - 1];
+    // zonas a pintar: ENTRADA + IMAN (y degradadas relevantes), máx 7 — anti clutter
+    const zones = (this._zones || []).filter(z => z.cat !== 'DEBIL' || z.score >= 1).slice(0, 7);
+    const lvns = this._lvns || [];
+    const em2 = (opt && !opt.error) ? (opt.emWeekly || opt.emDaily) : null;
+    const em = em2 ? { lo: spot - em2.em, hi: spot + em2.em, pct: em2.pct } : null;
+    // rango Y: precio ∪ zonas ∪ EM, con pad 1%
+    let yMin = Math.min(...closes), yMax = Math.max(...closes);
+    for (const z of zones) { yMin = Math.min(yMin, z.lo); yMax = Math.max(yMax, z.hi); }
+    if (em) { yMin = Math.min(yMin, em.lo); yMax = Math.max(yMax, em.hi); }
+    const pad = (yMax - yMin) * 0.03;
+    this._mapChart = new Chart(cv, {
+      type: 'line',
+      data: {
+        labels: dates.map(d2 => d2.slice(5)),
+        datasets: [{
+          label: tk, data: closes, borderColor: '#f0ece4', borderWidth: 1.6,
+          pointRadius: closes.map((c, i) => i === closes.length - 1 ? 3 : 0),
+          pointBackgroundColor: '#e6b450', tension: .2, fill: false
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        _emap: { zones, lvns, em, spot },
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false, callbacks: { label: c => tk + ': ' + c.parsed.y.toFixed(2) } }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
+          y: { min: yMin - pad, max: yMax + pad, grid: { color: 'rgba(45,30,30,.25)' }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" } } }
+        }
+      },
+      plugins: [entryMapPlugin]
+    });
   }
 };
 
