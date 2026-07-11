@@ -2750,6 +2750,8 @@ html.auth-ok #auth-gate{display:none}
       <span class="mono" style="font-size:10px;color:var(--text3)">rápido:</span>
       <button type="button" onclick="InstTab.analyze('QQQ')" class="rot-btn" style="color:var(--text2)">QQQ</button>
       <button type="button" onclick="InstTab.analyze('SPY')" class="rot-btn" style="color:var(--text2)">SPY</button>
+      <button type="button" onclick="InstTab.analyze('BTC-USD')" class="rot-btn" style="color:#f7931a">₿ BTC</button>
+      <button type="button" onclick="InstTab.analyze('ETH-USD')" class="rot-btn" style="color:#8a92b2">Ξ ETH</button>
     </div>
     <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px">Muros de gamma (CBOE) · perfil de volumen 60d + AVWAP (Yahoo intradía) · dark pools (FINRA) · ownership (stockanalysis) — todo gratis, oficial y por activo.</div>
   </div>
@@ -9341,7 +9343,7 @@ const InstPanel = {
       strip.innerHTML = '<span style="color:var(--text3)">Cargando muros de ' + tk + '…</span>';
       this._pend = this._pend || {}; // promesa en vuelo compartida — InstDeep la reusa (fetch opt único por análisis)
       try {
-        if (!this._pend[tk]) this._pend[tk] = fetch('/api/capital?src=opt&tickers=' + tk).then(r => r.json());
+        if (!this._pend[tk]) this._pend[tk] = fetch(instOptFetch(tk).url).then(r => r.json());
         d = await this._pend[tk];
         delete this._pend[tk];
         if (!d || d.error) throw new Error(d?.error || 'sin respuesta');
@@ -9433,6 +9435,13 @@ const InstPanel = {
     });
   }
 };
+
+// ══ CRYPTO · routing de opciones: BTC-USD/ETH-USD → Deribit (?src=optc), resto → CBOE ══
+function instOptFetch(tk) {
+  const m = /^(BTC|ETH)-USD$/i.exec(tk);
+  return m ? { url: '/api/capital?src=optc&tickers=' + m[1].toUpperCase(), crypto: true }
+    : { url: '/api/capital?src=opt&tickers=' + encodeURIComponent(tk), crypto: false };
+}
 
 // ══ Tab 09 · InstTab — orquestador del apartado Institucional (pedido Angel 2026-07-10:
 // "nuevo apartado para poder ver el análisis" — nada institucional vive ya en drill/candidatas) ══
@@ -9543,6 +9552,7 @@ const InstDeep = {
     const gen = ++this._gen;
     body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Radiografiando ' + tk + '…</div>';
     const jf = u => fetch(u).then(r => r.json()).catch(() => null);
+    const esCrypto = instOptFetch(tk).crypto; // BTC-USD/ETH-USD: sin FINRA/SEC/stockanalysis (no aplican)
     const [y1, d60, opt, ats, st, ins] = await Promise.all([
       jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=1y'),
       jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
@@ -9552,11 +9562,11 @@ const InstDeep = {
           if (c && Date.now() - c.ts < 1800000) return Promise.resolve(c.d);
           if (InstPanel._pend?.[tk]) return InstPanel._pend[tk].catch(() => null);
         } catch (e) {}
-        return jf('/api/capital?src=opt&tickers=' + encodeURIComponent(tk));
+        return jf(instOptFetch(tk).url);
       })(),
-      jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)),
-      jf('/api/capital?src=stats&tickers=' + encodeURIComponent(tk)),
-      jf('/api/capital?src=insiders&tickers=' + encodeURIComponent(tk)) // E3: cluster de compras (cache CDN 12h)
+      esCrypto ? Promise.resolve(null) : jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)),
+      esCrypto ? Promise.resolve(null) : jf('/api/capital?src=stats&tickers=' + encodeURIComponent(tk)),
+      esCrypto ? Promise.resolve(null) : jf('/api/capital?src=insiders&tickers=' + encodeURIComponent(tk)) // E3: cluster (cache 12h)
     ]);
     if (gen !== this._gen) return; // el usuario pidió otro ticker mientras cargaba
     const dU = y1?.[tk];
@@ -9587,6 +9597,33 @@ const InstDeep = {
         else pill('🛡', 'DEX ~0', 'var(--text3)', 'Delta neutro: nadie obligado a defender — "cambio de manos" (ni presión compradora ni vendedora del MM)');
         const ivr = this._ivRank(tk, opt.ivAtm);
         if (ivr) pill('💨', ivr.txt, ivr.col, ivr.tip);
+        // ── píldoras CRYPTO (Deribit + Binance + alternative.me) ──
+        if (opt.crypto) {
+          const f2 = opt.crypto.funding;
+          if (f2 != null) {
+            if (f2 >= 0.03) { pill('⚡', 'Funding ' + f2 + '%/8h', 'var(--amber)', 'Funding ALTO: los largos apalancados pagan caro por mantener posición — mercado caliente, vulnerable a long squeeze'); rojas++; }
+            else if (f2 <= -0.005) { pill('⚡', 'Funding ' + f2 + '%/8h', 'var(--green)', 'Funding NEGATIVO: los cortos pagan — posicionamiento bajista pagando por sostenerse = combustible contrarian alcista'); verdes++; }
+            else pill('⚡', 'Funding ' + f2 + '%/8h', 'var(--text3)', 'Funding en rango normal (~0.01%/8h) — apalancamiento equilibrado');
+          }
+          const fgv = opt.crypto.fearGreed;
+          if (fgv) {
+            if (fgv.v <= 25) { pill('😱', 'F&G ' + fgv.v + ' ' + fgv.txt, 'var(--green)', 'Fear & Greed en MIEDO: históricamente zona de acumulación contrarian (comprar miedo, vender codicia)'); verdes++; }
+            else if (fgv.v >= 75) { pill('🤑', 'F&G ' + fgv.v + ' ' + fgv.txt, 'var(--amber)', 'Fear & Greed en CODICIA extrema: zona de distribución — cautela con nuevas entradas'); rojas++; }
+            else pill('😐', 'F&G ' + fgv.v, 'var(--text3)', 'Fear & Greed neutral (' + fgv.txt + ')');
+          }
+          if (/^BTC/.test(tk)) { // COT de futuros BTC CME (ya lo descargamos para el Tab 01)
+            try {
+              const cot2 = await jf('/api/capital?src=cot');
+              const btc2 = cot2?.mkts?.find(m2 => m2.code === '133741');
+              if (btc2 && !btc2.error) {
+                const p2 = btc2.pctil3y;
+                if (p2 >= 90) { pill('🏦', 'COT BTC p' + p2, 'var(--red)', 'Especuladores de futuros BTC en percentil ' + p2 + ' de 3 años = CROWDED LONG — posicionamiento saturado, contrarian bajista'); rojas++; }
+                else if (p2 <= 10) { pill('🏦', 'COT BTC p' + p2, 'var(--green)', 'Especuladores en percentil ' + p2 + ' = crowded short — combustible de squeeze alcista'); verdes++; }
+                else pill('🏦', 'COT BTC p' + p2, 'var(--text3)', 'Posicionamiento de especuladores en futuros BTC CME: percentil ' + p2 + ' de 3 años, sin extremo');
+              }
+            } catch (e4) {}
+          }
+        }
       }
       const ud = computeUpDownRatio(dU.hist, dU.vols, 50);
       if (ud != null) {
@@ -11085,7 +11122,7 @@ const CandidatasHoy = {
         if (!dU2?.hist?.length) continue;
         const zf = await InstDeep.zonesFor(tk, dU2.hist, dU2.vols, dU2.dates);
         const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
-        if (!zA) continue;
+        if (!zA) continue; // sin zona de calidad = sin chip (honesto)
         const enZona = zf.spot >= zA.lo && zf.spot <= zA.hi;
         const col = enZona ? 'var(--green)' : Math.abs(zA.dist) <= 3 ? 'var(--amber)' : 'var(--text3)';
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="ZONA DE ENTRADA (motor v2, Tab 09): ' + zA.lo.toFixed(2) + (zA.hi > zA.lo * 1.0005 ? '–' + zA.hi.toFixed(2) : '') + ' · score ' + zA.score + ' · ' + zA.labels.join(' + ') + (enZona ? ' — EL PRECIO ESTÁ DENTRO de la zona ahora' : ' — a ' + Math.abs(zA.dist) + '% del precio') + '. Click en 🏛 para el mapa completo">🎯' + (enZona ? 'EN ZONA' : zA.dist + '%') + '</span>');

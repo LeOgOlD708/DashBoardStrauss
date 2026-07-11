@@ -490,6 +490,106 @@ async function ownStats(tickers) {
   return { data, errors };
 }
 
+// ── CRYPTO · opciones BTC/ETH vía Deribit (API pública, sin auth) — mismo shape que optAgg ──
+// Deribit no da griegas en book_summary → Black-Scholes desde mark_iv (r=0). 1 contrato = 1 moneda.
+// Extras crypto en la misma respuesta: funding (Binance) + Fear&Greed (alternative.me).
+const _CRYPTO_MONTHS = { JAN: '01', FEB: '02', MAR: '03', APR: '04', MAY: '05', JUN: '06', JUL: '07', AUG: '08', SEP: '09', OCT: '10', NOV: '11', DEC: '12' };
+function _phi(x) { return Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI); }
+function _Phi(x) { // CDF normal, Abramowitz-Stegun (mismo enfoque que _phiCdf del frontend)
+  const t = 1 / (1 + 0.2316419 * Math.abs(x));
+  const p = _phi(x) * t * (0.319381530 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return x >= 0 ? 1 - p : p;
+}
+async function optcAgg(cur) {
+  if (!/^(BTC|ETH)$/.test(cur)) throw new Error('optc soporta BTC o ETH');
+  const r = await fetch('https://www.deribit.com/api/v2/public/get_book_summary_by_currency?currency=' + cur + '&kind=option', { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error('Deribit HTTP ' + r.status);
+  const rows = (await r.json()).result || [];
+  const S = rows.find(x => x.underlying_price > 0)?.underlying_price;
+  if (!(S > 0)) throw new Error('Deribit sin underlying_price');
+  const now = Date.now(), maxT = now + 45 * 86400000;
+  const reI = new RegExp('^' + cur + '-(\\d{1,2})([A-Z]{3})(\\d{2})-(\\d+)-([CP])$');
+  const byStrike = new Map(), atm = new Map(), exps = new Set(), nearRows = [];
+  let cVol = 0, pVol = 0, cOIt = 0, pOIt = 0, dexTotal = 0, nearestExp = null;
+  for (const o of rows) {
+    const m = reI.exec(o.instrument_name);
+    if (!m) continue;
+    const exp = Date.UTC(2000 + +m[3], +_CRYPTO_MONTHS[m[2]] - 1, +m[1], 8);
+    if (exp < now || exp > maxT) continue;
+    const K = +m[4], isCall = m[5] === 'C';
+    const oi = +o.open_interest || 0, vol = +o.volume || 0, iv = (+o.mark_iv || 0) / 100;
+    exps.add(exp);
+    if (!nearestExp || exp < nearestExp) nearestExp = exp;
+    if (isCall) { cVol += vol; cOIt += oi; } else { pVol += vol; pOIt += oi; }
+    if (exp === nearestExp) nearRows.push({ k: K, isCall, oi, exp });
+    if (!(iv > 0)) continue;
+    const T = Math.max((exp - now) / 86400000, 0.05) / 365;
+    const d1 = (Math.log(S / K) + (iv * iv / 2) * T) / (iv * Math.sqrt(T));
+    const gamma = _phi(d1) / (S * iv * Math.sqrt(T));
+    const delta = isCall ? _Phi(d1) : _Phi(d1) - 1;
+    dexTotal += delta * oi * S;
+    if (Math.abs(K - S) / S <= 0.05) {
+      let e = atm.get(exp); if (!e) { e = new Map(); atm.set(exp, e); }
+      let leg = e.get(K); if (!leg) { leg = {}; e.set(K, leg); }
+      if (isCall) leg.cIv = iv; else leg.pIv = iv;
+    }
+    if (K < S * 0.75 || K > S * 1.25) continue; // crypto se mueve más: ±25%
+    let row = byStrike.get(K);
+    if (!row) { row = { k: K, cOI: 0, pOI: 0, gex: 0, dex: 0 }; byStrike.set(K, row); }
+    const gexUsd = gamma * oi * S * S * 0.01;
+    row.dex += delta * oi * S;
+    if (isCall) { row.cOI += oi; row.gex += gexUsd; } else { row.pOI += oi; row.gex -= gexUsd; }
+  }
+  const near = nearRows.filter(x => x.exp === nearestExp);
+  const strikes = [...byStrike.values()].sort((a, b) => a.k - b.k);
+  if (!strikes.length) throw new Error('sin strikes ≤45d para ' + cur);
+  let callWall = strikes[0], putWall = strikes[0], gexTotal = 0;
+  for (const s of strikes) { gexTotal += s.gex; if (s.gex > callWall.gex) callWall = s; if (s.gex < putWall.gex) putWall = s; }
+  let flip = null, cum = 0, prevC = 0;
+  for (const s of strikes) { prevC = cum; cum += s.gex; if (prevC < 0 && cum >= 0) { flip = s.k; break; } }
+  let maxPain = null, best = Infinity;
+  for (const K of [...new Set(near.map(x => x.k))].sort((a, b) => a - b)) {
+    let pay = 0;
+    for (const x of near) pay += x.isCall ? x.oi * Math.max(0, K - x.k) : x.oi * Math.max(0, x.k - K);
+    if (pay < best) { best = pay; maxPain = K; }
+  }
+  const emOf2 = (exp) => {
+    const e = atm.get(exp);
+    if (!e) return null;
+    let bk = null, bd = Infinity;
+    for (const K of e.keys()) if (Math.abs(K - S) < bd) { bd = Math.abs(K - S); bk = K; }
+    const leg = e.get(bk);
+    const ivA = (leg.cIv && leg.pIv) ? (leg.cIv + leg.pIv) / 2 : (leg.cIv || leg.pIv || null);
+    if (!ivA) return null;
+    const dte = Math.max((exp - now) / 86400000, 0.25);
+    const em = S * ivA * Math.sqrt(dte / 365);
+    return { exp: new Date(exp).toISOString().slice(0, 10), dte: +dte.toFixed(1), em: +em.toFixed(2), pct: +(em / S * 100).toFixed(2), ivAtm: +ivA.toFixed(4) };
+  };
+  const expList = [...exps].sort((a, b) => a - b);
+  const wk = expList.find(e => { const d2 = (e - now) / 86400000; return d2 >= 4 && d2 <= 10; }) || null;
+  const emDaily = emOf2(nearestExp);
+  const emWeekly = wk && wk !== nearestExp ? emOf2(wk) : null;
+  // extras crypto (fallo tolerado)
+  const [fr, fg] = await Promise.all([
+    fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=' + cur + 'USDT', { signal: AbortSignal.timeout(6000) }).then(x => x.json()).catch(() => null),
+    fetch('https://api.alternative.me/fng/', { signal: AbortSignal.timeout(6000) }).then(x => x.json()).catch(() => null)
+  ]);
+  return {
+    tk: cur, spot: S, updated: new Date().toISOString().slice(0, 16).replace('T', ' '),
+    nearestExp: new Date(nearestExp).toISOString().slice(0, 10), expiries: exps.size,
+    pcVol: cVol > 0 ? +(pVol / cVol).toFixed(2) : null,
+    pcOI: cOIt > 0 ? +(pOIt / cOIt).toFixed(2) : null,
+    gexTotalBn: +(gexTotal / 1e9).toFixed(2), dexTotalBn: +(dexTotal / 1e9).toFixed(2),
+    ivAtm: emWeekly?.ivAtm ?? emDaily?.ivAtm ?? null, emDaily, emWeekly,
+    callWall: callWall.k, putWall: putWall.k, gammaFlip: flip, maxPain,
+    strikes: strikes.map(s => ({ k: s.k, cOI: +s.cOI.toFixed(1), pOI: +s.pOI.toFixed(1), gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1) })),
+    crypto: {
+      funding: fr?.lastFundingRate != null ? +(fr.lastFundingRate * 100).toFixed(4) : null, // % por 8h
+      fearGreed: fg?.data?.[0] ? { v: +fg.data[0].value, txt: fg.data[0].value_classification } : null
+    }
+  };
+}
+
 // ── E6 · Alertas de ZONA por Telegram (cron mediodía, 2º y último cron del plan Hobby) ──
 // Lee las zonas del último snapshot (top-3 del embudo) y avisa si el precio ESTÁ o ENTRÓ
 // hoy en zona. Stateless: "entró hoy" = cierre previo FUERA (arriba) y precio actual dentro
@@ -631,6 +731,17 @@ module.exports = async (req, res) => {
       } catch (e) {
         res.setHeader('Cache-Control', 'max-age=0, no-cache');
         return res.status(200).json({ error: 'FINRA no disponible: ' + e.message });
+      }
+    }
+    if (src === 'optc') {
+      // crypto: mismo patrón 200-{error} que opt (ticker sin cadena Deribit = degradación limpia)
+      try {
+        const out = await optcAgg(tickers[0]);
+        res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=900'); // 15 min — crypto 24/7
+        return res.status(200).json(out);
+      } catch (e) {
+        res.setHeader('Cache-Control', 'max-age=0, no-cache');
+        return res.status(200).json({ error: e.message });
       }
     }
     if (src === 'stats') {
