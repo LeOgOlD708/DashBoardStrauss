@@ -71,6 +71,7 @@ async function insiders(ticker) {
   // regalo código G, award A — acortaba px[] → buyUsd con precios de OTRA transacción).
   // Solo tabla non-derivative: las compras/ventas de mercado abierto viven ahí.
   let buys = 0, sells = 0, buyUsd = 0;
+  const buyDates = []; // E3 (2026-07-11): fechas de filings con compras P → detección de CLUSTER
   const t0 = Date.now();
   for (const i of idx.slice(0, 6)) {
     if (Date.now() - t0 > 18000) break; // presupuesto: lejos del maxDuration 30 (SEC lento no nos mata)
@@ -82,18 +83,20 @@ async function insiders(ticker) {
       const x = await fetch(`https://www.sec.gov/Archives/edgar/data/${parseInt(cik, 10)}/${acc}/${doc}`, { headers: SEC_UA, signal: AbortSignal.timeout(5000) });
       if (!x.ok) continue;
       const xml = await x.text();
+      let hadBuy = false;
       for (const b of xml.matchAll(/<nonDerivativeTransaction>([\s\S]*?)<\/nonDerivativeTransaction>/g)) {
         const code = b[1].match(/<transactionCode>([A-Z])<\/transactionCode>/)?.[1];
         if (code === 'P') {
-          buys++;
+          buys++; hadBuy = true;
           const sh = +(b[1].match(/<transactionShares>\s*<value>([\d.]+)/)?.[1] || 0);
           const pr = +(b[1].match(/<transactionPricePerShare>\s*<value>([\d.]+)/)?.[1] || 0);
           buyUsd += sh * pr;
         } else if (code === 'S') sells++;
       }
+      if (hadBuy && rec.filingDate[i]) buyDates.push(rec.filingDate[i]);
     } catch (e) { /* form ilegible → seguir */ }
   }
-  return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), last8K };
+  return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), buyDates, last8K };
 }
 
 // ── F4 · TRACK RECORD: snapshots inmutables del embudo en el propio repo (GitHub API) ──
