@@ -569,11 +569,15 @@ async function optcAgg(cur) {
   const wk = expList.find(e => { const d2 = (e - now) / 86400000; return d2 >= 4 && d2 <= 10; }) || null;
   const emDaily = emOf2(nearestExp);
   const emWeekly = wk && wk !== nearestExp ? emOf2(wk) : null;
-  // extras crypto (fallo tolerado)
-  const [fr, fg] = await Promise.all([
-    fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=' + cur + 'USDT', { signal: AbortSignal.timeout(6000) }).then(x => x.json()).catch(() => null),
+  // extras crypto (fallo tolerado). Funding: Binance bloquea IPs de EE.UU. (Vercel iad1)
+  // → OKX como fuente primaria (accesible desde US, verificado), Binance de respaldo.
+  const [frOkx, frBin, fg] = await Promise.all([
+    fetch('https://www.okx.com/api/v5/public/funding-rate?instId=' + cur + '-USDT-SWAP', { signal: AbortSignal.timeout(6000) }).then(x => x.json()).catch(() => null),
+    fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=' + cur + 'USDT', { signal: AbortSignal.timeout(5000) }).then(x => x.json()).catch(() => null),
     fetch('https://api.alternative.me/fng/', { signal: AbortSignal.timeout(6000) }).then(x => x.json()).catch(() => null)
   ]);
+  const fundingRaw = frOkx?.data?.[0]?.fundingRate != null ? +frOkx.data[0].fundingRate
+    : (frBin?.lastFundingRate != null ? +frBin.lastFundingRate : null);
   return {
     tk: cur, spot: S, updated: new Date().toISOString().slice(0, 16).replace('T', ' '),
     nearestExp: new Date(nearestExp).toISOString().slice(0, 10), expiries: exps.size,
@@ -584,7 +588,7 @@ async function optcAgg(cur) {
     callWall: callWall.k, putWall: putWall.k, gammaFlip: flip, maxPain,
     strikes: strikes.map(s => ({ k: s.k, cOI: +s.cOI.toFixed(1), pOI: +s.pOI.toFixed(1), gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1) })),
     crypto: {
-      funding: fr?.lastFundingRate != null ? +(fr.lastFundingRate * 100).toFixed(4) : null, // % por 8h
+      funding: fundingRaw != null ? +(fundingRaw * 100).toFixed(4) : null, // % por 8h
       fearGreed: fg?.data?.[0] ? { v: +fg.data[0].value, txt: fg.data[0].value_classification } : null
     }
   };
