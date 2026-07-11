@@ -282,6 +282,7 @@ async function optAgg(tk, expMode) {
   const reSym = /(\d{6})([CP])(\d{8})$/; // TICKER + YYMMDD + C/P + strike*1000
   const byStrike = new Map();
   let cVolT = 0, pVolT = 0, cOIT = 0, pOIT = 0, nearestExp = null, dexTotal = 0;
+  let cPremT = 0, pPremT = 0; // FLUJO (2026-07-11): prima negociada HOY = vol × last × 100 (delayed 15m)
   const expiries = new Set(), nearRows = [];
   // E0 (2026-07-11): straddles ATM por expiración (strikes ±3% del spot) para expected move
   const atmByExp = new Map();
@@ -293,13 +294,14 @@ async function optAgg(tk, expMode) {
     const isCall = m[2] === 'C';
     const k = +m[3] / 1000;
     const oi = +o.open_interest || 0, vol = +o.volume || 0, gamma = +o.gamma || 0;
+    const last = +o.last_trade_price || 0; // FLUJO: campo antes descartado — habilita net premium
     // E0: delta viene NATIVO con signo (puts negativos — validado contra el raw 2026-07-11);
     // guard defensivo por si CBOE lo cambiara
     let delta = +o.delta || 0;
     if (!isCall && delta > 0) delta = -delta;
     expiries.add(exp);
     if (!nearestExp || exp < nearestExp) nearestExp = exp;
-    if (isCall) { cVolT += vol; cOIT += oi; } else { pVolT += vol; pOIT += oi; } // P/C: toda la ventana
+    if (isCall) { cVolT += vol; cOIT += oi; cPremT += vol * last * 100; } else { pVolT += vol; pOIT += oi; pPremT += vol * last * 100; } // P/C + prima: toda la ventana
     if (exp === nearestExp) nearRows.push({ k, isCall, oi, exp });
     // E0 · DEX total (toda la ventana ≤45d): delta-dollars del open interest
     dexTotal += delta * oi * 100 * spot;
@@ -314,10 +316,12 @@ async function optAgg(tk, expMode) {
     }
     if (k < spot * 0.85 || k > spot * 1.15) continue; // GEX/DEX por strike: ±15% del spot
     let row = byStrike.get(k);
-    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0, dex: 0 }; byStrike.set(k, row); }
+    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0, dex: 0, cV: 0, pV: 0, prem: 0 }; byStrike.set(k, row); }
     const gexUsd = gamma * oi * 100 * spot * spot * 0.01;
     row.dex += delta * oi * 100 * spot;
-    if (isCall) { row.cOI += oi; row.gex += gexUsd; } else { row.pOI += oi; row.gex -= gexUsd; }
+    // FLUJO: volumen del día por strike (vol>OI = apertura nueva) + prima neta (call − put)
+    if (isCall) { row.cOI += oi; row.gex += gexUsd; row.cV += vol; row.prem += vol * last * 100; }
+    else { row.pOI += oi; row.gex -= gexUsd; row.pV += vol; row.prem -= vol * last * 100; }
   }
   // E0 · Expected move: straddle ATM ×0.85 (precio de mercado) con fallback IV·spot·√(dte/365).
   // Horizontes: nearest (el más cercano) y weekly (4-10 días) — marco de swing, no 0DTE.
@@ -372,12 +376,16 @@ async function optAgg(tk, expMode) {
     tk, spot, updated: j.timestamp || null, nearestExp, expiries: expiries.size,
     pcVol: cVolT > 0 ? +(pVolT / cVolT).toFixed(2) : null,
     pcOI: cOIT > 0 ? +(pOIT / cOIT).toFixed(2) : null,
+    // FLUJO (2026-07-11, claves aditivas): prima negociada hoy en $M — proxy delayed del Premium Flow
+    premCallsM: +(cPremT / 1e6).toFixed(2), premPutsM: +(pPremT / 1e6).toFixed(2),
+    netPremM: +((cPremT - pPremT) / 1e6).toFixed(2),
+    volTotal: cVolT + pVolT, // O/S ratio: numerador (el cliente divide por el vol de la acción)
     gexTotalBn: +(gexTotal / 1e9).toFixed(2),
     dexTotalBn: +(dexTotal / 1e9).toFixed(2), // E0: delta-dollars netos (dealers "largos/cortos de delta")
     ivAtm: emWeekly?.ivAtm ?? emDaily?.ivAtm ?? null, // E0: IV ATM de referencia (semanal preferida)
     emDaily, emWeekly, // E0: expected move {exp, dte, em, pct, ivAtm}
     callWall: callWall.k, putWall: putWall.k, gammaFlip: flip, maxPain,
-    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1) })) // gex/dex $M
+    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1), cV: s.cV, pV: s.pV, prem: +(s.prem / 1e6).toFixed(2) })) // gex/dex/prem $M · cV/pV contratos hoy
   };
 }
 
