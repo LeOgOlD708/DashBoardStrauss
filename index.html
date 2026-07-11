@@ -3730,6 +3730,18 @@ if (document.readyState === 'loading') {
 async function bootData() {
   setNavStatus('Cargando...', '#fbbf24');
   showLoadingState();
+  window._rotTransCache = null; // Perf M2 (auditoría 2026-07-11): datos frescos → marea/cruces se recomputan
+  // Perf M3: barrido de claves localStorage acumulativas — catalysts >7d y trk_sent de días previos
+  try {
+    const cutTs = Date.now() - 7 * 86400000, today0 = new Date().toISOString().slice(0, 10);
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (k.startsWith('os_catalysts_v2_')) {
+        try { const o = JSON.parse(localStorage.getItem(k)); if (!o?.timestamp || o.timestamp < cutTs) localStorage.removeItem(k); } catch (e) { localStorage.removeItem(k); }
+      } else if (k.startsWith('trk_sent_') && k.slice(9) !== today0) localStorage.removeItem(k);
+    }
+  } catch (e) { /* limpieza best-effort */ }
 
   const [fredResult, yahooResult, newsResult, calResult] = await Promise.allSettled([
     loadFredData(),
@@ -9103,34 +9115,47 @@ function renderCapitalRotation(scrubOnly) {
     };
   });
 
-  if (state.charts.rotation) { state.charts.rotation.destroy(); }
-  state.charts.rotation = new Chart(cv, {
-    type: 'scatter',
-    data: { datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
-      scales: {
-        x: { min: Math.floor(100 - span), max: Math.ceil(100 + span), grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 }, maxTicksLimit: 7, callback: v => Math.round(v) }, title: { display: true, text: '← más débil que SPY · RS-Ratio · más fuerte que SPY →', color: '#7a716a', font: { size: 9 } } },
-        y: { min: Math.floor(100 - span), max: Math.ceil(100 + span), grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 }, maxTicksLimit: 7, callback: v => Math.round(v) }, title: { display: true, text: '← frenando · aceleración 4 sem · acelerando →', color: '#7a716a', font: { size: 9 } } }
+  const rotLbl = ctx => {
+    const d = data[ctx.datasetIndex];
+    const lines = [
+      `${d.name} (${d.tk}) · ${ROT_QUAD_META[d.quad].lbl}`,
+      `RS ${ctx.parsed.x.toFixed(1)} · Mom ${ctx.parsed.y.toFixed(1)} · vel ${d.vel.toFixed(2)}/sem`
+    ];
+    if (d.weeksIn) lines.push(`⏱ ${d.weeksIn >= 13 ? '13+' : d.weeksIn} sem en el cuadrante`);
+    if (d.flow?.usd != null) lines.push(`flujo real ${FlowTracker.fmtUsd(d.flow.usd)} (${d.flow.days}d)`);
+    if (d.score != null) lines.push(`score scanner ${d.score}/100`);
+    if (d.eta) lines.push(`→ ${ROT_QUAD_META[d.eta.q].lbl} en ~${d.eta.w} sem (extrapolación)`);
+    return lines;
+  };
+  const axMin = Math.floor(100 - span), axMax = Math.ceil(100 + span);
+  // Perf A1 (auditoría 2026-07-11): el ARRASTRE del slider/estela NO destruye+recrea el chart
+  // (30-60 teardowns/s con animación 400ms = jank) — update in-place sin animación
+  if (scrubOnly === true && state.charts.rotation) {
+    const ch = state.charts.rotation;
+    ch.data.datasets = datasets;
+    ch.options.scales.x.min = axMin; ch.options.scales.x.max = axMax;
+    ch.options.scales.y.min = axMin; ch.options.scales.y.max = axMax;
+    ch.options.plugins.tooltip.callbacks.label = rotLbl;
+    ch.update('none');
+  } else {
+    if (state.charts.rotation) { state.charts.rotation.destroy(); }
+    state.charts.rotation = new Chart(cv, {
+      type: 'scatter',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+        scales: {
+          x: { min: axMin, max: axMax, grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 }, maxTicksLimit: 7, callback: v => Math.round(v) }, title: { display: true, text: '← más débil que SPY · RS-Ratio · más fuerte que SPY →', color: '#7a716a', font: { size: 9 } } },
+          y: { min: axMin, max: axMax, grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#7a716a', font: { size: 9 }, maxTicksLimit: 7, callback: v => Math.round(v) }, title: { display: true, text: '← frenando · aceleración 4 sem · acelerando →', color: '#7a716a', font: { size: 9 } } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: rotLbl } }
+        }
       },
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: { label: ctx => {
-          const d = data[ctx.datasetIndex];
-          const lines = [
-            `${d.name} (${d.tk}) · ${ROT_QUAD_META[d.quad].lbl}`,
-            `RS ${ctx.parsed.x.toFixed(1)} · Mom ${ctx.parsed.y.toFixed(1)} · vel ${d.vel.toFixed(2)}/sem`
-          ];
-          if (d.weeksIn) lines.push(`⏱ ${d.weeksIn >= 13 ? '13+' : d.weeksIn} sem en el cuadrante`);
-          if (d.flow?.usd != null) lines.push(`flujo real ${FlowTracker.fmtUsd(d.flow.usd)} (${d.flow.days}d)`);
-          if (d.score != null) lines.push(`score scanner ${d.score}/100`);
-          if (d.eta) lines.push(`→ ${ROT_QUAD_META[d.eta.q].lbl} en ~${d.eta.w} sem (extrapolación)`);
-          return lines;
-        } } }
-      }
-    },
-    plugins: [rotQuadrantPlugin]
-  });
+      plugins: [rotQuadrantPlugin]
+    });
+  }
 
   const order = { mejorando: 0, lider: 1, debilitandose: 2, rezagado: 3 };
   const sorted = [...data].sort((a, b) => order[a.quad] - order[b.quad] || b.last.y - a.last.y);
@@ -9663,7 +9688,7 @@ const InstPanel = {
     };
     const c = this._futCache[m[0]];
     if (c && Date.now() - c.ts < 300000) return paint(c.px);
-    fetch('/api/yahoo?tickers=' + encodeURIComponent(m[0]) + '&priceOnly=1')
+    fetch('/api/yahoo?tickers=' + encodeURIComponent(m[0]) + '&priceOnly=true')
       .then(r2 => r2.json())
       .then(j => {
         const px = j[m[0]]?.price;
@@ -10180,6 +10205,7 @@ const InstCompare = {
       return { tk, spot, chg1d: dU.chg1d, ud: computeUpDownRatio(dU.hist, dU.vols || [], 50),
         dist52: hi52 > 0 ? (spot / hi52 - 1) * 100 : null,
         pc: o?.pcVol ?? null, gex: o?.gexTotalBn ?? null, dex: o?.dexTotalBn ?? null, iv: o?.ivAtm ?? null,
+        netPrem: o?.netPremM ?? null, gexV: o?.gexVolTotalBn ?? null, flipV: o?.flipVol ?? null, // FLUJO: la capa del DÍA al comparador
         em: o?.emWeekly?.pct ?? o?.emDaily?.pct ?? null, cw: o?.callWall ?? null, pw: o?.putWall ?? null, flip: o?.gammaFlip ?? null,
         instOwn: s3?.instOwn ?? null, sf: s3?.shortFloat ?? null,
         verdes: sig.verdes, rojas: sig.rojas,
@@ -10200,6 +10226,9 @@ const InstCompare = {
     push('Dist. a máx 52w', pct(a.dist52), pct(b.dist52), winHi(a.dist52, b.dist52), 'Más cerca del máximo anual = tendencia más sana (0% = en máximo)');
     push('P/C volumen', f2(a.pc), f2(b.pc), 0, 'Put/Call por volumen — >1 = más puts (cobertura/miedo), sin ganador universal');
     push('GEX neto', a.gex == null ? '—' : '$' + a.gex + 'bn', b.gex == null ? '—' : '$' + b.gex + 'bn', 0, 'Gamma positiva = dealers estabilizan · negativa = amplifican. Es RÉGIMEN, no mejor/peor');
+    // FLUJO (auditoría 2026-07-11): la capa rápida — el comparador mostraba solo estructura
+    push('🌊 Flujo neto HOY', a.netPrem == null ? '—' : (a.netPrem >= 0 ? '+' : '−') + '$' + Math.abs(a.netPrem).toFixed(1) + 'M', b.netPrem == null ? '—' : (b.netPrem >= 0 ? '+' : '−') + '$' + Math.abs(b.netPrem).toFixed(1) + 'M', winHi(a.netPrem, b.netPrem), 'Prima neta calls−puts negociada HOY (delayed 15m) — dónde están entrando los dólares del día');
+    push('GEX HOY (Γ×vol) / flip hoy', a.gexV == null ? '—' : '$' + a.gexV + 'bn / ' + fK(a.flipV), b.gexV == null ? '—' : '$' + b.gexV + 'bn / ' + fK(b.flipV), 0, 'La capa rápida del gamma: lo negociado HOY y su pivote del día (vs la estructura del GEX por OI)');
     push('DEX (delta-dollars)', a.dex == null ? '—' : '$' + a.dex + 'bn', b.dex == null ? '—' : '$' + b.dex + 'bn', winHi(a.dex, b.dex), 'DEX positivo = red de seguridad mecánica de los market makers en caídas');
     push('IV ATM', a.iv == null ? '—' : f2(a.iv * 100, 0) + '%', b.iv == null ? '—' : f2(b.iv * 100, 0) + '%', 0, 'Volatilidad implícita at-the-money — cara o barata depende del plan (comprar vs vender prima)');
     push('Expected move semanal', a.em == null ? '—' : '±' + f2(a.em, 1) + '%', b.em == null ? '—' : '±' + f2(b.em, 1) + '%', 0, 'Movimiento que el mercado de opciones descuenta para la semana');
@@ -10585,9 +10614,14 @@ const InstDeep = {
   async zonesFor(tk, dailyHist, dailyVols, dailyDates) {
     try {
       const jf = u => fetch(u).then(r => r.json()).catch(() => null);
+      // Perf M1 (2026-07-11): reusar cache/promesa-en-vuelo de InstPanel para opt — el
+      // comparador y el pipeline de candidatas fetcheaban el MISMO url dos veces
+      const cOpt = InstPanel._cache?.[tk];
+      const optP = (cOpt && Date.now() - cOpt.ts < 1800000) ? Promise.resolve(cOpt.d)
+        : (InstPanel._pend?.[tk] || jf(instOptFetch(tk).url)); // P3: BTC/ETH rutean a Deribit
       const [y60, opt] = await Promise.all([
         jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
-        jf(instOptFetch(tk).url) // P3: BTC-USD/ETH-USD rutean a Deribit (?src=optc), resto CBOE
+        Promise.resolve(optP).catch(() => null)
       ]);
       const spot = dailyHist[dailyHist.length - 1];
       const h60 = y60?.[tk]?.hist, v60 = y60?.[tk]?.vols;
@@ -11575,11 +11609,15 @@ const CapitalDrill = {
         + '</span><span style="color:' + d52col + '">' + fmtP(r.dist52) + '</span></span>';
       // Puente al Tab 09 (mejora post-Institucional): radiografía del ticker en 1 click
       const instNav = ' <span onclick="event.stopPropagation();InstTab.goto(\'' + r.tk + '\')" style="cursor:pointer;opacity:.5;font-size:9px" title="Ver radiografía institucional de ' + r.tk + ' en el Tab 09 (muros de gamma, niveles, dark pools, ownership)">🏛</span>';
+      // FLUJO (auditoría 2026-07-11): chip 🌊 prima neta del día — presentación pura, NO toca candScore (corte v:3)
+      const flujoTag = (r.netPrem != null && Math.abs(r.netPrem) >= 0.5)
+        ? ' <span class="mono" style="font-size:8px;color:' + (r.netPrem >= 0 ? 'var(--green)' : 'var(--red)') + '" title="FLUJO DE HOY (opciones CBOE, delayed 15m): prima neta calls−puts ' + (r.netPrem >= 0 ? '+' : '−') + '$' + Math.abs(r.netPrem).toFixed(1) + 'M — dólares del día entrando por el lado ' + (r.netPrem >= 0 ? 'CALL (sesgo alcista)' : 'PUT (cobertura/bajista)') + '. Observacional: NO afecta el score">🌊' + (r.netPrem >= 0 ? '+' : '−') + Math.abs(r.netPrem).toFixed(0) + 'M</span>'
+        : '';
       // crypto: mostrar HYPE (no HYPE32196-USD) y abrir TV con HYPEUSD (TV no resuelve -USD)
       const disp = r.viaKind === 'crypto' ? (RP_ALIAS[r.tk] || r.tk.replace('-USD', '')) : r.tk;
       const tvS = r.viaKind === 'crypto' ? disp + 'USD' : r.tk;
       return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + disp + '&quot;,&quot;' + tvS + '&quot;,null)" title="Abrir chart ' + disp + '">'
-        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + disp + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + '</td>'
+        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + disp + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + flujoTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px;cursor:help" title="' + viaTip(r) + '">' + (r.sec || '—') + '</td>' : '')
         + (hasScore ? (() => { const sc = r.score, scCol = sc == null ? 'var(--text3)' : sc >= 70 ? 'var(--green)' : sc >= 55 ? 'var(--amber)' : 'var(--text2)'; const det = sc == null ? '' : 'SCORE ' + sc + '/100 (motor v2): Fuerza 25 + Tendencia 20 + Acumulación 15 + Calidad de ENTRADA 25 + Semáforo institucional 15' + (r.zona ? ' · zona ' + r.zona.lo.toFixed(2) + '–' + r.zona.hi.toFixed(2) + ' (score ' + r.zona.score + (r.zona.enZona ? ', EN ZONA' : ', a ' + Math.abs(r.zona.dist) + '%') + ')' : ' · sin zona de entrada de calidad (pierde hasta 25 pts)') + (r.sema ? ' · semáforo ' + r.sema.verdes + '✓/' + r.sema.rojas + '✗' : ''); return '<td title="' + det + '"><b style="color:' + scCol + ';font-size:11px">' + (sc ?? '—') + '</b></td>'; })() : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
@@ -11843,6 +11881,7 @@ const CandidatasHoy = {
           const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
           if (zA) row.zona = { lo: zA.lo, hi: zA.hi, score: zA.score, dist: zA.dist, labels: zA.labels, enZona: zf.spot >= zA.lo && zf.spot <= zA.hi };
           const dU2 = CapitalDrill.universe[row.tk];
+          row.netPrem = zf?.opt?.netPremM ?? null; // FLUJO (2026-07-11): prima neta del día — chip 🌊 + snapshot (observacional, NO entra a candScore)
           row.sema = (() => { const s4 = semaphoreSignals(row.tk, dU2, zf?.opt || null, atsMap[row.tk], statsMap[row.tk], (insRs[i2] && !insRs[i2].error) ? insRs[i2] : null); return { verdes: s4.verdes, rojas: s4.rojas }; })();
           row.score = candScore(row, row.zona || null, row.sema);
         });
@@ -12056,7 +12095,11 @@ const CandidatasHoy = {
       if (q && !q.error) {
         const nq = cot?.mkts?.find(m => m.code === '209742');
         const es = cot?.mkts?.find(m => m.code === '13874A');
-        inst = { qqqSpot: q.spot, qqqPC: q.pcVol, qqqGexBn: q.gexTotalBn, flip: q.gammaFlip, callWall: q.callWall, putWall: q.putWall, cotNqPctil: nq?.pctil3y ?? null, cotEsPctil: es?.pctil3y ?? null };
+        // FLUJO (auditoría 2026-07-11): la capa rápida al snapshot — claves ADITIVAS, no
+        // reconstruibles hacia atrás (netPrem/gexVol/flipVol del día se pierden si no se graban)
+        inst = { qqqSpot: q.spot, qqqPC: q.pcVol, qqqGexBn: q.gexTotalBn, flip: q.gammaFlip, callWall: q.callWall, putWall: q.putWall,
+          netPremM: q.netPremM ?? null, gexVolBn: q.gexVolTotalBn ?? null, flipVol: q.flipVol ?? null, dexBn: q.dexTotalBn ?? null, emWpct: q.emWeekly?.pct ?? null,
+          cotNqPctil: nq?.pctil3y ?? null, cotEsPctil: es?.pctil3y ?? null };
       }
     } catch (e) { /* sin inst — el snapshot sale igual */ }
     // E4 (2026-07-11): zonas de entrada del top-3 al snapshot — clave NUEVA `zonas`, v:2
@@ -12087,7 +12130,8 @@ const CandidatasHoy = {
       spy: state.data.prices?.SPY?.price ?? null,
       sectores, // top scanner del día — habilita auditar el scanner sectorial a futuro
       candidatas: r.cands.slice(0, 15).map(c => ({ tk: c.tk, via: c.sec || null, viaKind: c.viaKind || 'flujo', price: c.price, rs: c.rs, mom: c.mom, tpl: c.tpl?.passed ?? null, pp: !!c.pp,
-        score: c.score ?? null, zonaScore: c.zona?.score ?? null, enZona: c.zona?.enZona ?? null, sema: c.sema ? c.sema.verdes + '/' + c.sema.rojas : null })), // MOTOR v2: audita si el score predice
+        score: c.score ?? null, zonaScore: c.zona?.score ?? null, enZona: c.zona?.enZona ?? null, sema: c.sema ? c.sema.verdes + '/' + c.sema.rojas : null,
+        netPrem: c.netPrem ?? null })), // MOTOR v2 + FLUJO: audita si score/flujo del día predicen (claves aditivas)
       // P2/P3: pools aparte al snapshot (clave aditiva) — audita si el radar 52w/crypto agrega valor
       pools: (r.pool52?.rows?.length || r.poolCrypto?.rows?.length) ? {
         s52: (r.pool52?.rows || []).slice(0, 5).map(c => ({ tk: c.tk, price: c.price, rs: c.rs, score: c.score ?? null })),

@@ -105,9 +105,9 @@ async function insiders(ticker) {
         const title = rel.match(/<officerTitle>([^<]*)<\/officerTitle>/)?.[1] || '';
         const role = /chief financial|cfo/i.test(title) ? 'CFO'
           : /chief executive|ceo/i.test(title) ? 'CEO'
-          : /1/.test(rel.match(/<isDirector>([^<]*)</)?.[1] || '') ? 'DIR'
-          : /1/.test(rel.match(/<isOfficer>([^<]*)</)?.[1] || '') ? 'OFF'
-          : /1/.test(rel.match(/<isTenPercentOwner>([^<]*)</)?.[1] || '') ? '10%' : '—';
+          : /1|true/i.test(rel.match(/<isDirector>([^<]*)</)?.[1] || '') ? 'DIR'
+          : /1|true/i.test(rel.match(/<isOfficer>([^<]*)</)?.[1] || '') ? 'OFF'
+          : /1|true/i.test(rel.match(/<isTenPercentOwner>([^<]*)</)?.[1] || '') ? '10%' : '—';
         buyRoles.push(role);
       }
     } catch (e) { /* form ilegible → seguir */ }
@@ -240,7 +240,8 @@ async function digest() {
   try {
     const [q, cot] = instData || [null, null];
     const parts = [];
-    if (q) parts.push('QQQ P/C ' + (q.pcVol ?? '—') + ' · GEX $' + q.gexTotalBn + 'bn (walls ' + q.putWall + '/' + q.callWall + (q.gammaFlip != null ? ' · flip ' + q.gammaFlip : '') + ')');
+    if (q) parts.push('QQQ P/C ' + (q.pcVol ?? '—') + ' · GEX $' + q.gexTotalBn + 'bn (walls ' + q.putWall + '/' + q.callWall + (q.gammaFlip != null ? ' · flip ' + q.gammaFlip : '') + ')'
+      + (q.netPremM != null ? ' · 🌊 flujo hoy ' + (q.netPremM >= 0 ? '+' : '−') + '$' + Math.abs(q.netPremM).toFixed(0) + 'M' + (q.flipVol != null ? ' (flip hoy ' + q.flipVol + ')' : '') : ''));
     if (cot?.mkts) {
       const nq = cot.mkts.find(m => m.code === '209742');
       if (nq && !nq.error) parts.push('COT NQ p' + nq.pctil3y + (nq.pctil3y >= 90 ? ' ⚠️ crowded long' : nq.pctil3y <= 10 ? ' ⚡ crowded short' : ''));
