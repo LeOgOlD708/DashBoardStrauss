@@ -244,8 +244,10 @@ async function optAgg(tk) {
   const maxExp = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
   const reSym = /(\d{6})([CP])(\d{8})$/; // TICKER + YYMMDD + C/P + strike*1000
   const byStrike = new Map();
-  let cVolT = 0, pVolT = 0, cOIT = 0, pOIT = 0, nearestExp = null;
+  let cVolT = 0, pVolT = 0, cOIT = 0, pOIT = 0, nearestExp = null, dexTotal = 0;
   const expiries = new Set(), nearRows = [];
+  // E0 (2026-07-11): straddles ATM por expiración (strikes ±3% del spot) para expected move
+  const atmByExp = new Map();
   for (const o of (data.options || [])) {
     const m = reSym.exec(o.option || '');
     if (!m) continue;
@@ -254,16 +256,61 @@ async function optAgg(tk) {
     const isCall = m[2] === 'C';
     const k = +m[3] / 1000;
     const oi = +o.open_interest || 0, vol = +o.volume || 0, gamma = +o.gamma || 0;
+    // E0: delta viene NATIVO con signo (puts negativos — validado contra el raw 2026-07-11);
+    // guard defensivo por si CBOE lo cambiara
+    let delta = +o.delta || 0;
+    if (!isCall && delta > 0) delta = -delta;
     expiries.add(exp);
     if (!nearestExp || exp < nearestExp) nearestExp = exp;
     if (isCall) { cVolT += vol; cOIT += oi; } else { pVolT += vol; pOIT += oi; } // P/C: toda la ventana
     if (exp === nearestExp) nearRows.push({ k, isCall, oi, exp });
-    if (k < spot * 0.85 || k > spot * 1.15) continue; // GEX: solo strikes ±15% del spot
+    // E0 · DEX total (toda la ventana ≤45d): delta-dollars del open interest
+    dexTotal += delta * oi * 100 * spot;
+    // E0 · straddle ATM: guardar mids/IV de strikes ±3% por expiración (para EM)
+    if (Math.abs(k - spot) / spot <= 0.03) {
+      let em = atmByExp.get(exp);
+      if (!em) { em = new Map(); atmByExp.set(exp, em); }
+      let leg = em.get(k);
+      if (!leg) { leg = {}; em.set(k, leg); }
+      const mid = (+o.bid > 0 && +o.ask > 0) ? (+o.bid + +o.ask) / 2 : null;
+      if (isCall) { leg.cMid = mid; leg.cIv = +o.iv || null; } else { leg.pMid = mid; leg.pIv = +o.iv || null; }
+    }
+    if (k < spot * 0.85 || k > spot * 1.15) continue; // GEX/DEX por strike: ±15% del spot
     let row = byStrike.get(k);
-    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0 }; byStrike.set(k, row); }
+    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0, dex: 0 }; byStrike.set(k, row); }
     const gexUsd = gamma * oi * 100 * spot * spot * 0.01;
+    row.dex += delta * oi * 100 * spot;
     if (isCall) { row.cOI += oi; row.gex += gexUsd; } else { row.pOI += oi; row.gex -= gexUsd; }
   }
+  // E0 · Expected move: straddle ATM ×0.85 (precio de mercado) con fallback IV·spot·√(dte/365).
+  // Horizontes: nearest (el más cercano) y weekly (4-10 días) — marco de swing, no 0DTE.
+  const emOf = (exp) => {
+    if (!exp) return null;
+    const em = atmByExp.get(exp);
+    if (!em) return null;
+    let bestK = null, bestDist = Infinity;
+    for (const k of em.keys()) {
+      const l = em.get(k);
+      if (l.cMid == null || l.pMid == null) continue; // straddle completo
+      const d2 = Math.abs(k - spot);
+      if (d2 < bestDist) { bestDist = d2; bestK = k; }
+    }
+    if (bestK == null) return null;
+    const l = em.get(bestK);
+    const dte = Math.max((new Date(exp + 'T16:00:00Z') - Date.now()) / 86400000, 0.25);
+    const straddle = 0.85 * (l.cMid + l.pMid);
+    const ivAtm = (l.cIv && l.pIv) ? (l.cIv + l.pIv) / 2 : (l.cIv || l.pIv || null);
+    const emVal = straddle > 0 ? straddle : (ivAtm ? spot * ivAtm * Math.sqrt(dte / 365) : null);
+    if (!emVal) return null;
+    return { exp, dte: +dte.toFixed(1), em: +emVal.toFixed(2), pct: +(emVal / spot * 100).toFixed(2), ivAtm: ivAtm ? +ivAtm.toFixed(4) : null };
+  };
+  const expSorted = [...expiries].sort();
+  const weeklyExp = expSorted.find(e => {
+    const dte = (new Date(e) - new Date(today)) / 86400000;
+    return dte >= 4 && dte <= 10;
+  }) || expSorted.find(e => (new Date(e) - new Date(today)) / 86400000 > 2) || null;
+  const emDaily = emOf(nearestExp);
+  const emWeekly = weeklyExp && weeklyExp !== nearestExp ? emOf(weeklyExp) : null;
   const near = nearRows.filter(x => x.exp === nearestExp); // pudo acumular exps que "eran" nearest
   const strikes = [...byStrike.values()].sort((a, b) => a.k - b.k);
   if (!strikes.length) throw new Error('sin strikes ≤45d dentro de ±15% para ' + tk);
@@ -289,8 +336,11 @@ async function optAgg(tk) {
     pcVol: cVolT > 0 ? +(pVolT / cVolT).toFixed(2) : null,
     pcOI: cOIT > 0 ? +(pOIT / cOIT).toFixed(2) : null,
     gexTotalBn: +(gexTotal / 1e9).toFixed(2),
+    dexTotalBn: +(dexTotal / 1e9).toFixed(2), // E0: delta-dollars netos (dealers "largos/cortos de delta")
+    ivAtm: emWeekly?.ivAtm ?? emDaily?.ivAtm ?? null, // E0: IV ATM de referencia (semanal preferida)
+    emDaily, emWeekly, // E0: expected move {exp, dte, em, pct, ivAtm}
     callWall: callWall.k, putWall: putWall.k, gammaFlip: flip, maxPain,
-    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1) })) // gex $M
+    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1) })) // gex/dex $M
   };
 }
 
