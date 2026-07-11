@@ -2745,9 +2745,9 @@ html.auth-ok #auth-gate{display:none}
   <div class="sh"><div class="sh-tag">Institucional</div><div class="sh-title">Radiografía Institucional — ¿dónde está y qué hace el dinero grande?</div><button class="glossary-btn" onclick="openGlossary('radiografia-institucional')" title="¿Cómo se lee este apartado?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card gold-a" style="margin-bottom:14px"><div class="card-accent"></div>
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input id="instt-search" placeholder="Analizar cualquier ticker: NVDA, PLTR, ORKA, SPY…" onkeydown="if(event.key==='Enter')InstTab.analyze(this.value)" style="flex:1;max-width:340px;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 8px;outline:none">
-      <button onclick="InstTab.analyze(document.getElementById('instt-search').value)" style="font-size:9px;font-family:'IBM Plex Mono',monospace;padding:5px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">ANALIZAR</button>
-      <span class="mono" style="font-size:8px;color:var(--text3)">rápido:</span>
+      <input id="instt-search" placeholder="Analizar cualquier ticker: NVDA, PLTR, ORKA, SPY…" onkeydown="if(event.key==='Enter')InstTab.analyze(this.value)" style="flex:1;max-width:400px;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:13px;padding:8px 12px;outline:none">
+      <button onclick="InstTab.analyze(document.getElementById('instt-search').value)" style="font-size:11px;font-family:'IBM Plex Mono',monospace;font-weight:600;padding:8px 16px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">ANALIZAR</button>
+      <span class="mono" style="font-size:10px;color:var(--text3)">rápido:</span>
       <button type="button" onclick="InstTab.analyze('QQQ')" class="rot-btn" style="color:var(--text2)">QQQ</button>
       <button type="button" onclick="InstTab.analyze('SPY')" class="rot-btn" style="color:var(--text2)">SPY</button>
     </div>
@@ -2757,9 +2757,9 @@ html.auth-ok #auth-gate{display:none}
   <!-- ── Muros de gamma/OI del ticker analizado ── -->
   <div class="sh"><div class="sh-tag">Opciones</div><div class="sh-title">Muros de Gamma/OI — imanes, techos y pisos del precio</div><button class="glossary-btn" onclick="openGlossary('gex-oi-walls')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
-    <div class="mono" style="font-size:9px;color:var(--text3);margin-bottom:8px">GEX por strike (opciones CBOE, delayed 15 min, vencimientos ≤45d). Barras verdes = gamma de calls (frena/atrae) · rojas = de puts (soporte/acelerador).</div>
-    <div id="inst-strip" class="mono" style="font-size:10px;color:var(--text3);margin-bottom:8px;line-height:1.7">Escribe un ticker arriba (o abre el tab: carga QQQ por default)…</div>
-    <div class="ch-wrap" style="height:300px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
+    <div class="mono" style="font-size:10.5px;color:var(--text3);margin-bottom:8px">GEX por strike (opciones CBOE, delayed 15 min, vencimientos ≤45d). Barras verdes = gamma de calls (frena/atrae) · rojas = de puts (soporte/acelerador).</div>
+    <div id="inst-strip" class="mono" style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.9">Escribe un ticker arriba (o abre el tab: carga QQQ por default)…</div>
+    <div class="ch-wrap" style="height:380px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
   </div>
 
   <!-- ── Niveles + dark pools + ownership del ticker analizado ── -->
@@ -9405,8 +9405,8 @@ const InstPanel = {
         labels: rows.map(s => s.k),
         datasets: [{
           data: rows.map(s => s.gex),
-          backgroundColor: rows.map(s => s.gex >= 0 ? 'rgba(52,211,153,.65)' : 'rgba(248,113,113,.65)'),
-          borderWidth: 0, barPercentage: .85, categoryPercentage: .9,
+          backgroundColor: rows.map(s => s.gex >= 0 ? 'rgba(52,211,153,.82)' : 'rgba(248,113,113,.82)'),
+          borderWidth: 0, borderRadius: 2, barPercentage: .85, categoryPercentage: .9,
           _rows: rows
         }]
       },
@@ -9425,8 +9425,8 @@ const InstPanel = {
           } } }
         },
         scales: {
-          x: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, callback: v => '$' + v + 'M' } },
-          y: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, autoSkip: true, maxTicksLimit: 24 } }
+          x: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, callback: v => '$' + v + 'M' } },
+          y: { grid: { display: false }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, autoSkip: true, maxTicksLimit: 22 } }
         }
       },
       plugins: [instLinesPlugin]
@@ -9475,15 +9475,20 @@ const entryMapPlugin = {
       for (const yy of [yT, yB]) if (yy > a.top && yy < a.bottom) { ctx.beginPath(); ctx.moveTo(a.left, yy); ctx.lineTo(a.right, yy); ctx.stroke(); }
       ctx.setLineDash([]);
     }
-    // zonas: opacidad proporcional al score (cap 0.30)
+    // zonas: opacidad proporcional al score (cap 0.30) + composición DENTRO de la banda
+    ctx.font = "600 9.5px 'IBM Plex Mono', monospace";
     for (const z of (m.zones || [])) {
       const yT = y.getPixelForValue(z.hi), yB = y.getPixelForValue(z.lo);
       if (yB < a.top || yT > a.bottom) continue;
       const alpha = Math.min(0.30, 0.07 + Math.max(z.score, 0) * 0.055);
       const rgb = z.cat === 'IMAN' ? '167,139,250' : z.side === 'soporte' ? '74,222,128' : '248,113,113';
       ctx.fillStyle = 'rgba(' + rgb + ',' + alpha.toFixed(2) + ')';
-      const top2 = Math.max(Math.min(yT, yB) - 1, a.top), bot2 = Math.min(Math.max(yT, yB) + 1, a.bottom);
-      ctx.fillRect(a.left, top2, a.right - a.left, Math.max(bot2 - top2, 2));
+      const top2 = Math.max(Math.min(yT, yB) - 2, a.top), bot2 = Math.min(Math.max(yT, yB) + 2, a.bottom);
+      ctx.fillRect(a.left, top2, a.right - a.left, Math.max(bot2 - top2, 3));
+      if (z.labels?.length) { // el QUÉ de la zona, legible dentro de la banda
+        ctx.fillStyle = 'rgba(' + rgb + ',.85)';
+        ctx.fillText(z.labels.slice(0, 2).join(' + '), a.left + 6, (top2 + bot2) / 2 + 3.5);
+      }
     }
     // LVN: franja gris punteada (air pocket)
     for (const l of (m.lvns || [])) {
@@ -9499,24 +9504,24 @@ const entryMapPlugin = {
     if (!m) return;
     const { ctx, chartArea: a, scales: { y } } = chart;
     ctx.save();
-    ctx.font = "600 8px 'IBM Plex Mono', monospace";
+    ctx.font = "600 10.5px 'IBM Plex Mono', monospace";
     const labs = [];
     for (const z of (m.zones || [])) {
       const yy = y.getPixelForValue(z.mid);
-      if (yy < a.top + 4 || yy > a.bottom - 4) continue;
+      if (yy < a.top + 5 || yy > a.bottom - 5) continue;
       const col = z.cat === 'IMAN' ? '#a78bfa' : z.side === 'soporte' ? '#4ade80' : '#f87171';
       labs.push({ y: yy, txt: (z.cat === 'IMAN' ? '🧲' : '⭐') + z.score + (z.degradada ? '⚠' : '') + ' ' + z.lo.toFixed(z.lo >= 1000 ? 0 : 2) + (z.hi > z.lo * 1.0005 ? '-' + z.hi.toFixed(z.hi >= 1000 ? 0 : 2) : ''), col });
     }
     if (m.em) labs.push({ y: y.getPixelForValue(m.em.hi), txt: 'EM +' + m.em.pct + '%', col: '#60a5fa' }, { y: y.getPixelForValue(m.em.lo), txt: 'EM −' + m.em.pct + '%', col: '#60a5fa' });
     labs.sort((p, q) => p.y - q.y);
-    for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 10) labs[i].y = labs[i - 1].y + 10;
+    for (let i = 1; i < labs.length; i++) if (labs[i].y - labs[i - 1].y < 13) labs[i].y = labs[i - 1].y + 13;
     for (const L of labs) {
-      if (L.y < a.top + 4 || L.y > a.bottom) continue;
+      if (L.y < a.top + 5 || L.y > a.bottom) continue;
       const w = ctx.measureText(L.txt).width;
-      ctx.fillStyle = 'rgba(8,5,10,.8)';
-      ctx.fillRect(a.right - w - 6, L.y - 8, w + 5, 10);
+      ctx.fillStyle = 'rgba(8,5,10,.85)';
+      ctx.fillRect(a.right - w - 8, L.y - 10, w + 7, 13);
       ctx.fillStyle = L.col;
-      ctx.fillText(L.txt, a.right - w - 4, L.y);
+      ctx.fillText(L.txt, a.right - w - 5, L.y);
     }
     // marcador del spot
     const ySpot = y.getPixelForValue(m.spot);
@@ -9563,13 +9568,13 @@ const InstDeep = {
     this._lastSpot = spot; // E5: para el registro de zonas
     const parts = [];
     // ── cabecera ──
-    parts.push('<div class="mono" style="font-size:11px;color:var(--text);margin-bottom:8px"><b>' + escHtml(tk) + '</b> $' + spot.toFixed(2)
+    parts.push('<div class="mono" style="font-size:16px;color:var(--text);margin-bottom:10px"><b style="font-size:19px">' + escHtml(tk) + '</b> $' + spot.toFixed(2)
       + (dU.chg1d != null ? ' · 1D <span style="color:' + (dU.chg1d >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dU.chg1d >= 0 ? '+' : '') + dU.chg1d + '%</span>' : '')
-      + (dU.ytd != null ? ' · YTD ' + (dU.ytd >= 0 ? '+' : '') + dU.ytd + '%' : '') + '</div>');
+      + (dU.ytd != null ? ' <span style="font-size:12px;color:var(--text3)">· YTD ' + (dU.ytd >= 0 ? '+' : '') + dU.ytd + '%</span>' : '') + '</div>');
     // ── E3 · SEMÁFORO: ¿las instituciones están entrando? + MODO de entrada ──
     try {
       const pills = [];
-      const pill = (icon, lbl, col, tip) => pills.push('<span class="mono" style="font-size:9px;padding:3px 9px;border-radius:9px;border:1px solid ' + col + ';color:' + col + ';background:rgba(0,0,0,.15);cursor:default" title="' + tip.replace(/"/g, '&quot;') + '">' + icon + ' ' + lbl + '</span>');
+      const pill = (icon, lbl, col, tip) => pills.push('<span class="mono" style="font-size:11px;padding:5px 13px;border-radius:11px;border:1px solid ' + col + ';color:' + col + ';background:rgba(0,0,0,.18);cursor:default" title="' + tip.replace(/"/g, '&quot;') + '">' + icon + ' ' + lbl + '</span>');
       let verdes = 0, rojas = 0;
       if (opt && !opt.error) {
         // MODO de entrada: el régimen gamma condiciona CÓMO se opera la zona (regla 9 metodología)
@@ -9619,10 +9624,10 @@ const InstDeep = {
       const ver2 = verdes >= 3 && rojas === 0 ? { t: '🟢 FLUJO ENTRANDO (' + verdes + ' señales a favor)', c: 'var(--green)' }
         : rojas >= 2 ? { t: '🔴 FLUJO EN CONTRA', c: 'var(--red)' }
         : { t: '🟡 MIXTO (' + verdes + ' a favor · ' + rojas + ' en contra)', c: 'var(--amber)' };
-      parts.push('<div class="mono" style="font-size:10px;margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-        + '🏦 ¿INSTITUCIONES ENTRANDO? <b style="color:' + ver2.c + '">' + ver2.t + '</b>'
-        + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:6px">' + pills.join('') + '</div>'
-        + '<div style="color:var(--text3);font-size:8px;margin-top:4px">Pasa el cursor por cada señal para su lectura · jerarquía de evidencia: cluster insider &gt; acumulación tape/dark pools &gt; contexto (IV, short float) · el MODO dicta cómo operar las zonas de abajo</div></div>');
+      parts.push('<div class="mono" style="font-size:11.5px;margin-top:8px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
+        + '<span style="font-size:13px;font-weight:700;color:var(--text)">🏦 ¿INSTITUCIONES ENTRANDO?</span> <b style="font-size:14px;color:' + ver2.c + '">' + ver2.t + '</b>'
+        + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">' + pills.join('') + '</div>'
+        + '<div style="color:var(--text3);font-size:9.5px;margin-top:6px">Pasa el cursor por cada señal para su lectura · jerarquía de evidencia: cluster insider &gt; acumulación tape/dark pools &gt; contexto (IV, short float) · el MODO dicta cómo operar las zonas de abajo</div></div>');
     } catch (e) { /* el semáforo nunca rompe la radiografía */ }
     // ── 📐 niveles ──
     try {
@@ -9658,22 +9663,42 @@ const InstDeep = {
         const lvns = lvnZones(vp);
         this._zones = zones; this._lvns = lvns; // E2/E4 los consumen (chart, snapshot, candidatas)
         const catMeta = {
-          ENTRADA: { col: 'var(--green)', bg: 'rgba(74,222,128,.06)', icon: '⭐' },
-          IMAN: { col: '#a78bfa', bg: 'rgba(167,139,250,.06)', icon: '🧲' },
+          ENTRADA: { col: 'var(--green)', bg: 'rgba(74,222,128,.07)', icon: '⭐' },
+          IMAN: { col: '#a78bfa', bg: 'rgba(167,139,250,.07)', icon: '🧲' },
           DEBIL: { col: 'var(--text3)', bg: 'transparent', icon: '·' }
         };
-        const zonesHtml = zones.filter(z => z.cat !== 'DEBIL' || zones.length <= 4).slice(0, 6).map(z => {
+        // ── ESCALERA DE LIQUIDEZ (upgrade visual 2026-07-11): zonas ordenadas por PRECIO
+        // con el spot como marcador — se lee de arriba a abajo como un ladder/DOM ──
+        const emH = (opt && !opt.error && (opt.emWeekly || opt.emDaily)) ? (() => { const em2 = opt.emWeekly || opt.emDaily; return ' · EM ' + (opt.emWeekly ? 'semanal' : em2.dte + 'd') + ' ±' + em2.pct + '% (' + (spot - em2.em).toFixed(2) + '–' + (spot + em2.em).toFixed(2) + ')'; })() : '';
+        const shown = zones.filter(z => z.cat !== 'DEBIL' || zones.length <= 4).slice(0, 7);
+        const ladder = [...shown].sort((a2, b2) => b2.mid - a2.mid);
+        const spotIdx = ladder.findIndex(z => z.mid <= spot);
+        const zCard = (z) => {
           const m2 = catMeta[z.cat];
           const sideCol = z.side === 'soporte' ? 'var(--green)' : 'var(--red)';
-          const rango = z.lo.toFixed(2) + (z.hi > z.lo * 1.0005 ? '–' + z.hi.toFixed(2) : '');
+          const rango = z.lo.toFixed(2) + (z.hi > z.lo * 1.0005 ? ' – ' + z.hi.toFixed(2) : '');
+          const arrow = z.dist >= 0 ? '▲' : '▼';
+          const stars = '★'.repeat(Math.max(1, Math.min(5, Math.round(z.score)))) + '<span style="opacity:.25">' + '★'.repeat(Math.max(0, 5 - Math.max(1, Math.min(5, Math.round(z.score))))) + '</span>';
           const tip = z.cat + ' ' + z.side + ' · score ' + z.score + ' (diversidad de fuentes + timeframe' + (z.degradada ? ' − degradación por ' + z.touches + ' tests' : '') + ') · toques reales últimos 60d: ' + z.touches + (z.touches >= 3 ? ' — nivel adelgazándose: al 3er-4º test la ruptura se vuelve más probable' : z.touches <= 1 ? ' — nivel fresco (1º-2º test = máxima probabilidad de reacción)' : '');
-          return '<div style="border:1px solid ' + (z.cat === 'DEBIL' ? 'var(--border2)' : m2.col) + ';border-left-width:3px;border-radius:5px;padding:4px 9px;margin-top:5px;background:' + m2.bg + '" title="' + tip + '">'
-            + '<b style="color:' + m2.col + '">' + m2.icon + ' ' + z.cat + '</b> <b style="color:' + sideCol + '">' + z.side.toUpperCase() + ' ' + rango + '</b>'
-            + ' <span style="color:var(--text3)">(' + (z.dist >= 0 ? '+' : '') + z.dist + '%) · score ' + z.score + ' · ' + z.touches + ' test' + (z.touches === 1 ? '' : 's') + (z.degradada ? ' ⚠ degradada' : z.touches <= 1 ? ' ✦ fresca' : '') + '</span>'
-            + '<br><span style="color:var(--text2)">' + z.labels.join(' + ') + '</span></div>';
-        }).join('');
-        const lvnHtml = lvns.length ? '<div style="color:var(--text3);font-size:9px;margin-top:5px">🕳 LVN (air pockets — NO colocar entradas dentro): ' + lvns.map(l2 => l2.mid.toFixed(2)).join(' · ') + '</div>' : '';
-        const emH = (opt && !opt.error && (opt.emWeekly || opt.emDaily)) ? (() => { const em2 = opt.emWeekly || opt.emDaily; return ' · EM ' + (opt.emWeekly ? 'semanal' : em2.dte + 'd') + ' ±' + em2.pct + '% (' + (spot - em2.em).toFixed(2) + '–' + (spot + em2.em).toFixed(2) + ')'; })() : '';
+          return '<div style="display:flex;align-items:center;gap:12px;border:1px solid ' + (z.cat === 'DEBIL' ? 'var(--border2)' : m2.col) + '55;border-left:4px solid ' + m2.col + ';border-radius:7px;padding:9px 13px;margin-top:6px;background:' + m2.bg + '" title="' + tip + '">'
+            + '<div style="flex:none;text-align:center;min-width:56px"><div style="font-size:15px;color:' + sideCol + ';font-weight:700">' + arrow + ' ' + (z.dist >= 0 ? '+' : '') + z.dist + '%</div><div style="font-size:8px;color:var(--text3);letter-spacing:.06em">DEL PRECIO</div></div>'
+            + '<div style="flex:1;min-width:150px"><div style="font-size:14px;font-weight:700;color:var(--text)">' + rango + ' <span style="font-size:10px;font-weight:600;color:' + m2.col + '">' + m2.icon + ' ' + z.cat + ' · ' + z.side.toUpperCase() + '</span></div>'
+            + '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">' + z.labels.join(' + ') + '</div></div>'
+            + '<div style="flex:none;text-align:right"><div style="font-size:12px;color:' + m2.col + '" title="score ' + z.score + '">' + stars + '</div>'
+            + '<div style="font-size:9.5px;color:' + (z.degradada ? 'var(--amber)' : z.touches <= 1 ? 'var(--green)' : 'var(--text3)') + ';margin-top:2px">' + z.touches + ' test' + (z.touches === 1 ? '' : 's') + (z.degradada ? ' ⚠ degradada' : z.touches <= 1 ? ' ✦ fresca' : '') + '</div></div>'
+            + '</div>';
+        };
+        const spotCard = '<div style="display:flex;align-items:center;gap:10px;margin:8px 0;padding:6px 13px;border-radius:7px;background:rgba(240,236,228,.05);border:1px dashed rgba(240,236,228,.45)">'
+          + '<span style="font-size:13px">📍</span><b style="font-size:14px;color:var(--text)">PRECIO ACTUAL ' + spot.toFixed(2) + '</b>'
+          + (emH ? '<span style="font-size:10px;color:#60a5fa">' + emH.replace(/^ · /, '') + '</span>' : '') + '</div>';
+        let zonesHtml = '';
+        ladder.forEach((z, i2) => {
+          if (i2 === (spotIdx < 0 ? ladder.length : spotIdx)) zonesHtml += spotCard;
+          zonesHtml += zCard(z);
+        });
+        if (spotIdx < 0) zonesHtml += spotCard; // spot debajo de todas las zonas
+        if (!ladder.length) zonesHtml = spotCard;
+        const lvnHtml = lvns.length ? '<div style="color:var(--text3);font-size:10px;margin-top:6px">🕳 LVN (air pockets — NO colocar entradas dentro): <b>' + lvns.map(l2 => l2.mid.toFixed(2)).join(' · ') + '</b></div>' : '';
         lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
         const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)', media: 'var(--text2)', iman: '#a78bfa' };
         const rowsH = lv.map(L2 => {
@@ -9683,17 +9708,18 @@ const InstDeep = {
             + '<td style="padding:2px 8px;text-align:right;color:var(--text)">' + L2.v.toFixed(2) + '</td>'
             + '<td style="padding:2px 0;text-align:right;color:' + c2 + '" title="' + rol + ' (el precio está ' + (L2.dist <= 0 ? 'arriba' : 'abajo') + ')">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
         }).join('');
-        parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '🎯 ZONAS DE ENTRADA <button class="help-i" type="button" onclick="openGlossary(\'zonas-de-entrada\')" title="¿Cómo se computan?">?</button>'
-          + '<span style="color:var(--text3)"> — motor v2: diversidad de fuentes × timeframe × degradación por tests · precio ' + spot.toFixed(2) + emH + '</span>'
-          + '<div class="ch-wrap" style="height:280px;margin-top:8px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
-          + '<div style="color:var(--text3);font-size:8px;margin-top:2px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual</div>'
+        parts.push('<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
+          + '<span style="font-size:13px;font-weight:700;color:var(--text)">🎯 ZONAS DE ENTRADA</span> <button class="help-i" type="button" onclick="openGlossary(\'zonas-de-entrada\')" title="¿Cómo se computan?">?</button>'
+          + '<span style="color:var(--text3);font-size:10.5px"> — diversidad de fuentes × timeframe × degradación por tests</span>'
+          + '<div class="ch-wrap" style="height:400px;margin-top:10px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
+          + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual</div>'
+          + '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text3);margin-top:12px">ESCALERA DE LIQUIDEZ <span style="font-weight:400">— de resistencias (arriba) a soportes (abajo)</span></div>'
           + zonesHtml + lvnHtml
-          + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">'
-          + (vp ? '<canvas id="instd-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
-          + '<table style="border-collapse:collapse;font-size:10px;flex:1;min-width:230px"><tbody>' + rowsH + '</tbody></table>'
+          + '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:12px">'
+          + (vp ? '<canvas id="instd-vp-cv" width="220" height="220" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
+          + '<table style="border-collapse:collapse;font-size:11px;flex:1;min-width:250px"><tbody>' + rowsH + '</tbody></table>'
           + '</div>'
-          + '<div style="color:var(--text3);font-size:8px;margin-top:4px">● <span style="color:var(--blue)">perfil</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones</span> · <span style="color:#a78bfa">imán (naked POC)</span> — las zonas son CONTEXTO, no señales; tu price action decide el timing' + (opt && opt.error ? ' · sin cadena de opciones para ' + escHtml(tk) : '') + '</div>'
+          + '<div style="color:var(--text3);font-size:9.5px;margin-top:5px">● <span style="color:var(--blue)">perfil</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones</span> · <span style="color:#a78bfa">imán (naked POC)</span> — las zonas son CONTEXTO, no señales; tu price action decide el timing' + (opt && opt.error ? ' · sin cadena de opciones para ' + escHtml(tk) : '') + '</div>'
           + '</div>');
         this._vp = vp; // el canvas se pinta tras el innerHTML
       } else { this._vp = null; this._zones = null; this._lvns = null; }
@@ -9714,8 +9740,8 @@ const InstDeep = {
         const venues = (d.topATS || []).map(v => escHtml(v.name.replace(/\s+(LLC|INC\.?|,)$/i, '')) + ' ' + fmtM(v.sh)).join(' · ');
         const internal = (d.topOTC || []).map(v => escHtml(v.name.split(' ')[0]) + ' ' + fmtM(v.sh)).join(' · ');
         const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
-        parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '🕶 DARK POOLS <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
+        parts.push('<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:8px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
+          + '<span style="font-size:13px;font-weight:700;color:var(--text)">🕶 DARK POOLS</span> <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
           + ' <span style="color:var(--amber)">semana del ' + L2.week + ' (dato con ~' + lagD + 'd de rezago — FINRA publica con lag)</span><br>'
           + (L2.dp != null
             ? 'Dark pools: <b>' + L2.dp.toFixed(1) + '%</b> del volumen semanal (' + fmtM(L2.ats) + ')'
@@ -9731,8 +9757,8 @@ const InstDeep = {
       const s2 = st?.data?.[tk];
       if (s2 && (s2.instOwn != null || s2.shortFloat != null)) {
         const sfCol = s2.shortFloat >= 15 ? 'var(--red)' : s2.shortFloat >= 8 ? 'var(--amber)' : 'var(--text2)';
-        parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '🏛 OWNERSHIP <button class="help-i" type="button" onclick="openGlossary(\'ownership-institucional\')" title="¿Qué es esto?">?</button>: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
+        parts.push('<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:8px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
+          + '<span style="font-size:13px;font-weight:700;color:var(--text)">🏛 OWNERSHIP</span> <button class="help-i" type="button" onclick="openGlossary(\'ownership-institucional\')" title="¿Qué es esto?">?</button>: instituciones <b>' + (s2.instOwn != null ? s2.instOwn.toFixed(1) + '%' : '—') + '</b>'
           + ' · insiders ' + (s2.insiderOwn != null ? s2.insiderOwn.toFixed(1) + '%' : '—')
           + ' · short float <b style="color:' + sfCol + '">' + (s2.shortFloat != null ? s2.shortFloat.toFixed(1) + '%' : '—') + '</b>'
           + (s2.daysToCover != null ? ' · days-to-cover ' + s2.daysToCover.toFixed(1) : '')
@@ -9867,24 +9893,30 @@ const InstDeep = {
       data: {
         labels: dates.map(d2 => d2.slice(5)),
         datasets: [{
-          label: tk, data: closes, borderColor: '#f0ece4', borderWidth: 1.6,
-          pointRadius: closes.map((c, i) => i === closes.length - 1 ? 3 : 0),
-          pointBackgroundColor: '#e6b450', tension: .2, fill: false
+          label: tk, data: closes, borderColor: '#f8d794', borderWidth: 2.4,
+          pointRadius: closes.map((c, i) => i === closes.length - 1 ? 4.5 : 0),
+          pointBackgroundColor: '#e6b450', pointBorderColor: '#fff8e7', tension: .25, fill: false,
+          // glow sutil de la línea de precio (upgrade visual)
+          shadowColor: 'rgba(230,180,80,.5)'
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+        responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
         _emap: { zones, lvns, em, spot },
         plugins: {
           legend: { display: false },
-          tooltip: { mode: 'index', intersect: false, callbacks: { label: c => tk + ': ' + c.parsed.y.toFixed(2) } }
+          tooltip: { mode: 'index', intersect: false, titleFont: { size: 12 }, bodyFont: { size: 12 }, callbacks: { label: c => tk + ': ' + c.parsed.y.toFixed(2) } }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 8, maxRotation: 0 } },
-          y: { min: yMin - pad, max: yMax + pad, grid: { color: 'rgba(45,30,30,.25)' }, ticks: { color: '#7d6f63', font: { size: 8, family: "'IBM Plex Mono',monospace" } } }
+          x: { grid: { display: false }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, maxTicksLimit: 9, maxRotation: 0 } },
+          y: { min: yMin - pad, max: yMax + pad, grid: { color: 'rgba(45,30,30,.25)' }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" } } }
         }
       },
-      plugins: [entryMapPlugin]
+      plugins: [entryMapPlugin, {
+        id: 'priceGlow',
+        beforeDatasetDraw(chart2, args) { const c2 = chart2.ctx; c2.save(); c2.shadowColor = 'rgba(230,180,80,.45)'; c2.shadowBlur = 7; },
+        afterDatasetDraw(chart2) { chart2.ctx.restore(); }
+      }]
     });
   }
 };
