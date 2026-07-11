@@ -2781,6 +2781,11 @@ html.auth-ok #auth-gate{display:none}
       <button type="button" id="inst-exp-d" class="rot-btn" onclick="InstPanel.setExp('d')" title="SOLO la expiración más cercana: 0DTE en índices/ETFs con vencimientos diarios (SPY/QQQ/SPX), la weekly del viernes en acciones — los muros que mandan HOY">PRÓX EXP</button>
       <button type="button" id="inst-exp-w" class="rot-btn" onclick="InstPanel.setExp('w')" title="Vencimientos ≤10 días — la estructura de la semana">≤10 DÍAS</button>
       <button type="button" id="inst-exp-m" class="rot-btn" onclick="InstPanel.setExp('m')" title="Vencimientos ≤45 días (default) — la foto completa que usan el semáforo y las zonas">≤45 DÍAS</button>
+      <span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.08em;margin-left:10px">VISTA:</span>
+      <button type="button" id="inst-view-gex" class="rot-btn" onclick="InstPanel.setView('gex')" title="Exposición gamma por strike — imanes, techos y pisos (estructura)">GEX</button>
+      <button type="button" id="inst-view-dex" class="rot-btn" onclick="InstPanel.setView('dex')" title="Exposición delta por strike — dónde los dealers deben comprar/vender subyacente mecánicamente (estructura direccional)">DEX</button>
+      <button type="button" id="inst-view-prem" class="rot-btn" onclick="InstPanel.setView('prem')" title="Prima NETA negociada HOY por strike (calls − puts, delayed 15 min) — el Premium Flow: dónde están entrando los dólares">PRIMA HOY</button>
+      <button type="button" id="inst-view-vol" class="rot-btn" onclick="InstPanel.setView('vol')" title="Contratos negociados HOY por strike: calls a la derecha, puts a la izquierda — la actividad del día">VOL HOY</button>
     </div>
     <div id="inst-strip" class="mono" style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.9">Escribe un ticker arriba (o abre el tab: carga QQQ por default)…</div>
     <div class="ch-wrap" style="height:380px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
@@ -9375,7 +9380,7 @@ const instLinesPlugin = {
   }
 };
 const InstPanel = {
-  _cur: 'QQQ', _cache: {}, _chart: null, _init: false, _exp: 'm',
+  _cur: 'QQQ', _cache: {}, _chart: null, _init: false, _exp: 'm', _view: 'gex', _lastD: null,
   // #19a · selector de ventana de expiración (solo CBOE; Deribit siempre ≤45d).
   // La clave 'tk' a secas queda reservada para exp='m' — InstDeep la reusa para semáforo/zonas.
   setExp(e) {
@@ -9461,26 +9466,59 @@ const InstPanel = {
       + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + drift(d.putWall, prev?.pw, 'Put wall')
       + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
       + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>';
-    // Filtrar strikes para legibilidad: fuera el ruido (<3% del |GEX| máximo), cap 40 barras
-    let rows = d.strikes.filter(s => s.gex !== 0);
-    const gMax = Math.max(...rows.map(s => Math.abs(s.gex)), 1);
-    rows = rows.filter(s => Math.abs(s.gex) >= gMax * 0.03);
-    if (rows.length > 40) rows = [...rows].sort((a, b) => Math.abs(b.gex) - Math.abs(a.gex)).slice(0, 40);
+    this._lastD = d;
+    this._chartRender(d);
+    this._flow(d);
+  },
+  // ── VISUAL (2026-07-11): el chart de strikes es MULTI-VISTA — GEX (estructura), DEX
+  // (dirección mecánica), PRIMA HOY (los dólares del día = Premium Flow) y VOL HOY (actividad C/P).
+  setView(v) {
+    if (this._view === v) return;
+    this._view = v;
+    if (this._lastD) this._chartRender(this._lastD);
+  },
+  _markView(active) {
+    ['gex', 'dex', 'prem', 'vol'].forEach(x => {
+      const b = document.getElementById('inst-view-' + x);
+      if (b) { b.style.borderColor = x === active ? 'var(--gold)' : 'var(--border2)'; b.style.color = x === active ? 'var(--gold)' : 'var(--text2)'; }
+    });
+  },
+  _chartRender(d) {
+    let view = this._view || 'gex';
+    // Cache pre-FLUJO (sin prem/cV) → degradar a GEX sin romper
+    if ((view === 'prem' || view === 'vol') && (d.strikes[0]?.prem == null)) view = 'gex';
+    this._markView(view);
+    const esVol = view === 'vol';
+    const val = s => view === 'gex' ? s.gex : view === 'dex' ? s.dex : view === 'prem' ? s.prem : (s.cV + s.pV);
+    // Filtrar para legibilidad: fuera el ruido (<3% del |máximo| de la vista), cap 40 barras
+    let rows = d.strikes.filter(s => val(s) !== 0);
+    const vMax = Math.max(...rows.map(s => Math.abs(val(s))), 1e-9);
+    rows = rows.filter(s => Math.abs(val(s)) >= vMax * 0.03);
+    if (rows.length > 40) rows = [...rows].sort((a, b) => Math.abs(val(b)) - Math.abs(val(a))).slice(0, 40);
     rows.sort((a, b) => b.k - a.k); // precio alto arriba, como un DOM
     const cv = document.getElementById('inst-gex-cv');
     if (!cv || typeof Chart === 'undefined' || !rows.length) return;
     if (this._chart) { try { this._chart.destroy(); } catch (e) {} this._chart = null; }
+    const datasets = esVol
+      ? [ // VOL HOY: calls a la derecha, puts a la izquierda (divergente)
+          { data: rows.map(s => s.cV), backgroundColor: 'rgba(52,211,153,.82)', borderWidth: 0, borderRadius: 2, barPercentage: .85, categoryPercentage: .9, _rows: rows },
+          { data: rows.map(s => -s.pV), backgroundColor: 'rgba(248,113,113,.82)', borderWidth: 0, borderRadius: 2, barPercentage: .85, categoryPercentage: .9, _rows: rows }
+        ]
+      : [{
+          data: rows.map(s => val(s)),
+          backgroundColor: rows.map(s => val(s) >= 0 ? 'rgba(52,211,153,.82)' : 'rgba(248,113,113,.82)'),
+          borderWidth: 0, borderRadius: 2, barPercentage: .85, categoryPercentage: .9, _rows: rows
+        }];
+    const lblOf = (c) => {
+      const s = c.dataset._rows[c.dataIndex];
+      if (view === 'gex') { let t = 'GEX $' + s.gex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString(); if (s.cV != null) t += ' · vol hoy C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString(); return t; }
+      if (view === 'dex') return 'DEX $' + s.dex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString();
+      if (view === 'prem') return 'Prima neta HOY $' + s.prem + 'M (calls − puts) · vol C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString();
+      return (c.datasetIndex === 0 ? 'Calls hoy ' : 'Puts hoy ') + Math.abs(c.raw).toLocaleString() + ' contratos · OI ' + (c.datasetIndex === 0 ? s.cOI : s.pOI).toLocaleString() + ((c.datasetIndex === 0 ? s.cV > s.cOI : s.pV > s.pOI) ? ' ⚡ vol>OI (apertura nueva)' : '');
+    };
     this._chart = new Chart(cv, {
       type: 'bar',
-      data: {
-        labels: rows.map(s => s.k),
-        datasets: [{
-          data: rows.map(s => s.gex),
-          backgroundColor: rows.map(s => s.gex >= 0 ? 'rgba(52,211,153,.82)' : 'rgba(248,113,113,.82)'),
-          borderWidth: 0, borderRadius: 2, barPercentage: .85, categoryPercentage: .9,
-          _rows: rows
-        }]
-      },
+      data: { labels: rows.map(s => s.k), datasets },
       options: {
         indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
         _instMarks: [
@@ -9488,23 +9526,14 @@ const InstPanel = {
           d.gammaFlip != null ? { v: d.gammaFlip, txt: 'FLIP ' + d.gammaFlip, col: '#e6b450' } : null,
           d.maxPain != null ? { v: d.maxPain, txt: 'MAX PAIN ' + d.maxPain, col: '#a78bfa', dash: [6, 5] } : null
         ].filter(Boolean),
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: c => {
-            const s = c.dataset._rows[c.dataIndex];
-            let t = 'GEX $' + s.gex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString();
-            if (s.cV != null) t += ' · vol hoy C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString();
-            return t;
-          } } }
-        },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: lblOf } } },
         scales: {
-          x: { grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, callback: v => '$' + v + 'M' } },
-          y: { grid: { display: false }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, autoSkip: true, maxTicksLimit: 22 } }
+          x: { stacked: esVol, grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, callback: v => esVol ? (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000) + 'k' : Math.abs(v)) : '$' + v + 'M' } },
+          y: { stacked: esVol, grid: { display: false }, ticks: { color: '#a89f93', font: { size: 10.5, family: "'IBM Plex Mono',monospace" }, autoSkip: true, maxTicksLimit: 22 } }
         }
       },
       plugins: [instLinesPlugin]
     });
-    this._flow(d);
   },
   // ── FLUJO E1b (2026-07-11): memoria diaria de OI POR STRIKE (patrón inst_walls_v1) ──
   // Solo ventana default 'm' y solo CBOE — mezclar ventanas/fuentes contaminaría la serie.
@@ -9616,7 +9645,7 @@ const InstPanel = {
 // candidatas del último snapshot. OBSERVACIONAL: score propio, registro auditable (radar_v1),
 // NO toca candScore/semáforo — primero debe demostrar hit-rate con datos propios (regla de la casa).
 const RadarFlujo = {
-  _busy: false, _snapDate: null,
+  _busy: false, _snapDate: null, _chart: null,
   async _tickers() {
     let tks = [];
     try {
@@ -9732,13 +9761,16 @@ const RadarFlujo = {
       const fS = v => v == null ? '—' : (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toFixed(1) + 'M';
       body.innerHTML =
         '<div style="margin-bottom:6px;color:var(--text3)">Set: candidatas del snapshot ' + (this._snapDate ? escHtml(this._snapDate) : '(sin snapshot)') + ' + ticker analizado · <b style="color:var(--purple)">' + reg.total + ' predicciones registradas</b>' + (reg.added ? ' (+' + reg.added + ' hoy)' : '') + ' — hit-rate evaluable con n≥20 y días forward</div>'
+        + '<div class="mono" style="font-size:10px;color:var(--text2);margin-bottom:2px">SESGO DE PRIMA HOY <span style="color:var(--text3)">— % de la prima del día en calls (verde) vs puts (rojo); comparable entre tickers (los $M van en la tabla)</span></div>'
+        + '<div class="ch-wrap" style="height:' + (valid.length * 24 + 46) + 'px;max-width:640px;margin-bottom:10px"><canvas id="radar-prem-cv"></canvas></div>'
         + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
         + '<tr style="color:var(--text3);text-align:left"><th style="padding:3px 8px">TK</th><th title="Score de flujo temprano 0-100: prima 25 · ΔOI 20 · O/S 15 · z-vol 15 · dark pools 15 · aperturas 10">SCORE</th><th title="Prima negociada hoy: calls − puts (delayed 15m, sin clasificar agresor)">PRIMA NET</th><th title="ΔOI neto overnight normalizado por OI total — dónde se construyó posicionamiento; requiere lectura previa (el radar la registra en cada scan)">ΔOI</th><th title="Strikes con vol>OI hoy (posiciones NUEVAS)">APERT.</th><th title="O/S ratio: volumen de opciones (acciones-equiv.) ÷ volumen de la acción — actividad informada (Johnson-So 2012); percentil dentro del set">O/S</th><th title="z-score del volumen de la acción vs 50 sesiones — volumen inesperado">zVOL</th><th title="Dark pools FINRA (lag 2-4 sem): volumen ATS vs promedio · tamaño de bloque vs promedio">DP</th></tr>'
         + valid.map(r => {
           const col = r.score >= 65 ? 'var(--green)' : r.score >= 45 ? 'var(--amber)' : 'var(--text3)';
           return '<tr style="border-top:1px solid var(--border2);cursor:pointer" onclick="InstTab.analyze(\'' + r.tk + '\')" title="Click → radiografía completa de ' + r.tk + '">'
             + '<td style="padding:4px 8px"><b style="color:var(--text)">' + escHtml(r.tk) + '</b></td>'
-            + '<td><b style="color:' + col + '">' + r.score + '</b><span style="color:var(--text3)">/100</span></td>'
+            + '<td style="min-width:110px"><div style="display:flex;align-items:center;gap:6px"><b style="color:' + col + '">' + r.score + '</b>'
+            + '<div style="flex:1;max-width:70px;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden"><div style="width:' + r.score + '%;height:100%;background:' + col + ';opacity:.75"></div></div></div></td>'
             + '<td style="color:' + (r.netPremM >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fS(r.netPremM) + '</td>'
             + '<td style="color:' + (r.doiNorm == null ? 'var(--text3)' : r.doiNorm >= 0 ? 'var(--green)' : 'var(--red)') + '">' + escHtml(r.doiTxt) + '</td>'
             + '<td>' + r.apertN + '</td>'
@@ -9749,6 +9781,33 @@ const RadarFlujo = {
         + rows.filter(r => r.na).map(r => '<tr style="border-top:1px solid var(--border2);color:var(--text3)"><td style="padding:4px 8px">' + escHtml(r.tk) + '</td><td colspan="7">— ' + escHtml(r.why) + '</td></tr>').join('')
         + '</table></div>'
         + '<div style="margin-top:6px;font-size:9px;color:var(--text3)">Score PROVISIONAL (día 1 sin ΔOI ≈ máx 65) · el ΔOI aparece al re-escanear otro día · señales con evidencia: O/S (Johnson-So 2012, ~19%/año decil), ΔOI/P-C de OI (~12d, Zhou), z-vol solo como filtro (HVRP crudo decayó) · DIX evaluado y DESCARTADO con 15 años de data propia (muerto post-2021)</div>';
+      // VISUAL: sesgo de prima por ticker (−100 todo puts … +100 todo calls) — escala comparable
+      const cv3 = document.getElementById('radar-prem-cv');
+      if (cv3 && typeof Chart !== 'undefined' && valid.length) {
+        if (this._chart) { try { this._chart.destroy(); } catch (e2) {} }
+        this._chart = new Chart(cv3, {
+          type: 'bar',
+          data: {
+            labels: valid.map(r => r.tk),
+            datasets: [{
+              data: valid.map(r => +(r.sesgo * 100).toFixed(1)),
+              backgroundColor: valid.map(r => r.sesgo >= 0 ? 'rgba(52,211,153,.8)' : 'rgba(248,113,113,.8)'),
+              borderWidth: 0, borderRadius: 2, _rows: valid
+            }]
+          },
+          options: {
+            indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+            plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => {
+              const r = c.dataset._rows[c.dataIndex];
+              return 'sesgo ' + (c.raw >= 0 ? '+' : '') + c.raw + '% · prima neta ' + (r.netPremM >= 0 ? '+' : '−') + '$' + Math.abs(r.netPremM).toFixed(1) + 'M · score ' + r.score;
+            } } } },
+            scales: {
+              x: { min: -100, max: 100, grid: { color: 'rgba(45,30,30,.3)' }, ticks: { color: '#a89f93', font: { size: 9.5, family: "'IBM Plex Mono',monospace" }, callback: v => v + '%' } },
+              y: { grid: { display: false }, ticks: { color: '#a89f93', font: { size: 10, family: "'IBM Plex Mono',monospace" } } }
+            }
+          }
+        });
+      }
     } catch (e) {
       body.innerHTML = '<span style="color:var(--red)">⚠ Radar: ' + escHtml(e.message) + '</span>';
     } finally { this._busy = false; }
