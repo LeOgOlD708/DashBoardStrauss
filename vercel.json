@@ -15,6 +15,9 @@
     },
     "api/capital.js": {
       "maxDuration": 30
+    },
+    "api/fred.js": {
+      "maxDuration": 30
     }
   },
   "crons": [
