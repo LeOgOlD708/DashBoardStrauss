@@ -4020,10 +4020,10 @@ const ERP_THRESHOLDS = {
 //   NAAIM Exposure: https://www.naaim.org/programs/naaim-exposure-index/
 //   Put/Call 21d:    https://www.cboe.com/us/options/market_statistics/historical_data/
 const POSITIONING_DATA = {
-  updated: '2026-07-07',  // ⚠ refrescar weekly antes del lunes
-  aaii:  { bullBear: -10.9, bullPct: 31.4, bearPct: 42.3 },  // % bulls - % bears · survey 2026-07-02 (range típico -40 a +40)
-  naaim: { exposure:  84.69 },                                // % equity exposure · semana 2026-07-01 (range 0-200%)
-  putCall: { pcc21d:   1.09 }                                 // 21-day MA equity CBOE put/call · ~2026-07-03
+  updated: '2026-07-11',  // ⚠ refrescar weekly antes del lunes (AAII jueves · NAAIM miércoles)
+  aaii:  { bullBear: -0.9, bullPct: 36.3, bearPct: 37.2 },   // survey 2026-07-09 (bull +4.9pp, bear -5.1pp: pesimismo cediendo) · fuentes AAII/ycharts
+  naaim: { exposure:  84.69 },                                // % equity exposure · semana 2026-07-01 (última publicada; range 0-200%)
+  putCall: { pcc21d:   1.09 }                                 // FALLBACK — desde 2026-07-11 la card usa el P/C VIVO de SPY (?src=opt); este valor solo aparece si el fetch falla
 };
 
 // Single source of truth: thresholds + interpretación contrarian para los 3 indicadores.
@@ -6849,6 +6849,17 @@ function updatePositioning() {
   setInt('pos-aaii-int',  POSITIONING_INTERPRETERS.aaii(data.aaii?.bullBear));
   setInt('pos-naaim-int', POSITIONING_INTERPRETERS.naaim(data.naaim?.exposure));
   setInt('pos-pcc-int',   POSITIONING_INTERPRETERS.putCall(data.putCall?.pcc21d));
+  // 2026-07-11 (OK Angel): P/C VIVO de SPY vía ?src=opt (CDN 1h) reemplaza el hardcode 21d.
+  // Métrica DISTINTA declarada: P/C de volumen de la cadena SPY ≤45d, no el MA-21d equity-wide
+  // — la etiqueta y el tooltip lo dicen. Si el fetch falla, queda el fallback estático.
+  fetch('/api/capital?src=opt&tickers=SPY').then(r2 => r2.json()).then(o2 => {
+    if (!o2 || o2.error || o2.pcVol == null) return;
+    const el2 = document.getElementById('pos-pcc');
+    if (el2) { el2.textContent = o2.pcVol.toFixed(2); el2.title = 'P/C VIVO por volumen de la cadena SPY (vencimientos ≤45d, CBOE delayed 15min) · P/C por open interest: ' + (o2.pcOI ?? '—') + ' · sustituye al MA-21d manual desde 2026-07-11'; }
+    const lbl2 = el2?.closest('div[style*="padding:8px"]')?.querySelector('div');
+    if (lbl2 && /Put\/Call 21d/.test(lbl2.textContent)) lbl2.childNodes[0].textContent = 'Put/Call SPY (vivo) ';
+    setInt('pos-pcc-int', POSITIONING_INTERPRETERS.putCall(o2.pcVol));
+  }).catch(() => {});
 
   // Stale indicator: si POSITIONING_DATA.updated > 7 días, mostrar warning visual.
   // Edge case: si updated falta o no parsea a Date, mostrar "⚠ Sin fecha".
