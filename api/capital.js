@@ -10,6 +10,7 @@
 //   · cot:      posicionamiento futuros CFTC 8 mercados (Socrata, sin key) — F-I4
 //   · stats:    ownership institucional + short interest (stockanalysis) — F-I5
 //   · alerts:   alerta Telegram si el precio está/entró en zona del snapshot — E6 (cron 17:00 UTC)
+//   · screener: máximos 52 semanas >$2bn (Finviz, fallback TradingView SSR) — MOTOR v2 P2
 
 const SEC_UA = { 'User-Agent': 'DashBoardStrauss jssulopez@gmail.com' }; // SEC exige contacto; <10 req/s
 
@@ -490,6 +491,43 @@ async function ownStats(tickers) {
   return { data, errors };
 }
 
+// ── MOTOR v2 P2 · screener de MÁXIMOS 52 SEMANAS (feed new-highs estilo IBD) ──
+// Pool SEPARADO del universo 185: el cliente lo puntúa con candScore pero NO entra al
+// denominador de percentiles (riesgo R1 del blueprint). Finviz primario (orden por mcap,
+// filtro >$2bn en la URL); fallback: página SSR de TradingView (sin orden mcap).
+async function screener52() {
+  const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36' };
+  const seen = new Set(), list = [];
+  try {
+    for (const r0 of [1, 21]) { // 2 páginas × 20 filas, orden -marketcap
+      const r = await fetch('https://finviz.com/screener.ashx?v=111&f=ta_highlow52w_nh,cap_midover&o=-marketcap&r=' + r0, { signal: AbortSignal.timeout(8000), headers: UA, redirect: 'follow' });
+      if (!r.ok) throw new Error('finviz HTTP ' + r.status);
+      const html = await r.text();
+      // celda mcap (boxover) pegada al link del ticker: data-boxover-value="340.54B"><a href="stock?t=HSBC
+      const re = /(?:data-boxover-value="([\d.]+[MBT])">)?<a href="stock\?t=([A-Z.\-]{1,7})&(?:amp;)?ty=c[^"]*" class="tab-link">/g;
+      let m;
+      while ((m = re.exec(html))) {
+        const tk = m[2];
+        if (seen.has(tk)) continue;
+        seen.add(tk);
+        list.push({ tk, mcap: m[1] || null });
+      }
+    }
+    if (!list.length) throw new Error('finviz parse vacío (¿cambió el HTML?)');
+    return { list: list.slice(0, 35), src: 'finviz', updated: new Date().toISOString() };
+  } catch (e1) {
+    // fallback TradingView SSR (alfabético, sin mcap — el cliente filtra con sus gates)
+    const r = await fetch('https://www.tradingview.com/markets/stocks-usa/market-movers-52wk-high/', { signal: AbortSignal.timeout(8000), headers: UA });
+    if (!r.ok) throw new Error('finviz: ' + e1.message + ' · tradingview HTTP ' + r.status);
+    const html = await r.text();
+    const re2 = /data-rowkey="(?:NASDAQ|NYSE|AMEX):([A-Z.\-]{1,7})"/g;
+    let m2;
+    while ((m2 = re2.exec(html))) { if (!seen.has(m2[1])) { seen.add(m2[1]); list.push({ tk: m2[1], mcap: null }); } }
+    if (!list.length) throw new Error('finviz: ' + e1.message + ' · tradingview parse vacío');
+    return { list: list.slice(0, 35), src: 'tradingview', updated: new Date().toISOString() };
+  }
+}
+
 // ── CRYPTO · opciones BTC/ETH vía Deribit (API pública, sin auth) — mismo shape que optAgg ──
 // Deribit no da griegas en book_summary → Black-Scholes desde mark_iv (r=0). 1 contrato = 1 moneda.
 // Extras crypto en la misma respuesta: funding (Binance) + Fear&Greed (alternative.me).
@@ -656,6 +694,17 @@ module.exports = async (req, res) => {
       const out = await cotPositioning();
       res.setHeader('Cache-Control', 's-maxage=21600, stale-while-revalidate=43200'); // 6h — publica viernes
       return res.status(200).json(out);
+    }
+    if (src === 'screener') {
+      // MOTOR v2 P2: máximos 52w (pool separado). Scraping frágil → 200 con {error} sin cache
+      try {
+        const out = await screener52();
+        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=7200'); // 1h — lista intradía
+        return res.status(200).json(out);
+      } catch (e) {
+        res.setHeader('Cache-Control', 'max-age=0, no-cache');
+        return res.status(200).json({ error: e.message });
+      }
     }
     if (src === 'alerts') {
       // E6: mismo candado que digest — solo el cron de Vercel (o quien tenga el secret)

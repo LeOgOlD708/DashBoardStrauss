@@ -9908,7 +9908,7 @@ const InstDeep = {
       const jf = u => fetch(u).then(r => r.json()).catch(() => null);
       const [y60, opt] = await Promise.all([
         jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
-        jf('/api/capital?src=opt&tickers=' + encodeURIComponent(tk))
+        jf(instOptFetch(tk).url) // P3: BTC-USD/ETH-USD rutean a Deribit (?src=optc), resto CBOE
       ]);
       const spot = dailyHist[dailyHist.length - 1];
       const h60 = y60?.[tk]?.hist, v60 = y60?.[tk]?.vols;
@@ -10769,6 +10769,12 @@ const CapitalDrill = {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
     const hasSec = rows.some(r2 => r2.sec);
     const hasScore = rows.some(r2 => r2.score != null); // MOTOR v2: solo candidatas traen score
+    // MOTOR v2 P2 (pedido Angel: "no especifica qué es élite y lo demás"): cada vía se explica sola
+    const viaTip = r2 => r2.viaKind === 'elite' ? 'VÍA ÉLITE ⚡ — entra por fuerza pura: RS ≥90 Y Momentum ≥90 del universo, AUNQUE su sector no esté recibiendo flujo. Detecta líderes de sectores rezagados que la vía clásica no ve. Pasa los mismos filtros 2-5 que todas.'
+      : r2.viaKind === 'zona' ? 'VÍA EN-ZONA 🎯 — no pasó el corte de RS (75) pero: tendencia sana (template ≥5/8) + el precio está DENTRO de una zona de entrada institucional (Tab 09) + semáforo de flujo a favor. La calidad de la entrada compensa la fuerza que le falta.'
+      : r2.viaKind === 'screener' ? 'VÍA MÁXIMOS 52w 🚀 — viene del screener de nuevos máximos anuales (>$2bn), NOMBRES FUERA del universo de 185 holdings. Pasa los mismos filtros RS/template/acumulación.'
+      : r2.viaKind === 'crypto' ? 'VÍA CRYPTO 🪙 — percentil de fuerza calculado DENTRO del grupo de monedas, sobre el ratio moneda/BTC (¿quién le gana al rey?). Grupo chico: lectura orientativa.'
+      : 'VÍA FLUJO SECTORIAL — entra al embudo porque su ETF (' + (r2.sec || '') + ') está en cuadrante Mejorando/Líder del RRG: el capital está rotando hacia su sector/industria. La vía clásica del embudo.';
     const rowsHtml = rows.map((r, idx) => {
       // 👁 solo en las filas graficadas (top-10); sincronizado con la leyenda del chart
       const oculto = eyeKey && RB_STATE[eyeKey]?.hidden?.has(r.tk);
@@ -10810,7 +10816,7 @@ const CapitalDrill = {
       const instNav = ' <span onclick="event.stopPropagation();InstTab.goto(\'' + r.tk + '\')" style="cursor:pointer;opacity:.5;font-size:9px" title="Ver radiografía institucional de ' + r.tk + ' en el Tab 09 (muros de gamma, niveles, dark pools, ownership)">🏛</span>';
       return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
         + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + r.tk + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + '</td>'
-        + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
+        + (hasSec ? '<td style="color:var(--gold);font-size:9px;cursor:help" title="' + viaTip(r) + '">' + (r.sec || '—') + '</td>' : '')
         + (hasScore ? (() => { const sc = r.score, scCol = sc == null ? 'var(--text3)' : sc >= 70 ? 'var(--green)' : sc >= 55 ? 'var(--amber)' : 'var(--text2)'; const det = sc == null ? '' : 'SCORE ' + sc + '/100 (motor v2): Fuerza 25 + Tendencia 20 + Acumulación 15 + Calidad de ENTRADA 25 + Semáforo institucional 15' + (r.zona ? ' · zona ' + r.zona.lo.toFixed(2) + '–' + r.zona.hi.toFixed(2) + ' (score ' + r.zona.score + (r.zona.enZona ? ', EN ZONA' : ', a ' + Math.abs(r.zona.dist) + '%') + ')' : ' · sin zona de entrada de calidad (pierde hasta 25 pts)') + (r.sema ? ' · semáforo ' + r.sema.verdes + '✓/' + r.sema.rojas + '✗' : ''); return '<td title="' + det + '"><b style="color:' + scCol + ';font-size:11px">' + (sc ?? '—') + '</b></td>'; })() : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
@@ -10981,7 +10987,7 @@ const CandidatasHoy = {
     const body = document.getElementById('cand-body');
     if (!body) return;
     if (!force && this.cache && Date.now() - this.lastRun < 900000) { this.render(this.cache); return; }
-    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Corriendo el embudo: rotación → holdings → RS/U-D/Template sobre ~120 acciones…</div>';
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Corriendo el embudo v2: rotación → holdings + vía élite → gates → zona/semáforo → pools 52w y crypto…</div>';
     const ok = await CapitalDrill.ensureUniverse();
     if (!ok) { body.innerHTML = '<div style="font-size:10px;color:var(--red)">No se pudo cargar el universo. Reintenta.</div>'; return; }
     // Industrias: cargarlas si faltan (el embudo las incluye siempre)
@@ -11037,43 +11043,140 @@ const CandidatasHoy = {
       cands.push(row);
     }
     cands.sort((a, b) => (b.rs ?? 0) - (a.rs ?? 0) || (b.tpl?.passed ?? 0) - (a.tpl?.passed ?? 0) || (b.ud ?? 0) - (a.ud ?? 0) || (b.mom ?? 0) - (a.mom ?? 0)); // pre-orden clásico: decide a quién enriquecer
-    // 4 · MOTOR v2 — zona + semáforo + candScore SOLO sobre los supervivientes (≤12, riesgo R3:
+    // 4 · MOTOR v2 — zona + semáforo + candScore SOLO sobre los supervivientes (riesgo R3:
     // nunca sobre 185). La entrada y el flujo institucional dejan de ser chips decorativos: RANKEAN.
     try {
-      if (cands.length) {
-        const topv2 = cands.slice(0, 12);
+      // P2 · vía EN-ZONA 🎯: near-miss del embudo (no pasó el corte de RS pero la tendencia es
+      // sana) que esté DENTRO de una zona de entrada con semáforo a favor — arregla el límite L5
+      // ("RS 74 con cluster insider + zona A se descartaba"). Se confirma tras el pipeline.
+      const enCands = new Set(cands.map(r2 => r2.tk));
+      const zonaShort = [...seen.values()]
+        .filter(x => x.row && !enCands.has(x.row.tk) && x.row.rs != null && x.row.rs >= 55 && x.row.tpl && x.row.tpl.passed >= 5 && (x.row.dist52 == null || x.row.dist52 >= P.dist))
+        .sort((a, b) => (b.row.rs ?? 0) - (a.row.rs ?? 0)).slice(0, 5)
+        .map(x => { x.row.sec = x.vias.slice(0, 2).join('+'); return x.row; });
+      const pipeline = [...cands.slice(0, 10), ...zonaShort];
+      if (pipeline.length) {
         const jf2 = u => fetch(u).then(r2 => r2.json()).catch(() => null);
-        const tks2 = topv2.map(r2 => r2.tk);
-        const statsPs = [];
+        const tks2 = pipeline.map(r2 => r2.tk);
+        const statsPs = [], atsPs = [];
         for (let i2 = 0; i2 < tks2.length; i2 += 5) statsPs.push(jf2('/api/capital?src=stats&tickers=' + tks2.slice(i2, i2 + 5).join(','))); // ≤5/req
-        const [atsR, statsRs, insRs] = await Promise.all([
-          jf2('/api/capital?src=ats&tickers=' + tks2.slice(0, 10).join(',')), // ≤10/req
-          Promise.all(statsPs),
+        for (let i2 = 0; i2 < tks2.length; i2 += 10) atsPs.push(jf2('/api/capital?src=ats&tickers=' + tks2.slice(i2, i2 + 10).join(','))); // ≤10/req
+        const [atsRs, statsRs, insRs] = await Promise.all([
+          Promise.all(atsPs), Promise.all(statsPs),
           Promise.all(tks2.map(t2 => jf2('/api/capital?src=insiders&tickers=' + t2))) // 1/tk, cache CDN 12h
         ]);
         const statsMap = {}; statsRs.forEach(s2 => Object.assign(statsMap, s2?.data || {}));
+        const atsMap = {}; atsRs.forEach(a2 => Object.assign(atsMap, a2?.data || {}));
         const zMap = {};
-        for (let i2 = 0; i2 < topv2.length; i2 += 4) { // zonas en tandas de 4 (cada una = 2 fetches cacheados)
-          await Promise.all(topv2.slice(i2, i2 + 4).map(async r2 => {
+        for (let i2 = 0; i2 < pipeline.length; i2 += 4) { // zonas en tandas de 4 (cada una = 2 fetches cacheados)
+          await Promise.all(pipeline.slice(i2, i2 + 4).map(async r2 => {
             const dU2 = CapitalDrill.universe[r2.tk];
             if (dU2?.hist?.length) zMap[r2.tk] = await InstDeep.zonesFor(r2.tk, dU2.hist, dU2.vols, dU2.dates);
           }));
         }
-        topv2.forEach((row, i2) => {
+        pipeline.forEach((row, i2) => {
           const zf = zMap[row.tk];
           const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
           if (zA) row.zona = { lo: zA.lo, hi: zA.hi, score: zA.score, dist: zA.dist, labels: zA.labels, enZona: zf.spot >= zA.lo && zf.spot <= zA.hi };
           const dU2 = CapitalDrill.universe[row.tk];
-          row.sema = (() => { const s4 = semaphoreSignals(row.tk, dU2, zf?.opt || null, atsR?.data?.[row.tk], statsMap[row.tk], (insRs[i2] && !insRs[i2].error) ? insRs[i2] : null); return { verdes: s4.verdes, rojas: s4.rojas }; })();
+          row.sema = (() => { const s4 = semaphoreSignals(row.tk, dU2, zf?.opt || null, atsMap[row.tk], statsMap[row.tk], (insRs[i2] && !insRs[i2].error) ? insRs[i2] : null); return { verdes: s4.verdes, rojas: s4.rojas }; })();
           row.score = candScore(row, row.zona || null, row.sema);
         });
-        for (const row of cands) if (row.score == null) row.score = candScore(row, null, null); // >12: score sin capa institucional
+        // confirmación vía en-zona: solo entra si el precio está DENTRO y el flujo acompaña
+        for (const row of zonaShort) {
+          if (row.zona?.enZona && row.sema && row.sema.verdes > row.sema.rojas) {
+            row.viaKind = 'zona';
+            row.sec = '🎯en-zona';
+            cands.push(row);
+          }
+        }
+        for (const row of cands) if (row.score == null) row.score = candScore(row, null, null); // no enriquecidos: score sin capa institucional
         cands.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.rs ?? 0) - (a.rs ?? 0) || (b.zona?.score ?? 0) - (a.zona?.score ?? 0) || (b.mom ?? 0) - (a.mom ?? 0));
       }
     } catch (e) { console.warn('[motor v2]', e.message); /* si la capa v2 falla, el pre-orden clásico ya está aplicado */ }
-    const result = { cands, evaluated: seen.size, flows, veto: this.regimeVeto() };
+    // 5 · POOLS APARTE (P2/P3): máximos 52w + crypto — se puntúan con candScore pero NO entran
+    // al denominador de percentiles del universo (R1: comparabilidad de snapshots intacta)
+    let pool52 = null, poolCrypto = null;
+    try { pool52 = await this._pool52(); } catch (e) { console.warn('[pool52]', e.message); }
+    try { poolCrypto = await this._poolCrypto(); } catch (e) { console.warn('[poolCrypto]', e.message); }
+    const result = { cands, evaluated: seen.size, flows, veto: this.regimeVeto(), pool52, poolCrypto };
     this.cache = result; this.lastRun = Date.now();
     this.render(result);
+  },
+  // ══ MOTOR v2 P2 · pool MÁXIMOS 52 SEMANAS: nombres NUEVOS (fuera del universo 185) en máximo
+  // anual — el radar para lo que el embudo sectorial no ve. Mismos gates; su RS se lee contra la
+  // distribución del universo SIN alterarla (stockRow → _pctIn sobre raws congelados, R1). ══
+  async _pool52() {
+    const sc = await fetch('/api/capital?src=screener').then(r2 => r2.json()).catch(() => null);
+    if (!sc || sc.error || !sc.list?.length) return sc?.error ? { error: sc.error } : null;
+    const P = this.PASS;
+    const fresh = sc.list.map(x => x.tk).filter(tk => !CapitalDrill.universe[tk]).slice(0, 20);
+    if (!fresh.length) return { rows: [], src: sc.src, scanned: 0 };
+    Object.assign(CapitalDrill.universe, await CapitalDrill.fetchBatch(fresh));
+    const rows = [];
+    for (const tk of fresh) {
+      const row = CapitalDrill.stockRow(tk);
+      if (!row) continue;
+      if (row.rs == null || row.rs < P.rs) continue;
+      if (!row.tpl || row.tpl.passed < P.tpl) continue;
+      const acum = (row.ud != null && row.ud >= P.ud) || row.ad.letter === 'A' || row.ad.letter === 'B';
+      if (!acum) continue;
+      row.viaKind = 'screener'; row.sec = '🚀máx52w';
+      row.score = candScore(row, null, null); // sin capa zona/semáforo (pool ligero)
+      rows.push(row);
+    }
+    rows.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.rs ?? 0) - (a.rs ?? 0));
+    return { rows: rows.slice(0, 8), src: sc.src, scanned: fresh.length };
+  },
+  // ══ MOTOR v2 P3 · pool CRYPTO: percentiles DENTRO del grupo (RS = fuerza del ratio coin/BTC —
+  // ¿quién le gana al rey?). Tendencia = precio sobre SMA50 (el template Minervini de 8 checks no
+  // aplica a crypto). BTC/ETH llevan zona+semáforo vía Deribit; el resto, score sin capa inst. ══
+  async _poolCrypto() {
+    const d = await fetch('/api/yahoo?tickers=' + RP_CRYPTO.join(',') + '&range=1y').then(r2 => r2.json()).catch(() => null);
+    const btc = d?.['BTC-USD'];
+    if (!btc?.hist?.length) return null;
+    const pairs = [];
+    for (const tk of RP_CRYPTO) {
+      const dd = d[tk];
+      if (!dd?.hist?.length || dd.error) continue;
+      const n = Math.min(dd.hist.length, btc.hist.length);
+      const ratio = [];
+      for (let i2 = 0; i2 < n; i2++) { const b2 = btc.hist[btc.hist.length - n + i2]; if (b2 > 0) ratio.push(dd.hist[dd.hist.length - n + i2] / b2); }
+      const raw = tk === 'BTC-USD' ? 0 : rsRawIBD(ratio); // BTC vs sí mismo = plano (neutral por construcción)
+      if (raw == null) continue;
+      const m = momVolAdj(dd.hist);
+      pairs.push({ tk, raw, m: (m != null && isFinite(m)) ? m : null, d: dd });
+    }
+    if (pairs.length < 6) return null; // grupo demasiado incompleto para percentiles honestos
+    const rsSorted = [...pairs].sort((a, b) => a.raw - b.raw);
+    const rsG = {}; rsSorted.forEach((p2, i2) => { rsG[p2.tk] = Math.max(1, Math.min(99, Math.round((i2 + 1) / rsSorted.length * 99))); });
+    const momSorted = pairs.filter(p2 => p2.m != null).sort((a, b) => a.m - b.m);
+    const momG = {}; momSorted.forEach((p2, i2) => { momG[p2.tk] = Math.max(1, Math.min(99, Math.round((i2 + 1) / momSorted.length * 99))); });
+    const rows = [];
+    for (const p2 of pairs) {
+      const dd = p2.d, price = dd.price ?? dd.hist[dd.hist.length - 1];
+      if (rsG[p2.tk] == null || rsG[p2.tk] < 75) continue; // gate 1: élite del grupo
+      const s50 = smaAt(dd.hist, 50);
+      if (s50 == null || price <= s50) continue; // gate 2: tendencia
+      const hi52 = Math.max(...dd.hist), lo52 = Math.min(...dd.hist);
+      const row = { tk: p2.tk, price, chg1d: dd.chg1d, chg1m: dd.chg1m, rs: rsG[p2.tk], mom: momG[p2.tk] ?? null,
+        ud: computeUpDownRatio(dd.hist, dd.vols || [], 50), ad: adLetterFromRatio(computeUpDownRatio(dd.hist, dd.vols || [], 65)),
+        tpl: null, dist52: hi52 > 0 ? (price / hi52 - 1) * 100 : null, pos52: hi52 > lo52 ? ((price - lo52) / (hi52 - lo52)) * 100 : null,
+        viaKind: 'crypto', sec: '🪙vs-BTC' };
+      if (/^(BTC|ETH)-USD$/.test(p2.tk)) {
+        try {
+          const zf = await InstDeep.zonesFor(p2.tk, dd.hist, dd.vols, dd.dates);
+          const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
+          if (zA) row.zona = { lo: zA.lo, hi: zA.hi, score: zA.score, dist: zA.dist, labels: zA.labels, enZona: zf.spot >= zA.lo && zf.spot <= zA.hi };
+          const sg = semaphoreSignals(p2.tk, dd, zf?.opt || null, null, null, null); // degradado: sin FINRA/SEC/stats (no existen para crypto)
+          row.sema = { verdes: sg.verdes, rojas: sg.rojas };
+        } catch (e) {}
+      }
+      row.score = candScore(row, row.zona || null, row.sema || null);
+      rows.push(row);
+    }
+    rows.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.rs ?? 0) - (a.rs ?? 0));
+    return { rows, evaluated: pairs.length };
   },
   // FASE 1C (pedido Angel): chart rebaseado de las top candidatas vs SPY.
   // (1D: delega en renderRebasedChart — implementación única compartida con el Drill.)
@@ -11093,8 +11196,8 @@ const CandidatasHoy = {
     const P = this.PASS;
     const filtros = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;align-items:center">'
       + '<span style="font-size:8px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;letter-spacing:.08em">EMBUDO:</span>'
-      + chip('1 · ETF en cuadrante Mejorando/Líder') + chip('2 · RS ≥ ' + P.rs) + chip('3 · Template ≥ ' + P.tpl + '/8')
-      + chip('4 · U/D ≥ ' + P.ud + ' o A/D ≥ B') + chip('5 · ≤25% bajo máx 52w') + chip('6 · veto macro') + '</div>';
+      + chip('1 · vía: ETF en flujo · ⚡élite · 🎯en-zona') + chip('2 · RS ≥ ' + P.rs) + chip('3 · Template ≥ ' + P.tpl + '/8')
+      + chip('4 · U/D ≥ ' + P.ud + ' o A/D ≥ B') + chip('5 · ≤25% bajo máx 52w') + chip('6 · veto macro') + chip('SCORE 0-100 ordena') + '</div>';
     if (r.sinFlujo) {
       body.innerHTML = vetoHtml + filtros + '<div style="padding:16px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px">Ningún sector/industria está en cuadrante de entrada (Mejorando/Líder) hoy.<br><span style="color:var(--text3);font-size:10px">Sin flujo no hay embudo — el capital no muestra destino claro.</span></div>';
       return;
@@ -11104,15 +11207,41 @@ const CandidatasHoy = {
       body.innerHTML = vetoHtml + filtros + '<div style="padding:16px;text-align:center;font-size:11px;color:var(--text2);background:var(--surface2);border-radius:6px"><b>0 de ' + r.evaluated + '</b> acciones pasan el embudo completo hoy (vías evaluadas: ' + flowsTxt + ').<br><span style="color:var(--text3);font-size:10px">Eso también es información: el sistema no fuerza trades cuando la calidad no está. Paciencia &gt; actividad.</span></div>';
       return;
     }
-    const titulo = '🎯 ' + r.cands.length + ' candidata' + (r.cands.length === 1 ? '' : 's') + ' de ' + r.evaluated + ' evaluadas · vías en flujo: ' + flowsTxt;
-    const nota = 'NO es una recomendación de compra: es el filtro cuantitativo del embudo. El timing de entrada (setup, stop, sizing) es decisión del trader — y el veto macro de arriba manda. Cache 15 min · umbrales en el glosario (botón ?).';
+    const titulo = '🎯 ' + r.cands.length + ' candidata' + (r.cands.length === 1 ? '' : 's') + ' de ' + r.evaluated + ' evaluadas · ETFs en flujo: ' + flowsTxt;
+    const nota = '<b>CÓMO LEER LA COLUMNA VÍA</b> (pasa el cursor sobre cada una para el detalle): un ETF (p.ej. XLK) = <b>flujo sectorial</b>, su sector está recibiendo capital según el RRG · <b>⚡élite</b> = fuerza pura (RS≥90 y MOM≥90) aunque su sector NO esté en flujo · <b>🎯en-zona</b> = no le alcanzó el RS pero tiene tendencia sana Y el precio está dentro de una zona de entrada institucional con el semáforo a favor. El <b>SCORE 0-100</b> ordena la tabla (hover en el número para el desglose: fuerza + tendencia + acumulación + calidad de entrada + semáforo).<br>NO es una recomendación de compra: es el filtro cuantitativo del embudo. El timing de entrada (setup, stop, sizing) es decisión del trader — y el veto macro de arriba manda. Cache 15 min · umbrales en el glosario (botón ?).';
     // 2026-07-09: usa el helper compartido → hereda botones de ventana 30D/90D/YTD/1A y dots RS
     const chartHtml = rebasedChartHtml('candChart', 'TOP ' + Math.min(10, r.cands.length) + ' CANDIDATAS vs SPY · REBASEADO (0% = t₀ común) — ¿desde cuándo lideran y con qué pendiente?');
-    body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota, 'candChart');
+    body.innerHTML = vetoHtml + filtros + chartHtml + CapitalDrill._rowsTableHtml(r.cands, titulo, nota, 'candChart') + this._poolsHtml(r);
     try { this._renderChart(r.cands); } catch (e) { /* el chart nunca rompe la tabla */ }
     try { this.enrich(r.cands); } catch (e) { /* FASE 3: enriquecimiento asíncrono, nunca rompe */ }
     try { CapitalDrill._deep3(r.cands.map(c => c.tk), '#cand-body'); } catch (e) { /* Tanda 2a */ }
     try { this._track(r); } catch (e) { /* F4: el snapshot jamás rompe el render */ }
+  },
+  // ══ MOTOR v2 P2/P3 · pools APARTE del embudo (52w-highs + crypto) — tablas propias porque
+  // sus percentiles NO son comparables 1:1 con el universo (R1). Cada una explica su base. ══
+  _poolsHtml(r) {
+    let h = '';
+    try {
+      if (r.pool52?.rows?.length) {
+        h += '<div style="margin-top:16px">' + CapitalDrill._rowsTableHtml(r.pool52.rows,
+          '🚀 MÁXIMOS 52 SEMANAS — pool APARTE del universo (' + r.pool52.rows.length + ' de ' + r.pool52.scanned + ' nombres nuevos pasan los filtros · fuente: ' + r.pool52.src + ')',
+          'Acciones >$2bn haciendo MÁXIMO ANUAL hoy que NO están en el universo de 185 holdings — el radar para lo que el embudo sectorial no puede ver (gap conocido: emergentes fuera de índices). Pasan los mismos filtros RS/template/acumulación; su RS se lee contra la distribución del universo sin alterarla. Sin capa de zona/semáforo (score máximo alcanzable ~75). NO es recomendación: es un feed de nuevos máximos estilo IBD.', null) + '</div>';
+      } else if (r.pool52?.error) {
+        h += '<div class="mono" style="margin-top:14px;font-size:9.5px;color:var(--text3)">🚀 Pool máximos 52w no disponible ahora (' + escHtml(String(r.pool52.error).slice(0, 90)) + ') — reintenta en el próximo scan.</div>';
+      } else if (r.pool52 && r.pool52.scanned === 0) {
+        h += '<div class="mono" style="margin-top:14px;font-size:9.5px;color:var(--text3)">🚀 Máximos 52w: todos los nombres del screener ya están cubiertos por el universo del embudo hoy.</div>';
+      } else if (r.pool52?.rows) {
+        h += '<div class="mono" style="margin-top:14px;font-size:9.5px;color:var(--text3)">🚀 Máximos 52w: ' + r.pool52.scanned + ' nombres nuevos escaneados, ninguno pasa los filtros de calidad hoy (eso también es información).</div>';
+      }
+      if (r.poolCrypto?.rows?.length) {
+        h += '<div style="margin-top:16px">' + CapitalDrill._rowsTableHtml(r.poolCrypto.rows,
+          '🪙 CRYPTO — pool APARTE (' + r.poolCrypto.rows.length + ' de ' + r.poolCrypto.evaluated + ' monedas pasan: fuerza vs BTC ≥p75 + precio sobre SMA50)',
+          'El RS aquí es percentil DENTRO del grupo de ' + r.poolCrypto.evaluated + ' monedas, calculado sobre el ratio moneda/BTC (¿quién le gana al rey?) — grupo chico, lectura orientativa, NO comparable con el RS de acciones. Sin template Minervini (sus 8 checks no aplican a crypto): la tendencia se filtra con SMA50. BTC y ETH llevan zona de entrada + semáforo vía Deribit; el resto puntúa sin capa institucional. Mercado 24/7: el U/D de volumen pesa distinto que en acciones.', null) + '</div>';
+      } else if (r.poolCrypto && r.poolCrypto.rows) {
+        h += '<div class="mono" style="margin-top:14px;font-size:9.5px;color:var(--text3)">🪙 Crypto: ninguna de las ' + r.poolCrypto.evaluated + ' monedas pasa los filtros hoy (fuerza vs BTC ≥p75 + sobre SMA50).</div>';
+      }
+    } catch (e) { /* los pools jamás rompen el render principal */ }
+    return h;
   },
   // ══ F4 · TRACK RECORD (2026-07-09): snapshot inmutable del embudo, 1×/día automático ══
   // El server aplica first-write-wins; acá solo evitamos reintentos del mismo navegador.
@@ -11194,7 +11323,12 @@ const CandidatasHoy = {
       spy: state.data.prices?.SPY?.price ?? null,
       sectores, // top scanner del día — habilita auditar el scanner sectorial a futuro
       candidatas: r.cands.slice(0, 15).map(c => ({ tk: c.tk, via: c.sec || null, viaKind: c.viaKind || 'flujo', price: c.price, rs: c.rs, mom: c.mom, tpl: c.tpl?.passed ?? null, pp: !!c.pp,
-        score: c.score ?? null, zonaScore: c.zona?.score ?? null, enZona: c.zona?.enZona ?? null, sema: c.sema ? c.sema.verdes + '/' + c.sema.rojas : null })) // MOTOR v2: audita si el score predice
+        score: c.score ?? null, zonaScore: c.zona?.score ?? null, enZona: c.zona?.enZona ?? null, sema: c.sema ? c.sema.verdes + '/' + c.sema.rojas : null })), // MOTOR v2: audita si el score predice
+      // P2/P3: pools aparte al snapshot (clave aditiva) — audita si el radar 52w/crypto agrega valor
+      pools: (r.pool52?.rows?.length || r.poolCrypto?.rows?.length) ? {
+        s52: (r.pool52?.rows || []).slice(0, 5).map(c => ({ tk: c.tk, price: c.price, rs: c.rs, score: c.score ?? null })),
+        crypto: (r.poolCrypto?.rows || []).slice(0, 5).map(c => ({ tk: c.tk, price: c.price, rs: c.rs, score: c.score ?? null }))
+      } : null
     };
     try {
       const resp = await fetch('/api/capital?src=track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snap) }).then(x => x.json());
