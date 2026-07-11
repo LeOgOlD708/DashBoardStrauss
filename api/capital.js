@@ -123,11 +123,19 @@ const GH_REPO = 'LeOgOlD708/DashBoardStrauss';
 async function ghReq(path, opts = {}) {
   const token = process.env.GITHUB_TOKEN;
   if (!token) { const e = new Error('GITHUB_TOKEN no configurada — crear fine-grained token (solo Contents Read/Write de este repo) en github.com/settings/personal-access-tokens y agregarlo en Vercel'); e.code = 'NO_TOKEN'; throw e; }
-  return fetch('https://api.github.com/repos/' + GH_REPO + path, {
+  const go = () => fetch('https://api.github.com/repos/' + GH_REPO + path, {
     ...opts,
     headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'DashBoardStrauss', ...(opts.headers || {}) },
     signal: AbortSignal.timeout(9000)
   });
+  // GitHub devuelve 502 intermitente (cazado 2× en prod 2026-07-11) — un retry en 5xx
+  // SOLO para lecturas (GET): los POST/PUT de snapshots no se reintentan (first-write-wins)
+  let r = await go();
+  if (r.status >= 500 && (!opts.method || opts.method === 'GET')) {
+    await new Promise(res2 => setTimeout(res2, 400));
+    r = await go();
+  }
+  return r;
 }
 async function trackSave(body) {
   const date = String(body?.date || '').slice(0, 10);
