@@ -8645,6 +8645,24 @@ function volumeDryUp(vols) {
 }
 
 // ══ F-I2 · Primitivas de niveles institucionales (2026-07-10) ══
+// 📏 Canal de regresión lineal + σ de residuos (ingesta MAZECAPITAL 2026-07-10, pedido Angel
+// 07-11): z = distancia del último precio a la recta en DESVIACIONES ESTÁNDAR — el umbral
+// objetivo de la reversión a la media (±2σ ≈ percentil 95: estirado; <1σ: sin ventaja).
+function sigmaChannel(arr) {
+  if (!Array.isArray(arr) || arr.length < 40) return null;
+  const n = arr.length;
+  let sx = 0, sy = 0, sxy = 0, sxx = 0;
+  for (let i = 0; i < n; i++) { sx += i; sy += arr[i]; sxy += i * arr[i]; sxx += i * i; }
+  const den = n * sxx - sx * sx;
+  if (!den) return null;
+  const b = (n * sxy - sx * sy) / den, a = (sy - b * sx) / n;
+  let ss = 0;
+  for (let i = 0; i < n; i++) { const r = arr[i] - (a + b * i); ss += r * r; }
+  const sd = Math.sqrt(ss / n);
+  if (!(sd > 0)) return null;
+  return { a, b, sd, z: (arr[n - 1] - (a + b * (n - 1))) / sd };
+}
+
 // Volume Profile por bins de precio. APROXIMACIÓN DECLARADA: el volumen de cada barra se
 // asigna íntegro al bin de su CLOSE (sin distribución intra-barra — el proxy no expone H/L).
 // Con barras de 5m el error es marginal; con diarias es un perfil estructural grueso.
@@ -9183,6 +9201,10 @@ function renderCapitalRotation(scrubOnly) {
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px;font-family:'IBM Plex Mono',monospace;font-size:8px">${udTag}${flowTag}${scoreTag}${velTag}${weeksTag}${etaTag}</div>
       </div>`;
     }).join('');
+    // Fix hover pegado (reporte Angel 07-11): si el mouse sale de la LISTA entera sin disparar
+    // el mouseleave de la fila (row re-renderizada, scroll, salida rápida) el dim quedaba
+    // aplicado para siempre — red de seguridad a nivel contenedor
+    tbl.onmouseleave = () => { try { rotHi(null); } catch (e) {} };
   }
   // ── RRG 2.0: MAREA DE ROTACIÓN (ocupación 13 sem) + CRUCES de cuadrante recientes ──
   const transEl = document.getElementById('rot-trans');
@@ -10519,15 +10541,35 @@ const InstDeep = {
         if (spotIdx < 0) zonesHtml += spotCard; // spot debajo de todas las zonas
         if (!ladder.length) zonesHtml = spotCard;
         const lvnHtml = lvns.length ? '<div style="color:var(--text3);font-size:10px;margin-top:6px">🕳 LVN (air pockets — NO colocar entradas dentro): <b>' + lvns.map(l2 => l2.mid.toFixed(2)).join(' · ') + '</b></div>' : '';
-        lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
+        // 📏 σ-REVERSIÓN (ingesta MAZECAPITAL, pedido Angel 07-11): distancia en σ a 2 escalas
+        const sg1y = sigmaChannel(dU.hist), sg60 = sigmaChannel(h60 || null);
+        const fmtZ = (s5, lbl5) => {
+          if (!s5) return '';
+          const az = Math.abs(s5.z);
+          const col5 = az >= 2 ? 'var(--red)' : az >= 1 ? 'var(--amber)' : 'var(--text3)';
+          const est = az >= 2 ? 'ESTIRADO — reversión probable' : az >= 1 ? 'tenso' : 'neutro';
+          return '<span style="cursor:help" title="' + lbl5 + ': el precio está a ' + s5.z.toFixed(1) + ' desviaciones estándar de su línea de regresión (metodología reversión a la media: ±2σ ≈ percentil 95). σ del canal = ' + s5.sd.toFixed(2) + '">' + lbl5 + ' <b style="color:' + col5 + '">' + (s5.z >= 0 ? '+' : '') + s5.z.toFixed(1) + 'σ</b> <span style="color:' + col5 + ';font-size:9px">' + est + '</span></span>';
+        };
+        const sigmaHtml = (sg1y || sg60)
+          ? '<div style="color:var(--text2);font-size:10.5px;margin-top:9px;padding:7px 10px;background:rgba(45,212,191,.05);border:1px solid rgba(45,212,191,.2);border-radius:5px">📏 <b>σ-REVERSIÓN A LA MEDIA</b> (regresión lineal + desviación estándar): ' + [fmtZ(sg1y, '1 AÑO'), fmtZ(sg60, '60D·5m')].filter(Boolean).join(' &nbsp;·&nbsp; ') + ' <span style="color:var(--text3);font-size:9px">— |z| ≥ 2σ = estirado (P95): la reversión es el escenario base · |z| < 1σ = sin ventaja estadística · el canal ±2σ va dibujado en el mapa</span></div>'
+          : '';
+        // Tabla de niveles LEGIBLE (feedback Angel 07-11): agrupada como LADDER — resistencias
+        // arriba (de lejos → cerca), precio en medio, soportes abajo (de cerca → lejos)
         const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)', media: 'var(--text2)', iman: '#a78bfa' };
-        const rowsH = lv.map(L2 => {
+        const nivelRow = L2 => {
           const c2 = L2.dist <= 0 ? 'var(--green)' : 'var(--red)';
-          const rol = L2.dist <= 0 ? 'soporte' : 'resistencia';
-          return '<tr><td style="padding:2px 8px 2px 0;color:var(--text2)"><span style="color:' + (srcCol[L2.src] || 'var(--text3)') + '">●</span> ' + L2.lbl + '</td>'
-            + '<td style="padding:2px 8px;text-align:right;color:var(--text)">' + L2.v.toFixed(2) + '</td>'
-            + '<td style="padding:2px 0;text-align:right;color:' + c2 + '" title="' + rol + ' (el precio está ' + (L2.dist <= 0 ? 'arriba' : 'abajo') + ')">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
-        }).join('');
+          return '<tr><td style="padding:2.5px 8px 2.5px 0;color:var(--text2)"><span style="color:' + (srcCol[L2.src] || 'var(--text3)') + '">●</span> ' + L2.lbl + '</td>'
+            + '<td style="padding:2.5px 8px;text-align:right;color:var(--text);font-weight:600">' + L2.v.toFixed(2) + '</td>'
+            + '<td style="padding:2.5px 0;text-align:right;color:' + c2 + '">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
+        };
+        const resis = lv.filter(L2 => L2.dist > 0).sort((a2, b2) => b2.dist - a2.dist);
+        const sops = lv.filter(L2 => L2.dist <= 0).sort((a2, b2) => b2.dist - a2.dist);
+        const sepRow = (txt9, col9) => '<tr><td colspan="3" style="padding:6px 0 3px;color:' + col9 + ';font-size:9px;letter-spacing:.08em;font-weight:700;border-bottom:1px solid var(--border2)">' + txt9 + '</td></tr>';
+        const rowsH = sepRow('▲ RESISTENCIAS · arriba del precio (la más lejana primero)', 'var(--red)')
+          + resis.map(nivelRow).join('')
+          + sepRow('📍 PRECIO ACTUAL &nbsp;' + spot.toFixed(2), 'var(--text)')
+          + sepRow('▼ SOPORTES · abajo del precio (el más cercano primero)', 'var(--green)')
+          + sops.map(nivelRow).join('');
         parts.push('<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
           + '<span style="font-size:13px;font-weight:700;color:var(--text)">🎯 ZONAS DE ENTRADA</span> <button class="help-i" type="button" onclick="openGlossary(\'zonas-de-entrada\')" title="¿Cómo se computan?">?</button>'
           + '<span style="color:var(--text3);font-size:10.5px"> — diversidad de fuentes × timeframe × degradación por tests</span>'
@@ -10537,10 +10579,10 @@ const InstDeep = {
           + '<div class="ch-wrap" style="height:400px;margin-top:10px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
           + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual · <span style="color:#2dd4bf">barras laterales = volume profile 60d</span> (dónde se OPERÓ el volumen — la barra más brillante es el POC)</div>'
           + '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text3);margin-top:12px">ESCALERA DE LIQUIDEZ <span style="font-weight:400">— de resistencias (arriba) a soportes (abajo)</span></div>'
-          + zonesHtml + lvnHtml
-          + '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:12px">'
-          + (vp ? '<canvas id="instd-vp-cv" width="220" height="220" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
-          + '<table style="border-collapse:collapse;font-size:11px;flex:1;min-width:250px"><tbody>' + rowsH + '</tbody></table>'
+          + zonesHtml + lvnHtml + sigmaHtml
+          + '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin-top:12px">'
+          + (vp ? '<div style="flex:none"><div style="font-size:9.5px;color:var(--text3);letter-spacing:.06em;font-weight:700;margin-bottom:4px">📊 PERFIL DE VOLUMEN 60d <span style="font-weight:400">— dónde se OPERÓ (5 min)</span></div><canvas id="instd-vp-cv" width="310" height="360" title="Perfil de volumen 60 días (barras de 5 min): cuánto volumen se negoció en cada nivel de precio — las barras LARGAS son pisos/techos de liquidez real; las cortas, air pockets que el precio cruza rápido"></canvas><div style="font-size:8.5px;color:var(--text3);margin-top:4px"><span style="color:#e6b450">■</span> POC (el precio MÁS operado) · <span style="color:#60a5fa">■</span> Value Area 70% · <span style="color:#7d6f63">■</span> fuera · ┄ precio actual</div></div>' : '')
+          + '<table style="border-collapse:collapse;font-size:11px;flex:1;min-width:250px"><thead><tr style="color:var(--text3);font-size:9px;letter-spacing:.06em"><th style="text-align:left;padding-bottom:3px;font-weight:400">NIVEL <span style="opacity:.7">(color = fuente)</span></th><th style="text-align:right;font-weight:400">PRECIO</th><th style="text-align:right;font-weight:400">DIST</th></tr></thead><tbody>' + rowsH + '</tbody></table>'
           + '</div>'
           + '<div style="color:var(--text3);font-size:9.5px;margin-top:5px">● <span style="color:var(--blue)">perfil</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones</span> · <span style="color:#a78bfa">imán (naked POC)</span> — las zonas son CONTEXTO, no señales; tu price action decide el timing' + (opt && opt.error ? ' · sin cadena de opciones para ' + escHtml(tk) : '') + '</div>'
           + '</div>');
@@ -10578,19 +10620,40 @@ const InstDeep = {
     if (vp) {
       const cv2 = document.getElementById('instd-vp-cv');
       if (cv2) {
+        // Feedback Angel 07-11: el perfil sin etiquetas no se entendía — margen derecho con
+        // precios de POC/VAH/VAL/spot y barras más grandes (canvas 310×360)
         const cx = cv2.getContext('2d'), W2 = cv2.width, H2 = cv2.height, n2 = vp.bins.length;
+        const LBL = 62, barMax = W2 - LBL - 2;
         const vMax = Math.max(...vp.bins), bh = H2 / n2;
         for (let i2 = 0; i2 < n2; i2++) {
           const price2 = vp.lo + (i2 + 0.5) * vp.w;
           const y2 = H2 - (i2 + 1) * bh;
           const inVA = price2 >= vp.val && price2 <= vp.vah;
-          cx.fillStyle = Math.abs(price2 - vp.poc) < vp.w ? '#e6b450' : inVA ? 'rgba(96,165,250,.55)' : 'rgba(125,111,99,.35)';
-          cx.fillRect(0, y2, Math.max(1, vp.bins[i2] / vMax * (W2 - 4)), Math.max(1, bh - 1));
+          cx.fillStyle = Math.abs(price2 - vp.poc) < vp.w ? '#e6b450' : inVA ? 'rgba(96,165,250,.6)' : 'rgba(125,111,99,.38)';
+          cx.fillRect(0, y2, Math.max(1, vp.bins[i2] / vMax * barMax), Math.max(1, bh - 1));
         }
-        const ySpot = H2 - ((spot - vp.lo) / vp.w) * bh;
+        const yOf = p9 => H2 - ((p9 - vp.lo) / vp.w) * bh;
+        cx.font = "600 9px 'IBM Plex Mono', monospace";
+        cx.textAlign = 'left';
+        const fP = p9 => p9 >= 1000 ? p9.toFixed(0) : p9.toFixed(2);
+        const tag = (p9, txt9, col9) => {
+          const y9 = yOf(p9);
+          if (y9 < 8 || y9 > H2 - 2) return;
+          cx.strokeStyle = col9; cx.setLineDash([]); cx.lineWidth = 1;
+          cx.beginPath(); cx.moveTo(barMax, y9); cx.lineTo(barMax + 4, y9); cx.stroke();
+          cx.fillStyle = col9;
+          cx.fillText(txt9 + ' ' + fP(p9), barMax + 6, y9 + 3);
+        };
+        tag(vp.vah, 'VAH', 'rgba(96,165,250,.95)');
+        tag(vp.poc, 'POC', '#e6b450');
+        tag(vp.val, 'VAL', 'rgba(96,165,250,.95)');
+        const ySpot = yOf(spot);
         if (ySpot >= 0 && ySpot <= H2) {
           cx.strokeStyle = '#f0ece4'; cx.setLineDash([3, 3]);
-          cx.beginPath(); cx.moveTo(0, ySpot); cx.lineTo(W2, ySpot); cx.stroke();
+          cx.beginPath(); cx.moveTo(0, ySpot); cx.lineTo(barMax, ySpot); cx.stroke();
+          cx.setLineDash([]);
+          cx.fillStyle = '#f0ece4';
+          cx.fillText('▶ ' + fP(spot), barMax + 6, Math.min(H2 - 3, Math.max(9, ySpot + 3)));
         }
       }
     }
@@ -10762,7 +10825,7 @@ const InstDeep = {
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-        _emap: { zones, lvns, em, spot, vp: this._vp || null },
+        _emap: { zones, lvns, em, spot, vp: this._vp || null, sig: sigmaChannel(closes) }, // σ: canal ±2σ de la VENTANA visible
         plugins: {
           legend: { display: false },
           tooltip: { mode: 'index', intersect: false, titleFont: { size: 12 }, bodyFont: { size: 12 }, callbacks: { label: c => tk + ': ' + c.parsed.y.toFixed(2) } }
@@ -10783,27 +10846,46 @@ const InstDeep = {
         id: 'vpOverlay',
         beforeDatasetsDraw(chart2) {
           const vp = chart2.options._emap?.vp;
-          if (!vp?.bins?.length) return;
           const { ctx: c2, chartArea: a2, scales: { y: ys } } = chart2;
           if (!a2) return;
-          const vMax = Math.max(...vp.bins);
-          if (!(vMax > 0)) return;
-          const maxW = (a2.right - a2.left) * 0.22;
           c2.save();
           c2.beginPath(); c2.rect(a2.left, a2.top, a2.right - a2.left, a2.bottom - a2.top); c2.clip();
-          for (let i = 0; i < vp.bins.length; i++) {
-            if (!vp.bins[i]) continue;
-            const yTop = ys.getPixelForValue(vp.lo + (i + 1) * vp.w);
-            const yBot = ys.getPixelForValue(vp.lo + i * vp.w);
-            if (yBot < a2.top || yTop > a2.bottom) continue; // bin fuera del rango visible
-            const frac = vp.bins[i] / vMax;
-            const esPoc = Math.abs((vp.lo + (i + 0.5) * vp.w) - vp.poc) < vp.w * 0.6;
-            c2.fillStyle = esPoc ? 'rgba(45,212,191,.34)' : 'rgba(45,212,191,' + (0.07 + frac * 0.16).toFixed(2) + ')';
-            c2.fillRect(a2.left, yTop, maxW * frac, Math.max(1, yBot - yTop - 0.5));
+          const vMax = vp?.bins?.length ? Math.max(...vp.bins) : 0;
+          if (vMax > 0) {
+            const maxW = (a2.right - a2.left) * 0.22;
+            for (let i = 0; i < vp.bins.length; i++) {
+              if (!vp.bins[i]) continue;
+              const yTop = ys.getPixelForValue(vp.lo + (i + 1) * vp.w);
+              const yBot = ys.getPixelForValue(vp.lo + i * vp.w);
+              if (yBot < a2.top || yTop > a2.bottom) continue; // bin fuera del rango visible
+              const frac = vp.bins[i] / vMax;
+              const esPoc = Math.abs((vp.lo + (i + 0.5) * vp.w) - vp.poc) < vp.w * 0.6;
+              c2.fillStyle = esPoc ? 'rgba(45,212,191,.34)' : 'rgba(45,212,191,' + (0.07 + frac * 0.16).toFixed(2) + ')';
+              c2.fillRect(a2.left, yTop, maxW * frac, Math.max(1, yBot - yTop - 0.5));
+            }
+            c2.font = "600 8px 'IBM Plex Mono', monospace";
+            c2.fillStyle = 'rgba(45,212,191,.55)';
+            c2.fillText('VP 60d', a2.left + 4, a2.top + 10);
           }
           c2.font = "600 8px 'IBM Plex Mono', monospace";
-          c2.fillStyle = 'rgba(45,212,191,.55)';
-          c2.fillText('VP 60d', a2.left + 4, a2.top + 10);
+          // 📏 σ-REVERSIÓN (pedido Angel 07-11): canal de regresión ±2σ de la ventana visible —
+          // el precio fuera del canal = estirado, la reversión a la media es el escenario base
+          const sig = chart2.options._emap?.sig;
+          if (sig) {
+            const n5 = chart2.data.labels.length;
+            const ysc = chart2.scales.y;
+            c2.setLineDash([6, 5]); c2.lineWidth = 1; c2.strokeStyle = 'rgba(45,212,191,.55)';
+            for (const k5 of [2, -2]) {
+              const yA = ysc.getPixelForValue(sig.a + k5 * sig.sd);
+              const yB = ysc.getPixelForValue(sig.a + sig.b * (n5 - 1) + k5 * sig.sd);
+              c2.beginPath(); c2.moveTo(a2.left, yA); c2.lineTo(a2.right, yB); c2.stroke();
+              if (yB > a2.top + 8 && yB < a2.bottom - 2) {
+                c2.fillStyle = 'rgba(45,212,191,.8)';
+                c2.fillText((k5 > 0 ? '+2σ' : '−2σ'), a2.right - 24, yB - 3);
+              }
+            }
+            c2.setLineDash([]);
+          }
           c2.restore();
         }
       }]
