@@ -612,7 +612,7 @@ async function zoneAlerts() {
     const inZone = q.p >= z.lo && q.p <= z.hi;
     if (!inZone) return;
     // prev close desde chg: prev = p / (1 + chg/100). "Entró hoy" si venía de ARRIBA de la banda
-    const prev = q.chg != null ? q.p / (1 + q.chg / 100) : null;
+    const prev = (q.chg != null && q.chg > -100) ? q.p / (1 + q.chg / 100) : null; // guard chg=-100 (review)
     const entered = prev != null && prev > z.hi;
     hits.push('🎯 <b>' + z.tk + (entered ? ' ENTRÓ HOY' : ' EN ZONA') + '</b> ' + z.lo + '–' + z.hi
       + ' (precio ' + q.p.toFixed(2) + ') · score ' + z.score + ' · ' + (z.comp || '').split('+').slice(0, 3).join('+'));

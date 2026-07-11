@@ -9571,7 +9571,9 @@ const InstDeep = {
     if (gen !== this._gen) return; // el usuario pidió otro ticker mientras cargaba
     const dU = y1?.[tk];
     if (!dU || dU.error || !dU.hist?.length) {
-      body.innerHTML = '<div class="mono" style="font-size:10px;color:var(--red)">Sin datos Yahoo para "' + escHtml(tk) + '" (¿ticker correcto?).</div>';
+      // review: destruir el mapChart huérfano en el early-return (el canvas ya murió con el innerHTML)
+      if (this._mapChart) { try { this._mapChart.destroy(); } catch (e) {} this._mapChart = null; }
+      body.innerHTML = '<div class="mono" style="font-size:11px;color:var(--red)">Sin datos Yahoo para "' + escHtml(tk) + '" (¿ticker correcto?).</div>';
       return;
     }
     const spot = dU.hist[dU.hist.length - 1];
@@ -9717,7 +9719,7 @@ const InstDeep = {
           const arrow = z.dist >= 0 ? '▲' : '▼';
           const stars = '★'.repeat(Math.max(1, Math.min(5, Math.round(z.score)))) + '<span style="opacity:.25">' + '★'.repeat(Math.max(0, 5 - Math.max(1, Math.min(5, Math.round(z.score))))) + '</span>';
           const tip = z.cat + ' ' + z.side + ' · score ' + z.score + ' (diversidad de fuentes + timeframe' + (z.degradada ? ' − degradación por ' + z.touches + ' tests' : '') + ') · toques reales últimos 60d: ' + z.touches + (z.touches >= 3 ? ' — nivel adelgazándose: al 3er-4º test la ruptura se vuelve más probable' : z.touches <= 1 ? ' — nivel fresco (1º-2º test = máxima probabilidad de reacción)' : '');
-          return '<div style="display:flex;align-items:center;gap:12px;border:1px solid ' + (z.cat === 'DEBIL' ? 'var(--border2)' : m2.col) + '55;border-left:4px solid ' + m2.col + ';border-radius:7px;padding:9px 13px;margin-top:6px;background:' + m2.bg + '" title="' + tip + '">'
+          return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;border:1px solid ' + (z.cat === 'DEBIL' ? 'var(--border2)' : m2.col) + '55;border-left:4px solid ' + m2.col + ';border-radius:7px;padding:9px 13px;margin-top:6px;background:' + m2.bg + '" title="' + tip + '">'
             + '<div style="flex:none;text-align:center;min-width:56px"><div style="font-size:15px;color:' + sideCol + ';font-weight:700">' + arrow + ' ' + (z.dist >= 0 ? '+' : '') + z.dist + '%</div><div style="font-size:8px;color:var(--text3);letter-spacing:.06em">DEL PRECIO</div></div>'
             + '<div style="flex:1;min-width:150px"><div style="font-size:14px;font-weight:700;color:var(--text)">' + rango + ' <span style="font-size:10px;font-weight:600;color:' + m2.col + '">' + m2.icon + ' ' + z.cat + ' · ' + z.side.toUpperCase() + '</span></div>'
             + '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">' + z.labels.join(' + ') + '</div></div>'
@@ -9980,13 +9982,17 @@ const ZonasAudit = {
         (s?.zonas || []).forEach(z => recs.push({ tk: z.tk, d, lo: z.lo, hi: z.hi, score: z.score, tests: z.tests, fuente: 'embudo' }));
       }
     } catch (e) {}
+    // Review: dedupe manual+embudo de la MISMA zona (tk+fecha) — evitaba doble-conteo del hold rate
+    const recsDedup = [...new Map(recs.map(r2 => [r2.tk + '|' + r2.d + '|' + r2.lo.toFixed(1), r2])).values()];
     const today = new Date().toISOString().slice(0, 10);
-    const evalRecs = recs.filter(r => r.d < today);
+    const evalRecs = recsDedup.filter(r => r.d < today);
     if (!evalRecs.length) {
       body.innerHTML = '<span style="color:var(--text3)">Aún no hay zonas con edad suficiente (' + recs.length + ' registradas hoy). Cada consulta del mapa y cada snapshot del embudo registran sus zonas — la auditoría se llena sola con los días.</span>';
       return;
     }
-    const tks = [...new Set(evalRecs.map(r => r.tk))].slice(0, 25);
+    const tksAll = [...new Set(evalRecs.map(r => r.tk))];
+    const tks = tksAll.slice(0, 25);
+    const truncados = tksAll.length - tks.length; // honestidad: declarar lo no evaluado
     const yd = await fetch('/api/yahoo?tickers=' + tks.map(encodeURIComponent).join(',') + '&range=6mo').then(r => r.json()).catch(() => null);
     let held = 0, fail = 0, pend = 0, curso = 0;
     const fresh = { fresca: { h: 0, f: 0 }, degradada: { h: 0, f: 0 } };
@@ -10025,7 +10031,8 @@ const ZonasAudit = {
     body.innerHTML =
       '<div style="margin-bottom:6px">Resueltas: <b style="color:var(--green)">' + held + ' aguantaron</b> · <b style="color:var(--red)">' + fail + ' fallaron</b>'
       + (rate != null ? ' · hold rate <b>' + rate + '%</b>' : '') + ' · en curso ' + curso + ' · sin tocar ' + pend
-      + (n > 0 && n < 20 ? ' · <b style="color:var(--amber)">n=' + n + ' — ANÉCDOTA, no estadística (mínimo 20)</b>' : '') + '</div>'
+      + (n > 0 && n < 20 ? ' · <b style="color:var(--amber)">n=' + n + ' — ANÉCDOTA, no estadística (mínimo 20)</b>' : '')
+      + (truncados > 0 ? ' · <b style="color:var(--amber)">⚠ ' + truncados + ' tickers no evaluados (cap 25 por consulta)</b>' : '') + '</div>'
       + (n >= 5 ? '<div style="margin-bottom:6px;color:var(--text2)">Validación regla de degradación → frescas (≤2 tests): ' + fr.h + '✓/' + fr.f + '✗' + (fr.h + fr.f > 0 ? ' (' + (fr.h / (fr.h + fr.f) * 100).toFixed(0) + '%)' : '') + ' · degradadas (3+): ' + dg.h + '✓/' + dg.f + '✗' + (dg.h + dg.f > 0 ? ' (' + (dg.h / (dg.h + dg.f) * 100).toFixed(0) + '%)' : '') + '</div>' : '')
       + '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:9px;width:100%"><thead><tr style="color:var(--text3);font-size:8px"><th style="text-align:left;padding:0 8px 3px 0">TK</th><th style="text-align:left;padding:0 8px 3px">REG</th><th style="text-align:left;padding:0 8px 3px">ZONA</th><th style="text-align:right;padding:0 8px 3px">SCORE</th><th style="text-align:right;padding:0 8px 3px">TESTS</th><th style="text-align:left;padding:0 8px 3px">VÍA</th><th style="text-align:left;padding:0 0 3px">ESTADO</th></tr></thead><tbody>' + tbl + '</tbody></table></div>'
       + '<div style="color:var(--text3);font-size:8px;margin-top:4px">Criterio: AGUANTÓ = tocó la banda y cerró de vuelta sobre el techo (+0.5%) · FALLÓ = cerró bajo el piso (−0.5%) tras tocar · con closes diarios (sin H/L — aproximación declarada). Ningún producto comercial audita sus propios niveles: este experimento es nuestro.</div>';
@@ -11014,6 +11021,12 @@ const CandidatasHoy = {
   // El server aplica first-write-wins; acá solo evitamos reintentos del mismo navegador.
   // Sin GITHUB_TOKEN configurada → fallback a localStorage (no se pierden días).
   async _track(r) {
+    // review: guard in-flight — un 2º render durante los ~10s de zonesFor duplicaba todo el trabajo
+    if (this._trackBusy) return;
+    this._trackBusy = true;
+    try { await this._trackInner(r); } finally { this._trackBusy = false; }
+  },
+  async _trackInner(r) {
     const today = new Date().toISOString().slice(0, 10);
     if (localStorage.getItem('trk_sent_' + today)) return;
     if (!r?.cands?.length) return;
