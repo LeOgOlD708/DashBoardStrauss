@@ -9753,6 +9753,37 @@ const InstDeep = {
       }
     }
   },
+  // E4 · zonesFor: versión ligera del motor para OTROS módulos (candidatas, snapshot).
+  // Reusa el hist diario ya cargado (universo) y solo fetchea 60d + opt (ambos con cache CDN).
+  async zonesFor(tk, dailyHist, dailyVols, dailyDates) {
+    try {
+      const jf = u => fetch(u).then(r => r.json()).catch(() => null);
+      const [y60, opt] = await Promise.all([
+        jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
+        jf('/api/capital?src=opt&tickers=' + encodeURIComponent(tk))
+      ]);
+      const spot = dailyHist[dailyHist.length - 1];
+      const h60 = y60?.[tk]?.hist, v60 = y60?.[tk]?.vols;
+      const vp = (h60?.length >= 500) ? volumeProfile(h60, v60, 50) : null;
+      const vp1y = volumeProfile(dailyHist, dailyVols, 40);
+      const jan1 = new Date().getFullYear() + '-01-01';
+      let iYtd = dailyDates?.findIndex(dd => dd >= jan1); if (iYtd < 0) iYtd = null;
+      let iMin = 0; dailyHist.forEach((p2, i2) => { if (p2 < dailyHist[iMin]) iMin = i2; });
+      const lv = [];
+      const add = (lbl, v, src2, tf2, w2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, tf: tf2 || 'd', w: w2 || 0 }); };
+      if (vp) { add('POC 60d', vp.poc, 'perfil', 'd'); add('VAH 60d', vp.vah, 'perfil', 'd'); add('VAL 60d', vp.val, 'perfil', 'd'); vp.hvn.slice(0, 2).forEach((h2, ih) => add('HVN' + (ih ? '②' : ''), h2, 'perfil', 'd')); }
+      if (vp1y) add('POC 1y', vp1y.poc, 'perfil', 'w');
+      if (iYtd != null) add('AVWAP 1-ene', avwap(dailyHist, dailyVols, iYtd), 'avwap', 'w');
+      add('AVWAP mín52w', avwap(dailyHist, dailyVols, iMin), 'avwap', 'w');
+      add('SMA50', smaAt(dailyHist, 50), 'media', 'd');
+      if (opt && !opt.error) {
+        add('Call wall', opt.callWall, 'opciones', 'w'); add('Put wall', opt.putWall, 'opciones', 'w');
+        if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones', 'd');
+        if (opt.maxPain != null) add('Max pain', opt.maxPain, 'opciones', 'd', -0.5);
+      }
+      return { zones: zoneEngine(lv, spot, dailyHist), spot };
+    } catch (e) { return null; }
+  },
   // E3 · IV rank con histórico local (patrón inst_walls_v1): 1 lectura/día por ticker,
   // cap 260d × 20 tickers. Con <20 lecturas se declara "acumulando" — sin fingir rank.
   _ivRank(tk, ivAtm) {
@@ -10849,8 +10880,23 @@ const CandidatasHoy = {
         inst = { qqqSpot: q.spot, qqqPC: q.pcVol, qqqGexBn: q.gexTotalBn, flip: q.gammaFlip, callWall: q.callWall, putWall: q.putWall, cotNqPctil: nq?.pctil3y ?? null, cotEsPctil: es?.pctil3y ?? null };
       }
     } catch (e) { /* sin inst — el snapshot sale igual */ }
+    // E4 (2026-07-11): zonas de entrada del top-3 al snapshot — clave NUEVA `zonas`, v:2
+    // intacto, candidatas/picks idénticos (mismo patrón que inst:{}). Habilita E5: auditar
+    // "¿las zonas A aguantaron?" con precios forward — el backtest de fiabilidad de niveles.
+    let zonas = null;
+    try {
+      const zs = [];
+      for (const c of r.cands.slice(0, 3)) {
+        const dU3 = CapitalDrill.universe[c.tk];
+        if (!dU3?.hist?.length) continue;
+        const zf = await InstDeep.zonesFor(c.tk, dU3.hist, dU3.vols, dU3.dates);
+        const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
+        if (zA) zs.push({ tk: c.tk, lo: +zA.lo.toFixed(2), hi: +zA.hi.toFixed(2), score: zA.score, tests: zA.touches, spot: +zf.spot.toFixed(2), comp: zA.labels.slice(0, 4).join('+') });
+      }
+      if (zs.length) zonas = zs;
+    } catch (e) { /* sin zonas — el snapshot sale igual */ }
     const snap = {
-      date: today, ts: Date.now(), v: 2, lideres, inst,
+      date: today, ts: Date.now(), v: 2, lideres, inst, zonas,
       hero: document.getElementById('diag-score-total')?.textContent?.trim() || null,
       postura: document.getElementById('hero-postura')?.textContent?.trim() || null,
       quad: window.__quad ? { q: window.__quad.quad, conf: +window.__quad.conf.toFixed(1) } : null,
@@ -10890,6 +10936,21 @@ const CandidatasHoy = {
         const col = d.ratio >= 55 ? 'var(--red)' : d.ratio <= 40 ? 'var(--green)' : 'var(--text3)';
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME (FINRA Reg SHO, archivo ' + d.file + '): ' + d.ratio + '% del volumen del día fue venta corta (' + (d.shortVol/1e6).toFixed(1) + 'M de ' + (d.totalVol/1e6).toFixed(1) + 'M). >55% presión corta elevada · <40% baja — umbrales PROVISIONALES (el ~45% es normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
       });
+    } catch (e) {}
+    // 1c · E4: distancia a la mejor ZONA DE ENTRADA (motor v2) — top 5, secuencial suave.
+    // El embudo dice QUÉ; esto dice A CUÁNTO ESTÁ el precio del DÓNDE.
+    try {
+      for (const tk of tks.slice(0, 5)) {
+        if (gen !== this._gen) return;
+        const dU2 = CapitalDrill.universe[tk];
+        if (!dU2?.hist?.length) continue;
+        const zf = await InstDeep.zonesFor(tk, dU2.hist, dU2.vols, dU2.dates);
+        const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
+        if (!zA) continue;
+        const enZona = zf.spot >= zA.lo && zf.spot <= zA.hi;
+        const col = enZona ? 'var(--green)' : Math.abs(zA.dist) <= 3 ? 'var(--amber)' : 'var(--text3)';
+        chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="ZONA DE ENTRADA (motor v2, Tab 09): ' + zA.lo.toFixed(2) + (zA.hi > zA.lo * 1.0005 ? '–' + zA.hi.toFixed(2) : '') + ' · score ' + zA.score + ' · ' + zA.labels.join(' + ') + (enZona ? ' — EL PRECIO ESTÁ DENTRO de la zona ahora' : ' — a ' + Math.abs(zA.dist) + '% del precio') + '. Click en 🏛 para el mapa completo">🎯' + (enZona ? 'EN ZONA' : zA.dist + '%') + '</span>');
+      }
     } catch (e) {}
     // 2 · Earnings (1 llamada; requiere FINNHUB_KEY en Vercel — falla silenciosa si no está)
     try {
@@ -12367,7 +12428,14 @@ DATOS DEL DASHBOARD (actualizados hace ${mins} min):
 • GLD: ${gld ? '$' + gld.toFixed(2) : '—'}
 • WTI: ${wti ? '$' + wti.toFixed(2) : '—'}
 • SPY: ${spy ? '$' + spy.toFixed(2) : '—'}
-
+${(() => { // E4: si hay un Mapa de Entrada activo en el Tab 09, Phoenix lo conoce
+  try {
+    if (typeof InstTab === 'undefined' || !InstTab._cur || !InstDeep._zones?.length) return '';
+    const zs = InstDeep._zones.filter(z => z.cat !== 'DEBIL').slice(0, 4)
+      .map(z => z.cat + ' ' + z.side + ' ' + z.lo.toFixed(2) + (z.hi > z.lo * 1.0005 ? '-' + z.hi.toFixed(2) : '') + ' (score ' + z.score + ', ' + z.touches + ' tests): ' + z.labels.join('+'));
+    return '\nMAPA DE ENTRADA activo — ' + InstTab._cur + ':\n' + zs.map(s2 => '• ' + s2).join('\n') + '\n(Las zonas son contexto computado por confluencia de fuentes, no señales; el timing lo decide el price action del usuario)';
+  } catch (e) { return ''; }
+})()}
 REGLAS:
 - Responde siempre en español, conciso y directo
 - Basa el análisis en el marco Howell y los datos actuales

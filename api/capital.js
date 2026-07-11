@@ -225,6 +225,23 @@ async function digest() {
     }
     if (parts.length) L.push('🏛 ' + parts.join(' · '));
   } catch (e) { /* la línea institucional jamás rompe el digest */ }
+  // E4 · Mapa de Entrada: zonas del top-3 (grabadas en el snapshot) vs precio ACTUAL —
+  // el aviso "estás en zona" llega al teléfono sin abrir el dashboard
+  try {
+    const s2 = snapLast && !snapLast.empty ? snapLast.s : null;
+    if (s2?.zonas?.length) {
+      const zs = s2.zonas.slice(0, 3);
+      const qz = await budget(Promise.all(zs.map(z => quoteMini(z.tk))), 8000);
+      const partsZ = zs.map((z, i) => {
+        const p = qz?.[i]?.p;
+        if (!p) return z.tk + ' zona ' + z.lo + '–' + z.hi;
+        const inZ = p >= z.lo && p <= z.hi;
+        const dist = ((z.lo + z.hi) / 2 / p - 1) * 100;
+        return inZ ? '<b>' + z.tk + ' 🎯 EN ZONA ' + z.lo + '–' + z.hi + '</b>' : z.tk + ' zona ' + z.lo + '–' + z.hi + ' (' + (dist >= 0 ? '+' : '') + dist.toFixed(1) + '%)';
+      });
+      L.push('🎯 Zonas de entrada (top-3 del embudo): ' + partsZ.join(' · '));
+    }
+  } catch (e) { /* las zonas jamás rompen el digest */ }
   L.push('<a href="https://dash-board-strauss.vercel.app/#act">Abrir dashboard → Activos</a>'); // #act = deep-link al tab del embudo (menos fricción digest→scan)
   await tgSend(L.join('\n'));
   return { sent: true, ts: new Date().toISOString() };
