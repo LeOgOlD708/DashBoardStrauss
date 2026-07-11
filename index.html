@@ -9447,6 +9447,83 @@ const InstPanel = {
   }
 };
 
+// ══ MOTOR v2 · semaphoreSignals — el semáforo institucional como FUNCIÓN PURA (sin DOM) ══
+// Única fuente de verdad: la consumen el Tab 09 (pills) y el candScore del embudo.
+// Devuelve {verdes, rojas, pills[]}. Las señales crypto e IV-rank se agregan aparte (necesitan estado).
+function semaphoreSignals(tk, dU, opt, atsD, statsD, insD) {
+  const pills = [];
+  const pill = (icon, lbl, col, tip) => pills.push({ icon, lbl, col, tip });
+  let verdes = 0, rojas = 0;
+  const spot = dU?.hist?.[dU.hist.length - 1];
+  if (opt && !opt.error) {
+    const modoRev = opt.gexTotalBn > 0 && (opt.gammaFlip == null || spot >= opt.gammaFlip);
+    if (modoRev) pill('🧭', 'MODO REVERSIÓN', 'var(--green)', 'Gamma positiva y precio sobre el flip: los dealers ESTABILIZAN (compran dips, venden rallies) — comprar zonas soporte funciona, fadear extremos OK');
+    else pill('🧭', 'MODO RUPTURA', 'var(--amber)', 'Gamma negativa o precio bajo el flip: los dealers AMPLIFICAN el movimiento — NO fadear zonas; operar rupturas con confirmación y sizing reducido');
+    const dex = opt.dexTotalBn;
+    if (dex > 0.05) { pill('🛡', 'DEX +' + dex + 'bn', 'var(--green)', 'Delta-dollars POSITIVOS: cuanto más caiga el precio, más deben COMPRAR los market makers — red de seguridad mecánica ("largos de delta")'); verdes++; }
+    else if (dex < -0.05) { pill('🛡', 'DEX ' + dex + 'bn', 'var(--red)', 'Delta-dollars NEGATIVOS: los dealers venden rebotes — sin red de seguridad'); rojas++; }
+    else pill('🛡', 'DEX ~0', 'var(--text3)', 'Delta neutro: nadie obligado a defender — "cambio de manos" (ni presión compradora ni vendedora del MM)');
+  }
+  const ud = dU ? computeUpDownRatio(dU.hist, dU.vols, 50) : null;
+  if (ud != null) {
+    const ad = adLetterFromRatio(ud);
+    pill('📊', 'U/D ' + ud.toFixed(2) + ' · A/D ' + ad.letter, ad.col, 'Up/Down volume ratio 50d — la acumulación visible en el tape: volumen de días alcistas vs bajistas. ≥1.25 (letra B o mejor) = acumulación');
+    if (ud >= 1.25) verdes++; else if (ud < 0.9) rojas++;
+  }
+  if (atsD && !atsD.error && atsD.weeks?.length >= 2 && dU) {
+    const dps = atsD.weeks.slice(-4).map(w => { const t2 = weekVolOf(dU, w.week); return t2 ? w.ats / t2 * 100 : null; }).filter(v2 => v2 != null);
+    if (dps.length >= 2) {
+      const cur2 = dps[dps.length - 1], base2 = dps.slice(0, -1).reduce((a2, b2) => a2 + b2, 0) / (dps.length - 1);
+      const chg4w = dU.hist.length > 21 ? (dU.hist[dU.hist.length - 1] / dU.hist[dU.hist.length - 21] - 1) * 100 : null;
+      if (cur2 > base2 * 1.15 && chg4w != null && Math.abs(chg4w) < 4) { pill('🕶', 'DP ' + cur2.toFixed(0) + '%↑ + precio plano', 'var(--green)', 'Dark pools subiendo (' + base2.toFixed(0) + '%→' + cur2.toFixed(0) + '%) con precio lateral = patrón de ACUMULACIÓN silenciosa (absorción Wyckoff) · dato con lag 2-3 sem'); verdes++; }
+      else if (cur2 > base2 * 1.15) pill('🕶', 'DP ' + cur2.toFixed(0) + '%↑', 'var(--amber)', 'Dark pools sobre su promedio de 3 semanas — actividad oculta inusual, NO direccional por sí sola · lag 2-3 sem');
+      else pill('🕶', 'DP ' + cur2.toFixed(0) + '%', 'var(--text3)', 'Dark pools en rango normal vs su propio historial · lag 2-3 sem');
+    }
+  }
+  const insd = (insD && !insD.error) ? insD : null;
+  if (insd && (insd.buys || insd.sells)) {
+    let cluster = false;
+    const bd = (insd.buyDates || []).map(d3 => new Date(d3 + 'T12:00:00').getTime()).sort((a2, b2) => a2 - b2);
+    for (let i2 = 0; i2 + 2 < bd.length; i2++) if (bd[i2 + 2] - bd[i2] <= 15 * 86400000) { cluster = true; break; }
+    if (cluster) { pill('👔', 'CLUSTER de compras insider', 'var(--green)', '3+ filings con compras (P) en ≤15 días — la señal insider con mayor respaldo académico (~2× más informativa que compras sueltas; Cohen-Malloy-Pomorski 2012)'); verdes += 2; }
+    else if (insd.buys > insd.sells) { pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--green)', 'Insiders netos COMPRADORES (90d, SEC Form 4)' + (insd.buyUsd >= 1e6 ? ' · $' + (insd.buyUsd / 1e6).toFixed(1) + 'M comprados' : '')); verdes++; }
+    else pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--text3)', 'Insiders netos vendedores — lo NORMAL en large caps (compensación en acciones); solo el cluster de compras es señal fuerte');
+  }
+  const s3 = statsD;
+  if (s3?.shortFloat != null && s3.shortFloat >= 15) pill('🔥', 'Short float ' + s3.shortFloat.toFixed(0) + '%', 'var(--amber)', 'Terreno de SQUEEZE: alto interés corto — cualquier catalizador alcista obliga a los cortos a comprar; volatilidad extra en ambas direcciones');
+  try {
+    const v3 = CandidatasHoy.regimeVeto();
+    pill(v3.icon, 'Macro ' + (v3.level === 'ok' ? 'OK' : v3.level === 'warn' ? 'selectivo' : 'VETO'), v3.col, v3.txt);
+    if (v3.level === 'block') rojas += 2;
+  } catch (e3) {}
+  return { verdes, rojas, pills };
+}
+
+// ══ MOTOR v2 · candScore — score compuesto 0-100 de candidata (blueprint 2026-07-11) ══
+// Fuerza 25 · Tendencia 20 · Acumulación 15 · CALIDAD DE ENTRADA 25 · Semáforo 15.
+// La entrada y el flujo institucional dejan de ser decoración: ENTRAN al ranking.
+function candScore(row, zona, sema) {
+  let s = 0;
+  // Fuerza relativa (25)
+  s += 0.15 * (row.rs || 0) + 0.10 * (row.mom || 0);
+  if (row.rsLinePctl != null && row.rsLinePctl >= 95) s += 3;
+  // Tendencia/calidad (20)
+  if (row.tpl) s += row.tpl.passed / 8 * 14;
+  if (row.q && row.q.alpha > 5 && row.q.r2 >= 0.3) s += 6;
+  // Acumulación (15)
+  const adPts = { A: 9, B: 7, C: 4, D: 2, E: 0 }[row.ad?.letter] || 0;
+  s += adPts + (row.pp ? 3 : 0) + (row.ud >= 1.5 ? 3 : row.ud >= 1.2 ? 2 : 0);
+  // Calidad de entrada (25) — zona A soporte del motor de niveles
+  if (zona) {
+    s += Math.min(zona.score, 6) / 6 * 18;
+    const enZona = zona.enZona;
+    if (enZona) s += 7; else if (Math.abs(zona.dist) <= 3) s += 4;
+  }
+  // Semáforo institucional (15)
+  if (sema) s += Math.max(0, Math.min(sema.verdes - sema.rojas, 5)) / 5 * 15;
+  return Math.round(Math.min(s, 100));
+}
+
 // ══ CRYPTO · routing de opciones: BTC-USD/ETH-USD → Deribit (?src=optc), resto → CBOE ══
 function instOptFetch(tk) {
   const m = /^(BTC|ETH)-USD$/i.exec(tk);
@@ -9594,89 +9671,49 @@ const InstDeep = {
     parts.push('<div class="mono" style="font-size:16px;color:var(--text);margin-bottom:10px"><b style="font-size:19px">' + escHtml(tk) + '</b> $' + spot.toFixed(2)
       + (dU.chg1d != null ? ' · 1D <span style="color:' + (dU.chg1d >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dU.chg1d >= 0 ? '+' : '') + dU.chg1d + '%</span>' : '')
       + (dU.ytd != null ? ' <span style="font-size:12px;color:var(--text3)">· YTD ' + (dU.ytd >= 0 ? '+' : '') + dU.ytd + '%</span>' : '') + '</div>');
-    // ── E3 · SEMÁFORO: ¿las instituciones están entrando? + MODO de entrada ──
+    // ── E3 · SEMÁFORO (motor v2: semaphoreSignals = función PURA compartida con el embudo) ──
     try {
-      const pills = [];
-      const pill = (icon, lbl, col, tip) => pills.push('<span class="mono" style="font-size:11px;padding:5px 13px;border-radius:11px;border:1px solid ' + col + ';color:' + col + ';background:rgba(0,0,0,.18);cursor:default" title="' + tip.replace(/"/g, '&quot;') + '">' + icon + ' ' + lbl + '</span>');
-      let verdes = 0, rojas = 0;
+      const sig = semaphoreSignals(tk, dU, opt, ats?.data?.[tk], st?.data?.[tk], (ins && !ins.error) ? ins : null);
+      let verdes = sig.verdes, rojas = sig.rojas;
+      const pillsArr = [...sig.pills];
       if (opt && !opt.error) {
-        // MODO de entrada: el régimen gamma condiciona CÓMO se opera la zona (regla 9 metodología)
-        const modoRev = opt.gexTotalBn > 0 && (opt.gammaFlip == null || spot >= opt.gammaFlip);
-        if (modoRev) pill('🧭', 'MODO REVERSIÓN', 'var(--green)', 'Gamma positiva y precio sobre el flip: los dealers ESTABILIZAN (compran dips, venden rallies) — comprar zonas soporte funciona, fadear extremos OK');
-        else pill('🧭', 'MODO RUPTURA', 'var(--amber)', 'Gamma negativa o precio bajo el flip: los dealers AMPLIFICAN el movimiento — NO fadear zonas; operar rupturas con confirmación y sizing reducido');
-        const dex = opt.dexTotalBn;
-        if (dex > 0.05) { pill('🛡', 'DEX +' + dex + 'bn', 'var(--green)', 'Delta-dollars POSITIVOS: cuanto más caiga el precio, más deben COMPRAR los market makers — red de seguridad mecánica ("largos de delta")'); verdes++; }
-        else if (dex < -0.05) { pill('🛡', 'DEX ' + dex + 'bn', 'var(--red)', 'Delta-dollars NEGATIVOS: los dealers venden rebotes — sin red de seguridad'); rojas++; }
-        else pill('🛡', 'DEX ~0', 'var(--text3)', 'Delta neutro: nadie obligado a defender — "cambio de manos" (ni presión compradora ni vendedora del MM)');
         const ivr = this._ivRank(tk, opt.ivAtm);
-        if (ivr) pill('💨', ivr.txt, ivr.col, ivr.tip);
-        // ── píldoras CRYPTO (Deribit + Binance + alternative.me) ──
+        if (ivr) pillsArr.push({ icon: '💨', lbl: ivr.txt, col: ivr.col, tip: ivr.tip });
+        // ── píldoras CRYPTO (Deribit + OKX + alternative.me) ──
         if (opt.crypto) {
           const f2 = opt.crypto.funding;
           if (f2 != null) {
-            if (f2 >= 0.03) { pill('⚡', 'Funding ' + f2 + '%/8h', 'var(--amber)', 'Funding ALTO: los largos apalancados pagan caro por mantener posición — mercado caliente, vulnerable a long squeeze'); rojas++; }
-            else if (f2 <= -0.005) { pill('⚡', 'Funding ' + f2 + '%/8h', 'var(--green)', 'Funding NEGATIVO: los cortos pagan — posicionamiento bajista pagando por sostenerse = combustible contrarian alcista'); verdes++; }
-            else pill('⚡', 'Funding ' + f2 + '%/8h', 'var(--text3)', 'Funding en rango normal (~0.01%/8h) — apalancamiento equilibrado');
+            if (f2 >= 0.03) { pillsArr.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--amber)', tip: 'Funding ALTO: los largos apalancados pagan caro por mantener posición — mercado caliente, vulnerable a long squeeze' }); rojas++; }
+            else if (f2 <= -0.005) { pillsArr.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--green)', tip: 'Funding NEGATIVO: los cortos pagan — posicionamiento bajista pagando por sostenerse = combustible contrarian alcista' }); verdes++; }
+            else pillsArr.push({ icon: '⚡', lbl: 'Funding ' + f2 + '%/8h', col: 'var(--text3)', tip: 'Funding en rango normal (~0.01%/8h) — apalancamiento equilibrado' });
           }
           const fgv = opt.crypto.fearGreed;
           if (fgv) {
-            if (fgv.v <= 25) { pill('😱', 'F&G ' + fgv.v + ' ' + fgv.txt, 'var(--green)', 'Fear & Greed en MIEDO: históricamente zona de acumulación contrarian (comprar miedo, vender codicia)'); verdes++; }
-            else if (fgv.v >= 75) { pill('🤑', 'F&G ' + fgv.v + ' ' + fgv.txt, 'var(--amber)', 'Fear & Greed en CODICIA extrema: zona de distribución — cautela con nuevas entradas'); rojas++; }
-            else pill('😐', 'F&G ' + fgv.v, 'var(--text3)', 'Fear & Greed neutral (' + fgv.txt + ')');
+            if (fgv.v <= 25) { pillsArr.push({ icon: '😱', lbl: 'F&G ' + fgv.v + ' ' + fgv.txt, col: 'var(--green)', tip: 'Fear & Greed en MIEDO: históricamente zona de acumulación contrarian (comprar miedo, vender codicia)' }); verdes++; }
+            else if (fgv.v >= 75) { pillsArr.push({ icon: '🤑', lbl: 'F&G ' + fgv.v + ' ' + fgv.txt, col: 'var(--amber)', tip: 'Fear & Greed en CODICIA extrema: zona de distribución — cautela con nuevas entradas' }); rojas++; }
+            else pillsArr.push({ icon: '😐', lbl: 'F&G ' + fgv.v, col: 'var(--text3)', tip: 'Fear & Greed neutral (' + fgv.txt + ')' });
           }
-          if (/^BTC/.test(tk)) { // COT de futuros BTC CME (ya lo descargamos para el Tab 01)
+          if (/^BTC/.test(tk)) {
             try {
               const cot2 = await jf('/api/capital?src=cot');
               const btc2 = cot2?.mkts?.find(m2 => m2.code === '133741');
               if (btc2 && !btc2.error) {
                 const p2 = btc2.pctil3y;
-                if (p2 >= 90) { pill('🏦', 'COT BTC p' + p2, 'var(--red)', 'Especuladores de futuros BTC en percentil ' + p2 + ' de 3 años = CROWDED LONG — posicionamiento saturado, contrarian bajista'); rojas++; }
-                else if (p2 <= 10) { pill('🏦', 'COT BTC p' + p2, 'var(--green)', 'Especuladores en percentil ' + p2 + ' = crowded short — combustible de squeeze alcista'); verdes++; }
-                else pill('🏦', 'COT BTC p' + p2, 'var(--text3)', 'Posicionamiento de especuladores en futuros BTC CME: percentil ' + p2 + ' de 3 años, sin extremo');
+                if (p2 >= 90) { pillsArr.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--red)', tip: 'Especuladores de futuros BTC en percentil ' + p2 + ' de 3 años = CROWDED LONG — posicionamiento saturado, contrarian bajista' }); rojas++; }
+                else if (p2 <= 10) { pillsArr.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--green)', tip: 'Especuladores en percentil ' + p2 + ' = crowded short — combustible de squeeze alcista' }); verdes++; }
+                else pillsArr.push({ icon: '🏦', lbl: 'COT BTC p' + p2, col: 'var(--text3)', tip: 'Posicionamiento de especuladores en futuros BTC CME: percentil ' + p2 + ' de 3 años, sin extremo' });
               }
             } catch (e4) {}
           }
         }
       }
-      const ud = computeUpDownRatio(dU.hist, dU.vols, 50);
-      if (ud != null) {
-        const ad = adLetterFromRatio(ud);
-        pill('📊', 'U/D ' + ud.toFixed(2) + ' · A/D ' + ad.letter, ad.col, 'Up/Down volume ratio 50d — la acumulación visible en el tape: volumen de días alcistas vs bajistas. ≥1.25 (letra B o mejor) = acumulación');
-        if (ud >= 1.25) verdes++; else if (ud < 0.9) rojas++;
-      }
-      const dpd = ats?.data?.[tk];
-      if (dpd && !dpd.error && dpd.weeks?.length >= 2) {
-        const dps = dpd.weeks.slice(-4).map(w => { const t2 = weekVolOf(dU, w.week); return t2 ? w.ats / t2 * 100 : null; }).filter(v2 => v2 != null);
-        if (dps.length >= 2) {
-          const cur2 = dps[dps.length - 1], base2 = dps.slice(0, -1).reduce((a2, b2) => a2 + b2, 0) / (dps.length - 1);
-          const chg4w = dU.hist.length > 21 ? (dU.hist[dU.hist.length - 1] / dU.hist[dU.hist.length - 21] - 1) * 100 : null;
-          if (cur2 > base2 * 1.15 && chg4w != null && Math.abs(chg4w) < 4) { pill('🕶', 'DP ' + cur2.toFixed(0) + '%↑ + precio plano', 'var(--green)', 'Dark pools subiendo (' + base2.toFixed(0) + '%→' + cur2.toFixed(0) + '%) con precio lateral = patrón de ACUMULACIÓN silenciosa (absorción Wyckoff) · dato con lag 2-3 sem'); verdes++; }
-          else if (cur2 > base2 * 1.15) pill('🕶', 'DP ' + cur2.toFixed(0) + '%↑', 'var(--amber)', 'Dark pools sobre su promedio de 3 semanas — actividad oculta inusual, NO direccional por sí sola · lag 2-3 sem');
-          else pill('🕶', 'DP ' + cur2.toFixed(0) + '%', 'var(--text3)', 'Dark pools en rango normal vs su propio historial · lag 2-3 sem');
-        }
-      }
-      const insd = (ins && !ins.error) ? ins : null;
-      if (insd && (insd.buys || insd.sells)) {
-        let cluster = false;
-        const bd = (insd.buyDates || []).map(d3 => new Date(d3 + 'T12:00:00').getTime()).sort((a2, b2) => a2 - b2);
-        for (let i2 = 0; i2 + 2 < bd.length; i2++) if (bd[i2 + 2] - bd[i2] <= 15 * 86400000) { cluster = true; break; }
-        if (cluster) { pill('👔', 'CLUSTER de compras insider', 'var(--green)', '3+ filings con compras (P) en ≤15 días — la señal insider con mayor respaldo académico (~2× más informativa que compras sueltas; Cohen-Malloy-Pomorski 2012)'); verdes += 2; }
-        else if (insd.buys > insd.sells) { pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--green)', 'Insiders netos COMPRADORES (90d, SEC Form 4)' + (insd.buyUsd >= 1e6 ? ' · $' + (insd.buyUsd / 1e6).toFixed(1) + 'M comprados' : '')); verdes++; }
-        else pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--text3)', 'Insiders netos vendedores — lo NORMAL en large caps (compensación en acciones); solo el cluster de compras es señal fuerte');
-      }
-      const s3 = st?.data?.[tk];
-      if (s3?.shortFloat != null && s3.shortFloat >= 15) pill('🔥', 'Short float ' + s3.shortFloat.toFixed(0) + '%', 'var(--amber)', 'Terreno de SQUEEZE: alto interés corto — cualquier catalizador alcista obliga a los cortos a comprar; volatilidad extra en ambas direcciones');
-      try {
-        const v3 = CandidatasHoy.regimeVeto();
-        pill(v3.icon, 'Macro ' + (v3.level === 'ok' ? 'OK' : v3.level === 'warn' ? 'selectivo' : 'VETO'), v3.col, v3.txt);
-        if (v3.level === 'block') rojas += 2;
-      } catch (e3) {}
+      const pillH = p => '<span class="mono" style="font-size:11px;padding:5px 13px;border-radius:11px;border:1px solid ' + p.col + ';color:' + p.col + ';background:rgba(0,0,0,.18);cursor:default" title="' + p.tip.replace(/"/g, '&quot;') + '">' + p.icon + ' ' + p.lbl + '</span>';
       const ver2 = verdes >= 3 && rojas === 0 ? { t: '🟢 FLUJO ENTRANDO (' + verdes + ' señales a favor)', c: 'var(--green)' }
         : rojas >= 2 ? { t: '🔴 FLUJO EN CONTRA', c: 'var(--red)' }
         : { t: '🟡 MIXTO (' + verdes + ' a favor · ' + rojas + ' en contra)', c: 'var(--amber)' };
       parts.push('<div class="mono" style="font-size:11.5px;margin-top:8px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
         + '<span style="font-size:13px;font-weight:700;color:var(--text)">🏦 ¿INSTITUCIONES ENTRANDO?</span> <b style="font-size:14px;color:' + ver2.c + '">' + ver2.t + '</b>'
-        + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">' + pills.join('') + '</div>'
+        + '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:9px">' + pillsArr.map(pillH).join('') + '</div>'
         + '<div style="color:var(--text3);font-size:9.5px;margin-top:6px">Pasa el cursor por cada señal para su lectura · jerarquía de evidencia: cluster insider &gt; acumulación tape/dark pools &gt; contexto (IV, short float) · el MODO dicta cómo operar las zonas de abajo</div></div>');
     } catch (e) { /* el semáforo nunca rompe la radiografía */ }
     // ── 📐 niveles ──
@@ -9890,7 +9927,7 @@ const InstDeep = {
         if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones', 'd');
         if (opt.maxPain != null) add('Max pain', opt.maxPain, 'opciones', 'd', -0.5);
       }
-      return { zones: zoneEngine(lv, spot, dailyHist), spot };
+      return { zones: zoneEngine(lv, spot, dailyHist), spot, opt: (opt && !opt.error) ? opt : null };
     } catch (e) { return null; }
   },
   // E3 · IV rank con histórico local (patrón inst_walls_v1): 1 lectura/día por ticker,
@@ -10729,6 +10766,7 @@ const CapitalDrill = {
   _rowsTableHtml(rows, titulo, nota, eyeKey) {
     const fmtP = v => v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
     const hasSec = rows.some(r2 => r2.sec);
+    const hasScore = rows.some(r2 => r2.score != null); // MOTOR v2: solo candidatas traen score
     const rowsHtml = rows.map((r, idx) => {
       // 👁 solo en las filas graficadas (top-10); sincronizado con la leyenda del chart
       const oculto = eyeKey && RB_STATE[eyeKey]?.hidden?.has(r.tk);
@@ -10771,6 +10809,7 @@ const CapitalDrill = {
       return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
         + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + r.tk + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px" title="ETF(s) en flujo por los que entra al embudo">' + (r.sec || '—') + '</td>' : '')
+        + (hasScore ? (() => { const sc = r.score, scCol = sc == null ? 'var(--text3)' : sc >= 70 ? 'var(--green)' : sc >= 55 ? 'var(--amber)' : 'var(--text2)'; const det = sc == null ? '' : 'SCORE ' + sc + '/100 (motor v2): Fuerza 25 + Tendencia 20 + Acumulación 15 + Calidad de ENTRADA 25 + Semáforo institucional 15' + (r.zona ? ' · zona ' + r.zona.lo.toFixed(2) + '–' + r.zona.hi.toFixed(2) + ' (score ' + r.zona.score + (r.zona.enZona ? ', EN ZONA' : ', a ' + Math.abs(r.zona.dist) + '%') + ')' : ' · sin zona de entrada de calidad (pierde hasta 25 pts)') + (r.sema ? ' · semáforo ' + r.sema.verdes + '✓/' + r.sema.rojas + '✗' : ''); return '<td title="' + det + '"><b style="color:' + scCol + ';font-size:11px">' + (sc ?? '—') + '</b></td>'; })() : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'
         + '<td class="' + ((r.chg1d ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1d) + '</td>'
         + '<td class="' + ((r.chg1m ?? 0) >= 0 ? 'up' : 'down') + '">' + fmtP(r.chg1m) + '</td>'
@@ -10786,7 +10825,7 @@ const CapitalDrill = {
     return '<div class="lbl" style="margin-bottom:6px">' + titulo + '</div>'
       + '<div style="overflow-x:auto"><table class="drill-tbl">'
       + '<thead><tr>'
-      + '<th>TICKER</th>' + (hasSec ? '<th title="Via: ETF(s) en cuadrante Mejorando/Lider por los que la accion entra al embudo">VÍA</th>' : '') + '<th>PRECIO</th><th>1D%</th><th>1M%</th>'
+      + '<th>TICKER</th>' + (hasSec ? '<th title="Via: ETF(s) en cuadrante Mejorando/Lider por los que la accion entra al embudo · ⚡élite = entra por RS≥90 y MOM≥90 aunque su sector no esté en flujo (motor v2)">VÍA</th>' : '') + (hasScore ? '<th title="SCORE compuesto 0-100 (MOTOR v2): Fuerza relativa 25 · Tendencia 20 · Acumulación 15 · Calidad de ENTRADA 25 (zona del Tab 09 + estar en/cerca de ella) · Semáforo institucional 15 (verdes−rojas). Ordena el ranking — la entrada y el flujo institucional ya no son decoración">SCORE</th>' : '') + '<th>PRECIO</th><th>1D%</th><th>1M%</th>'
       + '<th title="RS: percentil de momentum ponderado 40/20/20/20 (formula IBD) vs universo LOCAL de ~114 holdings sectoriales — NO equivale al RS Rating de IBD (~6000 acciones). 80+ = elite del universo local">RS RATING</th>'
       + '<th title="MOM 2.0 (FASE 1): percentil del momentum 6m+12m con skip-month AJUSTADO POR VOLATILIDAD (metodologia MTUM/MSCI) vs el mismo universo. Castiga retornos fragiles de alta vol que el RS crudo premia">MOM</th>'
       + '<th title="Up/Down Volume Ratio 50d (IBD): >1 demanda neta · >=2 patrocinio institucional. El 1.5 del badge es umbral propio conservador, no estandar IBD">U/D 50d</th>'
@@ -10972,19 +11011,64 @@ const CandidatasHoy = {
         if (row) seen.set(tk, { row, vias: [f.tk] });
       }
     }
+    // 2b · MOTOR v2 — vía élite ⚡: lo mejor absoluto del universo entra AUNQUE su sector no esté
+    // en flujo (arregla el límite L3: RS 95 + MOM 95 en sector rezagado antes era invisible).
+    // Los gates del paso 3 les aplican igual — la vía solo abre la puerta, no regala el pase.
+    for (const tk of Object.keys(CapitalDrill.universe || {})) {
+      if (seen.has(tk)) continue;
+      if ((CapitalDrill.rsPct?.[tk] ?? 0) >= 90 && (CapitalDrill.momPct?.[tk] ?? 0) >= 90) {
+        const row = CapitalDrill.stockRow(tk);
+        if (row) seen.set(tk, { row, vias: ['⚡élite'], viaKind: 'elite' });
+      }
+    }
     // 3 · embudo
     const P = this.PASS;
     const cands = [];
-    for (const [tk, { row, vias }] of seen) {
+    for (const [tk, { row, vias, viaKind }] of seen) {
       if (row.rs == null || row.rs < P.rs) continue;
       if (!row.tpl || row.tpl.passed < P.tpl) continue;
       const acum = (row.ud != null && row.ud >= P.ud) || row.ad.letter === 'A' || row.ad.letter === 'B';
       if (!acum) continue;
       if (row.dist52 != null && row.dist52 < P.dist) continue;
       row.sec = vias.slice(0, 3).join('+');
+      row.viaKind = viaKind || 'flujo';
       cands.push(row);
     }
-    cands.sort((a, b) => (b.rs ?? 0) - (a.rs ?? 0) || (b.tpl?.passed ?? 0) - (a.tpl?.passed ?? 0) || (b.ud ?? 0) - (a.ud ?? 0) || (b.mom ?? 0) - (a.mom ?? 0)); // FASE 1: MOM vol-adjusted como 4º desempate
+    cands.sort((a, b) => (b.rs ?? 0) - (a.rs ?? 0) || (b.tpl?.passed ?? 0) - (a.tpl?.passed ?? 0) || (b.ud ?? 0) - (a.ud ?? 0) || (b.mom ?? 0) - (a.mom ?? 0)); // pre-orden clásico: decide a quién enriquecer
+    // 4 · MOTOR v2 — zona + semáforo + candScore SOLO sobre los supervivientes (≤12, riesgo R3:
+    // nunca sobre 185). La entrada y el flujo institucional dejan de ser chips decorativos: RANKEAN.
+    try {
+      if (cands.length) {
+        const topv2 = cands.slice(0, 12);
+        const jf2 = u => fetch(u).then(r2 => r2.json()).catch(() => null);
+        const tks2 = topv2.map(r2 => r2.tk);
+        const statsPs = [];
+        for (let i2 = 0; i2 < tks2.length; i2 += 5) statsPs.push(jf2('/api/capital?src=stats&tickers=' + tks2.slice(i2, i2 + 5).join(','))); // ≤5/req
+        const [atsR, statsRs, insRs] = await Promise.all([
+          jf2('/api/capital?src=ats&tickers=' + tks2.slice(0, 10).join(',')), // ≤10/req
+          Promise.all(statsPs),
+          Promise.all(tks2.map(t2 => jf2('/api/capital?src=insiders&tickers=' + t2))) // 1/tk, cache CDN 12h
+        ]);
+        const statsMap = {}; statsRs.forEach(s2 => Object.assign(statsMap, s2?.data || {}));
+        const zMap = {};
+        for (let i2 = 0; i2 < topv2.length; i2 += 4) { // zonas en tandas de 4 (cada una = 2 fetches cacheados)
+          await Promise.all(topv2.slice(i2, i2 + 4).map(async r2 => {
+            const dU2 = CapitalDrill.universe[r2.tk];
+            if (dU2?.hist?.length) zMap[r2.tk] = await InstDeep.zonesFor(r2.tk, dU2.hist, dU2.vols, dU2.dates);
+          }));
+        }
+        topv2.forEach((row, i2) => {
+          const zf = zMap[row.tk];
+          const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
+          if (zA) row.zona = { lo: zA.lo, hi: zA.hi, score: zA.score, dist: zA.dist, labels: zA.labels, enZona: zf.spot >= zA.lo && zf.spot <= zA.hi };
+          const dU2 = CapitalDrill.universe[row.tk];
+          row.sema = (() => { const s4 = semaphoreSignals(row.tk, dU2, zf?.opt || null, atsR?.data?.[row.tk], statsMap[row.tk], (insRs[i2] && !insRs[i2].error) ? insRs[i2] : null); return { verdes: s4.verdes, rojas: s4.rojas }; })();
+          row.score = candScore(row, row.zona || null, row.sema);
+        });
+        for (const row of cands) if (row.score == null) row.score = candScore(row, null, null); // >12: score sin capa institucional
+        cands.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || (b.rs ?? 0) - (a.rs ?? 0) || (b.zona?.score ?? 0) - (a.zona?.score ?? 0) || (b.mom ?? 0) - (a.mom ?? 0));
+      }
+    } catch (e) { console.warn('[motor v2]', e.message); /* si la capa v2 falla, el pre-orden clásico ya está aplicado */ }
     const result = { cands, evaluated: seen.size, flows, veto: this.regimeVeto() };
     this.cache = result; this.lastRun = Date.now();
     this.render(result);
@@ -11095,8 +11179,11 @@ const CandidatasHoy = {
       }
       if (zs.length) zonas = zs;
     } catch (e) { /* sin zonas — el snapshot sale igual */ }
+    // MOTOR v2 (2026-07-11): v:3 + motor:'v2' = CORTE del experimento. Los rs/mom siguen siendo
+    // percentiles del mismo universo 185 (comparables), pero el ranking cambió (candScore) —
+    // la auditoría DEBE segmentar por `motor` al comparar hit-rates (riesgo R1 del blueprint).
     const snap = {
-      date: today, ts: Date.now(), v: 2, lideres, inst, zonas,
+      date: today, ts: Date.now(), v: 3, motor: 'v2', lideres, inst, zonas,
       hero: document.getElementById('diag-score-total')?.textContent?.trim() || null,
       postura: document.getElementById('hero-postura')?.textContent?.trim() || null,
       quad: window.__quad ? { q: window.__quad.quad, conf: +window.__quad.conf.toFixed(1) } : null,
@@ -11104,7 +11191,8 @@ const CandidatasHoy = {
       gli: document.getElementById('gli-score')?.textContent?.trim() || null,
       spy: state.data.prices?.SPY?.price ?? null,
       sectores, // top scanner del día — habilita auditar el scanner sectorial a futuro
-      candidatas: r.cands.slice(0, 15).map(c => ({ tk: c.tk, via: c.sec || null, price: c.price, rs: c.rs, mom: c.mom, tpl: c.tpl?.passed ?? null, pp: !!c.pp }))
+      candidatas: r.cands.slice(0, 15).map(c => ({ tk: c.tk, via: c.sec || null, viaKind: c.viaKind || 'flujo', price: c.price, rs: c.rs, mom: c.mom, tpl: c.tpl?.passed ?? null, pp: !!c.pp,
+        score: c.score ?? null, zonaScore: c.zona?.score ?? null, enZona: c.zona?.enZona ?? null, sema: c.sema ? c.sema.verdes + '/' + c.sema.rojas : null })) // MOTOR v2: audita si el score predice
     };
     try {
       const resp = await fetch('/api/capital?src=track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(snap) }).then(x => x.json());
@@ -11137,19 +11225,14 @@ const CandidatasHoy = {
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME (FINRA Reg SHO, archivo ' + d.file + '): ' + d.ratio + '% del volumen del día fue venta corta (' + (d.shortVol/1e6).toFixed(1) + 'M de ' + (d.totalVol/1e6).toFixed(1) + 'M). >55% presión corta elevada · <40% baja — umbrales PROVISIONALES (el ~45% es normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
       });
     } catch (e) {}
-    // 1c · E4: distancia a la mejor ZONA DE ENTRADA (motor v2) — top 5, secuencial suave.
-    // El embudo dice QUÉ; esto dice A CUÁNTO ESTÁ el precio del DÓNDE.
+    // 1c · MOTOR v2: chip 🎯 desde row.zona (ya computada por el pipeline del scan — R6: cero
+    // fetch duplicado). El embudo dice QUÉ; esto dice A CUÁNTO ESTÁ el precio del DÓNDE.
     try {
-      for (const tk of tks.slice(0, 5)) {
-        if (gen !== this._gen) return;
-        const dU2 = CapitalDrill.universe[tk];
-        if (!dU2?.hist?.length) continue;
-        const zf = await InstDeep.zonesFor(tk, dU2.hist, dU2.vols, dU2.dates);
-        const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
+      for (const row of cands) {
+        const zA = row.zona;
         if (!zA) continue; // sin zona de calidad = sin chip (honesto)
-        const enZona = zf.spot >= zA.lo && zf.spot <= zA.hi;
-        const col = enZona ? 'var(--green)' : Math.abs(zA.dist) <= 3 ? 'var(--amber)' : 'var(--text3)';
-        chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="ZONA DE ENTRADA (motor v2, Tab 09): ' + zA.lo.toFixed(2) + (zA.hi > zA.lo * 1.0005 ? '–' + zA.hi.toFixed(2) : '') + ' · score ' + zA.score + ' · ' + zA.labels.join(' + ') + (enZona ? ' — EL PRECIO ESTÁ DENTRO de la zona ahora' : ' — a ' + Math.abs(zA.dist) + '% del precio') + '. Click en 🏛 para el mapa completo">🎯' + (enZona ? 'EN ZONA' : zA.dist + '%') + '</span>');
+        const col = zA.enZona ? 'var(--green)' : Math.abs(zA.dist) <= 3 ? 'var(--amber)' : 'var(--text3)';
+        chip(row.tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="ZONA DE ENTRADA (motor v2, Tab 09): ' + zA.lo.toFixed(2) + (zA.hi > zA.lo * 1.0005 ? '–' + zA.hi.toFixed(2) : '') + ' · score ' + zA.score + ' · ' + zA.labels.join(' + ') + (zA.enZona ? ' — EL PRECIO ESTÁ DENTRO de la zona ahora' : ' — a ' + Math.abs(zA.dist) + '% del precio') + '. Ya cuenta en el SCORE (Calidad de entrada, 25 pts). Click en 🏛 para el mapa completo">🎯' + (zA.enZona ? 'EN ZONA' : zA.dist + '%') + '</span>');
       }
     } catch (e) {}
     // 2 · Earnings (1 llamada; requiere FINNHUB_KEY en Vercel — falla silenciosa si no está)
