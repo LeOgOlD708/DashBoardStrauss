@@ -2793,6 +2793,16 @@ html.auth-ok #auth-gate{display:none}
     <div id="instd-body"><div class="mono" style="font-size:10px;color:var(--text3);padding:6px 0">La radiografía del activo aparece aquí al analizar: perfil de volumen con POC/Value Area, AVWAPs, niveles ordenados por cercanía, dark pools semana a semana y ownership institucional.</div></div>
   </div>
 
+  <!-- ── E4 FLUJO (2026-07-11) · Radar de Anticipación ── -->
+  <div class="sh"><div class="sh-tag">Radar</div><div class="sh-title">Radar de Anticipación — ¿dónde está entrando dinero HOY?</div><button class="glossary-btn" onclick="openGlossary('radar-anticipacion')" title="¿Cómo se lee el radar?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card" style="border-color:rgba(167,139,250,.25);margin-bottom:14px"><div class="card-accent" style="background:var(--purple)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <span class="mono" style="font-size:10px;color:var(--purple);letter-spacing:.06em">📡 SEÑALES DE ≤1 DÍA DE LATENCIA SOBRE LAS CANDIDATAS DEL ÚLTIMO SNAPSHOT — CADA SCAN QUEDA REGISTRADO COMO PREDICCIÓN AUDITABLE</span>
+      <button type="button" onclick="RadarFlujo.scan()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--purple);color:var(--purple);background:rgba(167,139,250,.08)">📡 ESCANEAR FLUJO</button>
+    </div>
+    <div id="radar-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">El radar responde la pregunta opuesta al embudo: el embudo rankea lo que YA es fuerte (RS/momentum = rezagado por construcción); el radar busca dónde está entrando dinero HOY (prima de opciones, aperturas vol&gt;OI, ΔOI overnight, volumen anómalo, dark pools) ANTES de que el RS lo capture. Score OBSERVACIONAL: no toca el motor — primero debe ganarse su lugar demostrando hit-rate con registros propios.</div>
+  </div>
+
   <!-- ── E5 · Auditoría de fiabilidad de zonas ── -->
   <div class="sh"><div class="sh-tag">Fiabilidad</div><div class="sh-title">Auditoría de Zonas — ¿los niveles del motor aguantan de verdad?</div><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
@@ -9601,6 +9611,150 @@ const InstPanel = {
   }
 };
 
+// ══ E4 FLUJO (2026-07-11) · RadarFlujo — ¿dónde está entrando dinero HOY? ══
+// Señales de ≤1 día de latencia (prima, aperturas vol>OI, ΔOI, z-vol, dark pools) sobre las
+// candidatas del último snapshot. OBSERVACIONAL: score propio, registro auditable (radar_v1),
+// NO toca candScore/semáforo — primero debe demostrar hit-rate con datos propios (regla de la casa).
+const RadarFlujo = {
+  _busy: false, _snapDate: null,
+  async _tickers() {
+    let tks = [];
+    try {
+      const l = await fetch('/api/capital?src=tracklist').then(r => r.json());
+      const last = (l.dates || []).slice(-1)[0];
+      if (last) {
+        const snap = await fetch('/api/capital?src=trackget&date=' + last).then(r => r.json());
+        tks = (snap.candidatas || []).map(c => c.tk).filter(Boolean).slice(0, 8);
+        this._snapDate = last;
+      }
+    } catch (e) { /* sin token/snapshot → solo el ticker analizado */ }
+    const cur = InstPanel._cur;
+    if (cur && !tks.includes(cur)) tks.unshift(cur);
+    return [...new Set(tks)].filter(t => !/-USD$/.test(t)).slice(0, 10); // crypto fuera (Deribit sin volTotal)
+  },
+  // z-score del volumen de HOY vs 50 sesiones previas (volumen inesperado — el componente
+  // del HVRP que sobrevive; el nivel crudo decayó post-2000)
+  _zvol(vols) {
+    if (!vols || vols.length < 30) return null;
+    const cur = vols[vols.length - 1], prev = vols.slice(-51, -1).filter(v => v > 0);
+    if (!prev.length || !(cur > 0)) return null;
+    const mu = prev.reduce((a, b) => a + b, 0) / prev.length;
+    const sd = Math.sqrt(prev.reduce((a, b) => a + (b - mu) * (b - mu), 0) / prev.length);
+    return sd > 0 ? (cur - mu) / sd : null;
+  },
+  _score(c) {
+    let pts = 0;
+    pts += Math.max(0, Math.min(25, 12.5 + 12.5 * c.sesgo));               // prima neta (dirección del $ de hoy)
+    pts += Math.min(c.apertN, 5) * 2;                                      // aperturas nuevas vol>OI (magnitud)
+    pts += c.osRank == null ? 7.5 : Math.max(0, Math.min(15, 7.5 + (c.osRank - 0.5) * 15 * (c.sesgo >= 0 ? 1 : -1))); // O/S dirigido por la prima
+    pts += c.zvol == null ? 0 : c.zvol >= 3 ? 15 : c.zvol >= 2 ? 12 : c.zvol >= 1 ? 7 : c.zvol >= 0.5 ? 4 : 0;       // volumen inesperado
+    pts += c.doiNorm == null ? 0 : Math.max(0, Math.min(20, 10 + 10 * Math.max(-1, Math.min(1, c.doiNorm * 20))));    // ΔOI overnight (la señal limpia)
+    pts += (c.dpRise ? 8 : 0) + (c.tsUp ? 7 : 0);                          // dark pools: actividad + tamaño de bloque
+    return Math.round(pts);
+  },
+  _register(rows) {
+    try { // 1 registro/día/ticker, first-write-wins (patrón inst_zonas_v1) → hit-rate futuro
+      const today = new Date().toISOString().slice(0, 10);
+      const all = JSON.parse(localStorage.getItem('radar_v1') || '[]');
+      let added = 0;
+      for (const r of rows) {
+        if (all.some(x => x.d === today && x.tk === r.tk)) continue;
+        all.push({ d: today, tk: r.tk, sc: r.score, px: r.px });
+        added++;
+      }
+      localStorage.setItem('radar_v1', JSON.stringify(all.slice(-500)));
+      return { total: all.length, added };
+    } catch (e) { return { total: 0, added: 0 }; }
+  },
+  async scan() {
+    if (this._busy) return;
+    this._busy = true;
+    const body = document.getElementById('radar-body');
+    try {
+      body.innerHTML = '<span style="color:var(--text3)">📡 Buscando candidatas del último snapshot…</span>';
+      const tks = await this._tickers();
+      if (!tks.length) { body.innerHTML = '<span style="color:var(--amber)">Sin tickers: no hay snapshot del embudo todavía — escanea en Tab 02 o analiza un ticker arriba.</span>'; return; }
+      body.innerHTML = '<span style="color:var(--text3)">📡 Escaneando flujo en ' + tks.join(', ') + '…</span>';
+      const [yh, ats] = await Promise.all([
+        fetch('/api/yahoo?tickers=' + tks.join(',') + '&range=1y').then(r => r.json()).catch(() => ({})),
+        fetch('/api/capital?src=ats&tickers=' + tks.join(',')).then(r => r.json()).catch(() => ({ data: {} }))
+      ]);
+      const opts = {};
+      for (let i = 0; i < tks.length; i += 3) // tandas de 3 — mismo trato amable que el pipeline del embudo
+        await Promise.all(tks.slice(i, i + 3).map(async tk => {
+          try { opts[tk] = await fetch('/api/capital?src=opt&tickers=' + tk).then(r => r.json()); } catch (e) { opts[tk] = { error: String(e) }; }
+        }));
+      const rows = [];
+      for (const tk of tks) {
+        const o = opts[tk], y = yh[tk];
+        if (!o || o.error || o.premCallsM == null) { rows.push({ tk, na: true, why: o?.error ? 'sin opciones' : 'server sin flujo aún' }); continue; }
+        const prevOI = InstPanel._oiHist(o); // registra la serie de OI del radar Y devuelve la lectura previa
+        let doiNorm = null, doiTxt = '1ª lectura';
+        if (prevOI) {
+          let dNet = 0, oiTot = 0;
+          for (const s of (o.strikes || [])) {
+            const p = prevOI.s[s.k];
+            oiTot += s.cOI + s.pOI;
+            if (p) dNet += (s.cOI - p[0]) - (s.pOI - p[1]);
+          }
+          doiNorm = oiTot > 0 ? dNet / oiTot : null;
+          doiTxt = doiNorm == null ? '—' : ((doiNorm >= 0 ? '+' : '') + (doiNorm * 100).toFixed(1) + '% vs ' + prevOI.d.slice(5));
+        }
+        const totPrem = o.premCallsM + o.premPutsM;
+        const sesgo = totPrem > 0 ? (o.premCallsM - o.premPutsM) / totPrem : 0;
+        const th = /^(QQQ|SPY|IWM|DIA)$/.test(tk) ? 1000 : 200;
+        const apertN = (o.strikes || []).filter(s => (s.cV > s.cOI && s.cV >= th) || (s.pV > s.pOI && s.pV >= th)).length;
+        const vols = y?.vols || [], stockVol = vols[vols.length - 1] || y?.regularMarketVolume || 0;
+        const os = stockVol > 0 && o.volTotal ? o.volTotal * 100 / stockVol : null; // contratos×100 acciones-equivalentes
+        const zvol = this._zvol(vols);
+        const a = ats.data?.[tk], wks = (a && !a.error) ? a.weeks : null;
+        let dpRise = null, tsUp = null, dpTxt = '—';
+        if (wks && wks.length >= 2) {
+          const lastW = wks[wks.length - 1], prevW = wks.slice(0, -1);
+          const avgAts = prevW.reduce((s2, w) => s2 + w.ats, 0) / prevW.length;
+          dpRise = avgAts > 0 && lastW.ats > avgAts * 1.15;
+          const ts = w => w.atsTrades > 0 ? w.ats / w.atsTrades : 0;
+          const avgTs = prevW.reduce((s2, w) => s2 + ts(w), 0) / prevW.length;
+          tsUp = avgTs > 0 && ts(lastW) > avgTs * 1.2;
+          dpTxt = (dpRise ? 'vol↑' : 'vol=') + ' ' + (tsUp ? 'bloque↑' : 'bloque=');
+        }
+        const c = { sesgo, apertN, osRank: null, zvol, doiNorm, dpRise, tsUp };
+        rows.push({ tk, c, os, sesgo, apertN, zvol, doiNorm, doiTxt, dpTxt, netPremM: o.netPremM, px: y?.price || o.spot });
+      }
+      const valid = rows.filter(r => !r.na);
+      const osSorted = valid.filter(r => r.os != null).map(r => r.os).sort((a, b) => a - b);
+      for (const r of valid) { // O/S: percentil DENTRO del set escaneado (cross-section honesto sin histórico)
+        if (r.os != null && osSorted.length > 1) r.c.osRank = osSorted.indexOf(r.os) / (osSorted.length - 1);
+        r.score = this._score(r.c);
+      }
+      valid.sort((a, b) => b.score - a.score);
+      const reg = this._register(valid);
+      const fS = v => v == null ? '—' : (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toFixed(1) + 'M';
+      body.innerHTML =
+        '<div style="margin-bottom:6px;color:var(--text3)">Set: candidatas del snapshot ' + (this._snapDate ? escHtml(this._snapDate) : '(sin snapshot)') + ' + ticker analizado · <b style="color:var(--purple)">' + reg.total + ' predicciones registradas</b>' + (reg.added ? ' (+' + reg.added + ' hoy)' : '') + ' — hit-rate evaluable con n≥20 y días forward</div>'
+        + '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px">'
+        + '<tr style="color:var(--text3);text-align:left"><th style="padding:3px 8px">TK</th><th title="Score de flujo temprano 0-100: prima 25 · ΔOI 20 · O/S 15 · z-vol 15 · dark pools 15 · aperturas 10">SCORE</th><th title="Prima negociada hoy: calls − puts (delayed 15m, sin clasificar agresor)">PRIMA NET</th><th title="ΔOI neto overnight normalizado por OI total — dónde se construyó posicionamiento; requiere lectura previa (el radar la registra en cada scan)">ΔOI</th><th title="Strikes con vol>OI hoy (posiciones NUEVAS)">APERT.</th><th title="O/S ratio: volumen de opciones (acciones-equiv.) ÷ volumen de la acción — actividad informada (Johnson-So 2012); percentil dentro del set">O/S</th><th title="z-score del volumen de la acción vs 50 sesiones — volumen inesperado">zVOL</th><th title="Dark pools FINRA (lag 2-4 sem): volumen ATS vs promedio · tamaño de bloque vs promedio">DP</th></tr>'
+        + valid.map(r => {
+          const col = r.score >= 65 ? 'var(--green)' : r.score >= 45 ? 'var(--amber)' : 'var(--text3)';
+          return '<tr style="border-top:1px solid var(--border2);cursor:pointer" onclick="InstTab.analyze(\'' + r.tk + '\')" title="Click → radiografía completa de ' + r.tk + '">'
+            + '<td style="padding:4px 8px"><b style="color:var(--text)">' + escHtml(r.tk) + '</b></td>'
+            + '<td><b style="color:' + col + '">' + r.score + '</b><span style="color:var(--text3)">/100</span></td>'
+            + '<td style="color:' + (r.netPremM >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fS(r.netPremM) + '</td>'
+            + '<td style="color:' + (r.doiNorm == null ? 'var(--text3)' : r.doiNorm >= 0 ? 'var(--green)' : 'var(--red)') + '">' + escHtml(r.doiTxt) + '</td>'
+            + '<td>' + r.apertN + '</td>'
+            + '<td>' + (r.os == null ? '—' : (r.os * 100 < 1 ? '<1' : Math.round(r.os * 100)) + '%') + '</td>'
+            + '<td style="color:' + (r.zvol >= 2 ? 'var(--green)' : 'var(--text2)') + '">' + (r.zvol == null ? '—' : r.zvol.toFixed(1) + 'σ') + '</td>'
+            + '<td style="color:var(--text2)">' + escHtml(r.dpTxt) + '</td></tr>';
+        }).join('')
+        + rows.filter(r => r.na).map(r => '<tr style="border-top:1px solid var(--border2);color:var(--text3)"><td style="padding:4px 8px">' + escHtml(r.tk) + '</td><td colspan="7">— ' + escHtml(r.why) + '</td></tr>').join('')
+        + '</table></div>'
+        + '<div style="margin-top:6px;font-size:9px;color:var(--text3)">Score PROVISIONAL (día 1 sin ΔOI ≈ máx 65) · el ΔOI aparece al re-escanear otro día · señales con evidencia: O/S (Johnson-So 2012, ~19%/año decil), ΔOI/P-C de OI (~12d, Zhou), z-vol solo como filtro (HVRP crudo decayó) · DIX evaluado y DESCARTADO con 15 años de data propia (muerto post-2021)</div>';
+    } catch (e) {
+      body.innerHTML = '<span style="color:var(--red)">⚠ Radar: ' + escHtml(e.message) + '</span>';
+    } finally { this._busy = false; }
+  }
+};
+
 // ══ MOTOR v2 · semaphoreSignals — el semáforo institucional como FUNCIÓN PURA (sin DOM) ══
 // Única fuente de verdad: la consumen el Tab 09 (pills) y el candScore del embudo.
 // Devuelve {verdes, rojas, pills[]}. Las señales crypto e IV-rank se agregan aparte (necesitan estado).
@@ -11885,6 +12039,14 @@ const INDICATORS_GLOSSARY = {
     interpret: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
     thresholds: [{ c: 'green', t: 'X>100 y Y>100 → Líder (el capital ESTÁ aquí)' }, { c: 'green', t: 'X<100 y Y>100 → Mejorando (el capital ENTRA)' }, { c: 'amber', t: 'X>100 y Y<100 → Debilitándose (el capital SALE)' }, { c: 'red', t: 'X<100 y Y<100 → Rezagado (capital ya salió)' }],
     note: 'La estela muestra 6 semanas. Señal integrada: se cruza con la fase Howell. HONESTIDAD METODOLÓGICA: es una aproximación NO propietaria del RRG de JdK/StockCharts (falta el escalado por desviación estándar y la normalización contra el universo) — interpretar SOLO el cuadrante y la dirección del giro, NO la distancia al centro ni comparar magnitudes entre sectores de distinta volatilidad.'
+  },
+  'radar-anticipacion': {
+    name: 'Radar de Anticipación (flujo temprano)', category: 'Institucional · Flujo',
+    source: { label: 'CBOE (prima/OI/volumen) + Yahoo (volumen acción) + FINRA ATS (dark pools) — señales de ≤1 día de latencia', url: 'https://www.cboe.com/delayed_quotes/', freq: 'On-demand (botón) · registra 1 predicción/día/ticker en tu navegador (radar_v1)' },
+    formula: 'Score 0-100: prima neta del día 25 pts · ΔOI overnight 20 · O/S ratio dirigido 15 · z-vol acción 15 · dark pools (actividad+tamaño de bloque) 15 · aperturas vol>OI 10. El set escaneado = candidatas del último snapshot + ticker analizado.',
+    interpret: 'El embudo (Tab 02) rankea lo que YA es fuerte — RS y momentum son rezagados por construcción. El radar busca la huella de dinero ENTRANDO HOY, antes de que el precio lo refleje. Evidencia por componente: O/S ratio (Johnson-So 2012, ~19%/año spread de deciles), P/C de OI anticipa ~12 días (Zhou), volumen inesperado como filtro (el HVRP crudo decayó post-2000), CFO/directores los insiders más informativos (Cohen-Malloy-Pomorski 2012).',
+    thresholds: [{ c: 'green', t: '≥65 — flujo entrante fuerte y coherente entre fuentes' }, { c: 'amber', t: '45-64 — señales mixtas o incompletas (día 1 sin ΔOI el máximo ronda 65)' }, { c: 'red', t: 'Score OBSERVACIONAL: no alimenta el motor de candidatas hasta demostrar hit-rate con n≥20 registros propios' }],
+    note: 'HONESTIDAD: cada scan registra sus scores como predicciones auditables (patrón de la Auditoría de Zonas) — el radar se gana su lugar en el motor solo si sus scores altos baten a los bajos en retorno forward. DIX de SqueezeMetrics fue evaluado con 15 años de data (2011-2026) y DESCARTADO: su poder predictivo murió post-2021 (spread de deciles negativo 2022-2026).'
   },
   'flujo-de-hoy': {
     name: 'Flujo de Hoy (prima + aperturas + ΔOI)', category: 'Institucional · Flujo',
