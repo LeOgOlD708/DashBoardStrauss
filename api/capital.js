@@ -9,6 +9,7 @@
 //   · ats:      dark pools por ticker (FINRA ATS weeklySummary, sin auth) — F-I3
 //   · cot:      posicionamiento futuros CFTC 8 mercados (Socrata, sin key) — F-I4
 //   · stats:    ownership institucional + short interest (stockanalysis) — F-I5
+//   · alerts:   alerta Telegram si el precio está/entró en zona del snapshot — E6 (cron 17:00 UTC)
 
 const SEC_UA = { 'User-Agent': 'DashBoardStrauss jssulopez@gmail.com' }; // SEC exige contacto; <10 req/s
 
@@ -489,6 +490,37 @@ async function ownStats(tickers) {
   return { data, errors };
 }
 
+// ── E6 · Alertas de ZONA por Telegram (cron mediodía, 2º y último cron del plan Hobby) ──
+// Lee las zonas del último snapshot (top-3 del embudo) y avisa si el precio ESTÁ o ENTRÓ
+// hoy en zona. Stateless: "entró hoy" = cierre previo FUERA (arriba) y precio actual dentro
+// — sin archivo de estado. Si no hay nada que avisar, no manda nada (cero spam).
+async function zoneAlerts() {
+  const l = await trackList();
+  if (!l.dates?.length) return { sent: false, reason: 'sin snapshots' };
+  const s = await trackGet(l.dates[l.dates.length - 1]);
+  const zonas = (s?.zonas || []).slice(0, 5);
+  if (!zonas.length) return { sent: false, reason: 'el snapshot no tiene zonas aún' };
+  const qs = await Promise.all(zonas.map(z => quoteMini(z.tk)));
+  const hits = [];
+  zonas.forEach((z, i) => {
+    const q = qs[i];
+    if (!q?.p) return;
+    const inZone = q.p >= z.lo && q.p <= z.hi;
+    if (!inZone) return;
+    // prev close desde chg: prev = p / (1 + chg/100). "Entró hoy" si venía de ARRIBA de la banda
+    const prev = q.chg != null ? q.p / (1 + q.chg / 100) : null;
+    const entered = prev != null && prev > z.hi;
+    hits.push('🎯 <b>' + z.tk + (entered ? ' ENTRÓ HOY' : ' EN ZONA') + '</b> ' + z.lo + '–' + z.hi
+      + ' (precio ' + q.p.toFixed(2) + ') · score ' + z.score + ' · ' + (z.comp || '').split('+').slice(0, 3).join('+'));
+  });
+  if (!hits.length) return { sent: false, reason: 'ninguna zona activa', checked: zonas.length };
+  await tgSend('⚡ <b>Alerta de zonas</b> · ' + new Date().toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' })
+    + '\n' + hits.join('\n')
+    + '\nZonas del embudo (snapshot ' + s.date + ') — contexto, no señal: tu price action decide el timing.'
+    + '\n<a href="https://dash-board-strauss.vercel.app/#act">Abrir dashboard</a>');
+  return { sent: true, hits: hits.length, ts: new Date().toISOString() };
+}
+
 // ── Finnhub: próxima fecha de earnings (free tier, 60 req/min) ──
 async function earnings(tickers) {
   const key = process.env.FINNHUB_KEY;
@@ -519,6 +551,14 @@ module.exports = async (req, res) => {
     if (src === 'cot') {
       const out = await cotPositioning();
       res.setHeader('Cache-Control', 's-maxage=21600, stale-while-revalidate=43200'); // 6h — publica viernes
+      return res.status(200).json(out);
+    }
+    if (src === 'alerts') {
+      // E6: mismo candado que digest — solo el cron de Vercel (o quien tenga el secret)
+      const sec = process.env.CRON_SECRET;
+      if (sec && req.headers.authorization !== 'Bearer ' + sec) return res.status(401).json({ error: 'no autorizado' });
+      const out = await zoneAlerts();
+      res.setHeader('Cache-Control', 'max-age=0, no-cache');
       return res.status(200).json(out);
     }
     if (src === 'digest') {
