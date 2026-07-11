@@ -182,6 +182,18 @@ nav{background:var(--surface);border-bottom:1px solid var(--border2);padding:0 2
 }
 @media(max-width:600px){.g4,.g3,.g2{grid-template-columns:1fr}}
 
+/* ── #19b · Tab 09 Institucional en móvil: charts más bajos, tipografía contenida,
+      buscador a ancho completo — todo lo demás ya hace flex-wrap ── */
+@media(max-width:640px){
+  #tab-inst .ch-wrap{height:250px!important}
+  #inst-strip{font-size:10px!important;line-height:1.7!important}
+  #instt-search{max-width:100%!important;font-size:12px!important}
+  #instt-vs{width:110px!important}
+  #instd-body{font-size:11px}
+  #instd-body canvas{max-width:100%}
+  #inst-compare table{font-size:10px!important}
+}
+
 /* ── CARDS ── */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:14px;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .25s}
 .card.gold-a{box-shadow:0 0 0 1px rgba(230,180,80,.05) inset}
@@ -2752,14 +2764,24 @@ html.auth-ok #auth-gate{display:none}
       <button type="button" onclick="InstTab.analyze('SPY')" class="rot-btn" style="color:var(--text2)">SPY</button>
       <button type="button" onclick="InstTab.analyze('BTC-USD')" class="rot-btn" style="color:#f7931a">₿ BTC</button>
       <button type="button" onclick="InstTab.analyze('ETH-USD')" class="rot-btn" style="color:#8a92b2">Ξ ETH</button>
+      <input id="instt-vs" placeholder="⚔ vs ticker…" onkeydown="if(event.key==='Enter')InstCompare.run(this.value)" title="Comparador: escribe un 2º ticker y Enter — lado a lado contra el activo analizado arriba" style="width:130px;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:8px 10px;outline:none">
     </div>
-    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px">Muros de gamma (CBOE) · perfil de volumen 60d + AVWAP (Yahoo intradía) · dark pools (FINRA) · ownership (stockanalysis) — todo gratis, oficial y por activo.</div>
+    <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px">Muros de gamma (CBOE) · perfil de volumen 60d + AVWAP (Yahoo intradía) · dark pools (FINRA) · ownership (stockanalysis) — todo gratis, oficial y por activo. El campo ⚔ compara el activo analizado contra otro, lado a lado.</div>
   </div>
+
+  <!-- ── #19c · Comparador lado a lado (se llena con InstCompare.run) ── -->
+  <div id="inst-compare" style="display:none;margin-bottom:14px"></div>
 
   <!-- ── Muros de gamma/OI del ticker analizado ── -->
   <div class="sh"><div class="sh-tag">Opciones</div><div class="sh-title">Muros de Gamma/OI — imanes, techos y pisos del precio</div><button class="glossary-btn" onclick="openGlossary('gex-oi-walls')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
-    <div class="mono" style="font-size:10.5px;color:var(--text3);margin-bottom:8px">GEX por strike (opciones CBOE, delayed 15 min, vencimientos ≤45d). Barras verdes = gamma de calls (frena/atrae) · rojas = de puts (soporte/acelerador).</div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <div class="mono" style="font-size:10.5px;color:var(--text3);flex:1;min-width:240px">GEX por strike (opciones CBOE, delayed 15 min). Barras verdes = gamma de calls (frena/atrae) · rojas = de puts (soporte/acelerador).</div>
+      <span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.08em">VENTANA:</span>
+      <button type="button" id="inst-exp-d" class="rot-btn" onclick="InstPanel.setExp('d')" title="SOLO la expiración más cercana: 0DTE en índices/ETFs con vencimientos diarios (SPY/QQQ/SPX), la weekly del viernes en acciones — los muros que mandan HOY">PRÓX EXP</button>
+      <button type="button" id="inst-exp-w" class="rot-btn" onclick="InstPanel.setExp('w')" title="Vencimientos ≤10 días — la estructura de la semana">≤10 DÍAS</button>
+      <button type="button" id="inst-exp-m" class="rot-btn" onclick="InstPanel.setExp('m')" title="Vencimientos ≤45 días (default) — la foto completa que usan el semáforo y las zonas">≤45 DÍAS</button>
+    </div>
     <div id="inst-strip" class="mono" style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.9">Escribe un ticker arriba (o abre el tab: carga QQQ por default)…</div>
     <div class="ch-wrap" style="height:380px"><canvas id="inst-gex-cv" role="img" aria-label="Exposición gamma por strike">Chart GEX por strike.</canvas></div>
   </div>
@@ -9342,25 +9364,48 @@ const instLinesPlugin = {
   }
 };
 const InstPanel = {
-  _cur: 'QQQ', _cache: {}, _chart: null, _init: false,
+  _cur: 'QQQ', _cache: {}, _chart: null, _init: false, _exp: 'm',
+  // #19a · selector de ventana de expiración (solo CBOE; Deribit siempre ≤45d).
+  // La clave 'tk' a secas queda reservada para exp='m' — InstDeep la reusa para semáforo/zonas.
+  setExp(e) {
+    if (this._exp === e) return;
+    if (instOptFetch(this._cur).crypto && e !== 'm') {
+      const strip = document.getElementById('inst-strip');
+      if (strip) strip.insertAdjacentHTML('beforeend', ' <span style="color:var(--amber);font-size:10px">· Deribit (crypto) siempre agrega ≤45d — el selector aplica a tickers CBOE</span>');
+      return;
+    }
+    this._exp = e;
+    this._markExp();
+    this.load(this._cur);
+  },
+  _markExp() {
+    ['d', 'w', 'm'].forEach(x => {
+      const b = document.getElementById('inst-exp-' + x);
+      if (b) { b.style.borderColor = x === this._exp ? 'var(--gold)' : 'var(--border2)'; b.style.color = x === this._exp ? 'var(--gold)' : 'var(--text2)'; }
+    });
+  },
   async load(tk) {
     tk = String(tk || 'QQQ').toUpperCase();
     this._cur = tk; // Tab 09: cualquier ticker (los quick-buttons QQQ/SPY viven en InstTab)
     const strip = document.getElementById('inst-strip');
     if (!strip) return;
-    const c = this._cache[tk];
+    this._markExp();
+    const of2 = instOptFetch(tk);
+    const exp = of2.crypto ? 'm' : this._exp;
+    const key = exp === 'm' ? tk : tk + '|' + exp; // 'tk' pelado = ventana default (contrato con InstDeep)
+    const c = this._cache[key];
     let d = (c && Date.now() - c.ts < 1800000) ? c.d : null;
     if (!d) {
-      strip.innerHTML = '<span style="color:var(--text3)">Cargando muros de ' + tk + '…</span>';
+      strip.innerHTML = '<span style="color:var(--text3)">Cargando muros de ' + tk + (exp !== 'm' ? ' (ventana ' + (exp === 'd' ? 'próxima exp' : '≤10d') + ')' : '') + '…</span>';
       this._pend = this._pend || {}; // promesa en vuelo compartida — InstDeep la reusa (fetch opt único por análisis)
       try {
-        if (!this._pend[tk]) this._pend[tk] = fetch(instOptFetch(tk).url).then(r => r.json());
-        d = await this._pend[tk];
-        delete this._pend[tk];
+        if (!this._pend[key]) this._pend[key] = fetch(of2.url + (exp !== 'm' ? '&exp=' + exp : '')).then(r => r.json());
+        d = await this._pend[key];
+        delete this._pend[key];
         if (!d || d.error) throw new Error(d?.error || 'sin respuesta');
-        this._cache[tk] = { d, ts: Date.now() };
+        this._cache[key] = { d, ts: Date.now() };
       } catch (e) {
-        delete this._pend[tk];
+        delete this._pend[key];
         strip.innerHTML = '<span style="color:var(--red)">⚠ Sin data de opciones: ' + escHtml(e.message) + '</span>';
         return;
       }
@@ -9392,7 +9437,9 @@ const InstPanel = {
     const strip = document.getElementById('inst-strip');
     const fK = v => v == null ? '—' : (+v).toLocaleString('en-US');
     const gexCol = d.gexTotalBn >= 0 ? 'var(--green)' : 'var(--red)';
-    const prev = this._hist(d);
+    // #19a: la memoria de deriva SOLO se alimenta con la ventana default ≤45d — mezclar
+    // ventanas contaminaría la serie diaria de muros (inst_walls_v1)
+    const prev = (this._exp === 'm' || instOptFetch(d.tk || this._cur).crypto) ? this._hist(d) : null;
     const drift = (cur, old, lbl) => (prev && old != null && cur != null && old !== cur)
       ? ' <span style="color:var(--text3);font-size:8px" title="' + lbl + ' en la última lectura de otro día (' + prev.d + '): ' + old + ' — la deriva del muro cuenta cómo se están acomodando los dealers">' + (cur > old ? '↗' : '↘') + prev.d.slice(5) + ':' + old + '</span>' : '';
     strip.innerHTML =
@@ -9530,6 +9577,94 @@ function instOptFetch(tk) {
   return m ? { url: '/api/capital?src=optc&tickers=' + m[1].toUpperCase(), crypto: true }
     : { url: '/api/capital?src=opt&tickers=' + encodeURIComponent(tk), crypto: false };
 }
+
+// ══ #19c · InstCompare — comparador 2 tickers lado a lado (radiografía compacta) ══
+// Reusa TODO lo existente: instOptFetch (CBOE/Deribit), semaphoreSignals, zonesFor.
+const InstCompare = {
+  async run(tkBRaw) {
+    const tkA = InstTab._cur || 'QQQ';
+    const tkB = String(tkBRaw || '').trim().toUpperCase().replace(/\s+/g, '');
+    const box = document.getElementById('inst-compare');
+    if (!box || !/^[A-Z0-9.=^-]{1,10}$/.test(tkB)) return;
+    if (tkB === tkA) { box.style.display = 'block'; box.innerHTML = '<div class="card mono" style="font-size:11px;color:var(--amber);padding:12px">⚔ Compararse consigo mismo siempre da empate — escribe un ticker distinto a ' + escHtml(tkA) + '.</div>'; return; }
+    box.style.display = 'block';
+    box.innerHTML = '<div class="card"><div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Comparando ' + escHtml(tkA) + ' vs ' + escHtml(tkB) + '…</div></div>';
+    const gen = ++this._gen2 || (this._gen2 = 1);
+    const [a, b] = await Promise.all([this._gather(tkA), this._gather(tkB)]);
+    if (gen !== this._gen2) return;
+    if (!a || !b) { box.innerHTML = '<div class="card mono" style="font-size:11px;color:var(--red);padding:12px">⚔ Sin data Yahoo para ' + escHtml(!a ? tkA : tkB) + ' (¿ticker correcto?).</div>'; return; }
+    box.innerHTML = this._html(a, b);
+  },
+  close() { const box = document.getElementById('inst-compare'); if (box) { box.style.display = 'none'; box.innerHTML = ''; } },
+  async _gather(tk) {
+    try {
+      const jf = u => fetch(u).then(r => r.json()).catch(() => null);
+      const esC = instOptFetch(tk).crypto;
+      const [y1, opt, ats, st, ins] = await Promise.all([
+        jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=1y'),
+        jf(instOptFetch(tk).url),
+        esC ? Promise.resolve(null) : jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)),
+        esC ? Promise.resolve(null) : jf('/api/capital?src=stats&tickers=' + encodeURIComponent(tk)),
+        esC ? Promise.resolve(null) : jf('/api/capital?src=insiders&tickers=' + encodeURIComponent(tk))
+      ]);
+      const dU = y1?.[tk];
+      if (!dU?.hist?.length || dU.error) return null;
+      const spot = dU.hist[dU.hist.length - 1];
+      const o = (opt && !opt.error) ? opt : null;
+      const s3 = st?.data?.[tk];
+      const sig = semaphoreSignals(tk, dU, o, ats?.data?.[tk], s3, (ins && !ins.error) ? ins : null);
+      const zf = await InstDeep.zonesFor(tk, dU.hist, dU.vols, dU.dates);
+      const zA = zf?.zones?.find(z2 => z2.cat === 'ENTRADA' && z2.side === 'soporte');
+      const hi52 = Math.max(...dU.hist);
+      return { tk, spot, chg1d: dU.chg1d, ud: computeUpDownRatio(dU.hist, dU.vols || [], 50),
+        dist52: hi52 > 0 ? (spot / hi52 - 1) * 100 : null,
+        pc: o?.pcVol ?? null, gex: o?.gexTotalBn ?? null, dex: o?.dexTotalBn ?? null, iv: o?.ivAtm ?? null,
+        em: o?.emWeekly?.pct ?? o?.emDaily?.pct ?? null, cw: o?.callWall ?? null, pw: o?.putWall ?? null, flip: o?.gammaFlip ?? null,
+        instOwn: s3?.instOwn ?? null, sf: s3?.shortFloat ?? null,
+        verdes: sig.verdes, rojas: sig.rojas,
+        zona: zA ? { lo: zA.lo, hi: zA.hi, dist: zA.dist, score: zA.score, enZona: zf.spot >= zA.lo && zf.spot <= zA.hi } : null };
+    } catch (e) { return null; }
+  },
+  _html(a, b) {
+    const f2 = (v, dec) => v == null ? '—' : (+v).toFixed(dec == null ? 2 : dec);
+    const fK = v => v == null ? '—' : (+v).toLocaleString('en-US');
+    const pct = v => v == null ? '—' : (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
+    // fila: [etiqueta, valorA, valorB, ganador(-1 A · 1 B · 0 empate/no aplica), tooltip]
+    const rows = [];
+    const push = (lbl, va, vb, win, tip) => rows.push({ lbl, va, vb, win: win || 0, tip: tip || '' });
+    const winHi = (x, y) => (x == null || y == null || x === y) ? 0 : (x > y ? -1 : 1); // gana el MAYOR
+    push('Precio', '$' + f2(a.spot), '$' + f2(b.spot), 0);
+    push('1D %', pct(a.chg1d), pct(b.chg1d), 0);
+    push('U/D 50d (acumulación)', f2(a.ud), f2(b.ud), winHi(a.ud, b.ud), 'Up/Down volume ratio 50d — ≥1.25 = acumulación institucional visible en el tape');
+    push('Dist. a máx 52w', pct(a.dist52), pct(b.dist52), winHi(a.dist52, b.dist52), 'Más cerca del máximo anual = tendencia más sana (0% = en máximo)');
+    push('P/C volumen', f2(a.pc), f2(b.pc), 0, 'Put/Call por volumen — >1 = más puts (cobertura/miedo), sin ganador universal');
+    push('GEX neto', a.gex == null ? '—' : '$' + a.gex + 'bn', b.gex == null ? '—' : '$' + b.gex + 'bn', 0, 'Gamma positiva = dealers estabilizan · negativa = amplifican. Es RÉGIMEN, no mejor/peor');
+    push('DEX (delta-dollars)', a.dex == null ? '—' : '$' + a.dex + 'bn', b.dex == null ? '—' : '$' + b.dex + 'bn', winHi(a.dex, b.dex), 'DEX positivo = red de seguridad mecánica de los market makers en caídas');
+    push('IV ATM', a.iv == null ? '—' : f2(a.iv * 100, 0) + '%', b.iv == null ? '—' : f2(b.iv * 100, 0) + '%', 0, 'Volatilidad implícita at-the-money — cara o barata depende del plan (comprar vs vender prima)');
+    push('Expected move semanal', a.em == null ? '—' : '±' + f2(a.em, 1) + '%', b.em == null ? '—' : '±' + f2(b.em, 1) + '%', 0, 'Movimiento que el mercado de opciones descuenta para la semana');
+    push('Call wall / Put wall', fK(a.cw) + ' / ' + fK(a.pw), fK(b.cw) + ' / ' + fK(b.pw), 0, 'Techo e imán de gamma / piso defendido');
+    push('Gamma flip', fK(a.flip), fK(b.flip), 0, 'Bajo el flip los dealers amplifican el movimiento');
+    push('Inst. ownership', a.instOwn == null ? '—' : f2(a.instOwn, 0) + '%', b.instOwn == null ? '—' : f2(b.instOwn, 0) + '%', 0, 'Porcentaje en manos institucionales (crypto: no aplica)');
+    push('Short float', a.sf == null ? '—' : f2(a.sf, 0) + '%', b.sf == null ? '—' : f2(b.sf, 0) + '%', 0, '≥15% = terreno de squeeze — volatilidad extra en ambas direcciones');
+    const net = x => x.verdes - x.rojas;
+    push('Semáforo institucional', a.verdes + '✓ / ' + a.rojas + '✗', b.verdes + '✓ / ' + b.rojas + '✗', winHi(net(a), net(b)), 'Señales de flujo a favor vs en contra (misma función que Tab 09 y embudo)');
+    const zTxt = x => x.zona ? x.zona.lo.toFixed(2) + '–' + x.zona.hi.toFixed(2) + (x.zona.enZona ? ' · EN ZONA' : ' · a ' + Math.abs(x.zona.dist) + '%') + ' · ★' + x.zona.score : 'sin zona de calidad';
+    const zScore = x => x.zona ? (x.zona.enZona ? 100 : -Math.abs(x.zona.dist)) : -999;
+    push('Zona de entrada', zTxt(a), zTxt(b), winHi(zScore(a), zScore(b)), 'Mejor zona ENTRADA soporte del motor de niveles — gana quien esté dentro o más cerca');
+    const cell = (v, on) => '<td style="padding:6px 10px;' + (on ? 'color:var(--green);font-weight:700' : 'color:var(--text2)') + '">' + v + '</td>';
+    const trs = rows.map(r2 => '<tr title="' + r2.tip.replace(/"/g, '&quot;') + '"' + (r2.tip ? ' style="cursor:help"' : '') + '><td style="padding:6px 10px;color:var(--text3);font-size:10px">' + r2.lbl + '</td>' + cell(r2.va, r2.win === -1) + cell(r2.vb, r2.win === 1) + '</tr>').join('');
+    const netA = a.verdes - a.rojas, netB = b.verdes - b.rojas;
+    return '<div class="card gold-a"><div class="card-accent"></div>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="mono" style="font-size:13px;font-weight:700;color:var(--text)">⚔ ' + escHtml(a.tk) + ' vs ' + escHtml(b.tk) + '</span>'
+      + '<span class="mono" style="font-size:9.5px;color:var(--text3);flex:1">verde = lado favorecido en esa métrica · las métricas sin ganador son contexto, no competencia</span>'
+      + '<span onclick="InstCompare.close()" class="mono" style="cursor:pointer;color:var(--text3);font-size:12px;padding:2px 8px;border:1px solid var(--border2);border-radius:5px">✕</span></div>'
+      + '<div style="overflow-x:auto"><table class="mono" style="width:100%;border-collapse:collapse;font-size:11.5px">'
+      + '<thead><tr style="border-bottom:1px solid var(--border2)"><th style="text-align:left;padding:6px 10px;color:var(--text3);font-size:9px;letter-spacing:.08em">MÉTRICA</th><th style="text-align:left;padding:6px 10px;color:var(--gold)">' + escHtml(a.tk) + '</th><th style="text-align:left;padding:6px 10px;color:var(--gold)">' + escHtml(b.tk) + '</th></tr></thead>'
+      + '<tbody>' + trs + '</tbody></table></div>'
+      + '<div class="mono" style="font-size:9.5px;color:var(--text3);margin-top:8px">Semáforo neto: ' + escHtml(a.tk) + ' ' + (netA >= 0 ? '+' : '') + netA + ' · ' + escHtml(b.tk) + ' ' + (netB >= 0 ? '+' : '') + netB + ' — la comparación NO decide por ti: dos activos pueden ser buenos en planes distintos (momentum vs entrada en zona). Click en un ticker arriba para su radiografía completa.</div>'
+      + '</div>';
+  }
+};
 
 // ══ Tab 09 · InstTab — orquestador del apartado Institucional (pedido Angel 2026-07-10:
 // "nuevo apartado para poder ver el análisis" — nada institucional vive ya en drill/candidatas) ══
@@ -10814,8 +10949,11 @@ const CapitalDrill = {
         + '</span><span style="color:' + d52col + '">' + fmtP(r.dist52) + '</span></span>';
       // Puente al Tab 09 (mejora post-Institucional): radiografía del ticker en 1 click
       const instNav = ' <span onclick="event.stopPropagation();InstTab.goto(\'' + r.tk + '\')" style="cursor:pointer;opacity:.5;font-size:9px" title="Ver radiografía institucional de ' + r.tk + ' en el Tab 09 (muros de gamma, niveles, dark pools, ownership)">🏛</span>';
-      return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + r.tk + '&quot;,&quot;' + r.tk + '&quot;,null)" title="Abrir chart ' + r.tk + '">'
-        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + r.tk + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + '</td>'
+      // crypto: mostrar HYPE (no HYPE32196-USD) y abrir TV con HYPEUSD (TV no resuelve -USD)
+      const disp = r.viaKind === 'crypto' ? (RP_ALIAS[r.tk] || r.tk.replace('-USD', '')) : r.tk;
+      const tvS = r.viaKind === 'crypto' ? disp + 'USD' : r.tk;
+      return '<tr data-tk="' + r.tk + '" onclick="openTVModal(&quot;' + disp + '&quot;,&quot;' + tvS + '&quot;,null)" title="Abrir chart ' + disp + '">'
+        + '<td style="font-weight:600;color:var(--text)"><span class="rb-tkn"' + (oculto ? ' style="text-decoration:line-through;opacity:.5"' : '') + '>' + disp + '</span>' + eye + instNav + inst + volTag + ppTag + vduTag + '</td>'
         + (hasSec ? '<td style="color:var(--gold);font-size:9px;cursor:help" title="' + viaTip(r) + '">' + (r.sec || '—') + '</td>' : '')
         + (hasScore ? (() => { const sc = r.score, scCol = sc == null ? 'var(--text3)' : sc >= 70 ? 'var(--green)' : sc >= 55 ? 'var(--amber)' : 'var(--text2)'; const det = sc == null ? '' : 'SCORE ' + sc + '/100 (motor v2): Fuerza 25 + Tendencia 20 + Acumulación 15 + Calidad de ENTRADA 25 + Semáforo institucional 15' + (r.zona ? ' · zona ' + r.zona.lo.toFixed(2) + '–' + r.zona.hi.toFixed(2) + ' (score ' + r.zona.score + (r.zona.enZona ? ', EN ZONA' : ', a ' + Math.abs(r.zona.dist) + '%') + ')' : ' · sin zona de entrada de calidad (pierde hasta 25 pts)') + (r.sema ? ' · semáforo ' + r.sema.verdes + '✓/' + r.sema.rojas + '✗' : ''); return '<td title="' + det + '"><b style="color:' + scCol + ';font-size:11px">' + (sc ?? '—') + '</b></td>'; })() : '')
         + '<td>$' + (r.price != null ? r.price.toFixed(2) : '—') + '</td>'

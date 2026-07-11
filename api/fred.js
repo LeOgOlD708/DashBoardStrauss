@@ -21,7 +21,39 @@ const memCache = new Map(); // key: `${seriesSorted}|${limit}` → { data, exp }
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-// Single fetch with timeout + retry on 429/5xx/network errors
+// UA de navegador: el WAF de FRED (Akamai) devolvió 403 a requests desde IPs Vercel
+// (visto 2026-07-10, TODAS las series; key inválida da 400 → no era la key)
+const FRED_HEADERS = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36', 'Accept': 'application/json' };
+
+// Fallback anti-WAF: fredgraph.csv (endpoint público del graficador, sin key, host distinto).
+// CSV ascendente "DATE,SERIE" → mismo shape desc que la API oficial.
+async function fredgraphFallback(s, limit) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const r = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${s}`, { signal: controller.signal, headers: { ...FRED_HEADERS, Accept: 'text/csv' } });
+    clearTimeout(timeoutId);
+    if (!r.ok) return null;
+    const lines = (await r.text()).trim().split('\n').slice(1); // header DATE,SERIE
+    const obs = [];
+    for (const ln of lines) {
+      const c = ln.indexOf(',');
+      if (c < 0) continue;
+      const v = ln.slice(c + 1).trim();
+      if (v === '.' || v === '') continue;
+      const n = parseFloat(v);
+      if (isFinite(n)) obs.push({ date: ln.slice(0, c), value: n });
+    }
+    if (!obs.length) return null;
+    console.log(`[FRED] ${s}: rescatada vía fredgraph.csv (${obs.length} obs)`);
+    return obs.slice(-limit).reverse(); // desc, como la API
+  } catch (e) {
+    clearTimeout(timeoutId);
+    return null;
+  }
+}
+
+// Single fetch with timeout + retry on 403(WAF)/429/5xx/network errors
 async function fetchSeries(s, apiKey, limit) {
   const url = `${FRED_BASE}?series_id=${s}&limit=${limit}&sort_order=desc&file_type=json&api_key=${apiKey}`;
   let lastErr = null;
@@ -31,16 +63,18 @@ async function fetchSeries(s, apiKey, limit) {
     const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, { signal: controller.signal, headers: FRED_HEADERS });
       clearTimeout(timeoutId);
 
-      // 429 (rate limit) and 5xx (upstream error) → retry with backoff
-      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+      // 403 (WAF Akamai vs IP datacenter), 429 (rate limit) y 5xx → retry with backoff
+      if (response.status === 403 || response.status === 429 || (response.status >= 500 && response.status < 600)) {
         lastErr = `HTTP ${response.status} attempt ${attempt + 1}`;
         if (attempt < MAX_RETRIES) {
           await sleep(BACKOFF_SCHEDULE[attempt] || 800);
           continue;
         }
+        const rescued = await fredgraphFallback(s, limit);
+        if (rescued) return rescued;
         return { error: lastErr, attempts: attempt + 1 };
       }
 

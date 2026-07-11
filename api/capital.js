@@ -253,7 +253,7 @@ async function digest() {
 // El raw de SPY pesa ~6 MB (14k contratos) — se parsea AQUÍ y al cliente viajan ~8 KB.
 // GEX convención dealer estándar (largos calls +, cortos puts −), $ por movimiento de 1%.
 // Delayed 15 min — son niveles, no timing.
-async function optAgg(tk) {
+async function optAgg(tk, expMode) {
   let r = await fetch(`https://cdn.cboe.com/api/global/delayed_quotes/options/${tk}.json`, { signal: AbortSignal.timeout(12000) });
   if (r.status === 404) // índices llevan prefijo _ en CBOE (_SPX, _VIX); ETFs/acciones no
     r = await fetch(`https://cdn.cboe.com/api/global/delayed_quotes/options/_${tk}.json`, { signal: AbortSignal.timeout(12000) });
@@ -263,7 +263,22 @@ async function optAgg(tk) {
   const spot = data.current_price;
   if (!(spot > 0)) throw new Error('sin current_price CBOE para ' + tk);
   const today = new Date().toISOString().slice(0, 10);
-  const maxExp = new Date(Date.now() + 45 * 86400000).toISOString().slice(0, 10);
+  // Mejora #19a · selector de ventana: m=≤45d (default) · w=≤10d · d=SOLO la expiración más
+  // cercana (0DTE en índices/ETFs con dailies; la weekly del viernes en acciones)
+  const days = expMode === 'w' ? 10 : 45;
+  let maxExp = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  let minExp = today;
+  if (expMode === 'd') {
+    const reD = /(\d{6})[CP]\d{8}$/;
+    let nearest = null;
+    for (const o of (data.options || [])) {
+      const m = reD.exec(o.option || '');
+      if (!m) continue;
+      const e = '20' + m[1].slice(0, 2) + '-' + m[1].slice(2, 4) + '-' + m[1].slice(4, 6);
+      if (e >= today && (!nearest || e < nearest)) nearest = e;
+    }
+    if (nearest) { minExp = nearest; maxExp = nearest; }
+  }
   const reSym = /(\d{6})([CP])(\d{8})$/; // TICKER + YYMMDD + C/P + strike*1000
   const byStrike = new Map();
   let cVolT = 0, pVolT = 0, cOIT = 0, pOIT = 0, nearestExp = null, dexTotal = 0;
@@ -274,7 +289,7 @@ async function optAgg(tk) {
     const m = reSym.exec(o.option || '');
     if (!m) continue;
     const exp = '20' + m[1].slice(0, 2) + '-' + m[1].slice(2, 4) + '-' + m[1].slice(4, 6);
-    if (exp < today || exp > maxExp) continue; // ventana ≤45 días
+    if (exp < minExp || exp > maxExp) continue; // ventana según expMode (m=45d · w=10d · d=próxima exp)
     const isCall = m[2] === 'C';
     const k = +m[3] / 1000;
     const oi = +o.open_interest || 0, vol = +o.volume || 0, gamma = +o.gamma || 0;
@@ -777,7 +792,7 @@ module.exports = async (req, res) => {
       // 1 ticker por llamada (raw grande + cache CDN por URL). Ticker sin opciones (CBOE
       // 403/404) NO es un error del sistema → 200 con {error} (patrón insiders, consola limpia)
       try {
-        const out = await optAgg(tickers[0]);
+        const out = await optAgg(tickers[0], String(req.query.exp || 'm')); // #19a: ventana m/w/d
         res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // 1h — muros se mueven lento
         return res.status(200).json(out);
       } catch (e) {
