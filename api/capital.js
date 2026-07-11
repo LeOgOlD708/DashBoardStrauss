@@ -330,12 +330,15 @@ async function optAgg(tk, expMode) {
     }
     if (k < spot * 0.85 || k > spot * 1.15) continue; // GEX/DEX por strike: ±15% del spot
     let row = byStrike.get(k);
-    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0, dex: 0, cV: 0, pV: 0, prem: 0 }; byStrike.set(k, row); }
+    if (!row) { row = { k, cOI: 0, pOI: 0, gex: 0, dex: 0, cV: 0, pV: 0, prem: 0, gexV: 0 }; byStrike.set(k, row); }
     const gexUsd = gamma * oi * 100 * spot * spot * 0.01;
+    // GEX HOY (2026-07-11, concepto GEXBOT/Isra): misma fórmula con el VOLUMEN del día en vez
+    // del OI — el mapa del posicionamiento intradía; cambia rápido, el de OI es la estructura
+    const gexUsdV = gamma * vol * 100 * spot * spot * 0.01;
     row.dex += delta * oi * 100 * spot;
     // FLUJO: volumen del día por strike (vol>OI = apertura nueva) + prima neta (call − put)
-    if (isCall) { row.cOI += oi; row.gex += gexUsd; row.cV += vol; row.prem += vol * last * 100; }
-    else { row.pOI += oi; row.gex -= gexUsd; row.pV += vol; row.prem -= vol * last * 100; }
+    if (isCall) { row.cOI += oi; row.gex += gexUsd; row.cV += vol; row.prem += vol * last * 100; row.gexV += gexUsdV; }
+    else { row.pOI += oi; row.gex -= gexUsd; row.pV += vol; row.prem -= vol * last * 100; row.gexV -= gexUsdV; }
   }
   // E0 · Expected move: straddle ATM ×0.85 (precio de mercado) con fallback IV·spot·√(dte/365).
   // Horizontes: nearest (el más cercano) y weekly (4-10 días) — marco de swing, no 0DTE.
@@ -380,6 +383,17 @@ async function optAgg(tk, expMode) {
     prevCum = cum; cum += s.gex;
     if (prevCum < 0 && cum >= 0) { flip = s.k; break; }
   }
+  // GEX HOY: totales, muros y zero-gamma del DÍA (por volumen)
+  let gexVolTotal = 0, callWallV = strikes[0], putWallV = strikes[0], flipV = null, cumV = 0, prevCumV = 0;
+  for (const s of strikes) {
+    gexVolTotal += s.gexV;
+    if (s.gexV > callWallV.gexV) callWallV = s;
+    if (s.gexV < putWallV.gexV) putWallV = s;
+  }
+  for (const s of strikes) {
+    prevCumV = cumV; cumV += s.gexV;
+    if (prevCumV < 0 && cumV >= 0) { flipV = s.k; break; }
+  }
   let maxPain = null, best = Infinity; // expiración más cercana: argmin del payout a holders
   for (const K of [...new Set(near.map(x => x.k))].sort((a, b) => a - b)) {
     let pay = 0;
@@ -399,7 +413,10 @@ async function optAgg(tk, expMode) {
     ivAtm: emWeekly?.ivAtm ?? emDaily?.ivAtm ?? null, // E0: IV ATM de referencia (semanal preferida)
     emDaily, emWeekly, // E0: expected move {exp, dte, em, pct, ivAtm}
     callWall: callWall.k, putWall: putWall.k, gammaFlip: flip, maxPain,
-    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1), cV: s.cV, pV: s.pV, prem: +(s.prem / 1e6).toFixed(2) })) // gex/dex/prem $M · cV/pV contratos hoy
+    // GEX HOY (claves aditivas): la capa rápida — Γ×volumen del día (concepto GEXBOT: vol vs OI)
+    gexVolTotalBn: +(gexVolTotal / 1e9).toFixed(2), flipVol: flipV,
+    callWallVol: callWallV.gexV > 0 ? callWallV.k : null, putWallVol: putWallV.gexV < 0 ? putWallV.k : null,
+    strikes: strikes.map(s => ({ k: s.k, cOI: s.cOI, pOI: s.pOI, gex: +(s.gex / 1e6).toFixed(1), dex: +(s.dex / 1e6).toFixed(1), cV: s.cV, pV: s.pV, prem: +(s.prem / 1e6).toFixed(2), gexV: +(s.gexV / 1e6).toFixed(1) })) // gex/dex/prem/gexV $M · cV/pV contratos hoy
   };
 }
 

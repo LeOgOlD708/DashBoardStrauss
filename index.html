@@ -2785,7 +2785,8 @@ html.auth-ok #auth-gate{display:none}
       <button type="button" id="inst-exp-w" class="rot-btn" onclick="InstPanel.setExp('w')" title="Vencimientos ≤10 días — la estructura de la semana">≤10 DÍAS</button>
       <button type="button" id="inst-exp-m" class="rot-btn" onclick="InstPanel.setExp('m')" title="Vencimientos ≤45 días (default) — la foto completa que usan el semáforo y las zonas">≤45 DÍAS</button>
       <span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.08em;margin-left:10px">VISTA:</span>
-      <button type="button" id="inst-view-gex" class="rot-btn" onclick="InstPanel.setView('gex')" title="Exposición gamma por strike — imanes, techos y pisos (estructura)">GEX</button>
+      <button type="button" id="inst-view-gex" class="rot-btn" onclick="InstPanel.setView('gex')" title="Exposición gamma por strike (Γ×OI) — la ESTRUCTURA: imanes, techos y pisos acumulados">GEX</button>
+      <button type="button" id="inst-view-gexv" class="rot-btn" onclick="InstPanel.setView('gexv')" title="GEX del DÍA (Γ×volumen negociado HOY) — la capa RÁPIDA: dónde obligará a cubrir lo que se está negociando ahora; su flip = pivote del día. Concepto GEXBOT: volumen vs OI cuentan historias distintas">GEX HOY</button>
       <button type="button" id="inst-view-dex" class="rot-btn" onclick="InstPanel.setView('dex')" title="Exposición delta por strike — dónde los dealers deben comprar/vender subyacente mecánicamente (estructura direccional)">DEX</button>
       <button type="button" id="inst-view-prem" class="rot-btn" onclick="InstPanel.setView('prem')" title="Prima NETA negociada HOY por strike (calls − puts, delayed 15 min) — el Premium Flow: dónde están entrando los dólares">PRIMA HOY</button>
       <button type="button" id="inst-view-vol" class="rot-btn" onclick="InstPanel.setView('vol')" title="Contratos negociados HOY por strike: calls a la derecha, puts a la izquierda — la actividad del día">VOL HOY</button>
@@ -9601,13 +9602,45 @@ const InstPanel = {
       '<b style="color:var(--text)">' + d.tk + '</b> spot ' + d.spot.toFixed(2)
       + ' · P/C vol <b>' + (d.pcVol ?? '—') + '</b> · P/C OI <b>' + (d.pcOI ?? '—') + '</b>'
       + ' · GEX neto <b style="color:' + gexCol + '">$' + d.gexTotalBn + 'bn</b>' + drift(d.gexTotalBn, prev?.gex, 'GEX neto')
+      + (d.gexVolTotalBn != null ? ' · <span title="GEX del DÍA (Γ×volumen negociado hoy) — la capa rápida vs la estructura; su flip = pivote del día (vista GEX HOY)">hoy <b style="color:' + (d.gexVolTotalBn >= 0 ? 'var(--green)' : 'var(--red)') + '">$' + d.gexVolTotalBn + 'bn</b>' + (d.flipVol != null ? ' ⚖' + fK(d.flipVol) : '') + '</span>' : '')
       + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>' + drift(d.callWall, prev?.cw, 'Call wall')
       + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + drift(d.putWall, prev?.pw, 'Put wall')
       + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
-      + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>';
+      + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>'
+      + '<div id="inst-futconv" class="mono" style="font-size:10px;color:var(--text2)"></div>';
     this._lastD = d;
     this._chartRender(d);
     this._flow(d);
+    this._futConv(d);
+  },
+  // ── ISRA/GEXBOT (2026-07-11): conversión de niveles al FUTURO (custom conv por ratio spot) ──
+  // QQQ→NQ=F · SPY→ES=F — los niveles de opciones del ETF aplicados al contrato que se opera
+  // (Strauss opera QQQ/NQ). Aproximación por ratio de precios; declarada en el propio texto.
+  _futConv(d) {
+    const map = { QQQ: ['NQ=F', 'NQ'], SPY: ['ES=F', 'ES'] };
+    const m = map[d.tk];
+    if (!m) return;
+    this._futCache = this._futCache || {};
+    const paint = (px) => {
+      const el = document.getElementById('inst-futconv');
+      if (!el || this._cur !== d.tk) return;
+      const r = px / d.spot;
+      const f = v => v == null ? '—' : Math.round(v * r).toLocaleString('en-US');
+      el.innerHTML = '→ <b style="color:var(--gold)">' + m[1] + '</b> <span style="color:var(--text3)">(ratio ' + r.toFixed(3) + '×)</span>: '
+        + '🧲 ' + f(d.callWall) + ' · 🛡 ' + f(d.putWall) + ' · ⚖ ' + f(d.gammaFlip)
+        + (d.flipVol != null ? ' · ⚖hoy ' + f(d.flipVol) : '') + ' · 📌 ' + f(d.maxPain)
+        + ' <span style="color:var(--text3)" title="Niveles del ETF convertidos al futuro por ratio de precios spot (custom-conv estilo GEXBOT) — aproximación: el basis del futuro introduce ±pts de error">niveles en el futuro (aprox por ratio)</span>';
+    };
+    const c = this._futCache[m[0]];
+    if (c && Date.now() - c.ts < 300000) return paint(c.px);
+    fetch('/api/yahoo?tickers=' + encodeURIComponent(m[0]) + '&priceOnly=1')
+      .then(r2 => r2.json())
+      .then(j => {
+        const px = j[m[0]]?.price;
+        if (!(px > 0)) return;
+        this._futCache[m[0]] = { px, ts: Date.now() };
+        paint(px);
+      }).catch(() => {});
   },
   // ── VISUAL (2026-07-11): el chart de strikes es MULTI-VISTA — GEX (estructura), DEX
   // (dirección mecánica), PRIMA HOY (los dólares del día = Premium Flow) y VOL HOY (actividad C/P).
@@ -9617,18 +9650,19 @@ const InstPanel = {
     if (this._lastD) this._chartRender(this._lastD);
   },
   _markView(active) {
-    ['gex', 'dex', 'prem', 'vol'].forEach(x => {
+    ['gex', 'gexv', 'dex', 'prem', 'vol'].forEach(x => {
       const b = document.getElementById('inst-view-' + x);
       if (b) { b.style.borderColor = x === active ? 'var(--gold)' : 'var(--border2)'; b.style.color = x === active ? 'var(--gold)' : 'var(--text2)'; }
     });
   },
   _chartRender(d) {
     let view = this._view || 'gex';
-    // Cache pre-FLUJO (sin prem/cV) → degradar a GEX sin romper
+    // Cache pre-FLUJO (sin prem/cV/gexV) → degradar a GEX sin romper
     if ((view === 'prem' || view === 'vol') && (d.strikes[0]?.prem == null)) view = 'gex';
+    if (view === 'gexv' && (d.strikes[0]?.gexV == null)) view = 'gex';
     this._markView(view);
     const esVol = view === 'vol';
-    const val = s => view === 'gex' ? s.gex : view === 'dex' ? s.dex : view === 'prem' ? s.prem : (s.cV + s.pV);
+    const val = s => view === 'gex' ? s.gex : view === 'gexv' ? s.gexV : view === 'dex' ? s.dex : view === 'prem' ? s.prem : (s.cV + s.pV);
     // Filtrar para legibilidad: fuera el ruido (<3% del |máximo| de la vista), cap 40 barras
     let rows = d.strikes.filter(s => val(s) !== 0);
     const vMax = Math.max(...rows.map(s => Math.abs(val(s))), 1e-9);
@@ -9651,6 +9685,7 @@ const InstPanel = {
     const lblOf = (c) => {
       const s = c.dataset._rows[c.dataIndex];
       if (view === 'gex') { let t = 'GEX $' + s.gex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString(); if (s.cV != null) t += ' · vol hoy C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString(); return t; }
+      if (view === 'gexv') return 'GEX HOY $' + s.gexV + 'M (Γ×vol del día) · vol C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString() + ' · estructural $' + s.gex + 'M';
       if (view === 'dex') return 'DEX $' + s.dex + 'M · OI calls ' + s.cOI.toLocaleString() + ' · OI puts ' + s.pOI.toLocaleString();
       if (view === 'prem') return 'Prima neta HOY $' + s.prem + 'M (calls − puts) · vol C ' + s.cV.toLocaleString() + ' / P ' + s.pV.toLocaleString();
       return (c.datasetIndex === 0 ? 'Calls hoy ' : 'Puts hoy ') + Math.abs(c.raw).toLocaleString() + ' contratos · OI ' + (c.datasetIndex === 0 ? s.cOI : s.pOI).toLocaleString() + ((c.datasetIndex === 0 ? s.cV > s.cOI : s.pV > s.pOI) ? ' ⚡ vol>OI (apertura nueva)' : '');
@@ -9663,6 +9698,7 @@ const InstPanel = {
         _instMarks: [
           { v: d.spot, txt: 'SPOT ' + d.spot.toFixed(0), col: '#f0ece4', dash: [2, 3] },
           d.gammaFlip != null ? { v: d.gammaFlip, txt: 'FLIP ' + d.gammaFlip, col: '#e6b450' } : null,
+          view === 'gexv' && d.flipVol != null ? { v: d.flipVol, txt: 'FLIP HOY ' + d.flipVol, col: '#2dd4bf', dash: [4, 3] } : null,
           d.maxPain != null ? { v: d.maxPain, txt: 'MAX PAIN ' + d.maxPain, col: '#a78bfa', dash: [6, 5] } : null
         ].filter(Boolean),
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: lblOf } } },
@@ -12336,7 +12372,7 @@ const INDICATORS_GLOSSARY = {
   'gex-oi-walls': {
     name: 'Muros de Gamma/OI (GEX)', category: 'Institucional · Niveles',
     source: { label: 'CBOE delayed quotes (cadena de opciones completa, sin key)', url: 'https://www.cboe.com/delayed_quotes/', freq: 'Delayed 15 min · agregado server-side, cache 1h' },
-    formula: 'GEX por strike = Σcalls(Γ·OI·100·S²·1%) − Σputs(Γ·OI·100·S²·1%) — dólares que los dealers deben cubrir por cada 1% de movimiento. Ventana: vencimientos ≤45 días, strikes ±15% del spot. Flip = strike donde el GEX acumulado cruza a positivo. Max pain = strike que minimiza el pago total a holders (vencimiento más cercano).',
+    formula: 'GEX por strike = Σcalls(Γ·OI·100·S²·1%) − Σputs(Γ·OI·100·S²·1%) — dólares que los dealers deben cubrir por cada 1% de movimiento. Ventana: vencimientos ≤45 días, strikes ±15% del spot. Flip = strike donde el GEX acumulado cruza a positivo. Max pain = strike que minimiza el pago total a holders (vencimiento más cercano). VISTA GEX HOY: misma fórmula con el VOLUMEN del día en vez del OI — la capa RÁPIDA (posicionamiento intradía) con su propio flip = pivote del DÍA; puede contar una historia distinta a la estructura (concepto vol-vs-OI, GEXBOT/Isra). En QQQ/SPY los niveles se convierten también al futuro NQ/ES por ratio spot (aprox — el basis introduce error).',
     what: 'Dónde está posicionado el dinero grande en opciones y cómo esa posición FUERZA el comportamiento del precio: los market makers cubren su gamma comprando/vendiendo el subyacente, y eso convierte los strikes con open interest masivo en imanes, techos y pisos.',
     interpret: 'CALL WALL (GEX máximo) = imán/resistencia — el precio tiende a gravitar hacia él y frenarse ahí. PUT WALL (GEX mínimo) = soporte donde los dealers compran al cubrir. Sobre el FLIP los dealers amortiguan el movimiento (mercado pegajoso); bajo el flip lo AMPLIFICAN (moves violentos — zona de crashes y squeezes). MAX PAIN: hacia dónde conviene que expire el precio a quien vendió las opciones (gravedad de fin de semana de expiración).',
     thresholds: [
