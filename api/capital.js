@@ -516,15 +516,26 @@ async function screener52() {
     if (!list.length) throw new Error('finviz parse vacío (¿cambió el HTML?)');
     return { list: list.slice(0, 35), src: 'finviz', updated: new Date().toISOString() };
   } catch (e1) {
-    // fallback TradingView SSR (alfabético, sin mcap — el cliente filtra con sus gates)
+    // fallback TradingView SSR — las filas traen el mcap ("5.74 B USD") → filtro ≥$2bn y
+    // ordeno por tamaño acá (Finviz bloquea IPs de datacenter; verificado 2026-07-10)
     const r = await fetch('https://www.tradingview.com/markets/stocks-usa/market-movers-52wk-high/', { signal: AbortSignal.timeout(8000), headers: UA });
     if (!r.ok) throw new Error('finviz: ' + e1.message + ' · tradingview HTTP ' + r.status);
     const html = await r.text();
-    const re2 = /data-rowkey="(?:NASDAQ|NYSE|AMEX):([A-Z.\-]{1,7})"/g;
-    let m2;
-    while ((m2 = re2.exec(html))) { if (!seen.has(m2[1])) { seen.add(m2[1]); list.push({ tk: m2[1], mcap: null }); } }
-    if (!list.length) throw new Error('finviz: ' + e1.message + ' · tradingview parse vacío');
-    return { list: list.slice(0, 35), src: 'tradingview', updated: new Date().toISOString() };
+    const segs = html.split('data-rowkey="').slice(1);
+    const withCap = [];
+    for (const seg of segs) {
+      const mh = /^(?:NASDAQ|NYSE|AMEX):([A-Z.\-]{1,7})"/.exec(seg);
+      if (!mh || seen.has(mh[1])) continue;
+      const txt = seg.slice(0, 4000).replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' '); // el valor viene partido por tags
+      const mc = /([\d.]+)\s*(K|M|B|T)\s*USD/.exec(txt); // 1ª cifra con sufijo+USD = market cap (el precio no lleva sufijo)
+      const bn = mc ? parseFloat(mc[1]) * ({ K: 1e-6, M: 1e-3, B: 1, T: 1000 })[mc[2]] : null;
+      if (bn == null || bn < 2) continue; // mismo corte que Finviz (cap_midover ≈ $2bn)
+      seen.add(mh[1]);
+      withCap.push({ tk: mh[1], mcap: bn >= 1000 ? (bn / 1000).toFixed(2) + 'T' : bn.toFixed(1) + 'B', _bn: bn });
+    }
+    if (!withCap.length) throw new Error('finviz: ' + e1.message + ' · tradingview parse vacío o sin mcap');
+    withCap.sort((a, b) => b._bn - a._bn);
+    return { list: withCap.slice(0, 35).map(({ tk, mcap }) => ({ tk, mcap })), src: 'tradingview', updated: new Date().toISOString() };
   }
 }
 
