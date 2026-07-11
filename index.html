@@ -2240,10 +2240,13 @@ html.auth-ok #auth-gate{display:none}
           <span class="mono" id="rot-scrub-lbl" style="font-size:9px;color:var(--gold);min-width:74px;text-align:right">HOY</span>
         </div>
         <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--text3)">
-          <span>⬤ grande con borde = posición HOY</span>
+          <span>⬤ grande con borde = posición HOY (tamaño = flujo real $)</span>
+          <span>· ➤ flecha = dirección y velocidad de giro</span>
           <span>· puntos chicos = estela 6 semanas</span>
           <span>giro normal: MEJORANDO → LÍDER → DEBILITÁNDOSE → REZAGADO (sentido horario)</span>
         </div>
+        <!-- RRG 2.0 (2026-07-11): marea de rotación + cruces de cuadrante recientes -->
+        <div id="rot-trans" style="margin-top:9px"></div>
       </div>
       <div id="rot-table"></div><div id="rot-flows" style="margin-top:12px"></div>
     </div>
@@ -8896,6 +8899,32 @@ const rotQuadrantPlugin = {
   },
   afterDatasetsDraw(chart) {
     const { ctx, chartArea: a } = chart;
+    // RRG 2.0: flecha de HEADING — hacia dónde se dirige cada sector y qué tan rápido
+    // (largo ∝ percentil de velocidad del set; extrapolación visual del último tramo)
+    chart.data.datasets.forEach((ds, i) => {
+      if (!ds._rotTicker || ds._rotVelPct == null) return;
+      const meta = chart.getDatasetMeta(i);
+      const n3 = meta.data.length;
+      if (n3 < 2) return;
+      const p1 = meta.data[n3 - 2], p2 = meta.data[n3 - 1];
+      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy);
+      if (len < 2) return;
+      const ux = dx / len, uy = dy / len;
+      const L = 9 + 15 * ds._rotVelPct;
+      const x0 = p2.x + ux * 9, y0 = p2.y + uy * 9;
+      const x1 = x0 + ux * L, y1 = y0 + uy * L;
+      ctx.strokeStyle = ds.borderColor; ctx.fillStyle = ds.borderColor;
+      ctx.lineWidth = 1.6; ctx.globalAlpha = .85;
+      ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+      const ah = 5;
+      ctx.beginPath();
+      ctx.moveTo(x1 + ux * ah, y1 + uy * ah);
+      ctx.lineTo(x1 - uy * ah * .7, y1 + ux * ah * .7);
+      ctx.lineTo(x1 + uy * ah * .7, y1 - ux * ah * .7);
+      ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
     ctx.font = "600 10px 'IBM Plex Mono', monospace";
     // Anti-colisión: recolectar posiciones deseadas, empujar hacia abajo si chocan
     const labels = [];
@@ -8925,6 +8954,49 @@ const rotQuadrantPlugin = {
   }
 };
 
+// RRG 2.0 (2026-07-11): historial de cuadrantes vía offsets del scrubber — detecta CRUCES,
+// cuenta semanas-en-cuadrante y construye la ocupación semanal (marea de rotación).
+function _rotTransitions(map, dataObj) {
+  const byW = []; // byW[w] = {tk: quad} con w semanas hacia atrás (0 = hoy)
+  for (let w = 0; w <= 12; w++) {
+    const r = computeRotationFor(map, dataObj, w);
+    const m = {};
+    (r || []).forEach(d => { m[d.tk] = d.quad; });
+    byW.push(m);
+  }
+  const weeksIn = {}, events = [];
+  for (const tk of Object.keys(map)) {
+    if (!byW[0][tk]) { weeksIn[tk] = null; continue; }
+    let n = 0;
+    while (n < 12 && byW[n + 1][tk] === byW[0][tk]) n++;
+    weeksIn[tk] = n + 1; // 13 = "13+" (tope de la ventana)
+    for (let w = 11; w >= 0; w--) {
+      const q0 = byW[w + 1][tk], q1 = byW[w][tk];
+      if (q0 && q1 && q0 !== q1) events.push({ tk, from: q0, to: q1, ago: w });
+    }
+  }
+  events.sort((a, b) => a.ago - b.ago);
+  const occ = [];
+  for (let w = 12; w >= 0; w--) {
+    const c = { w, in: 0, tot: 0 };
+    for (const tk of Object.keys(map)) {
+      const q = byW[w][tk];
+      if (!q) continue;
+      c.tot++;
+      if (q === 'mejorando' || q === 'lider') c.in++;
+    }
+    occ.push(c);
+  }
+  return { weeksIn, events, occ };
+}
+// Hover en la tabla lateral → resalta la estela de ese sector en el chart
+window.rotHi = function (tk) {
+  const ch = state.charts?.rotation;
+  if (!ch) return;
+  ch.data.datasets.forEach(ds => { ds.borderWidth = (tk && ds._rotTicker === tk) ? 3 : 1.2; });
+  ch.update('none');
+};
+
 function renderCapitalRotation(scrubOnly) {
   // scrubOnly===true: llamada desde el slider — solo el RRG cambia con el offset; no
   // destruir/recrear RelPerf/Bump/Season en cada tick del arrastre (review 2026-07-09)
@@ -8952,17 +9024,48 @@ function renderCapitalRotation(scrubOnly) {
   data.forEach(d => d.tail.forEach(pt => { span = Math.max(span, Math.abs(pt.x - 100), Math.abs(pt.y - 100)); }));
   span = Math.max(span * 1.25, 2);
 
+  // ── RRG 2.0: métricas de movimiento + data cruzada por sector (todo ya descargado) ──
+  const trans = (scrubOnly === true && window._rotTransCache)
+    ? window._rotTransCache
+    : (window._rotTransCache = _rotTransitions(isInd ? ROT_INDUSTRIES : ROT_SECTORS, isInd ? (rotIndData || {}) : (state.data.prices || {})));
+  let osEma = {};
+  try { osEma = JSON.parse(localStorage.getItem('os_score_ema_v1') || '{}') || {}; } catch (e) {}
+  const velArr = [];
+  data.forEach(d => {
+    const t2 = d.tail;
+    d.vel = t2.length >= 2 ? Math.hypot(t2[t2.length - 1].x - t2[t2.length - 2].x, t2[t2.length - 1].y - t2[t2.length - 2].y) : 0;
+    velArr.push(d.vel);
+    d.weeksIn = trans?.weeksIn?.[d.tk] ?? null;
+    d.flow = (typeof FlowTracker !== 'undefined') ? FlowTracker.flowSince(d.tk) : null; // sectores; industrias → null
+    d.score = osEma[d.tk]?.ema ?? null;
+    // ETA de cruce: extrapolación LINEAL del último vector (máx 8 sem) — hipótesis, no predicción
+    d.eta = null;
+    if (d.vel > 0.05 && t2.length >= 2) {
+      const L2 = t2[t2.length - 1], v2 = { x: L2.x - t2[t2.length - 2].x, y: L2.y - t2[t2.length - 2].y };
+      for (let w = 1; w <= 8; w++) {
+        const px2 = L2.x + v2.x * w, py2 = L2.y + v2.y * w;
+        const q2 = px2 >= 100 && py2 >= 100 ? 'lider' : px2 >= 100 ? 'debilitandose' : py2 >= 100 ? 'mejorando' : 'rezagado';
+        if (q2 !== d.quad) { d.eta = { w, q: q2 }; break; }
+      }
+    }
+  });
+  const velSorted = [...velArr].sort((a, b) => a - b);
+  data.forEach(d => { d.velPct = velSorted.length > 1 ? velSorted.indexOf(d.vel) / (velSorted.length - 1) : 0.5; });
+  const flowMax = Math.max(...data.map(d => Math.abs(d.flow?.usd || 0)), 1);
+
   const datasets = data.map(d => {
     const n2 = d.tail.length;
+    // Punto HOY dimensionado por FLUJO REAL (creations/redemptions $) — √ para no aplastar
+    const rHoy = d.flow?.usd ? 5.5 + 6.5 * Math.sqrt(Math.abs(d.flow.usd) / flowMax) : 6.5;
     return {
-      label: d.name, _rotTicker: d.tk,
+      label: d.name, _rotTicker: d.tk, _rotVelPct: d.velPct,
       data: d.tail,
       showLine: true, borderWidth: 1.2, tension: .35,
       borderColor: ROT_QUAD_META[d.quad].col,
       backgroundColor: d.tail.map((_, i) => i === n2 - 1 ? ROT_QUAD_META[d.quad].col : ROT_QUAD_META[d.quad].col + '55'),
       // Jerarquía visual: HOY = punto grande con borde crema · estela = puntos chicos translúcidos
-      pointRadius: d.tail.map((_, i) => i === n2 - 1 ? 6.5 : 2 + i * 0.35),
-      pointBorderColor: d.tail.map((_, i) => i === n2 - 1 ? '#f8d794' : 'transparent'),
+      pointRadius: d.tail.map((_, i) => i === n2 - 1 ? rHoy : 2 + i * 0.35),
+      pointBorderColor: d.tail.map((_, i) => i === n2 - 1 ? (d.flow?.usd < 0 ? '#f87171' : '#f8d794') : 'transparent'),
       pointBorderWidth: d.tail.map((_, i) => i === n2 - 1 ? 1.6 : 0),
       pointHoverRadius: 8,
       segment: { borderColor: ctx2 => ROT_QUAD_META[d.quad].col + (ctx2.p1DataIndex >= n2 - 2 ? '99' : '38') }
@@ -8983,7 +9086,15 @@ function renderCapitalRotation(scrubOnly) {
         legend: { display: false },
         tooltip: { callbacks: { label: ctx => {
           const d = data[ctx.datasetIndex];
-          return `${d.name} (${d.tk}) · RS ${ctx.parsed.x.toFixed(1)} · Mom ${ctx.parsed.y.toFixed(1)} · ${ROT_QUAD_META[d.quad].lbl}`;
+          const lines = [
+            `${d.name} (${d.tk}) · ${ROT_QUAD_META[d.quad].lbl}`,
+            `RS ${ctx.parsed.x.toFixed(1)} · Mom ${ctx.parsed.y.toFixed(1)} · vel ${d.vel.toFixed(2)}/sem`
+          ];
+          if (d.weeksIn) lines.push(`⏱ ${d.weeksIn >= 13 ? '13+' : d.weeksIn} sem en el cuadrante`);
+          if (d.flow?.usd != null) lines.push(`flujo real ${FlowTracker.fmtUsd(d.flow.usd)} (${d.flow.days}d)`);
+          if (d.score != null) lines.push(`score scanner ${d.score}/100`);
+          if (d.eta) lines.push(`→ ${ROT_QUAD_META[d.eta.q].lbl} en ~${d.eta.w} sem (extrapolación)`);
+          return lines;
         } } }
       }
     },
@@ -8995,17 +9106,45 @@ function renderCapitalRotation(scrubOnly) {
   const tbl = document.getElementById('rot-table');
   if (tbl) {
     const dataSrc = isInd ? (rotIndData || {}) : (state.data.prices || {});
-    tbl.innerHTML = '<div class="lbl" style="margin-bottom:6px">' + (isInd ? 'Industrias' : 'Sectores') + ' por cuadrante</div>' + sorted.map(d => {
+    tbl.innerHTML = '<div class="lbl" style="margin-bottom:6px">' + (isInd ? 'Industrias' : 'Sectores') + ' por cuadrante <span style="font-weight:400;color:var(--text3);font-size:8px">· hover = resaltar estela · click = drill</span></div>' + sorted.map(d => {
       const m = ROT_QUAD_META[d.quad];
       const flow = d.quad === 'mejorando' || d.quad === 'lider' ? '→ entra' : '← sale';
       const secData = dataSrc[d.tk];
       const secUd = secData ? computeUpDownRatio(secData.hist, secData.vols || [], 50) : null;
-      const udTag = secUd == null ? '' : `<span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${secUd >= 1.5 ? 'var(--green)' : secUd >= 1 ? 'var(--text3)' : 'var(--red)'}" title="U/D Volume Ratio 50d del ETF">U/D ${secUd.toFixed(2)}${secUd >= 1.5 ? ' 🏦' : ''}</span>`;
-      return `<div class="rot-row" style="display:flex;justify-content:space-between;align-items:center;gap:6px;padding:6px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:3px solid ${m.col};cursor:pointer" onclick="CapitalDrill.open('${d.tk}')" title="Click -> ver acciones del ETF">
-        <span style="font-size:10px;color:var(--text)">${d.tk} <span style="color:var(--text3);font-size:9px">${d.name}</span></span>
-        <span style="display:flex;gap:8px;align-items:center">${udTag}<span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${m.col}">${m.lbl} ${flow}</span></span>
+      const udTag = secUd == null ? '' : `<span style="color:${secUd >= 1.5 ? 'var(--green)' : secUd >= 1 ? 'var(--text3)' : 'var(--red)'}" title="U/D Volume Ratio 50d del ETF">U/D ${secUd.toFixed(2)}${secUd >= 1.5 ? ' 🏦' : ''}</span>`;
+      // RRG 2.0: chips de data cruzada — flujo real, score scanner, velocidad, permanencia, ETA
+      const fUsd = d.flow?.usd;
+      const flowTag = fUsd == null ? '' : `<span style="color:${fUsd >= 0 ? 'var(--green)' : 'var(--red)'}" title="Flujo REAL (creations/redemptions Δshares×precio, ventana ${d.flow.days}d)">${FlowTracker.fmtUsd(fUsd)}</span>`;
+      const scoreTag = d.score == null ? '' : `<span style="color:${d.score >= 70 ? 'var(--green)' : d.score >= 50 ? 'var(--amber)' : 'var(--text3)'}" title="Score 0-100 del Opportunity Scanner (EMA anti-whipsaw)">SC ${d.score}</span>`;
+      const velTag = `<span style="color:${d.velPct >= .67 ? 'var(--gold)' : 'var(--text3)'}" title="Velocidad de giro en el RRG: ${d.vel.toFixed(2)} unidades/sem (percentil ${Math.round(d.velPct * 100)} del set)">${d.velPct >= .67 ? '»»»' : d.velPct >= .33 ? '»»' : '»'}</span>`;
+      const weeksTag = (scrub > 0 || !d.weeksIn) ? '' : `<span style="color:var(--text3)" title="Semanas consecutivas en el cuadrante actual (ventana 13 sem)">⏱${d.weeksIn >= 13 ? '13+' : d.weeksIn}s</span>`;
+      const etaTag = (scrub > 0 || !d.eta) ? '' : `<span style="color:var(--amber);font-style:italic" title="EXTRAPOLACIÓN lineal del vector actual — hipótesis de cruce, NO predicción">→${ROT_QUAD_META[d.eta.q].lbl.split(' ')[0]}~${d.eta.w}s</span>`;
+      return `<div class="rot-row" style="padding:6px 8px;background:var(--surface2);border-radius:4px;margin-bottom:4px;border-left:3px solid ${m.col};cursor:pointer" onclick="CapitalDrill.open('${d.tk}')" onmouseenter="rotHi('${d.tk}')" onmouseleave="rotHi(null)" title="Click → ver acciones del ETF">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">
+          <span style="font-size:10px;color:var(--text)"><b>${d.tk}</b> <span style="color:var(--text3);font-size:9px">${d.name}</span></span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:8px;color:${m.col}">${m.lbl} ${flow}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px;font-family:'IBM Plex Mono',monospace;font-size:8px">${udTag}${flowTag}${scoreTag}${velTag}${weeksTag}${etaTag}</div>
       </div>`;
     }).join('');
+  }
+  // ── RRG 2.0: MAREA DE ROTACIÓN (ocupación 13 sem) + CRUCES de cuadrante recientes ──
+  const transEl = document.getElementById('rot-trans');
+  if (transEl && trans && scrubOnly !== true) {
+    const qLbl = q => ROT_QUAD_META[q].lbl, qCol = q => ROT_QUAD_META[q].col;
+    const evs = trans.events.slice(0, 6).map(e =>
+      `<span><b style="color:var(--text)">${e.tk}</b> <span style="color:${qCol(e.from)}">${qLbl(e.from)}</span>→<span style="color:${qCol(e.to)}">${qLbl(e.to)}</span> <span style="color:var(--text3)">(${e.ago === 0 ? 'esta sem' : 'hace ' + e.ago + ' sem'})</span></span>`
+    ).join(' · ');
+    const bars = trans.occ.map(o => {
+      const pct = o.tot ? o.in / o.tot : 0;
+      return `<div title="hace ${o.w} sem: ${o.in}/${o.tot} recibiendo capital (MEJORANDO+LÍDER)" style="flex:1;display:flex;flex-direction:column;height:26px;border-radius:2px;overflow:hidden">`
+        + `<div style="height:${(1 - pct) * 100}%;background:rgba(248,113,113,.4)"></div><div style="height:${pct * 100}%;background:rgba(74,222,128,.55)"></div></div>`;
+    }).join('');
+    const cur = trans.occ[trans.occ.length - 1];
+    transEl.innerHTML =
+      `<div class="mono" style="font-size:8.5px;color:var(--text3);letter-spacing:.05em;margin-bottom:3px">MAREA DE ROTACIÓN — verde = % del set recibiendo capital, 13 semanas → HOY: <b style="color:${cur.in >= cur.tot / 2 ? 'var(--green)' : 'var(--red)'}">${cur.in}/${cur.tot}</b> <span title="Amplitud de la rotación: cuántos sectores están en MEJORANDO+LÍDER cada semana. Verde creciendo = el risk-on se ENSANCHA (saludable); verde encogiéndose con índice arriba = rally angosto (frágil)">ⓘ</span></div>`
+      + `<div style="display:flex;gap:2px">${bars}</div>`
+      + (evs ? `<div class="mono" style="font-size:8.5px;color:var(--text3);margin-top:6px;line-height:1.9">🔄 CRUCES (13 sem): ${evs}</div>` : '');
   }
 
   if (typeof CapitalDrill !== 'undefined') CapitalDrill.renderSectorButtons();
