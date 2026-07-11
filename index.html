@@ -2239,11 +2239,15 @@ html.auth-ok #auth-gate{display:none}
           <input type="range" id="rot-scrub" min="0" max="12" value="12" step="1" style="flex:1;accent-color:var(--gold);height:4px" oninput="window._rotScrub=12-(+this.value);renderCapitalRotation(true)" title="Arrastrá para ver dónde estaba cada sector semanas atrás — la rotación en movimiento">
           <span class="mono" id="rot-scrub-lbl" style="font-size:9px;color:var(--gold);min-width:74px;text-align:right">HOY</span>
         </div>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--text3)">
-          <span>⬤ grande con borde = posición HOY (tamaño = flujo real $)</span>
-          <span>· ➤ flecha = dirección y velocidad de giro</span>
-          <span>· puntos chicos = estela 6 semanas</span>
-          <span>giro normal: MEJORANDO → LÍDER → DEBILITÁNDOSE → REZAGADO (sentido horario)</span>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--text3)">
+          <span style="letter-spacing:.06em">ESTELA:</span>
+          <button type="button" id="rot-tail-6" onclick="window._rotTail=6;renderCapitalRotation(true)" style="font-size:8px;font-family:'IBM Plex Mono',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid var(--border2);color:var(--text3)" title="Estela completa de 6 semanas (más contexto, más denso)">6S</button>
+          <button type="button" id="rot-tail-3" onclick="window._rotTail=3;renderCapitalRotation(true)" style="font-size:8px;font-family:'IBM Plex Mono',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid var(--gold);color:var(--gold)" title="Estela corta de 3 semanas (default — legible)">3S</button>
+          <button type="button" id="rot-tail-1" onclick="window._rotTail=1;renderCapitalRotation(true)" style="font-size:8px;font-family:'IBM Plex Mono',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid var(--border2);color:var(--text3)" title="Solo la posición HOY + flechas — el mapa más limpio">OFF</button>
+          <span>⬤ grande = HOY (tamaño = flujo real $)</span>
+          <span>· ➤ = dirección y velocidad</span>
+          <span>· hover en la lista = aislar un sector</span>
+          <span>giro normal: MEJORANDO → LÍDER → DEBILITÁNDOSE → REZAGADO (horario)</span>
         </div>
         <!-- RRG 2.0 (2026-07-11): marea de rotación + cruces de cuadrante recientes -->
         <div id="rot-trans" style="margin-top:9px"></div>
@@ -8901,16 +8905,19 @@ const rotQuadrantPlugin = {
   afterDatasetsDraw(chart) {
     const { ctx, chartArea: a } = chart;
     // RRG 2.0: flecha de HEADING — hacia dónde se dirige cada sector y qué tan rápido
-    // (largo ∝ percentil de velocidad del set; extrapolación visual del último tramo)
+    // (largo ∝ percentil de velocidad del set). Vector en UNIDADES DE DATA (_rotVec) para
+    // que funcione con cualquier largo de estela, incluso OFF (fix des-amontonamiento).
     chart.data.datasets.forEach((ds, i) => {
-      if (!ds._rotTicker || ds._rotVelPct == null) return;
+      if (!ds._rotTicker || ds._rotVelPct == null || !ds._rotVec) return;
       const meta = chart.getDatasetMeta(i);
-      const n3 = meta.data.length;
-      if (n3 < 2) return;
-      const p1 = meta.data[n3 - 2], p2 = meta.data[n3 - 1];
-      const dx = p2.x - p1.x, dy = p2.y - p1.y;
+      if (!meta.data.length) return;
+      const xs = chart.scales.x, ys = chart.scales.y;
+      const v = ds._rotVec;
+      const p2 = meta.data[meta.data.length - 1];
+      const dx = xs.getPixelForValue(v.x + v.vx) - xs.getPixelForValue(v.x);
+      const dy = ys.getPixelForValue(v.y + v.vy) - ys.getPixelForValue(v.y);
       const len = Math.hypot(dx, dy);
-      if (len < 2) return;
+      if (len < 1) return;
       const ux = dx / len, uy = dy / len;
       const L = 9 + 15 * ds._rotVelPct;
       const x0 = p2.x + ux * 9, y0 = p2.y + uy * 9;
@@ -8990,11 +8997,23 @@ function _rotTransitions(map, dataObj) {
   }
   return { weeksIn, events, occ };
 }
-// Hover en la tabla lateral → resalta la estela de ese sector en el chart
+// Hover en la tabla lateral → AÍSLA ese sector: su estela gruesa, el resto atenuado casi
+// invisible (fix des-amontonamiento — el cluster denso se lee sector a sector con el mouse)
 window.rotHi = function (tk) {
   const ch = state.charts?.rotation;
   if (!ch) return;
-  ch.data.datasets.forEach(ds => { ds.borderWidth = (tk && ds._rotTicker === tk) ? 3 : 1.2; });
+  ch.data.datasets.forEach(ds => {
+    if (!ds._col) return;
+    const on = tk && ds._rotTicker === tk;
+    const dim = tk && !on;
+    ds.borderWidth = on ? 3 : 1.1;
+    ds.borderColor = dim ? ds._col + '14' : ds._col;
+    const n2 = ds.data.length;
+    ds.backgroundColor = ds.data.map((_, i) => dim ? ds._col + '10' : (i === n2 - 1 ? ds._col : ds._col + '55'));
+    // segment.borderColor pisa al borderColor del dataset → sustituirlo mientras dura el dim
+    if (!ds._seg0) ds._seg0 = ds.segment;
+    ds.segment = dim ? { borderColor: () => ds._col + '0d' } : ds._seg0;
+  });
   ch.update('none');
 };
 
@@ -9054,22 +9073,33 @@ function renderCapitalRotation(scrubOnly) {
   data.forEach(d => { d.velPct = velSorted.length > 1 ? velSorted.indexOf(d.vel) / (velSorted.length - 1) : 0.5; });
   const flowMax = Math.max(...data.map(d => Math.abs(d.flow?.usd || 0)), 1);
 
+  // Des-amontonamiento (2026-07-11, feedback Angel): estela recortable 6S/3S/OFF — el cálculo
+  // (vel/ETA/cuadrante) SIEMPRE usa la estela completa; solo se recorta lo que se DIBUJA.
+  const tailN = window._rotTail || 3;
+  ['6', '3', '1'].forEach(x => {
+    const b = document.getElementById('rot-tail-' + x);
+    if (b) { b.style.borderColor = +x === tailN ? 'var(--gold)' : 'var(--border2)'; b.style.color = +x === tailN ? 'var(--gold)' : 'var(--text3)'; }
+  });
   const datasets = data.map(d => {
-    const n2 = d.tail.length;
+    const show = d.tail.slice(-tailN);
+    const n2 = show.length;
     // Punto HOY dimensionado por FLUJO REAL (creations/redemptions $) — √ para no aplastar
     const rHoy = d.flow?.usd ? 5.5 + 6.5 * Math.sqrt(Math.abs(d.flow.usd) / flowMax) : 6.5;
+    const col = ROT_QUAD_META[d.quad].col;
+    const t2 = d.tail;
+    const vec = t2.length >= 2 ? { x: t2[t2.length - 1].x, y: t2[t2.length - 1].y, vx: t2[t2.length - 1].x - t2[t2.length - 2].x, vy: t2[t2.length - 1].y - t2[t2.length - 2].y } : null;
     return {
-      label: d.name, _rotTicker: d.tk, _rotVelPct: d.velPct,
-      data: d.tail,
-      showLine: true, borderWidth: 1.2, tension: .35,
-      borderColor: ROT_QUAD_META[d.quad].col,
-      backgroundColor: d.tail.map((_, i) => i === n2 - 1 ? ROT_QUAD_META[d.quad].col : ROT_QUAD_META[d.quad].col + '55'),
+      label: d.name, _rotTicker: d.tk, _rotVelPct: d.velPct, _rotVec: vec, _col: col,
+      data: show,
+      showLine: n2 > 1, borderWidth: 1.1, tension: .35,
+      borderColor: col,
+      backgroundColor: show.map((_, i) => i === n2 - 1 ? col : col + '55'),
       // Jerarquía visual: HOY = punto grande con borde crema · estela = puntos chicos translúcidos
-      pointRadius: d.tail.map((_, i) => i === n2 - 1 ? rHoy : 2 + i * 0.35),
-      pointBorderColor: d.tail.map((_, i) => i === n2 - 1 ? (d.flow?.usd < 0 ? '#f87171' : '#f8d794') : 'transparent'),
-      pointBorderWidth: d.tail.map((_, i) => i === n2 - 1 ? 1.6 : 0),
+      pointRadius: show.map((_, i) => i === n2 - 1 ? rHoy : 2 + i * 0.5),
+      pointBorderColor: show.map((_, i) => i === n2 - 1 ? (d.flow?.usd < 0 ? '#f87171' : '#f8d794') : 'transparent'),
+      pointBorderWidth: show.map((_, i) => i === n2 - 1 ? 1.6 : 0),
       pointHoverRadius: 8,
-      segment: { borderColor: ctx2 => ROT_QUAD_META[d.quad].col + (ctx2.p1DataIndex >= n2 - 2 ? '99' : '38') }
+      segment: { borderColor: ctx2 => col + (ctx2.p1DataIndex >= n2 - 2 ? '99' : '38') }
     };
   });
 
@@ -10470,7 +10500,7 @@ const InstDeep = {
           + [[30, '30D'], [90, '90D'], [180, '180D'], [365, '1A']].map(([n, lbl]) =>
               '<button type="button" id="instd-mapw-' + n + '" onclick="InstDeep.setMapWin(' + n + ')" style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid ' + ((InstDeep._mapWin || 90) === n ? 'var(--gold)' : 'var(--border2)') + ';color:' + ((InstDeep._mapWin || 90) === n ? 'var(--gold)' : 'var(--text3)') + '" title="Ventana del chart de precio (las zonas NO cambian — se computan con su propia lógica multi-timeframe)">' + lbl + '</button>').join(' ')
           + '<div class="ch-wrap" style="height:400px;margin-top:10px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
-          + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual</div>'
+          + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual · <span style="color:#2dd4bf">barras laterales = volume profile 60d</span> (dónde se OPERÓ el volumen — la barra más brillante es el POC)</div>'
           + '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text3);margin-top:12px">ESCALERA DE LIQUIDEZ <span style="font-weight:400">— de resistencias (arriba) a soportes (abajo)</span></div>'
           + zonesHtml + lvnHtml
           + '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;margin-top:12px">'
@@ -10692,7 +10722,7 @@ const InstDeep = {
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-        _emap: { zones, lvns, em, spot },
+        _emap: { zones, lvns, em, spot, vp: this._vp || null },
         plugins: {
           legend: { display: false },
           tooltip: { mode: 'index', intersect: false, titleFont: { size: 12 }, bodyFont: { size: 12 }, callbacks: { label: c => tk + ': ' + c.parsed.y.toFixed(2) } }
@@ -10706,6 +10736,36 @@ const InstDeep = {
         id: 'priceGlow',
         beforeDatasetDraw(chart2, args) { const c2 = chart2.ctx; c2.save(); c2.shadowColor = 'rgba(230,180,80,.45)'; c2.shadowBlur = 7; },
         afterDatasetDraw(chart2) { chart2.ctx.restore(); }
+      }, {
+        // VP OVERLAY (2026-07-11, pedido Angel): el volume profile 60d/5m DENTRO del mapa —
+        // barras horizontales desde el borde izquierdo (ancho ∝ volumen), POC acentuado.
+        // Se dibuja ANTES de datasets/zonas: es el fondo de liquidez sobre el que vive todo.
+        id: 'vpOverlay',
+        beforeDatasetsDraw(chart2) {
+          const vp = chart2.options._emap?.vp;
+          if (!vp?.bins?.length) return;
+          const { ctx: c2, chartArea: a2, scales: { y: ys } } = chart2;
+          if (!a2) return;
+          const vMax = Math.max(...vp.bins);
+          if (!(vMax > 0)) return;
+          const maxW = (a2.right - a2.left) * 0.22;
+          c2.save();
+          c2.beginPath(); c2.rect(a2.left, a2.top, a2.right - a2.left, a2.bottom - a2.top); c2.clip();
+          for (let i = 0; i < vp.bins.length; i++) {
+            if (!vp.bins[i]) continue;
+            const yTop = ys.getPixelForValue(vp.lo + (i + 1) * vp.w);
+            const yBot = ys.getPixelForValue(vp.lo + i * vp.w);
+            if (yBot < a2.top || yTop > a2.bottom) continue; // bin fuera del rango visible
+            const frac = vp.bins[i] / vMax;
+            const esPoc = Math.abs((vp.lo + (i + 0.5) * vp.w) - vp.poc) < vp.w * 0.6;
+            c2.fillStyle = esPoc ? 'rgba(45,212,191,.34)' : 'rgba(45,212,191,' + (0.07 + frac * 0.16).toFixed(2) + ')';
+            c2.fillRect(a2.left, yTop, maxW * frac, Math.max(1, yBot - yTop - 0.5));
+          }
+          c2.font = "600 8px 'IBM Plex Mono', monospace";
+          c2.fillStyle = 'rgba(45,212,191,.55)';
+          c2.fillText('VP 60d', a2.left + 4, a2.top + 10);
+          c2.restore();
+        }
       }]
     });
   }
