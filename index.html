@@ -10092,6 +10092,12 @@ function semaphoreSignals(tk, dU, opt, atsD, statsD, insD) {
     if (dex > 0.05) { pill('🛡', 'DEX +' + dex + 'bn', 'var(--green)', 'Delta-dollars POSITIVOS: cuanto más caiga el precio, más deben COMPRAR los market makers — red de seguridad mecánica ("largos de delta")'); verdes++; }
     else if (dex < -0.05) { pill('🛡', 'DEX ' + dex + 'bn', 'var(--red)', 'Delta-dollars NEGATIVOS: los dealers venden rebotes — sin red de seguridad'); rojas++; }
     else pill('🛡', 'DEX ~0', 'var(--text3)', 'Delta neutro: nadie obligado a defender — "cambio de manos" (ni presión compradora ni vendedora del MM)');
+    // FLUJO (2026-07-11, OBSERVACIONAL): prima neta del día como pill — SOLO presentación,
+    // NO suma verdes/rojas hasta demostrar hit-rate con registros propios (corte v:3 intacto)
+    if (opt.netPremM != null && Math.abs(opt.netPremM) >= 0.5) {
+      pill('🌊', 'flujo ' + (opt.netPremM >= 0 ? '+' : '−') + '$' + Math.abs(opt.netPremM).toFixed(0) + 'M', opt.netPremM >= 0 ? 'var(--green)' : 'var(--red)',
+        'Prima neta calls−puts negociada HOY (delayed 15m): los dólares del día entran por el lado ' + (opt.netPremM >= 0 ? 'CALL (sesgo alcista)' : 'PUT (cobertura/bajista)') + (opt.flipVol != null ? ' · flip del día ' + opt.flipVol : '') + '. OBSERVACIONAL: aún no cuenta en el semáforo (validación primero)');
+    }
   }
   const ud = dU ? computeUpDownRatio(dU.hist, dU.vols, 50) : null;
   if (ud != null) {
@@ -11277,6 +11283,7 @@ const TrackRecord = {
       // histórico 1y de todos los tickers top-3 (para cierres a fecha de rotación)
       const tks = new Set(['SPY']);
       snaps.forEach(s => s.candidatas.slice(0, 3).forEach(c => tks.add(c.tk)));
+      snaps.forEach(s => s.candidatas.filter(c => c.enZona === true).slice(0, 3).forEach(c => tks.add(c.tk))); // #11: variante en-zona
       const arr = [...tks], hists = {};
       for (let i = 0; i < arr.length; i += 15) {
         try {
@@ -11300,6 +11307,23 @@ const TrackRecord = {
         legs.push({ from: s.date, to: toDate, tks: top3.map(c => c.tk).join('·'), ret: rets.reduce((a, b) => a + b, 0) / rets.length, retSpy: (spyPx / s.spy - 1) * 100 });
       }
       if (legs.length < 2) { body.innerHTML = 'Tramos insuficientes para la equity curve (' + legs.length + ').'; return; }
+      // Auditoría 2026-07-11 (#11) · VARIANTE EN-ZONA: misma mecánica pero compra SOLO las
+      // candidatas que estaban DENTRO de su zona de entrada al snapshot (máx 3); sin ninguna
+      // en zona = cash (ret 0). Mide si el timing de zona agrega alpha. Solo snapshots v:3.
+      const legsZ = [];
+      let zonaDias = 0;
+      for (let i = 0; i < snaps.length; i++) {
+        const s = snaps[i];
+        if (!s.candidatas.some(c => c.enZona != null)) continue;
+        zonaDias++;
+        const toDate = i + 1 < snaps.length ? snaps[i + 1].date : today;
+        const spyPx = closeAt('SPY', toDate);
+        if (!spyPx || !(s.spy > 0)) continue;
+        const enz = s.candidatas.filter(c => c.enZona === true && c.price > 0).slice(0, 3);
+        const retsZ = enz.map(c => { const px = closeAt(c.tk, toDate); return px ? (px / c.price - 1) * 100 : null; }).filter(v => v != null);
+        legsZ.push({ ret: retsZ.length ? retsZ.reduce((a, b) => a + b, 0) / retsZ.length : 0, retSpy: (spyPx / s.spy - 1) * 100 });
+      }
+      const zonaStats = legsZ.length >= 2 ? this._compound(legsZ) : null;
       const { eq, eqSpy } = this._compound(legs);
       const exceso = eq - eqSpy;
       const col = exceso > 1 ? 'var(--green)' : exceso < -1 ? 'var(--red)' : 'var(--amber)';
@@ -11308,6 +11332,9 @@ const TrackRecord = {
         + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">CARTERA</div><div style="font-size:17px;font-weight:700;color:' + (eq >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (eq >= 0 ? '+' : '') + eq.toFixed(1) + '%</div></div>'
         + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">SPY MISMO PERÍODO</div><div style="font-size:17px;font-weight:700;color:var(--text2)">' + (eqSpy >= 0 ? '+' : '') + eqSpy.toFixed(1) + '%</div></div>'
         + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">EXCESO (EL VEREDICTO)</div><div style="font-size:17px;font-weight:700;color:' + col + '">' + (exceso >= 0 ? '+' : '') + exceso.toFixed(1) + '%</div></div>'
+        + (zonaStats
+          ? '<div style="padding:8px 12px;background:var(--surface2);border:1px solid rgba(45,212,191,.3);border-radius:6px" title="Variante: compra SOLO candidatas que estaban DENTRO de su zona de entrada al snapshot (máx 3; sin ninguna = cash). Mide si el timing de zona agrega alpha vs comprar el top-3 a mercado"><div style="font-size:8px;color:var(--teal)">🎯 VARIANTE EN-ZONA (' + legsZ.length + ' tramos)</div><div style="font-size:17px;font-weight:700;color:' + (zonaStats.eq >= eq ? 'var(--teal)' : 'var(--text2)') + '">' + (zonaStats.eq >= 0 ? '+' : '') + zonaStats.eq.toFixed(1) + '%</div></div>'
+          : '<div style="padding:8px 12px;background:var(--surface2);border:1px dashed var(--border);border-radius:6px" title="La variante EN-ZONA necesita snapshots v:3 (graban enZona por candidata desde 2026-07-11)"><div style="font-size:8px;color:var(--text3)">🎯 EN-ZONA: esperando data</div><div style="font-size:11px;color:var(--text3);margin-top:4px">' + zonaDias + ' snapshot(s) v:3 — evaluable con 3+</div></div>')
         + '</div>'
         + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>TRAMO</th><th>CARTERA (top-3)</th><th>RET</th><th>SPY</th><th>EXCESO</th></tr></thead><tbody>'
         + legs.slice().reverse().map(l => '<tr><td class="mono">' + l.from + ' → ' + l.to + '</td><td class="mono" style="font-size:9px">' + l.tks + '</td>'
@@ -11779,11 +11806,20 @@ const CandidatasHoy = {
     const postura = (document.getElementById('hero-postura')?.textContent || '').toUpperCase();
     const banner  = (document.getElementById('regime-banner')?.textContent || '').toUpperCase();
     const regime = banner.includes('RISK_OFF') ? 'RISK_OFF' : banner.includes('RISK_ON') ? 'RISK_ON' : 'NEUTRAL';
+    // OBSERVACIONAL (2026-07-11): marea de rotación + quad + NFCI como CONTEXTO en el texto —
+    // NO cambian el level (eso alteraría candScore vía el veto; validación primero, corte v:3)
+    let ctx2 = '';
+    try {
+      const occ = window._rotTransCache?.occ, cur = occ?.[occ.length - 1];
+      if (cur?.tot) ctx2 += ' · marea ' + cur.in + '/' + cur.tot + (cur.in <= cur.tot * 0.35 ? ' ⚠ rally ANGOSTO' : '');
+      if (window.__quad?.quad) ctx2 += ' · quad ' + window.__quad.quad + (window.__quad.conf < 35 ? ' (difuso)' : '');
+      if (window.__nfci?.score != null) ctx2 += ' · NFCI ' + Math.round(window.__nfci.score);
+    } catch (e) {}
     if (regime === 'RISK_OFF' || postura.includes('MAXIMA CAUTELA') || postura.includes('MÁXIMA CAUTELA'))
-      return { level: 'block', col: 'var(--red)', icon: '⛔', txt: 'VETO MACRO — régimen ' + regime + ' · postura ' + (postura || 'n/d') + '. El sistema desaconseja abrir largos: la lista es SOLO informativa.' };
+      return { level: 'block', col: 'var(--red)', icon: '⛔', txt: 'VETO MACRO — régimen ' + regime + ' · postura ' + (postura || 'n/d') + '. El sistema desaconseja abrir largos: la lista es SOLO informativa.' + ctx2 };
     if (postura.includes('DEFENSIVO') || regime === 'NEUTRAL')
-      return { level: 'warn', col: 'var(--amber)', icon: '⚠', txt: 'Régimen ' + regime + ' · postura ' + (postura || 'n/d') + ' — el macro pide selectividad máxima: solo setups A, sizing reducido.' };
-    return { level: 'ok', col: 'var(--green)', icon: '✓', txt: 'Régimen ' + regime + ' · postura ' + (postura || 'n/d') + ' — compatible con nuevas posiciones largas.' };
+      return { level: 'warn', col: 'var(--amber)', icon: '⚠', txt: 'Régimen ' + regime + ' · postura ' + (postura || 'n/d') + ' — el macro pide selectividad máxima: solo setups A, sizing reducido.' + ctx2 };
+    return { level: 'ok', col: 'var(--green)', icon: '✓', txt: 'Régimen ' + regime + ' · postura ' + (postura || 'n/d') + ' — compatible con nuevas posiciones largas.' + ctx2 };
   },
   async scan(force) {
     const body = document.getElementById('cand-body');
@@ -12168,6 +12204,26 @@ const CandidatasHoy = {
         const col = d.ratio >= 55 ? 'var(--red)' : d.ratio <= 40 ? 'var(--green)' : 'var(--text3)';
         chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="SHORT VOLUME (FINRA Reg SHO, archivo ' + d.file + '): ' + d.ratio + '% del volumen del día fue venta corta (' + (d.shortVol/1e6).toFixed(1) + 'M de ' + (d.totalVol/1e6).toFixed(1) + 'M). >55% presión corta elevada · <40% baja — umbrales PROVISIONALES (el ~45% es normal por market-making)">🩳' + d.ratio.toFixed(0) + '%</span>');
       });
+    } catch (e) {}
+    // 1b · Auditoría 2026-07-11 (#9) · ESTACIONALIDAD del mes actual (top-5, 10 años mensuales,
+    // cache CDN 24h): viento de fondo contextual — observacional, no toca el score.
+    try {
+      const mesIdx = new Date().getMonth();
+      const mesLbl = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][mesIdx];
+      for (const tk of tks.slice(0, 5)) {
+        try {
+          const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=10y').then(r2 => r2.json());
+          const h = j?.[tk]?.hist, ds = j?.[tk]?.dates;
+          if (!h?.length || !ds?.length || h.length < 36) continue; // mínimo 3 años de mensuales
+          const rets = [];
+          for (let i = 1; i < h.length; i++) if (new Date(ds[i] + 'T12:00:00').getMonth() === mesIdx && h[i - 1] > 0) rets.push((h[i] / h[i - 1] - 1) * 100);
+          if (rets.length < 3) continue;
+          const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
+          const win = rets.filter(v => v > 0).length / rets.length * 100;
+          const col = (win >= 60 && avg > 0) ? 'var(--green)' : (win <= 40 && avg < 0) ? 'var(--red)' : 'var(--text3)';
+          chip(tk, '<span class="mono" style="font-size:8px;color:' + col + '" title="ESTACIONALIDAD de ' + tk + ' en ' + mesLbl + ' (' + rets.length + ' años): retorno promedio ' + (avg >= 0 ? '+' : '') + avg.toFixed(1) + '% · ganó el ' + win.toFixed(0) + '% de los años. Viento de fondo CONTEXTUAL — no toca el score">📆' + mesLbl + ' ' + win.toFixed(0) + '%</span>');
+        } catch (e2) {}
+      }
     } catch (e) {}
     // 1c · MOTOR v2: chip 🎯 desde row.zona (ya computada por el pipeline del scan — R6: cero
     // fetch duplicado). El embudo dice QUÉ; esto dice A CUÁNTO ESTÁ el precio del DÓNDE.
@@ -13689,6 +13745,23 @@ ${(() => { // E4: si hay un Mapa de Entrada activo en el Tab 09, Phoenix lo cono
     const zs = InstDeep._zones.filter(z => z.cat !== 'DEBIL').slice(0, 4)
       .map(z => z.cat + ' ' + z.side + ' ' + z.lo.toFixed(2) + (z.hi > z.lo * 1.0005 ? '-' + z.hi.toFixed(2) : '') + ' (score ' + z.score + ', ' + z.touches + ' tests): ' + z.labels.join('+'));
     return '\nMAPA DE ENTRADA activo — ' + InstTab._cur + ':\n' + zs.map(s2 => '• ' + s2).join('\n') + '\n(Las zonas son contexto computado por confluencia de fuentes, no señales; el timing lo decide el price action del usuario)';
+  } catch (e) { return ''; }
+})()}
+${(() => { // Auditoría 2026-07-11 (#6): Phoenix conoce candidatas, semáforo/flujo del ticker activo, radar y marea
+  try {
+    const L2 = [];
+    const cands = (typeof CandidatasHoy !== 'undefined' && CandidatasHoy.cache?.cands) ? CandidatasHoy.cache.cands.slice(0, 5) : [];
+    if (cands.length) L2.push('CANDIDATAS HOY (embudo motor v2, top-5): ' + cands.map(c => c.tk + (c.score != null ? ' sc' + c.score : '') + (c.zona?.enZona ? ' EN-ZONA' : '') + (c.netPrem != null && Math.abs(c.netPrem) >= 0.5 ? ' 🌊' + (c.netPrem >= 0 ? '+' : '−') + '$' + Math.abs(c.netPrem).toFixed(0) + 'M' : '')).join(' · '));
+    const dL = (typeof InstPanel !== 'undefined') ? InstPanel._lastD : null;
+    if (dL?.tk) L2.push('TICKER ACTIVO Tab 09 — ' + dL.tk + ': GEX $' + dL.gexTotalBn + 'bn (walls ' + dL.putWall + '/' + dL.callWall + ')' + (dL.netPremM != null ? ' · flujo hoy ' + (dL.netPremM >= 0 ? '+' : '−') + '$' + Math.abs(dL.netPremM).toFixed(0) + 'M' : '') + (dL.flipVol != null ? ' · flip del día ' + dL.flipVol : ''));
+    try {
+      const today2 = new Date().toISOString().slice(0, 10);
+      const rv = (JSON.parse(localStorage.getItem('radar_v1') || '[]')).filter(x => x.d === today2).sort((a, b2) => b2.sc - a.sc).slice(0, 3);
+      if (rv.length) L2.push('RADAR DE ANTICIPACIÓN hoy (flujo temprano 0-100, observacional): ' + rv.map(x => x.tk + ' ' + x.sc).join(' · '));
+    } catch (e2) {}
+    const occ = window._rotTransCache?.occ, cur = occ?.[occ.length - 1];
+    if (cur?.tot) L2.push('MAREA DE ROTACIÓN: ' + cur.in + '/' + cur.tot + ' sectores recibiendo capital' + (cur.in <= cur.tot * 0.35 ? ' (rally ANGOSTO — fragilidad)' : ''));
+    return L2.length ? '\n' + L2.map(s2 => '• ' + s2).join('\n') : '';
   } catch (e) { return ''; }
 })()}
 REGLAS:
