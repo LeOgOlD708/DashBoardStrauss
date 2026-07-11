@@ -407,8 +407,10 @@ async function optAgg(tk, expMode) {
 // summaryTypeCode: ATS_W_SMBL = total dark pools símbolo/semana · ATS_W_SMBL_FIRM = por venue
 // · OTC_W_SMBL(_FIRM) = internalizadores non-ATS (Citadel/Virtu/...). Lag publicación:
 // ~2 sem (Tier 1) a 4 sem (Tier 2/OTC) — el cliente SIEMPRE etiqueta la semana del dato.
-async function atsWeekly(tickers) {
-  const since = new Date(Date.now() - 42 * 86400000).toISOString().slice(0, 10);
+async function atsWeekly(tickers, weeks) {
+  // TEMPORALIDAD (2026-07-11): ventana parametrizable 4-12 semanas (+3 sem de buffer por el lag FINRA)
+  const wk = Math.min(12, Math.max(4, +weeks || 6));
+  const since = new Date(Date.now() - (wk * 7 + 21) * 86400000).toISOString().slice(0, 10);
   const today = new Date().toISOString().slice(0, 10);
   const r = await fetch('https://api.finra.org/data/group/otcMarket/name/weeklySummary', {
     method: 'POST',
@@ -826,7 +828,7 @@ module.exports = async (req, res) => {
       // FINRA a veces se cae (504/500 visto 2026-07-10) → 200 con {error} sin cache
       // (consola limpia; el cliente degrada y se reintenta cuando FINRA vuelva)
       try {
-        const out = await atsWeekly(tickers.slice(0, 10)); // 1 request FINRA para todos (domainFilters)
+        const out = await atsWeekly(tickers.slice(0, 10), req.query.weeks); // 1 request FINRA para todos (domainFilters)
         res.setHeader('Cache-Control', 's-maxage=43200, stale-while-revalidate=43200'); // 12h — dato semanal con lag
         return res.status(200).json(out);
       } catch (e) {

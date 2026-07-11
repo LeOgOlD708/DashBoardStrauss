@@ -9686,15 +9686,29 @@ const InstPanel = {
       for (const s of (d.strikes || [])) snap[s.k] = [s.cOI, s.pOI];
       if (!arr.length || arr[arr.length - 1].d !== today) arr.push({ d: today, s: snap });
       else arr[arr.length - 1].s = snap; // misma sesión: el OI de cierre no cambia intradía, refrescar es inocuo
-      all[d.tk] = arr.slice(-2);
+      all[d.tk] = arr.slice(-10); // TEMPORALIDAD: 10 lecturas → ΔOI vs ayer / ~5 sesiones / 1ª lectura
       const tks = Object.keys(all);
       if (tks.length > 12) { // cap: el ticker con lectura más vieja sale
         tks.sort((a, b) => ((all[a][all[a].length - 1] || {}).d || '') < ((all[b][all[b].length - 1] || {}).d || '') ? -1 : 1);
         delete all[tks[0]];
       }
       localStorage.setItem('inst_oi_v1', JSON.stringify(all));
+      this._oiArr = arr; // TEMPORALIDAD: la serie completa disponible para el selector de referencia
       return arr.length >= 2 ? arr[arr.length - 2] : null; // lectura previa de OTRO día
-    } catch (e) { return null; }
+    } catch (e) { this._oiArr = null; return null; }
+  },
+  // TEMPORALIDAD (2026-07-11): contra qué lectura se compara el ΔOI
+  setDoiRef(r) {
+    if (this._doiRef === r) return;
+    this._doiRef = r;
+    if (this._lastD) this._flow(this._lastD);
+  },
+  _pickOiRef() {
+    const arr = this._oiArr || [];
+    if (arr.length < 2) return null;
+    const r = this._doiRef || 'prev';
+    const idx = r === 'first' ? 0 : r === 'w' ? Math.max(0, arr.length - 6) : arr.length - 2;
+    return idx >= arr.length - 1 ? arr[arr.length - 2] : arr[idx];
   },
   // ── FLUJO E1b: bloque "¿dónde está entrando dinero HOY?" — prima negociada + aperturas + ΔOI ──
   _flow(d) {
@@ -9719,7 +9733,11 @@ const InstPanel = {
         return { k: s.k, lado: cNew && pNew ? 'C+P' : cNew ? 'C' : 'P', v: (cNew ? s.cV : 0) + (pNew ? s.pV : 0), prem: s.prem };
       })
       .filter(Boolean).sort((a, b) => Math.abs(b.prem) - Math.abs(a.prem)).slice(0, 6);
-    const prev = (this._exp === 'm' && !instOptFetch(d.tk || this._cur).crypto) ? this._oiHist(d) : null;
+    let prev = null;
+    if (this._exp === 'm' && !instOptFetch(d.tk || this._cur).crypto) {
+      this._oiHist(d); // registra la lectura de hoy y llena _oiArr
+      prev = this._pickOiRef(); // TEMPORALIDAD: vs última / ~5 sesiones / 1ª lectura
+    }
     box.innerHTML =
       '<div class="mono" style="font-size:12px;color:var(--text);margin-bottom:6px"><b>⚡ FLUJO DE HOY</b> <span style="color:var(--text3)">— prima negociada (delayed 15 min, sin clasificar agresor)</span>' + helpIcon('flujo-de-hoy') + '</div>'
       + '<div class="mono" style="font-size:11.5px;line-height:1.9">'
@@ -9753,7 +9771,13 @@ const InstPanel = {
     rows.sort((a, b) => b.mag - a.mag);
     const top = rows.slice(0, 20).sort((a, b) => b.k - a.k);
     if (!top.length) { wrap.innerHTML = '<div class="mono" style="font-size:10.5px;color:var(--text3)">ΔOI vs ' + prev.d + ': sin cambios de posicionamiento relevantes.</div>'; return; }
-    wrap.innerHTML = '<div class="mono" style="font-size:11px;color:var(--text2);margin-bottom:4px">ΔOI OVERNIGHT vs ' + prev.d + ' <span style="color:var(--text3)">— posicionamiento NUEVO (verde=calls, rojo=puts; barra a la izquierda = unwinding)</span></div>'
+    // TEMPORALIDAD: selector de referencia (aparece cuando la serie tiene ≥3 lecturas)
+    const nArr = (this._oiArr || []).length;
+    const refSel = nArr >= 3
+      ? ' <span style="color:var(--text3);font-size:9px">· Δ vs:</span> ' + [['prev', 'ÚLT SESIÓN'], ['w', '~5 SESIONES'], ['first', '1ª LECTURA']].map(([r, lbl]) =>
+          '<button type="button" onclick="InstPanel.setDoiRef(\'' + r + '\')" style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid ' + ((this._doiRef || 'prev') === r ? 'var(--gold)' : 'var(--border2)') + ';color:' + ((this._doiRef || 'prev') === r ? 'var(--gold)' : 'var(--text3)') + '" title="Comparar el OI de hoy contra esa lectura (serie local, ' + nArr + ' lecturas)">' + lbl + '</button>').join(' ')
+      : '';
+    wrap.innerHTML = '<div class="mono" style="font-size:11px;color:var(--text2);margin-bottom:4px">ΔOI ACUMULADO vs ' + prev.d + refSel + ' <span style="color:var(--text3)">— posicionamiento NUEVO (verde=calls, rojo=puts; barra a la izquierda = unwinding)</span></div>'
       + '<div class="ch-wrap" style="height:' + Math.max(140, top.length * 14 + 40) + 'px"><canvas id="inst-doi-cv"></canvas></div>';
     const cv2 = document.getElementById('inst-doi-cv');
     if (!cv2 || typeof Chart === 'undefined') return;
@@ -10258,7 +10282,7 @@ const InstDeep = {
         } catch (e) {}
         return jf(instOptFetch(tk).url);
       })(),
-      esCrypto ? Promise.resolve(null) : jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk)),
+      esCrypto ? Promise.resolve(null) : jf('/api/capital?src=ats&tickers=' + encodeURIComponent(tk) + '&weeks=12'), // TEMPORALIDAD: 12 sem, el selector recorta client-side
       esCrypto ? Promise.resolve(null) : jf('/api/capital?src=stats&tickers=' + encodeURIComponent(tk)),
       esCrypto ? Promise.resolve(null) : jf('/api/capital?src=insiders&tickers=' + encodeURIComponent(tk)) // E3: cluster (cache 12h)
     ]);
@@ -10406,6 +10430,9 @@ const InstDeep = {
         parts.push('<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:10px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
           + '<span style="font-size:13px;font-weight:700;color:var(--text)">🎯 ZONAS DE ENTRADA</span> <button class="help-i" type="button" onclick="openGlossary(\'zonas-de-entrada\')" title="¿Cómo se computan?">?</button>'
           + '<span style="color:var(--text3);font-size:10.5px"> — diversidad de fuentes × timeframe × degradación por tests</span>'
+          + ' <span class="mono" style="color:var(--text3);font-size:9px;margin-left:8px">VENTANA:</span> '
+          + [[30, '30D'], [90, '90D'], [180, '180D'], [365, '1A']].map(([n, lbl]) =>
+              '<button type="button" id="instd-mapw-' + n + '" onclick="InstDeep.setMapWin(' + n + ')" style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid ' + ((InstDeep._mapWin || 90) === n ? 'var(--gold)' : 'var(--border2)') + ';color:' + ((InstDeep._mapWin || 90) === n ? 'var(--gold)' : 'var(--text3)') + '" title="Ventana del chart de precio (las zonas NO cambian — se computan con su propia lógica multi-timeframe)">' + lbl + '</button>').join(' ')
           + '<div class="ch-wrap" style="height:400px;margin-top:10px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
           + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual</div>'
           + '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text3);margin-top:12px">ESCALERA DE LIQUIDEZ <span style="font-weight:400">— de resistencias (arriba) a soportes (abajo)</span></div>'
@@ -10423,28 +10450,8 @@ const InstDeep = {
     try {
       const d = ats?.data?.[tk];
       if (d && !d.error && d.weeks?.length) {
-        const wks = d.weeks.slice(-4);
-        const rows2 = wks.map(w => {
-          const tot = weekVolOf(dU, w.week);
-          return { ...w, dp: tot ? (w.ats / tot * 100) : null, off: tot ? ((w.ats + w.otc) / tot * 100) : null };
-        });
-        const L2 = rows2[rows2.length - 1], P2 = rows2.length > 1 ? rows2[rows2.length - 2] : null;
-        const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
-        const fmtM = v => (v / 1e6).toFixed(1) + 'M';
-        const lagD = Math.round((Date.now() - new Date(L2.week + 'T12:00:00')) / 86400000);
-        const venues = (d.topATS || []).map(v => escHtml(v.name.replace(/\s+(LLC|INC\.?|,)$/i, '')) + ' ' + fmtM(v.sh)).join(' · ');
-        const internal = (d.topOTC || []).map(v => escHtml(v.name.split(' ')[0]) + ' ' + fmtM(v.sh)).join(' · ');
-        const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
-        parts.push('<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:8px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
-          + '<span style="font-size:13px;font-weight:700;color:var(--text)">🕶 DARK POOLS</span> <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
-          + ' <span style="color:var(--amber)">semana del ' + L2.week + ' (dato con ~' + lagD + 'd de rezago — FINRA publica con lag)</span><br>'
-          + (L2.dp != null
-            ? 'Dark pools: <b>' + L2.dp.toFixed(1) + '%</b> del volumen semanal (' + fmtM(L2.ats) + ')'
-              + (L2.off != null ? ' · off-exchange total (ATS+internalizadores): <b>' + Math.min(99, L2.off).toFixed(0) + '%</b>' : '')
-              + (dTrend != null ? ' · Δ vs sem. anterior: <span style="color:' + (dTrend >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dTrend >= 0 ? '+' : '') + dTrend.toFixed(1) + 'pp</span>' : '')
-            : 'ATS: ' + fmtM(L2.ats) + ' shares (sin denominador local para %)')
-          + '<br><span style="color:var(--text3)">Trayectoria dp%: ' + histTxt
-          + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>');
+        this._dpCtx = { d, dU }; // TEMPORALIDAD: contexto para re-render del bloque con otra ventana
+        parts.push('<div id="instd-dp">' + this._dpHtml() + '</div>');
       }
     } catch (e) {}
     // ── 🏛 ownership ──
@@ -10564,13 +10571,65 @@ const InstDeep = {
       return { txt: 'IV rank ' + rank.toFixed(0), col, tip: 'IV ATM ' + (ivAtm * 100).toFixed(1) + '% en el percentil ' + rank.toFixed(0) + ' de su rango local (' + ivs.length + ' lecturas): alto = prima CARA (favorece vender prima), bajo = BARATA (favorece comprar opciones)' };
     } catch (e) { return null; }
   },
-  // E2 · El Mapa: precio diario (90d) + bandas de zonas del motor + banda EM + LVN.
+  // ── TEMPORALIDAD (2026-07-11): DARK POOLS con ventana 4/8/12 semanas (data ya en memoria) ──
+  _dpHtml() {
+    const { d, dU } = this._dpCtx || {};
+    if (!d) return '';
+    const win = this._dpWin || 4;
+    const wks = d.weeks.slice(-win);
+    const rows2 = wks.map(w => {
+      const tot = weekVolOf(dU, w.week);
+      return { ...w, dp: tot ? (w.ats / tot * 100) : null, off: tot ? ((w.ats + w.otc) / tot * 100) : null };
+    });
+    const L2 = rows2[rows2.length - 1], P2 = rows2.length > 1 ? rows2[rows2.length - 2] : null;
+    const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
+    const fmtM = v => (v / 1e6).toFixed(1) + 'M';
+    const lagD = Math.round((Date.now() - new Date(L2.week + 'T12:00:00')) / 86400000);
+    const venues = (d.topATS || []).map(v => escHtml(v.name.replace(/\s+(LLC|INC\.?|,)$/i, '')) + ' ' + fmtM(v.sh)).join(' · ');
+    const internal = (d.topOTC || []).map(v => escHtml(v.name.split(' ')[0]) + ' ' + fmtM(v.sh)).join(' · ');
+    const histTxt = rows2.map(w2 => w2.week.slice(5) + (w2.dp != null ? ' ' + w2.dp.toFixed(0) + '%' : ' —')).join(' → ');
+    // promedio de la ventana como referencia (¿la última semana está sobre o bajo su norma?)
+    const dps = rows2.map(r2 => r2.dp).filter(v => v != null);
+    const avg = dps.length > 1 ? dps.slice(0, -1).reduce((a, b) => a + b, 0) / (dps.length - 1) : null;
+    const vsAvg = (avg != null && L2.dp != null) ? L2.dp - avg : null;
+    const btn = (w, lbl) => '<button type="button" onclick="InstDeep.setDpWin(' + w + ')" style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid ' + (win === w ? 'var(--gold)' : 'var(--border2)') + ';color:' + (win === w ? 'var(--gold)' : 'var(--text3)') + '" title="Ventana de ' + w + ' semanas (FINRA devuelve hasta 12; el dato siempre llega con lag)">' + lbl + '</button>';
+    return '<div class="mono" style="font-size:11.5px;color:var(--text2);margin-top:8px;padding:12px 14px;background:var(--surface2);border-radius:7px">'
+      + '<span style="font-size:13px;font-weight:700;color:var(--text)">🕶 DARK POOLS</span> <button class="help-i" type="button" onclick="openGlossary(\'dark-pools\')" title="¿Qué es esto?">?</button>'
+      + ' <span style="color:var(--text3);font-size:9px">VENTANA:</span> ' + btn(4, '4S') + ' ' + btn(8, '8S') + ' ' + btn(12, '12S')
+      + ' <span style="color:var(--amber)">semana del ' + L2.week + ' (dato con ~' + lagD + 'd de rezago — FINRA publica con lag)</span><br>'
+      + (L2.dp != null
+        ? 'Dark pools: <b>' + L2.dp.toFixed(1) + '%</b> del volumen semanal (' + fmtM(L2.ats) + ')'
+          + (L2.off != null ? ' · off-exchange total (ATS+internalizadores): <b>' + Math.min(99, L2.off).toFixed(0) + '%</b>' : '')
+          + (dTrend != null ? ' · Δ vs sem. anterior: <span style="color:' + (dTrend >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (dTrend >= 0 ? '+' : '') + dTrend.toFixed(1) + 'pp</span>' : '')
+          + (vsAvg != null ? ' · vs promedio ' + (win - 1) + 'sem: <span style="color:' + (vsAvg >= 1 ? 'var(--green)' : vsAvg <= -1 ? 'var(--red)' : 'var(--text3)') + '" title="dp% de la última semana contra el promedio de las anteriores de la ventana — sostenido al alza con precio plano = patrón de acumulación silenciosa">' + (vsAvg >= 0 ? '+' : '') + vsAvg.toFixed(1) + 'pp</span>' : '')
+        : 'ATS: ' + fmtM(L2.ats) + ' shares (sin denominador local para %)')
+      + '<br><span style="color:var(--text3)">Trayectoria dp% (' + win + ' sem): ' + histTxt
+      + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>';
+  },
+  setDpWin(w) {
+    if (this._dpWin === w) return;
+    this._dpWin = w;
+    const el = document.getElementById('instd-dp');
+    if (el && this._dpCtx) el.innerHTML = this._dpHtml();
+  },
+  // TEMPORALIDAD: ventana del Mapa de Entrada (el hist de 1 año ya está descargado — solo recorta)
+  setMapWin(n) {
+    if (this._mapWin === n) return;
+    this._mapWin = n;
+    ['30', '90', '180', '365'].forEach(x => {
+      const b = document.getElementById('instd-mapw-' + x);
+      if (b) { b.style.borderColor = +x === n ? 'var(--gold)' : 'var(--border2)'; b.style.color = +x === n ? 'var(--gold)' : 'var(--text3)'; }
+    });
+    if (this._mapArgs) this._renderMap(this._mapArgs.tk, this._mapArgs.dU, this._mapArgs.opt);
+  },
+  // E2 · El Mapa: precio diario (ventana elegible, default 90d) + bandas de zonas + banda EM + LVN.
   // Eje Y linear expandido para incluir las zonas mostradas (no solo el rango del precio).
   _renderMap(tk, dU, opt) {
     const cv = document.getElementById('instd-map-cv');
     if (!cv || typeof Chart === 'undefined' || !dU?.hist?.length) return;
+    this._mapArgs = { tk, dU, opt }; // TEMPORALIDAD: re-render al cambiar ventana sin refetch
     if (this._mapChart) { try { this._mapChart.destroy(); } catch (e) {} this._mapChart = null; }
-    const N = Math.min(90, dU.hist.length);
+    const N = Math.min(this._mapWin || 90, dU.hist.length);
     const closes = dU.hist.slice(-N), dates = dU.dates.slice(-N);
     const spot = closes[closes.length - 1];
     // zonas a pintar: ENTRADA + IMAN (y degradadas relevantes), máx 7 — anti clutter
@@ -12050,13 +12109,17 @@ const FlowTracker = {
     }
     this.renderPanel();
   },
-  flowSince(tk) {
+  flowSince(tk, sinceDays) {
     // Suma por SEGMENTOS consecutivos (audit metodologico 2026-07-08):
     // (a) un split/reverse-split cambia shares outstanding SIN flujo → saltos >25%
     //     entre muestras se descartan (2:1 = +100%, un flujo real diario raramente >10%)
     // (b) cada segmento usa su propio precio → ventanas largas no mezclan precios stale
     // Caveat documentado: usamos precio de mercado ≈ NAV (SPDRs liquidos, error <0.1%)
-    const arr = this.load()[tk] || [];
+    let arr = this.load()[tk] || [];
+    if (sinceDays && arr.length) { // TEMPORALIDAD: recortar al último tramo de N días de muestreo
+      const cut = new Date(new Date(arr[arr.length - 1].d + 'T12:00:00') - sinceDays * 86400000).toISOString().slice(0, 10);
+      arr = arr.filter(m => m.d >= cut);
+    }
     if (arr.length < 2) return null;
     let usd = 0, validPairs = 0, skippedSplits = 0;
     for (let i = 1; i < arr.length; i++) {
@@ -12080,16 +12143,24 @@ const FlowTracker = {
     if (a >= 1e6) return sign + '$' + (a / 1e6).toFixed(0) + 'M';
     return sign + '$' + (a / 1e3).toFixed(0) + 'K';
   },
+  // TEMPORALIDAD (2026-07-11): ventana del panel — 3d / 1 sem / 2 sem / todo el muestreo
+  setWin(d) {
+    if (this._win === d) return;
+    this._win = d;
+    this.renderPanel();
+  },
   renderPanel() {
     const el = document.getElementById('rot-flows');
     if (!el) return;
     this.load();
     const tks = Object.keys(ROT_SECTORS);
-    const flows = tks.map(tk => ({ tk, f: this.flowSince(tk) }));
+    const flows = tks.map(tk => ({ tk, f: this.flowSince(tk, this._win) }));
     const withData = flows.filter(x => x.f);
     const latestAum = tk => { const arr = this.hist[tk] || []; return arr.length ? arr[arr.length - 1].aum : null; };
     const fmtAum = v => v == null ? '' : '$' + (v >= 1e9 ? (v / 1e9).toFixed(0) + 'B' : (v / 1e6).toFixed(0) + 'M');
-    const head = '<div class="lbl" style="margin-bottom:2px;display:flex;align-items:center;gap:6px">Flujos reales — creations/redemptions <button class="glossary-btn" onclick="openGlossary(&quot;flujos-reales&quot;)" title="¿Qué es esto?">?</button></div>';
+    const wBtn = (d, lbl) => '<button type="button" onclick="FlowTracker.setWin(' + d + ')" style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid ' + ((this._win || null) === d ? 'var(--gold)' : 'var(--border2)') + ';color:' + ((this._win || null) === d ? 'var(--gold)' : 'var(--text3)') + '" title="Ventana de la suma de flujos (el historial local guarda hasta 40 muestras diarias)">' + lbl + '</button>';
+    const head = '<div class="lbl" style="margin-bottom:2px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Flujos reales — creations/redemptions <button class="glossary-btn" onclick="openGlossary(&quot;flujos-reales&quot;)" title="¿Qué es esto?">?</button>'
+      + '<span style="margin-left:auto;display:flex;gap:4px">' + wBtn(3, '3D') + wBtn(7, '1S') + wBtn(14, '2S') + wBtn(null, 'TODO') + '</span></div>';
     if (!withData.length) {
       const sampled = tks.filter(tk => (this.hist[tk] || []).length >= 1).length;
       el.innerHTML = head + '<div style="font-size:9px;color:var(--text3);font-family:\'IBM Plex Mono\',monospace;line-height:1.6;padding:6px 8px;background:var(--surface2);border-radius:4px">'
