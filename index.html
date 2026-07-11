@@ -9655,8 +9655,16 @@ const RadarFlujo = {
         const snap = await fetch('/api/capital?src=trackget&date=' + last).then(r => r.json());
         tks = (snap.candidatas || []).map(c => c.tk).filter(Boolean).slice(0, 8);
         this._snapDate = last;
+        // cache del último set bueno — tracklist/GitHub devuelve 502 a ratos (cazado en prod 2026-07-11)
+        try { localStorage.setItem('radar_set_v1', JSON.stringify({ d: last, tks })); } catch (e2) {}
       }
-    } catch (e) { /* sin token/snapshot → solo el ticker analizado */ }
+    } catch (e) { /* cae al cache de abajo */ }
+    if (!tks.length) { // fallback: último set bueno cacheado (mejor un set de ayer que solo 1 ticker)
+      try {
+        const c = JSON.parse(localStorage.getItem('radar_set_v1') || 'null');
+        if (c?.tks?.length) { tks = c.tks; this._snapDate = c.d + ' (cache)'; }
+      } catch (e) {}
+    }
     const cur = InstPanel._cur;
     if (cur && !tks.includes(cur)) tks.unshift(cur);
     return [...new Set(tks)].filter(t => !/-USD$/.test(t)).slice(0, 10); // crypto fuera (Deribit sin volTotal)
