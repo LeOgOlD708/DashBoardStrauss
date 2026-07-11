@@ -2768,6 +2768,16 @@ html.auth-ok #auth-gate{display:none}
     <div id="instd-body"><div class="mono" style="font-size:10px;color:var(--text3);padding:6px 0">La radiografía del activo aparece aquí al analizar: perfil de volumen con POC/Value Area, AVWAPs, niveles ordenados por cercanía, dark pools semana a semana y ownership institucional.</div></div>
   </div>
 
+  <!-- ── E5 · Auditoría de fiabilidad de zonas ── -->
+  <div class="sh"><div class="sh-tag">Fiabilidad</div><div class="sh-title">Auditoría de Zonas — ¿los niveles del motor aguantan de verdad?</div><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <span class="mono" style="font-size:10px;color:var(--gold);letter-spacing:.06em">⚖ CADA ZONA REGISTRADA ES UNA PREDICCIÓN AUDITABLE → HOLD RATE CON DATOS PROPIOS</span>
+      <button type="button" onclick="ZonasAudit.run()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">⚖ EVALUAR ZONAS</button>
+    </div>
+    <div id="zaud-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">Cada consulta del mapa registra sus zonas de entrada (1×/día por ticker) y cada snapshot del embudo graba las del top-3. Esta auditoría las evalúa contra los precios posteriores: ¿aguantaron o fallaron? Con el tiempo responde la pregunta que ningún producto comercial responde de sus propios niveles — y valida (o refuta) la regla de degradación por tests con NUESTROS datos.</div>
+  </div>
+
   <!-- ── COT macro (posicionamiento futuros CFTC) ── -->
   <div class="sh"><div class="sh-tag">Futuros</div><div class="sh-title">COT — Posicionamiento especulativo en futuros (macro)</div><button class="glossary-btn" onclick="openGlossary('cot-posicionamiento')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="border-color:rgba(167,139,250,.2);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
@@ -9550,6 +9560,7 @@ const InstDeep = {
       return;
     }
     const spot = dU.hist[dU.hist.length - 1];
+    this._lastSpot = spot; // E5: para el registro de zonas
     const parts = [];
     // ── cabecera ──
     parts.push('<div class="mono" style="font-size:11px;color:var(--text);margin-bottom:8px"><b>' + escHtml(tk) + '</b> $' + spot.toFixed(2)
@@ -9731,6 +9742,8 @@ const InstDeep = {
     body.innerHTML = parts.join('');
     // E2: el Mapa de Entrada — precio diario 90d con las zonas del motor como bandas
     try { this._renderMap(tk, dU, opt); } catch (e) { /* el mapa nunca rompe la radiografía */ }
+    // E5: registrar las zonas consultadas (1/día por ticker) para la auditoría de fiabilidad
+    try { this._registerZones(tk); } catch (e) {}
     // canvas del perfil (puro, muere con el innerHTML — patrón SeasonMap)
     const vp = this._vp;
     if (vp) {
@@ -9752,6 +9765,26 @@ const InstDeep = {
         }
       }
     }
+  },
+  // E5 · Registro de zonas consultadas (localStorage, 1/día/ticker, cap 40 registros × 30 tk).
+  // Cada registro es una PREDICCIÓN auditable: zona + spot + tests del momento.
+  _registerZones(tk) {
+    if (!this._zones?.length) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const all = JSON.parse(localStorage.getItem('inst_zonas_v1') || '{}');
+    const arr = all[tk] || [];
+    if (arr.length && arr[arr.length - 1].d === today) return; // 1/día
+    const zs = this._zones.filter(z => z.cat === 'ENTRADA').slice(0, 3)
+      .map(z => ({ lo: +z.lo.toFixed(2), hi: +z.hi.toFixed(2), score: z.score, tests: z.touches, side: z.side }));
+    if (!zs.length || !this._lastSpot) return;
+    arr.push({ d: today, spot: +this._lastSpot.toFixed(2), zs });
+    all[tk] = arr.slice(-40);
+    const tks = Object.keys(all);
+    if (tks.length > 30) {
+      tks.sort((a2, b2) => ((all[a2][all[a2].length - 1] || {}).d || '') < ((all[b2][all[b2].length - 1] || {}).d || '') ? -1 : 1);
+      delete all[tks[0]];
+    }
+    localStorage.setItem('inst_zonas_v1', JSON.stringify(all));
   },
   // E4 · zonesFor: versión ligera del motor para OTROS módulos (candidatas, snapshot).
   // Reusa el hist diario ya cargado (universo) y solo fetchea 60d + opt (ambos con cache CDN).
@@ -9853,6 +9886,80 @@ const InstDeep = {
       },
       plugins: [entryMapPlugin]
     });
+  }
+};
+
+// ══ E5 · ZonasAudit — fiabilidad de las zonas del motor (el hueco que nadie cubre) ══
+// Evalúa cada zona registrada (consultas manuales + snapshots del embudo) contra los closes
+// posteriores: PENDIENTE (no tocó) → EN CURSO (dentro) → AGUANTÓ (rebotó sobre hi) / FALLÓ
+// (cerró bajo lo). Hold rate desglosado por frescura (valida la regla de degradación con
+// datos PROPIOS). Con n<20 se declara ANÉCDOTA — misma vara que el track record.
+const ZonasAudit = {
+  async run() {
+    const body = document.getElementById('zaud-body');
+    if (!body) return;
+    body.innerHTML = '<span style="color:var(--text3)">Evaluando zonas registradas…</span>';
+    const recs = [];
+    try {
+      const all = JSON.parse(localStorage.getItem('inst_zonas_v1') || '{}');
+      for (const tk of Object.keys(all)) for (const r of all[tk]) for (const z of r.zs) if (z.side === 'soporte') recs.push({ tk, d: r.d, lo: z.lo, hi: z.hi, score: z.score, tests: z.tests, fuente: 'manual' });
+    } catch (e) {}
+    try {
+      const l = await fetch('/api/capital?src=tracklist').then(r => r.json());
+      for (const d of (l.dates || []).slice(-30)) {
+        const s = await fetch('/api/capital?src=trackget&date=' + d).then(r => r.json()).catch(() => null);
+        (s?.zonas || []).forEach(z => recs.push({ tk: z.tk, d, lo: z.lo, hi: z.hi, score: z.score, tests: z.tests, fuente: 'embudo' }));
+      }
+    } catch (e) {}
+    const today = new Date().toISOString().slice(0, 10);
+    const evalRecs = recs.filter(r => r.d < today);
+    if (!evalRecs.length) {
+      body.innerHTML = '<span style="color:var(--text3)">Aún no hay zonas con edad suficiente (' + recs.length + ' registradas hoy). Cada consulta del mapa y cada snapshot del embudo registran sus zonas — la auditoría se llena sola con los días.</span>';
+      return;
+    }
+    const tks = [...new Set(evalRecs.map(r => r.tk))].slice(0, 25);
+    const yd = await fetch('/api/yahoo?tickers=' + tks.map(encodeURIComponent).join(',') + '&range=6mo').then(r => r.json()).catch(() => null);
+    let held = 0, fail = 0, pend = 0, curso = 0;
+    const fresh = { fresca: { h: 0, f: 0 }, degradada: { h: 0, f: 0 } };
+    const rows = [];
+    for (const r of evalRecs) {
+      const dU = yd?.[r.tk];
+      if (!dU?.hist || dU.error) continue;
+      const i0 = dU.dates.findIndex(x => x > r.d);
+      let estado = 'PENDIENTE';
+      if (i0 >= 0) {
+        for (let i = i0; i < dU.hist.length; i++) {
+          const c = dU.hist[i];
+          if (estado === 'PENDIENTE' && c <= r.hi * 1.003) estado = 'EN CURSO';
+          if (estado === 'EN CURSO') {
+            if (c < r.lo * 0.995) { estado = 'FALLÓ'; break; }
+            if (c > r.hi * 1.005) { estado = 'AGUANTÓ'; break; }
+          }
+        }
+      }
+      if (estado === 'AGUANTÓ') { held++; (r.tests <= 2 ? fresh.fresca : fresh.degradada).h++; }
+      else if (estado === 'FALLÓ') { fail++; (r.tests <= 2 ? fresh.fresca : fresh.degradada).f++; }
+      else if (estado === 'EN CURSO') curso++; else pend++;
+      rows.push({ ...r, estado });
+    }
+    const n = held + fail;
+    const rate = n > 0 ? (held / n * 100).toFixed(0) : null;
+    const fr = fresh.fresca, dg = fresh.degradada;
+    const estCol = { 'AGUANTÓ': 'var(--green)', 'FALLÓ': 'var(--red)', 'EN CURSO': 'var(--amber)', 'PENDIENTE': 'var(--text3)' };
+    const tbl = rows.slice(-14).reverse().map(r =>
+      '<tr><td style="padding:2px 8px 2px 0;color:var(--text)">' + r.tk + '</td><td style="padding:2px 8px;color:var(--text3)">' + r.d.slice(5) + '</td>'
+      + '<td style="padding:2px 8px">' + r.lo.toFixed(2) + '–' + r.hi.toFixed(2) + '</td>'
+      + '<td style="padding:2px 8px;text-align:right">' + r.score + '</td>'
+      + '<td style="padding:2px 8px;text-align:right" title="tests que tenía la zona al registrarse">' + r.tests + '</td>'
+      + '<td style="padding:2px 8px;color:var(--text3)">' + r.fuente + '</td>'
+      + '<td style="padding:2px 0;color:' + estCol[r.estado] + ';font-weight:600">' + r.estado + '</td></tr>').join('');
+    body.innerHTML =
+      '<div style="margin-bottom:6px">Resueltas: <b style="color:var(--green)">' + held + ' aguantaron</b> · <b style="color:var(--red)">' + fail + ' fallaron</b>'
+      + (rate != null ? ' · hold rate <b>' + rate + '%</b>' : '') + ' · en curso ' + curso + ' · sin tocar ' + pend
+      + (n > 0 && n < 20 ? ' · <b style="color:var(--amber)">n=' + n + ' — ANÉCDOTA, no estadística (mínimo 20)</b>' : '') + '</div>'
+      + (n >= 5 ? '<div style="margin-bottom:6px;color:var(--text2)">Validación regla de degradación → frescas (≤2 tests): ' + fr.h + '✓/' + fr.f + '✗' + (fr.h + fr.f > 0 ? ' (' + (fr.h / (fr.h + fr.f) * 100).toFixed(0) + '%)' : '') + ' · degradadas (3+): ' + dg.h + '✓/' + dg.f + '✗' + (dg.h + dg.f > 0 ? ' (' + (dg.h / (dg.h + dg.f) * 100).toFixed(0) + '%)' : '') + '</div>' : '')
+      + '<div style="overflow-x:auto"><table style="border-collapse:collapse;font-size:9px;width:100%"><thead><tr style="color:var(--text3);font-size:8px"><th style="text-align:left;padding:0 8px 3px 0">TK</th><th style="text-align:left;padding:0 8px 3px">REG</th><th style="text-align:left;padding:0 8px 3px">ZONA</th><th style="text-align:right;padding:0 8px 3px">SCORE</th><th style="text-align:right;padding:0 8px 3px">TESTS</th><th style="text-align:left;padding:0 8px 3px">VÍA</th><th style="text-align:left;padding:0 0 3px">ESTADO</th></tr></thead><tbody>' + tbl + '</tbody></table></div>'
+      + '<div style="color:var(--text3);font-size:8px;margin-top:4px">Criterio: AGUANTÓ = tocó la banda y cerró de vuelta sobre el techo (+0.5%) · FALLÓ = cerró bajo el piso (−0.5%) tras tocar · con closes diarios (sin H/L — aproximación declarada). Ningún producto comercial audita sus propios niveles: este experimento es nuestro.</div>';
   }
 };
 
