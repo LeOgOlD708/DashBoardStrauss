@@ -74,6 +74,7 @@ async function insiders(ticker) {
   // Solo tabla non-derivative: las compras/ventas de mercado abierto viven ahí.
   let buys = 0, sells = 0, buyUsd = 0;
   const buyDates = []; // E3 (2026-07-11): fechas de filings con compras P → detección de CLUSTER
+  const buyRoles = []; // v2-lite: rol del comprador por filing con compra (CFO/CEO/DIR/OFF/10%)
   const t0 = Date.now();
   for (const i of idx.slice(0, 6)) {
     if (Date.now() - t0 > 18000) break; // presupuesto: lejos del maxDuration 30 (SEC lento no nos mata)
@@ -95,10 +96,23 @@ async function insiders(ticker) {
           buyUsd += sh * pr;
         } else if (code === 'S') sells++;
       }
-      if (hadBuy && rec.filingDate[i]) buyDates.push(rec.filingDate[i]);
+      if (hadBuy && rec.filingDate[i]) {
+        buyDates.push(rec.filingDate[i]);
+        // v2-lite (2026-07-11, Cohen-Malloy-Pomorski): el ROL del comprador importa —
+        // CFO > CEO en contenido informativo; directores predicen en firmas de todo tamaño.
+        // Del mismo XML: reportingOwnerRelationship (cero fetches extra).
+        const rel = xml.match(/<reportingOwnerRelationship>([\s\S]*?)<\/reportingOwnerRelationship>/)?.[1] || '';
+        const title = rel.match(/<officerTitle>([^<]*)<\/officerTitle>/)?.[1] || '';
+        const role = /chief financial|cfo/i.test(title) ? 'CFO'
+          : /chief executive|ceo/i.test(title) ? 'CEO'
+          : /1/.test(rel.match(/<isDirector>([^<]*)</)?.[1] || '') ? 'DIR'
+          : /1/.test(rel.match(/<isOfficer>([^<]*)</)?.[1] || '') ? 'OFF'
+          : /1/.test(rel.match(/<isTenPercentOwner>([^<]*)</)?.[1] || '') ? '10%' : '—';
+        buyRoles.push(role);
+      }
     } catch (e) { /* form ilegible → seguir */ }
   }
-  return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), buyDates, last8K };
+  return { ticker, form4_90d: idx.length, parsed: Math.min(idx.length, 6), buys, sells, buyUsd: Math.round(buyUsd), buyDates, buyRoles, last8K };
 }
 
 // ── F4 · TRACK RECORD: snapshots inmutables del embudo en el propio repo (GitHub API) ──

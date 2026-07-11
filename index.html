@@ -9639,8 +9639,12 @@ function semaphoreSignals(tk, dU, opt, atsD, statsD, insD) {
     let cluster = false;
     const bd = (insd.buyDates || []).map(d3 => new Date(d3 + 'T12:00:00').getTime()).sort((a2, b2) => a2 - b2);
     for (let i2 = 0; i2 + 2 < bd.length; i2++) if (bd[i2 + 2] - bd[i2] <= 15 * 86400000) { cluster = true; break; }
-    if (cluster) { pill('👔', 'CLUSTER de compras insider', 'var(--green)', '3+ filings con compras (P) en ≤15 días — la señal insider con mayor respaldo académico (~2× más informativa que compras sueltas; Cohen-Malloy-Pomorski 2012)'); verdes += 2; }
-    else if (insd.buys > insd.sells) { pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--green)', 'Insiders netos COMPRADORES (90d, SEC Form 4)' + (insd.buyUsd >= 1e6 ? ' · $' + (insd.buyUsd / 1e6).toFixed(1) + 'M comprados' : '')); verdes++; }
+    // v2-lite (2026-07-11): el ROL del comprador en el tooltip — CFO y directores son los más
+    // informativos (Cohen-Malloy-Pomorski/Wang-Xin). SOLO presentación: el scoring no cambia (corte v:3).
+    const roles = (insd.buyRoles || []).filter(r2 => r2 && r2 !== '—');
+    const roleTip = roles.length ? ' · Roles de los compradores: ' + roles.join(', ') + (roles.some(r2 => r2 === 'CFO' || r2 === 'DIR') ? ' — compras de CFO/directores son las de mayor contenido informativo' : '') : '';
+    if (cluster) { pill('👔', 'CLUSTER de compras insider' + (roles.some(r2 => r2 === 'CFO' || r2 === 'DIR') ? ' (CFO/DIR)' : ''), 'var(--green)', '3+ filings con compras (P) en ≤15 días — la señal insider con mayor respaldo académico (~2× más informativa que compras sueltas; Cohen-Malloy-Pomorski 2012)' + roleTip); verdes += 2; }
+    else if (insd.buys > insd.sells) { pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--green)', 'Insiders netos COMPRADORES (90d, SEC Form 4)' + (insd.buyUsd >= 1e6 ? ' · $' + (insd.buyUsd / 1e6).toFixed(1) + 'M comprados' : '') + roleTip); verdes++; }
     else pill('👔', insd.buys + 'C/' + insd.sells + 'V', 'var(--text3)', 'Insiders netos vendedores — lo NORMAL en large caps (compensación en acciones); solo el cluster de compras es señal fuerte');
   }
   const s3 = statsD;
