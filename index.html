@@ -8603,6 +8603,114 @@ function avwap(closes, vols, fromIdx) {
     if (closes[i] > 0 && vols[i] > 0) { pv += closes[i] * vols[i]; vv += vols[i]; }
   return vv > 0 ? pv / vv : null;
 }
+// ══ E1 · Motor de niveles v2 (Mapa de Entrada, 2026-07-11) ══
+// Implementa conceptos/metodologia-zonas-de-entrada del wiki: fusión anti-doble-conteo,
+// score por DIVERSIDAD de fuentes + jerarquía de timeframe + AVWAP pinch, degradación por
+// toques REALES (chop filtrado), categorías ENTRADA/IMÁN/DÉBIL. Validado con TTWO/QQQ reales.
+
+// LVN del perfil: mínimos locales de bajo volumen = air pockets (zona de NO entrada)
+function lvnZones(vp) {
+  if (!vp?.bins) return [];
+  const n = vp.bins.length, sorted = [...vp.bins].sort((a, b) => a - b);
+  const p25 = sorted[Math.floor(n * 0.25)];
+  const out = [];
+  for (let i = 2; i < n - 2; i++) {
+    const b = vp.bins[i];
+    if (b > p25 || b === 0) continue;
+    if (b <= vp.bins[i - 1] && b <= vp.bins[i + 1] && (vp.bins[i - 1] > p25 || vp.bins[i + 1] > p25)) {
+      out.push({ lo: vp.lo + i * vp.w, hi: vp.lo + (i + 1) * vp.w, mid: vp.lo + (i + 0.5) * vp.w });
+    }
+  }
+  return out.slice(0, 3);
+}
+// Naked POCs: POC de sesión (barras 5m agrupadas por fecha) nunca revisitado después.
+// Aproximación declarada: "revisitado" = algún close posterior a ±0.25% (sin H/L en el proxy).
+function nakedPOCs(h5, v5, d5) {
+  if (!h5 || h5.length < 300) return [];
+  const sessions = new Map();
+  for (let i = 0; i < h5.length; i++) {
+    let s = sessions.get(d5[i]);
+    if (!s) { s = { c: [], v: [] }; sessions.set(d5[i], s); }
+    s.c.push(h5[i]); s.v.push(v5[i] || 0);
+  }
+  const days = [...sessions.keys()].sort();
+  const pocs = [];
+  for (const d of days) {
+    const s = sessions.get(d);
+    if (s.c.length < 20) continue;
+    let lo = Math.min(...s.c), hi = Math.max(...s.c);
+    if (!(hi > lo)) continue;
+    const nb = 24, w = (hi - lo) / nb, bins = new Array(nb).fill(0);
+    for (let i = 0; i < s.c.length; i++) bins[Math.min(nb - 1, Math.floor((s.c[i] - lo) / w))] += s.v[i];
+    let pi = 0; for (let i = 1; i < nb; i++) if (bins[i] > bins[pi]) pi = i;
+    pocs.push({ d, poc: lo + (pi + 0.5) * w });
+  }
+  const naked = [];
+  for (let i = 0; i < pocs.length - 1; i++) {
+    const p = pocs[i];
+    let revisited = false;
+    for (let j = 0; j < days.length && !revisited; j++) {
+      if (days[j] <= p.d) continue;
+      for (const c of sessions.get(days[j]).c) if (Math.abs(c / p.poc - 1) <= 0.0025) { revisited = true; break; }
+    }
+    if (!revisited) naked.push(p);
+  }
+  return naked.slice(-3).map(p => ({ lbl: 'Naked POC ' + p.d.slice(5), v: p.poc }));
+}
+// Toques REALES con hist diario: el precio se alejó ≥1% del borde y VOLVIÓ (test), no chop.
+function countTouches(dailyHist, lo, hi) {
+  let asSupport = 0, asResistance = 0, side = null, armed = false;
+  for (let i = 0; i < dailyHist.length; i++) {
+    const c = dailyHist[i];
+    const s = c > hi ? 'above' : c < lo ? 'below' : 'in';
+    if (s === 'in' || (side === 'above' && s === 'below') || (side === 'below' && s === 'above')) {
+      if (armed && side === 'above') asSupport++;
+      if (armed && side === 'below') asResistance++;
+      armed = false;
+      if (s !== 'in') side = s;
+      continue;
+    }
+    side = s;
+    if (s === 'above' && c > hi * 1.01) armed = true;
+    if (s === 'below' && c < lo * 0.99) armed = true;
+  }
+  return { asSupport, asResistance };
+}
+// zoneEngine: levels [{lbl, v, src: perfil|avwap|opciones|media|iman, tf: w|d, w?}] → zonas scoreadas
+function zoneEngine(levels, spot, dailyHist, opts) {
+  const o = opts || {};
+  const ls = levels.filter(L => L.v > 0 && Math.abs(L.v / spot - 1) <= (o.range || 0.35)).sort((a, b) => a.v - b.v);
+  if (!ls.length) return [];
+  const clusters = [];
+  let cur = [ls[0]];
+  for (let i = 1; i < ls.length; i++) {
+    if ((ls[i].v - cur[0].v) / spot <= 0.005) cur.push(ls[i]); // fusión <0.5% vs ancla
+    else { clusters.push(cur); cur = [ls[i]]; }
+  }
+  clusters.push(cur);
+  const zones = clusters.map(z => {
+    const lo = z[0].v, hi = z[z.length - 1].v, mid = (lo + hi) / 2;
+    const srcs = new Set(z.map(x => x.src));
+    let score = srcs.size; // diversidad de FUENTES, no cantidad
+    if (z.filter(x => x.src === 'avwap').length >= 2) score += 1; // AVWAP pinch
+    if (z.some(x => x.tf === 'w')) score += 1; // jerarquía timeframe
+    const side = mid <= spot ? 'soporte' : 'resistencia';
+    if (side === 'soporte' && z.some(x => /put wall/i.test(x.lbl))) score += 0.5; // put wall fiable
+    if (side === 'resistencia' && z.some(x => /call wall/i.test(x.lbl))) score += 0.25;
+    score += z.reduce((a, x) => a + (x.w || 0), 0);
+    const pad = spot * 0.0035;
+    const t = dailyHist ? countTouches(dailyHist.slice(-60), lo - pad, hi + pad) : { asSupport: 0, asResistance: 0 };
+    const touches = side === 'soporte' ? t.asSupport : t.asResistance;
+    let deg = 0;
+    if (touches >= 5) deg = 2; else if (touches >= 3) deg = 1; // degradación: 3+ tests adelgazan el nivel
+    score -= deg;
+    const isIman = z.every(x => x.src === 'iman');
+    const cat = isIman ? 'IMAN' : score >= 2 ? 'ENTRADA' : 'DEBIL';
+    return { lo, hi, mid, side, dist: +((mid / spot - 1) * 100).toFixed(1), score: +score.toFixed(2), touches, degradada: deg > 0, cat, srcs: [...srcs], labels: z.map(x => x.lbl) };
+  });
+  return zones.sort((a, b) => b.score - a.score);
+}
+
 // F-I3: volumen total de la semana [weekStart, weekStart+6d] del hist diario ya cargado —
 // denominador del dp% (el server FINRA solo conoce el volumen off-exchange).
 function weekVolOf(dU, weekStart) {
@@ -9382,69 +9490,70 @@ const InstDeep = {
       const jan1 = new Date().getFullYear() + '-01-01';
       let iYtd = dU.dates?.findIndex(dd => dd >= jan1); if (iYtd < 0) iYtd = null;
       let iMin = 0; dU.hist.forEach((p2, i2) => { if (p2 < dU.hist[iMin]) iMin = i2; });
+      // E1 (2026-07-11): niveles con METADATA (src/tf/peso) para el motor de zonas v2
       const lv = [];
-      const add = (lbl, v, src2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, dist: (v / spot - 1) * 100 }); };
+      const add = (lbl, v, src2, tf2, w2) => { if (v > 0 && Math.abs(v / spot - 1) <= 0.35) lv.push({ lbl, v, src: src2, tf: tf2 || 'd', w: w2 || 0, dist: (v / spot - 1) * 100 }); };
       if (vp) {
-        add('POC 60d (5m)', vp.poc, 'perfil'); add('VAH 60d', vp.vah, 'perfil'); add('VAL 60d', vp.val, 'perfil');
-        // Review 2026-07-10: los HVN se computaban y se tiraban — son zonas de acumulación
-        // reales y alimentan gratis la detección de confluencia (top 2 para no saturar)
-        vp.hvn.slice(0, 2).forEach((h2, ih) => add('HVN 60d' + (ih ? ' ②' : ''), h2, 'perfil'));
+        add('POC 60d (5m)', vp.poc, 'perfil', 'd'); add('VAH 60d', vp.vah, 'perfil', 'd'); add('VAL 60d', vp.val, 'perfil', 'd');
+        vp.hvn.slice(0, 2).forEach((h2, ih) => add('HVN 60d' + (ih ? ' ②' : ''), h2, 'perfil', 'd'));
       }
-      if (vp1y) add('POC 1 año (diario)', vp1y.poc, 'perfil');
-      if (iYtd != null) add('AVWAP desde 1-ene', avwap(dU.hist, dU.vols, iYtd), 'avwap');
-      add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap');
-      if (opt && !opt.error) { add('Call wall (GEX máx)', opt.callWall, 'opciones'); add('Put wall (GEX mín)', opt.putWall, 'opciones'); if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones'); if (opt.maxPain != null) add('Max pain ' + (opt.nearestExp || ''), opt.maxPain, 'opciones'); }
+      if (vp1y) add('POC 1 año (diario)', vp1y.poc, 'perfil', 'w'); // estructural
+      if (iYtd != null) add('AVWAP desde 1-ene', avwap(dU.hist, dU.vols, iYtd), 'avwap', 'w');
+      add('AVWAP desde mín 52w', avwap(dU.hist, dU.vols, iMin), 'avwap', 'w');
+      add('SMA50', dU.fiftyDayAverage || smaAt(dU.hist, 50), 'media', 'd');
+      if (opt && !opt.error) {
+        add('Call wall (GEX máx)', opt.callWall, 'opciones', 'w');
+        add('Put wall (GEX mín)', opt.putWall, 'opciones', 'w');
+        if (opt.gammaFlip != null) add('Gamma flip', opt.gammaFlip, 'opciones', 'd');
+        // max pain con peso REDUCIDO: la evidencia (48% acierto en índices líquidos) lo degrada a curiosidad
+        if (opt.maxPain != null) add('Max pain ' + (opt.nearestExp || ''), opt.maxPain, 'opciones', 'd', -0.5);
+      }
+      // imanes: naked POCs de sesión (5m) nunca revisitados
+      try { nakedPOCs(h60, v60, d60?.[tk]?.dates).forEach(np => add(np.lbl, np.v, 'iman', 'd')); } catch (e2) {}
       if (lv.length) {
-        // ⭐ Mejora post-Tab09: CONFLUENCIA automática — niveles a <1.2% entre sí y de ≥2
-        // fuentes DISTINTAS = zona de alta calidad (la lectura que el glosario predica, computada).
-        let confHtml = '';
-        try {
-          const byP = [...lv].sort((a2, b2) => a2.v - b2.v);
-          const zones = [];
-          let cur = [byP[0]];
-          for (let i2 = 1; i2 < byP.length; i2++) {
-            if ((byP[i2].v - cur[0].v) / spot <= 0.012) cur.push(byP[i2]); // vs el ANCLA del cluster (review: contra el último se encadenaba y la "zona" podía estirarse >1.2%)
-            else { zones.push(cur); cur = [byP[i2]]; }
-          }
-          zones.push(cur);
-          const good = zones
-            .filter(z => z.length >= 2 && new Set(z.map(x => x.src)).size >= 2)
-            .map(z => ({ z, lo: z[0].v, hi: z[z.length - 1].v, mid: (z[0].v + z[z.length - 1].v) / 2, nsrc: new Set(z.map(x => x.src)).size }))
-            .sort((a2, b2) => (b2.nsrc - a2.nsrc) || (b2.z.length - a2.z.length) || (Math.abs(a2.mid - spot) - Math.abs(b2.mid - spot)))
-            .slice(0, 2);
-          confHtml = good.map(g => {
-            const dist = (g.mid / spot - 1) * 100;
-            const rol = dist <= 0 ? 'SOPORTE' : 'RESISTENCIA';
-            const col = dist <= 0 ? 'var(--green)' : 'var(--red)';
-            const bg = dist <= 0 ? 'rgba(74,222,128,.06)' : 'rgba(248,113,113,.06)';
-            const rango = g.lo.toFixed(2) + (g.hi > g.lo * 1.0005 ? '–' + g.hi.toFixed(2) : '');
-            return '<div style="border:1px solid ' + col + ';border-left-width:3px;border-radius:5px;padding:5px 9px;margin-top:6px;background:' + bg + '" title="' + g.z.length + ' niveles de ' + g.nsrc + ' fuentes distintas convergen en esta zona (a <1.2% entre sí) — confluencia = nivel de alta calidad para stop/entrada">'
-              + '<b style="color:' + col + '">⭐ CONFLUENCIA ' + rol + ' ' + rango + '</b> <span style="color:var(--text3)">(' + (dist >= 0 ? '+' : '') + dist.toFixed(1) + '% del precio)</span>: '
-              + '<span style="color:var(--text2)">' + g.z.map(x => x.lbl).join(' + ') + '</span></div>';
-          }).join('');
-        } catch (e) { confHtml = ''; }
+        // ── motor de zonas v2 (metodología del wiki) ──
+        const zones = zoneEngine(lv, spot, dU.hist);
+        const lvns = lvnZones(vp);
+        this._zones = zones; this._lvns = lvns; // E2/E4 los consumen (chart, snapshot, candidatas)
+        const catMeta = {
+          ENTRADA: { col: 'var(--green)', bg: 'rgba(74,222,128,.06)', icon: '⭐' },
+          IMAN: { col: '#a78bfa', bg: 'rgba(167,139,250,.06)', icon: '🧲' },
+          DEBIL: { col: 'var(--text3)', bg: 'transparent', icon: '·' }
+        };
+        const zonesHtml = zones.filter(z => z.cat !== 'DEBIL' || zones.length <= 4).slice(0, 6).map(z => {
+          const m2 = catMeta[z.cat];
+          const sideCol = z.side === 'soporte' ? 'var(--green)' : 'var(--red)';
+          const rango = z.lo.toFixed(2) + (z.hi > z.lo * 1.0005 ? '–' + z.hi.toFixed(2) : '');
+          const tip = z.cat + ' ' + z.side + ' · score ' + z.score + ' (diversidad de fuentes + timeframe' + (z.degradada ? ' − degradación por ' + z.touches + ' tests' : '') + ') · toques reales últimos 60d: ' + z.touches + (z.touches >= 3 ? ' — nivel adelgazándose: al 3er-4º test la ruptura se vuelve más probable' : z.touches <= 1 ? ' — nivel fresco (1º-2º test = máxima probabilidad de reacción)' : '');
+          return '<div style="border:1px solid ' + (z.cat === 'DEBIL' ? 'var(--border2)' : m2.col) + ';border-left-width:3px;border-radius:5px;padding:4px 9px;margin-top:5px;background:' + m2.bg + '" title="' + tip + '">'
+            + '<b style="color:' + m2.col + '">' + m2.icon + ' ' + z.cat + '</b> <b style="color:' + sideCol + '">' + z.side.toUpperCase() + ' ' + rango + '</b>'
+            + ' <span style="color:var(--text3)">(' + (z.dist >= 0 ? '+' : '') + z.dist + '%) · score ' + z.score + ' · ' + z.touches + ' test' + (z.touches === 1 ? '' : 's') + (z.degradada ? ' ⚠ degradada' : z.touches <= 1 ? ' ✦ fresca' : '') + '</span>'
+            + '<br><span style="color:var(--text2)">' + z.labels.join(' + ') + '</span></div>';
+        }).join('');
+        const lvnHtml = lvns.length ? '<div style="color:var(--text3);font-size:9px;margin-top:5px">🕳 LVN (air pockets — NO colocar entradas dentro): ' + lvns.map(l2 => l2.mid.toFixed(2)).join(' · ') + '</div>' : '';
+        const emH = (opt && !opt.error && (opt.emWeekly || opt.emDaily)) ? (() => { const em2 = opt.emWeekly || opt.emDaily; return ' · EM ' + (opt.emWeekly ? 'semanal' : em2.dte + 'd') + ' ±' + em2.pct + '% (' + (spot - em2.em).toFixed(2) + '–' + (spot + em2.em).toFixed(2) + ')'; })() : '';
         lv.sort((a2, b2) => Math.abs(a2.dist) - Math.abs(b2.dist));
-        const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)' };
+        const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)', media: 'var(--text2)', iman: '#a78bfa' };
         const rowsH = lv.map(L2 => {
           const c2 = L2.dist <= 0 ? 'var(--green)' : 'var(--red)';
           const rol = L2.dist <= 0 ? 'soporte' : 'resistencia';
-          return '<tr><td style="padding:2px 8px 2px 0;color:var(--text2)"><span style="color:' + srcCol[L2.src] + '">●</span> ' + L2.lbl + '</td>'
+          return '<tr><td style="padding:2px 8px 2px 0;color:var(--text2)"><span style="color:' + (srcCol[L2.src] || 'var(--text3)') + '">●</span> ' + L2.lbl + '</td>'
             + '<td style="padding:2px 8px;text-align:right;color:var(--text)">' + L2.v.toFixed(2) + '</td>'
             + '<td style="padding:2px 0;text-align:right;color:' + c2 + '" title="' + rol + ' (el precio está ' + (L2.dist <= 0 ? 'arriba' : 'abajo') + ')">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
         }).join('');
         parts.push('<div class="mono" style="font-size:10px;color:var(--text2);margin-top:8px;padding:7px 10px;background:var(--surface2);border-radius:5px">'
-          + '📐 NIVELES INSTITUCIONALES <button class="help-i" type="button" onclick="openGlossary(\'niveles-institucionales\')" title="¿Qué es esto?">?</button>'
-          + '<span style="color:var(--text3)"> — ordenados por cercanía al precio (' + spot.toFixed(2) + ')</span>'
-          + confHtml
-          + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:6px">'
+          + '🎯 ZONAS DE ENTRADA <button class="help-i" type="button" onclick="openGlossary(\'zonas-de-entrada\')" title="¿Cómo se computan?">?</button>'
+          + '<span style="color:var(--text3)"> — motor v2: diversidad de fuentes × timeframe × degradación por tests · precio ' + spot.toFixed(2) + emH + '</span>'
+          + zonesHtml + lvnHtml
+          + '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-top:8px">'
           + (vp ? '<canvas id="instd-vp-cv" width="170" height="170" style="flex:none" title="Perfil de volumen 60 días (barras de 5 min): dónde se negoció el volumen por precio"></canvas>' : '')
           + '<table style="border-collapse:collapse;font-size:10px;flex:1;min-width:230px"><tbody>' + rowsH + '</tbody></table>'
           + '</div>'
-          + '<div style="color:var(--text3);font-size:8px;margin-top:4px">● <span style="color:var(--blue)">perfil de volumen</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones (CBOE delayed)</span> — verde = soporte bajo el precio · rojo = resistencia arriba' + (opt && opt.error ? ' · sin cadena de opciones para ' + escHtml(tk) : '') + '</div>'
+          + '<div style="color:var(--text3);font-size:8px;margin-top:4px">● <span style="color:var(--blue)">perfil</span> · <span style="color:var(--gold)">AVWAP</span> · <span style="color:var(--green)">opciones</span> · <span style="color:#a78bfa">imán (naked POC)</span> — las zonas son CONTEXTO, no señales; tu price action decide el timing' + (opt && opt.error ? ' · sin cadena de opciones para ' + escHtml(tk) : '') + '</div>'
           + '</div>');
         this._vp = vp; // el canvas se pinta tras el innerHTML
-      } else { this._vp = null; }
-    } catch (e) { this._vp = null; }
+      } else { this._vp = null; this._zones = null; this._lvns = null; }
+    } catch (e) { this._vp = null; this._zones = null; this._lvns = null; }
     // ── 🕶 dark pools ──
     try {
       const d = ats?.data?.[tk];
@@ -10897,6 +11006,20 @@ const INDICATORS_GLOSSARY = {
       { c: 'n', t: 'Futuros ≠ exposición total (swaps y opciones quedan fuera) · lag de 3 días (martes→viernes)' }
     ],
     note: 'F-I4 del proyecto Institucional (2026-07-10). Códigos de contrato verificados contra la API. Complementa a AAII/NAAIM (retail/asesores) con el lado de los FUTUROS — juntos cubren el espectro completo del posicionamiento.'
+  },
+  'zonas-de-entrada': {
+    name: 'Zonas de Entrada (motor v2)', category: 'Institucional · Guía',
+    source: { label: 'Computado: motor de reglas sobre niveles propios (perfil + AVWAP + opciones + medias + imanes)', url: 'https://dash-board-strauss.vercel.app/', freq: 'Por consulta' },
+    formula: 'Fusión de niveles a <0.5% (anti doble-conteo) → score = nº de FUENTES distintas (+1 AVWAP pinch, +1 timeframe semanal, +0.5 put wall como soporte, −0.5 max pain) − degradación por tests (3-4 toques reales = −1, 5+ = −2). Toque real = el precio se alejó ≥1% y volvió (el chop lateral no cuenta). Categorías: ENTRADA (score ≥2) · IMÁN (naked POC — POC de sesión nunca revisitado, ~80% se retestean según literatura, hipótesis a validar) · DÉBIL. LVN = air pockets donde NO colocar entradas.',
+    what: 'El veredicto computado de DÓNDE tiene sentido colocar una entrada: zonas (bandas, no líneas) rankeadas por la calidad metodológica de su confluencia, con su historial de tests y su categoría. El price action del trader decide el TIMING dentro de la zona; el mapa da el DÓNDE con la mecánica institucional detrás.',
+    interpret: 'ENTRADA con 0-1 tests ✦ = zona fresca, máxima probabilidad de reacción (1º-2º test). ⚠ Degradada (3+ tests) = el nivel se adelgaza — la ruptura se vuelve MÁS probable con cada test adicional, contra la intuición popular. IMÁN 🧲 = objetivo/precio que atrae (naked POC), no zona de acumulación. La banda de expected move (EM) marca el rango probable: entradas en los bordes, stops fuera.',
+    thresholds: [
+      { c: 'green', t: 'ENTRADA score ≥3 con ≤2 tests → la mejor calidad: fuentes diversas, timeframe alto, nivel fresco' },
+      { c: 'amber', t: 'Zona ⚠ degradada → operable solo con confirmación extra del price action (el 3er test es moneda al aire)' },
+      { c: 'red', t: 'LVN 🕳 → air pocket: el precio lo cruza rápido; jamás colocar el límite DENTRO' },
+      { c: 'n', t: 'Score y reglas en conceptos/metodologia-zonas-de-entrada del wiki — 10 reglas con fuente, validación futura con el propio track record' }
+    ],
+    note: 'E1 del Mapa de Entrada (2026-07-11). HONESTIDAD: las zonas son CONTEXTO con evidencia de régimen, no señales predictivas (el GEX pierde 92% de poder tras controlar VIX; max pain ~48% en índices — por eso pesa negativo). Los hit-rates citados de la literatura son hipótesis hasta que nuestra validación histórica (E5) los mida con datos propios.'
   },
   'radiografia-institucional': {
     name: 'Radiografía Institucional (Tab 09)', category: 'Institucional · Guía',
