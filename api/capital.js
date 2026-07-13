@@ -320,7 +320,9 @@ async function digest(dry) {
         signal: AbortSignal.timeout(9000)
       }).then(r2 => r2.json()).catch(() => null), 9500);
       const narr = gr?.candidates?.[0]?.content?.parts?.map(p2 => p2.text || '').join('').trim();
-      if (narr && narr.length > 40 && narr.length < 700) L.splice(1, 0, '🧠 <i>' + narr.replace(/</g, '&lt;').replace(/\n+/g, ' ') + '</i>');
+      // Escape COMPLETO con & primero (bug-hunter 07-13): un "S&P 500" de Gemini sin escapar
+      // rompía el parse HTML de Telegram → tgSend lanzaba → el digest ENTERO no salía ese día
+      if (narr && narr.length > 40 && narr.length < 700) L.splice(1, 0, '🧠 <i>' + narr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n+/g, ' ') + '</i>');
     }
   } catch (e) { /* la narrativa jamás rompe el digest */ }
   // 🩺 salud: si alguna fuente NO respondió al armar ESTE digest, decirlo (dato ausente ≠ dato ok)

@@ -10066,7 +10066,7 @@ const RadarFlujo = {
           const pNow = priceNow[r2.tk];
           if (!pNow) return;
           const ret = (pNow / r2.px - 1) * 100;
-          (r2.sc >= med ? alto : bajo).push(ret);
+          if (r2.sc > med) alto.push(ret); else if (r2.sc < med) bajo.push(ret); // empates fuera (sesgo)
         });
       });
       if (!alto.length || !bajo.length) { body.innerHTML = '⚖ RadarAudit: sin suficientes pares alto/bajo evaluables todavía.'; return; }
@@ -10474,7 +10474,9 @@ const AutoCalib = {
           if (dia.length < 4) return; // sin cross-section suficiente ese día
           const vs = dia.map(x => x.v).sort((a, b) => a - b);
           const med = vs[Math.floor(vs.length / 2)];
-          dia.forEach(x => (x.v >= med ? alto : bajo).push(x.ex));
+          // Empates EXCLUIDOS (bug-hunter 07-13): con >=, el valor mediano (el más frecuente en
+          // componentes discretos como sema/enZona) engordaba "alto" y sesgaba el spread
+          dia.forEach(x => { if (x.v > med) alto.push(x.ex); else if (x.v < med) bajo.push(x.ex); });
         });
         if (alto.length < 5 || bajo.length < 5) { resultados.push({ lbl, n: alto.length + bajo.length, spread: null }); continue; }
         const avg9 = a => a.reduce((x, y) => x + y, 0) / a.length;
@@ -11452,13 +11454,21 @@ const InstDeep = {
               c2.fillStyle = 'rgba(45,212,191,' + alpha.toFixed(2) + ')';
               c2.fillRect(a2.left, yTop, wPx, Math.max(1, yBot - yTop - 0.5));
             }
-            // POC: línea horizontal COMPLETA ámbar (la convención que el ojo encuentra al instante)
-            const yPoc = ys.getPixelForValue(vp.poc);
+            // POC: línea horizontal COMPLETA ámbar. Con suavizado, la línea usa el pico de las
+            // barras DIBUJADAS (bug-hunter 07-13: el POC crudo podía caer en otro bin que el
+            // pico visual suavizado — desalineación cosmética)
+            let pocDraw = vp.poc;
+            if (chart2.options._emap?.vpSmooth) {
+              let mi = 0;
+              for (let i = 1; i < binsD.length; i++) if (binsD[i] > binsD[mi]) mi = i;
+              pocDraw = vp.lo + (mi + 0.5) * vp.w;
+            }
+            const yPoc = ys.getPixelForValue(pocDraw);
             if (yPoc > a2.top && yPoc < a2.bottom) {
               c2.strokeStyle = 'rgba(230,180,80,.75)'; c2.lineWidth = 1.4; c2.setLineDash([]);
               c2.beginPath(); c2.moveTo(a2.left, yPoc); c2.lineTo(a2.right, yPoc); c2.stroke();
               c2.font = "600 9px 'IBM Plex Mono', monospace"; c2.fillStyle = '#e6b450';
-              c2.fillText('POC ' + (vp.poc >= 1000 ? vp.poc.toFixed(0) : vp.poc.toFixed(2)), a2.left + 4, yPoc - 3);
+              c2.fillText('POC ' + (pocDraw >= 1000 ? pocDraw.toFixed(0) : pocDraw.toFixed(2)), a2.left + 4, yPoc - 3);
             }
             // POC MIGRATION: la línea del VALOR moviéndose en el tiempo (cian punteado escalonado)
             const mig = chart2.options._emap?.pocMig;
