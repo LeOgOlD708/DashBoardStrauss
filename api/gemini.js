@@ -22,7 +22,8 @@ function buildPrompt({ ticker, sectorName, holdings, score, metrics, news, event
   const newsTxt = news.length ? news.map(n => `- ${n}`).join('\n') : '(sin titulares RSS disponibles)';
   const eventsTxt = events.length ? events.map(e => `- ${e}`).join('\n') : '(sin eventos en ventana)';
 
-  return `Eres analista macro/sectorial institucional. Analiza el sector ${sectorName} (ETF ${ticker}, top holdings: ${holdingsTxt}).
+  const esSector = holdings.length > 0;
+  return `Eres analista macro/sectorial institucional. Analiza ${esSector ? 'el sector' : 'el activo'} ${sectorName} (ETF ${ticker}${esSector ? ', top holdings: ' + holdingsTxt : ''}).
 
 DATOS DUROS DEL DASHBOARD (fuente de verdad para la sección 1 — NO los contradigas):
   ${metricsTxt}
@@ -33,7 +34,7 @@ ${newsTxt}
 EVENTOS MACRO PRÓXIMOS (calendario oficial del dashboard):
 ${eventsTxt}
 
-USA LA BÚSQUEDA DE GOOGLE para encontrar qué movió a ${sectorName} y sus top holdings EN LOS ÚLTIMOS 7 DÍAS (earnings, guidance, datos económicos, regulación, M&A, flujos). Prioriza hechos con fecha y número verificables.
+USA LA BÚSQUEDA DE GOOGLE para encontrar qué movió a ${sectorName}${esSector ? ' y sus top holdings' : ` (${ticker})`} EN LOS ÚLTIMOS 7 DÍAS (earnings, guidance, datos económicos, regulación, M&A, flujos). Prioriza hechos con fecha y número verificables.
 
 FORMATO EXIGIDO (texto plano, sin markdown de encabezados, en español, máximo ~1400 caracteres):
 📊 MOVIMIENTO
