@@ -25,6 +25,10 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
 
   const meta      = result.meta;
   const price     = meta.regularMarketPrice;
+  // Terminal F2 (2026-07-13): toFixed(2) plano aplastaba forex (EURUSD 1.13843 → "1.14",
+  // pip = 4to decimal). Precisión adaptativa: <10 → 5 decimales; resto igual que antes.
+  const dp = (price != null && Math.abs(price) < 10) ? 5 : 2;
+  const rnd = v => parseFloat((+v).toFixed(dp));
   // Guard (P3 2026-07-08): sin precio, price.toFixed() lanzaba dentro del Promise.all
   // del handler → 500 para TODOS los tickers del batch por un solo ticker malo.
   if (price == null || isNaN(price)) return { error: 'Sin regularMarketPrice' };
@@ -96,13 +100,13 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
   // del rango y el "ytd" saldría como retorno del rango — basura silenciosa. Null.
   const intraday = interval === '5m' || interval === '30m' || interval === '1m';
   return {
-    price:  parseFloat(price.toFixed(2)),
+    price:  rnd(price),
     chg1d:  daily ? parseFloat(((price / prevClose    - 1) * 100).toFixed(2)) : null,
     chg5d:  daily ? parseFloat(((price / fiveDaysAgo  - 1) * 100).toFixed(2)) : null,
     chg1m:  daily ? parseFloat(((price / monthAgo     - 1) * 100).toFixed(1)) : null,
     chg3m:  daily ? parseFloat(((price / threeMonAgo  - 1) * 100).toFixed(1)) : null,
     ytd:    intraday ? null : parseFloat(((price / ytdBase       - 1) * 100).toFixed(1)),
-    hist:   histFull.map(r => parseFloat(r.close.toFixed(2))),
+    hist:   histFull.map(r => rnd(r.close)),
     dates:  histFull.map(r => r.date),
     // Fase A Pipeline de Capital 2026-07-07: serie diaria de volúmenes (alineada con hist)
     // para U/D Volume Ratio 50d y A/D proxy 13w — huella institucional computada client-side
@@ -111,8 +115,8 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
     // por close). Perf M1 (auditoría 07-13): SOLO con &hl=1 — zonesFor pide 60d por candidata
     // (~12×/scan) y no los usa; sin gate pagaba ~300KB/scan de arrays descartados.
     ...(intraday && wantHL ? {
-      his: histFull.map(r => (r.high != null && !isNaN(r.high)) ? parseFloat(r.high.toFixed(2)) : null),
-      los: histFull.map(r => (r.low != null && !isNaN(r.low)) ? parseFloat(r.low.toFixed(2)) : null)
+      his: histFull.map(r => (r.high != null && !isNaN(r.high)) ? rnd(r.high) : null),
+      los: histFull.map(r => (r.low != null && !isNaN(r.low)) ? rnd(r.low) : null)
     } : {}),
     // Terminal F0: timestamps epoch por barra (solo intradía + &ts=1) — la sesión ET de cada
     // barra (RTH/overnight/IB) se resuelve client-side; 'dates' solo trae el día
@@ -122,7 +126,7 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
     averageVolume: daily ? averageVolume : null,
     fiftyDayAverage: daily ? fiftyDayAverage : null,
     regularMarketChangePercent: daily ? parseFloat(((price / prevClose - 1) * 100).toFixed(2)) : null,
-    regularMarketPrice: parseFloat(price.toFixed(2)),
+    regularMarketPrice: rnd(price),
   };
 }
 
@@ -141,7 +145,7 @@ async function fetchPriceOnly(ticker) {
   const closes = (result.indicators?.quote?.[0]?.close || []).filter(c => c != null && !isNaN(c) && c > 0);
   const prevClose = closes.length >= 2 ? closes[closes.length - 2] : (meta.previousClose ?? price);
   return {
-    price:  parseFloat(price.toFixed(2)),
+    price:  rnd(price),
     chg1d:  parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
   };
 }
