@@ -9991,7 +9991,9 @@ const RadarFlujo = {
     try {
       const regs = JSON.parse(localStorage.getItem('radar_v1') || '[]');
       const today = etDate();
-      const evals = regs.filter(r2 => r2.d < today && !esFinde(r2.d) && r2.px > 0 && r2.sc != null);
+      // Los registros de finde usan el cierre del VIERNES — son predicciones válidas desde ese
+      // precio; solo exigimos que haya pasado al menos un día (el dedupe futuro lo hace _register)
+      const evals = regs.filter(r2 => r2.d < today && r2.px > 0 && r2.sc != null);
       if (evals.length < 6) {
         body.innerHTML = '<span style="color:var(--text3)">⚖ RadarAudit: ' + regs.length + ' predicciones registradas, <b>' + evals.length + '</b> con edad evaluable (mínimo 6, ideal 20+). Se acumulan solas con cada scan en día de mercado — volvé en unos días.</span>';
         return;
@@ -10041,7 +10043,8 @@ const RadarFlujo = {
   },
   _register(rows) {
     try { // 1 registro/día/ticker, first-write-wins (patrón inst_zonas_v1) → hit-rate futuro
-      const today = new Date().toISOString().slice(0, 10);
+      const today = etDate();
+      if (esFinde(today)) return { total: (JSON.parse(localStorage.getItem('radar_v1') || '[]')).length, added: 0 }; // finde: mismo px del viernes = duplicado sin información
       const all = JSON.parse(localStorage.getItem('radar_v1') || '[]');
       let added = 0;
       for (const r of rows) {
@@ -10180,7 +10183,7 @@ const SaludFuentes = {
     ['Yahoo Finance', '/api/yahoo?tickers=SPY&priceOnly=true', j => j?.SPY?.price > 0],
     ['FRED (macro)', '/api/fred?series=WRESBAL&limit=2', j => Array.isArray(j?.WRESBAL) && j.WRESBAL.length > 0],
     ['CBOE opciones', '/api/capital?src=opt&tickers=QQQ', j => (j?.QQQ?.spot ?? j?.spot) > 0],
-    ['Deribit crypto', '/api/capital?src=optc&tickers=BTC-USD', j => j && !j.error && JSON.stringify(j).length > 200],
+    ['Deribit crypto', '/api/capital?src=optc&tickers=BTC', j => j && !j.error && JSON.stringify(j).length > 200],
     ['FINRA short vol', '/api/capital?src=finra&tickers=SPY', j => !!(j?.data && Object.keys(j.data).length) || !!j?.file],
     ['FINRA dark pools', '/api/capital?src=ats&tickers=SPY&weeks=4', j => !!(j?.data?.SPY && !j.data.SPY.error && j.data.SPY.weeks?.length)],
     ['stockanalysis (ownership)', '/api/capital?src=stats&tickers=NVDA', j => !!(j?.data?.NVDA || j?.NVDA)],
