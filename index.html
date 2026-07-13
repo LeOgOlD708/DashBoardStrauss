@@ -5173,10 +5173,15 @@ const Terminal = {
       if (vwap != null) { let sw = 0; for (const b of vwapSrc) { const tp = (b.h + b.l + b.c) / 3; sw += b.v * (tp - vwap) * (tp - vwap); } s1 = cw > 0 ? Math.sqrt(sw / cw) : null; }
       this._vwapPts = pts;
     } else this._vwapPts = null;
-    // Día previo (de 5d/30m): futuros = RTH del último día completo; fx = día ET previo completo
+    // Día previo (de 5d/30m): futuros = RTH del último día QUE TENGA RTH (el domingo Globex
+    // pertenece al día ET domingo pero no tiene sesión regular — cazado en prod 2026-07-13);
+    // fx = último día ET previo con barras
     const days = [...new Set(b30.map(b => b.et.d))].sort();
-    const prevD = days.filter(d => d < today).pop();
-    const pv = b30.filter(b => b.et.d === prevD && (I.fx || (b.et.m >= 570 && b.et.m < 960)));
+    let prevD = null, pv = [];
+    for (const d of days.filter(x => x < today).reverse()) {
+      const a = b30.filter(b => b.et.d === d && (I.fx || (b.et.m >= 570 && b.et.m < 960)));
+      if (a.length) { prevD = d; pv = a; break; }
+    }
     // ADR5: rango por día (RTH futuros / día completo fx) de los días previos
     const adrDays = days.filter(d => d < today);
     const adrs = adrDays.map(d => { const a = b30.filter(b => b.et.d === d && (I.fx || (b.et.m >= 570 && b.et.m < 960))); return a.length ? hi(a) - lo(a) : null; }).filter(x => x > 0);
