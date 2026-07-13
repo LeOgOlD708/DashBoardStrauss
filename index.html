@@ -5058,7 +5058,7 @@ const Terminal = {
     for (const [m, l] of [[570, '9:30'], [960, '16:00']]) h += '<div style="position:absolute;left:' + this._x(m) + '%;top:0;bottom:0;width:1px;background:rgba(45,212,191,.5)"></div><div class="mono" style="position:absolute;left:calc(' + this._x(m) + '% + 2px);bottom:1px;font-size:7px;color:var(--teal)">' + l + '</div>';
     // pins de eventos próximos 24h (hora habitual del release)
     const evs = this._nextEvents(24 * 3600);
-    for (const ev of evs.slice(0, 4)) h += '<div class="mono" title="' + escapeAttr(ev.name + ' · ' + ev.hhmm + ' ET (hora habitual)') + '" style="position:absolute;left:' + this._x(ev.mEt) + '%;top:0;font-size:9px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">▼</div>';
+    for (const ev of evs.slice(0, 4)) h += '<div class="mono" title="' + escHtml(ev.name + ' · ' + ev.hhmm + ' ET (hora habitual)') + '" style="position:absolute;left:' + this._x(ev.mEt) + '%;top:0;font-size:9px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">▼</div>';
     h += '<div id="term-now" style="position:absolute;top:0;bottom:0;width:2px;background:var(--red)"></div></div>';
     el.innerHTML = h;
   },
@@ -5194,7 +5194,7 @@ const Terminal = {
     if (c.vwap != null) { add(c.vwapLbl, c.vwap, 'var(--amber)', 'Precio medio ponderado por volumen — el precio justo del día'); if (c.s1) { add('+1σ', c.vwap + c.s1, 'var(--amber)', 'Banda 1σ superior'); add('−1σ', c.vwap - c.s1, 'var(--amber)', 'Banda 1σ inferior'); add('+2σ', c.vwap + 2 * c.s1, 'var(--amber)', 'Banda 2σ — estiramiento'); add('−2σ', c.vwap - 2 * c.s1, 'var(--amber)', 'Banda 2σ inferior'); } }
     lv.sort((a, b) => b.v - a.v);
     const spotIdx = lv.findIndex(L => L.v <= c.last);
-    let rows = lv.map(L => '<tr title="' + escapeAttr(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
+    let rows = lv.map(L => '<tr title="' + escHtml(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
     const spotRow = '<tr><td colspan="3" class="mono" style="padding:3px 8px;font-size:10px;color:var(--red);background:rgba(248,113,113,.06)">📍 ' + f(c.last) + ' — precio</td></tr>';
     rows.splice(spotIdx < 0 ? rows.length : spotIdx, 0, spotRow);
     document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>';
