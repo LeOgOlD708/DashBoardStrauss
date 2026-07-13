@@ -5199,9 +5199,44 @@ const Terminal = {
     };
   },
 
+  // ── F4: VEREDICTO DEL DÍA — bias (IB/overnight) · régimen gamma · risk-on/off ──
+  // Observacional puro: lee lo ya computado (c, _walls) + los precios del loop global 60s.
+  _verdict(c) {
+    const el = document.getElementById('term-verdict'); if (!el) return;
+    const I = this.instr(), parts = [];
+    // 1) BIAS del día — regla 82%: el primer breakout del IB suele definir la dirección
+    if (c) {
+      if (!I.fx && c.rth.length && !c.ibLive && c.ibh != null) {
+        if (c.last > c.ibh) parts.push(['🟢 BIAS LONG', 'var(--green)', 'IB roto ARRIBA (regla 82%, NQ 2015-2025): el primer breakout suele definir el día — no operar contra este bias sin razón fuerte']);
+        else if (c.last < c.ibl) parts.push(['🔴 BIAS SHORT', 'var(--red)', 'IB roto ABAJO — bias vendedor del día (regla 82%)']);
+        else parts.push(['⚪ DENTRO DEL IB', 'var(--text2)', 'El precio volvió dentro del Initial Balance — día aún sin dueño; ojo con falsos breakouts (34% histórico)']);
+      } else if (!I.fx && c.ibLive) parts.push(['⏳ IB EN CONSTRUCCIÓN', 'var(--purple)', 'Primera hora RTH (9:30-10:30 ET) — el bias del día se define al romper este rango']);
+      else if (c.pdc != null) { const g = (c.last / c.pdc - 1) * 100; parts.push([(g >= 0 ? '↗ overnight +' : '↘ overnight −') + Math.abs(g).toFixed(2) + '%', g >= 0 ? 'var(--green)' : 'var(--red)', 'Dirección de la sesión ' + (I.fx ? 'del día' : 'Globex') + ' vs cierre previo — el bias formal llega con el IB (9:30-10:30 ET)']); }
+    }
+    // 2) Régimen gamma (cadena del ETF espejo — F3)
+    const W = this._walls?.prim;
+    if (W && W.gexTotalBn != null) {
+      const pos = W.gexTotalBn >= 0;
+      parts.push([pos ? 'Γ+ pegajoso' : 'Γ− reactivo', pos ? 'var(--teal)' : 'var(--amber)', 'GEX neto de ' + this._walls.primEtf + ' ' + W.gexTotalBn + 'bn: ' + (pos ? 'dealers ESTABILIZAN — rangos, mean-reversion, los muros frenan' : 'dealers AMPLIFICAN — el precio patina, breakouts corren más, stops más amplios') + ' (régimen, no predicción — pierde poder en alta vol)']);
+    }
+    // 3) Risk-on/off por correlaciones del loop global (SPY↑ · VIX↓ · DXY↓ vs cierre previo)
+    try {
+      const P = window.state?.data?.prices || {};
+      const votes = [['SPY', (P.SPY?.chg1d ?? null), v => v > 0], ['VIX', (P['^VIX']?.chg1d ?? null), v => v < 0], ['DXY', (P['DX-Y.NYB']?.chg1d ?? null), v => v < 0]];
+      const avail = votes.filter(v => v[1] != null);
+      if (avail.length >= 2) {
+        const on = avail.filter(v => v[2](v[1])).length;
+        const lbl = on >= avail.length - 0.5 ? 'RISK-ON' : on === 0 ? 'RISK-OFF' : 'MIXTO ' + on + '/' + avail.length;
+        parts.push([lbl, on === avail.length ? 'var(--green)' : on === 0 ? 'var(--red)' : 'var(--text2)', 'Coherencia simple vs cierre previo: ' + avail.map(v => v[0] + ' ' + (v[1] >= 0 ? '+' : '') + v[1].toFixed(2) + '%' + (v[2](v[1]) ? ' ✓' : ' ✗')).join(' · ') + ' (VIX/DXY cash: congelados el finde)']);
+      }
+    } catch (e) {}
+    el.innerHTML = '🖥️ ' + (parts.length ? parts.map(p => '<b style="color:' + p[1] + '" title="' + escHtml(p[2]) + '">' + p[0] + '</b>').join(' <span style="color:var(--text3)">·</span> ') : 'TERMINAL — sala de situación intradía') + ' <span style="color:var(--text3);font-size:9px">(veredicto observacional — hover para el porqué)</span>';
+  },
+
   // ── render: header + ladder + chart ──
   render() {
     const I = this.instr(), c = this.compute();
+    this._verdict(c);
     if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; return; }
     const f = v => v == null ? '—' : (+v).toFixed(I.dec);
     const chg = c.pdc ? (c.last / c.pdc - 1) * 100 : null;
@@ -5261,7 +5296,7 @@ const Terminal = {
     cv.width = W * dpr; cv.height = H * dpr;
     const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
     const bars = this.feed.bars; if (!bars.length) return;
-    const ml = 8, mr = 74, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
+    const ml = 8, mr = 92, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
     let pMin = Math.min(...bars.map(b => b.l)), pMax = Math.max(...bars.map(b => b.h));
     const pad = (pMax - pMin) * 0.14 || 1; pMin -= pad; pMax += pad;
     // niveles dentro del eje entran al rango visible
@@ -5301,7 +5336,7 @@ const Terminal = {
       g.strokeStyle = col + '66'; g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
       let ly = y; while (seen.some(s => Math.abs(s - ly) < 9)) ly += 9; seen.push(ly);
-      g.fillStyle = col; g.fillText(L.lbl + ' ' + (+L.v).toFixed(I.dec), ml + iw + 3, ly);
+      g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec), ml + iw + 3, ly);
     }
     // spot
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
