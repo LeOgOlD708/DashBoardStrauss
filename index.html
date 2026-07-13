@@ -10804,7 +10804,7 @@ const InstDeep = {
     const esCrypto = instOptFetch(tk).crypto; // BTC-USD/ETH-USD: sin FINRA/SEC/stockanalysis (no aplican)
     const [y1, d60, opt, ats, st, ins] = await Promise.all([
       jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=1y'),
-      jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d'),
+      jf('/api/yahoo?tickers=' + encodeURIComponent(tk) + '&range=60d&hl=1'), // hl=1: H/L para el VP verdadero (solo la radiografía los usa — Perf M1)
       (() => { // reusar cache/promesa-en-vuelo de InstPanel (mismo endpoint) — sin fetch opt duplicado
         try {
           const c = InstPanel._cache?.[tk];

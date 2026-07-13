@@ -11,7 +11,7 @@ const YF_HEADERS = {
   'Origin': 'https://finance.yahoo.com',
 };
 
-async function fetchTicker(ticker, range = '1y', interval = '1d') {
+async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false) {
   const url = `${YF_BASE}/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
   const res = await fetch(url, { headers: YF_HEADERS });
 
@@ -104,8 +104,10 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     // Fase A Pipeline de Capital 2026-07-07: serie diaria de volúmenes (alineada con hist)
     // para U/D Volume Ratio 50d y A/D proxy 13w — huella institucional computada client-side
     vols:   histFull.map(r => (r.volume != null && !isNaN(r.volume)) ? r.volume : null),
-    // VP H/L: rangos reales por barra intradía → perfil de volumen VERDADERO (no aproximación por close)
-    ...(intraday ? {
+    // VP H/L: rangos reales por barra intradía → perfil de volumen VERDADERO (no aproximación
+    // por close). Perf M1 (auditoría 07-13): SOLO con &hl=1 — zonesFor pide 60d por candidata
+    // (~12×/scan) y no los usa; sin gate pagaba ~300KB/scan de arrays descartados.
+    ...(intraday && wantHL ? {
       his: histFull.map(r => (r.high != null && !isNaN(r.high)) ? parseFloat(r.high.toFixed(2)) : null),
       los: histFull.map(r => (r.low != null && !isNaN(r.low)) ? parseFloat(r.low.toFixed(2)) : null)
     } : {}),
@@ -168,9 +170,10 @@ module.exports = async (req, res) => {
   const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo', '60d': '5m' };
   const interval = intervalMap[range] || '1d';
 
+  const wantHL = req.query.hl === '1'; // Perf M1: his/los solo cuando el caller los usa (mapa)
   await Promise.all(
     tickerList.map(async (ticker) => {
-      try { results[ticker] = await fetchTicker(ticker, range, interval); }
+      try { results[ticker] = await fetchTicker(ticker, range, interval, wantHL); }
       catch (e) { results[ticker] = { error: e.message || 'fetch failed' }; }
     })
   );

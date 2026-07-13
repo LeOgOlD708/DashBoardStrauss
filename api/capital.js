@@ -272,11 +272,13 @@ async function digest(dry) {
     }
     if (parts.length) L.push('🏛 ' + parts.join(' · '));
   } catch (e) { /* la línea institucional jamás rompe el digest */ }
-  // E4 · Mapa de Entrada: zonas del top-3 (grabadas en el snapshot) vs precio ACTUAL —
-  // el aviso "estás en zona" llega al teléfono sin abrir el dashboard
-  try {
-    const s2 = snapLast && !snapLast.empty ? snapLast.s : null;
-    if (s2?.zonas?.length) {
+  // E4 zonas + 📅 bloque semanal — Perf B1 (auditoría 07-13): en PARALELO (independientes) —
+  // secuenciales sumaban 8s+8s el viernes y dejaban ~1.5s de margen vs maxDuration 30
+  const [lineaZonas, lineaSemana] = await Promise.all([
+    (async () => {
+      // E4 · Mapa de Entrada: zonas del top-3 vs precio ACTUAL — "estás en zona" al teléfono
+      const s2 = snapLast && !snapLast.empty ? snapLast.s : null;
+      if (!s2?.zonas?.length) return null;
       const zs = s2.zonas.slice(0, 3);
       const qz = await budget(Promise.all(zs.map(z => quoteMini(z.tk))), 8000);
       const partsZ = zs.map((z, i) => {
@@ -286,24 +288,24 @@ async function digest(dry) {
         const dist = ((z.lo + z.hi) / 2 / p - 1) * 100;
         return inZ ? '<b>' + z.tk + ' 🎯 EN ZONA ' + z.lo + '–' + z.hi + '</b>' : z.tk + ' zona ' + z.lo + '–' + z.hi + ' (' + (dist >= 0 ? '+' : '') + dist.toFixed(1) + '%)';
       });
-      L.push('🎯 Zonas de entrada (top-3 del embudo): ' + partsZ.join(' · '));
-    }
-  } catch (e) { /* las zonas jamás rompen el digest */ }
-  // 📅 BLOQUE SEMANAL (solo viernes ET): la semana del embudo en una línea — sin cron nuevo
-  try {
-    const dowET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(new Date());
-    const w1 = snapLast?.week1;
-    if (dowET === 'Fri' && w1?.candidatas?.length && w1.spy > 0 && spy?.p) {
+      return '🎯 Zonas de entrada (top-3 del embudo): ' + partsZ.join(' · ');
+    })().catch(() => null),
+    (async () => {
+      // 📅 BLOQUE SEMANAL (solo viernes ET): la semana del embudo en una línea — sin cron nuevo
+      const dowET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(new Date());
+      const w1 = snapLast?.week1;
+      if (!(dowET === 'Fri' && w1?.candidatas?.length && w1.spy > 0 && spy?.p)) return null;
       const top3 = w1.candidatas.slice(0, 3).filter(c => c.price > 0);
       const qw = await budget(Promise.all(top3.map(c => quoteMini(c.tk))), 8000);
       const rets = top3.map((c, i) => qw?.[i]?.p ? (qw[i].p / c.price - 1) * 100 : null).filter(v => v != null);
       const spyW = (spy.p / w1.spy - 1) * 100;
-      if (rets.length >= 2) {
-        const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
-        L.push('📅 <b>SEMANA</b> (' + w1.date + '→hoy): top-3 del embudo ' + f(avg) + ' vs SPY ' + f(spyW) + ' → excess <b>' + f(avg - spyW) + '</b>');
-      }
-    }
-  } catch (e) { /* el bloque semanal jamás rompe el digest */ }
+      if (rets.length < 2) return null;
+      const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
+      return '📅 <b>SEMANA</b> (' + w1.date + '→hoy): top-3 del embudo ' + f(avg) + ' vs SPY ' + f(spyW) + ' → excess <b>' + f(avg - spyW) + '</b>';
+    })().catch(() => null)
+  ]);
+  if (lineaZonas) L.push(lineaZonas);
+  if (lineaSemana) L.push(lineaSemana);
   // 🧠 J3 · DIGEST NARRADO (innovación 2026-07-13, patrón Deephaven): Gemini INTERPRETA los
   // datos del digest — no los repite. Guardas: solo puede usar números presentes en las líneas
   // (anti-alucinación), presupuesto 9s, y si falla el digest templado sale igual.

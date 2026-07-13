@@ -44,7 +44,7 @@ async function ghWriteLastGood(hash, payload) {
   try {
     const url = `https://api.github.com/repos/${GH_REPO2}/contents/fredcache/${hash}.json`;
     const H = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'User-Agent': 'DashBoardStrauss' };
-    const cur = await fetch(url, { headers: H, signal: AbortSignal.timeout(4000) });
+    const cur = await fetch(url, { headers: H, signal: AbortSignal.timeout(2000) }); // Perf M2: el GET corre en el camino del usuario — corto
     let sha;
     if (cur.ok) {
       const j = await cur.json();
