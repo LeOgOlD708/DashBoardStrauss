@@ -9745,8 +9745,16 @@ const InstPanel = {
       + ' · P/C vol <b>' + (d.pcVol ?? '—') + '</b> · P/C OI <b>' + (d.pcOI ?? '—') + '</b>'
       + ' · GEX neto <b style="color:' + gexCol + '">$' + d.gexTotalBn + 'bn</b>' + drift(d.gexTotalBn, prev?.gex, 'GEX neto')
       + (d.gexVolTotalBn != null ? ' · <span title="GEX del DÍA (Γ×volumen negociado hoy) — la capa rápida vs la estructura; su flip = pivote del día (vista GEX HOY)">hoy <b style="color:' + (d.gexVolTotalBn >= 0 ? 'var(--green)' : 'var(--red)') + '">$' + d.gexVolTotalBn + 'bn</b>' + (d.flipVol != null ? ' ⚖' + fK(d.flipVol) : '') + '</span>' : '')
-      + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>' + drift(d.callWall, prev?.cw, 'Call wall')
-      + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + drift(d.putWall, prev?.pw, 'Put wall')
+      + (() => { // FUERZA DEL MURO (innovación 07-13): % del GEX total concentrado en el strike —
+        // un "muro" con 3% del gamma es decorativo; con 20% es una pared de verdad
+        const sumAbs = (d.strikes || []).reduce((a9, s9) => a9 + Math.abs(s9.gex), 0);
+        const wp = k9 => { const s9 = (d.strikes || []).find(x9 => x9.k === k9); return (s9 && sumAbs > 0) ? Math.abs(s9.gex) / sumAbs * 100 : null; };
+        const fza = (p9) => p9 == null ? '' : ' <span style="font-size:9px;color:' + (p9 >= 15 ? 'var(--gold)' : p9 >= 8 ? 'var(--text2)' : 'var(--text3)') + '" title="FUERZA DEL MURO: ' + p9.toFixed(0) + '% de todo el GEX de la ventana está concentrado en este strike — ≥15% muro DURO · 8-15% relevante · <8% decorativo">' + (p9 >= 15 ? '🧱' : '') + p9.toFixed(0) + '%</span>';
+        this._wallFza = { cw: fza(wp(d.callWall)), pw: fza(wp(d.putWall)) };
+        return '';
+      })()
+      + ' · 🧲 Call wall <b style="color:var(--green)">' + fK(d.callWall) + '</b>' + (this._wallFza?.cw || '') + drift(d.callWall, prev?.cw, 'Call wall')
+      + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + (this._wallFza?.pw || '') + drift(d.putWall, prev?.pw, 'Put wall')
       + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
       + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>'
       + '<div id="inst-futconv" class="mono" style="font-size:10px;color:var(--text2)"></div>';
@@ -10166,6 +10174,16 @@ const RadarFlujo = {
         r.score = this._score(r.c);
       }
       valid.sort((a, b) => b.score - a.score);
+      // Δ SCORE vs registro previo (innovación 07-13): ¿el flujo se está CONSTRUYENDO o
+      // apagando en este ticker? — el momentum del propio radar, gratis desde radar_v1
+      try {
+        const hist9 = JSON.parse(localStorage.getItem('radar_v1') || '[]');
+        const today9 = etDate();
+        valid.forEach(r9 => {
+          const prevs = hist9.filter(x9 => x9.tk === r9.tk && x9.d < today9);
+          if (prevs.length) { const p9 = prevs[prevs.length - 1]; r9.dSc = r9.score - p9.sc; r9.dScD = p9.d; }
+        });
+      } catch (e) {}
       const reg = this._register(valid);
       const fS = v => v == null ? '—' : (v >= 0 ? '+' : '−') + '$' + Math.abs(v).toFixed(1) + 'M';
       body.innerHTML =
@@ -10179,6 +10197,7 @@ const RadarFlujo = {
           return '<tr style="border-top:1px solid var(--border2);cursor:pointer" onclick="InstTab.analyze(\'' + r.tk + '\')" title="Click → radiografía completa de ' + r.tk + '">'
             + '<td style="padding:4px 8px"><b style="color:var(--text)">' + escHtml(r.tk) + '</b></td>'
             + '<td style="min-width:110px"><div style="display:flex;align-items:center;gap:6px"><b style="color:' + col + '">' + r.score + '</b>'
+            + (r.dSc != null && Math.abs(r.dSc) >= 3 ? '<span style="font-size:9px;color:' + (r.dSc > 0 ? 'var(--green)' : 'var(--red)') + '" title="Δ vs su registro previo (' + r.dScD + '): el flujo se está ' + (r.dSc > 0 ? 'CONSTRUYENDO' : 'apagando') + ' en este ticker">' + (r.dSc > 0 ? '↑+' : '↓') + r.dSc + '</span>' : '')
             + '<div style="flex:1;max-width:70px;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden"><div style="width:' + r.score + '%;height:100%;background:' + col + ';opacity:.75"></div></div></div></td>'
             + '<td style="color:' + (r.netPremM >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fS(r.netPremM) + '</td>'
             + '<td style="color:' + (r.doiNorm == null ? 'var(--text3)' : r.doiNorm >= 0 ? 'var(--green)' : 'var(--red)') + '">' + escHtml(r.doiTxt) + '</td>'
@@ -11002,12 +11021,25 @@ const InstDeep = {
         const srcCol = { perfil: 'var(--blue)', avwap: 'var(--gold)', opciones: 'var(--green)', media: 'var(--text2)', iman: '#a78bfa' };
         const nivelRow = L2 => {
           const c2 = L2.dist <= 0 ? 'var(--green)' : 'var(--red)';
-          return '<tr><td style="padding:2.5px 8px 2.5px 0;color:var(--text2)"><span style="color:' + (srcCol[L2.src] || 'var(--text3)') + '">●</span> ' + L2.lbl + '</td>'
-            + '<td style="padding:2.5px 8px;text-align:right;color:var(--text);font-weight:600">' + L2.v.toFixed(2) + '</td>'
+          const conf = (L2.n || 1) >= 2 ? ' <span style="color:var(--gold);font-size:8px;font-weight:700" title="CONFLUENCIA: ' + L2.n + ' fuentes independientes a <0.4% — nivel más serio que cualquiera de sus partes">×' + L2.n + '</span>' : '';
+          return '<tr><td style="padding:2.5px 8px 2.5px 0;color:var(--text2)"><span style="color:' + (srcCol[L2.src] || 'var(--text3)') + '">●</span> ' + L2.lbl + conf + '</td>'
+            + '<td style="padding:2.5px 8px;text-align:right;color:var(--text);font-weight:' + ((L2.n || 1) >= 2 ? '700' : '600') + '">' + L2.v.toFixed(2) + '</td>'
             + '<td style="padding:2.5px 0;text-align:right;color:' + c2 + '">' + (L2.dist >= 0 ? '+' : '') + L2.dist.toFixed(1) + '%</td></tr>';
         };
-        const resis = lv.filter(L2 => L2.dist > 0).sort((a2, b2) => b2.dist - a2.dist);
-        const sops = lv.filter(L2 => L2.dist <= 0).sort((a2, b2) => b2.dist - a2.dist);
+        // Fusión de confluencias (feedback Angel 07-13: "VAL 221.04 y HVN 221.04 duplicados"):
+        // niveles a <0.4% entre sí = UNA fila — la confluencia es un nivel MÁS serio, no dos filas
+        const fusiona = (list9) => {
+          const out9 = [];
+          for (const L9 of [...list9].sort((a9, b9) => a9.v - b9.v)) {
+            const prev9 = out9[out9.length - 1];
+            if (prev9 && L9.v / prev9.v - 1 < 0.004) { prev9.lbl += ' + ' + L9.lbl; prev9.n++; prev9.v = (prev9.v * (prev9.n - 1) + L9.v) / prev9.n; }
+            else out9.push({ ...L9, n: 1 });
+          }
+          out9.forEach(o9 => { o9.dist = (o9.v / spot - 1) * 100; });
+          return out9.reverse(); // v desc: resistencias lejana-primero · soportes cercano-primero
+        };
+        const resis = fusiona(lv.filter(L2 => L2.dist > 0));
+        const sops = fusiona(lv.filter(L2 => L2.dist <= 0));
         const sepRow = (txt9, col9) => '<tr><td colspan="3" style="padding:6px 0 3px;color:' + col9 + ';font-size:9px;letter-spacing:.08em;font-weight:700;border-bottom:1px solid var(--border2)">' + txt9 + '</td></tr>';
         const rowsH = sepRow('▲ RESISTENCIAS · arriba del precio (la más lejana primero)', 'var(--red)')
           + resis.map(nivelRow).join('')
