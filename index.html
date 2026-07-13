@@ -8645,6 +8645,15 @@ function volumeDryUp(vols) {
 }
 
 // ══ F-I2 · Primitivas de niveles institucionales (2026-07-10) ══
+// 📅 Fecha ET + fin de semana (auditoría 2026-07-12): toISOString es UTC — un scan después
+// de las 19:00 CDT fechaba el snapshot MAÑANA; y los snapshots de sábado/domingo duplicaban
+// los picks del viernes con tramos de 0% que inflaban el n y distorsionaban el hit-rate.
+function etDate() {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }).format(new Date()); }
+  catch (e) { return new Date().toISOString().slice(0, 10); }
+}
+function esFinde(dStr) { const d9 = new Date(dStr + 'T12:00:00Z').getUTCDay(); return d9 === 0 || d9 === 6; }
+
 // 📏 Canal de regresión lineal + σ de residuos (ingesta MAZECAPITAL 2026-07-10, pedido Angel
 // 07-11): z = distancia del último precio a la recta en DESVIACIONES ESTÁNDAR — el umbral
 // objetivo de la reversión a la media (±2σ ≈ percentil 95: estirado; <1σ: sin ventaja).
@@ -11352,9 +11361,9 @@ const TrackRecord = {
     if (!body) return;
     body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Reconstruyendo la cartera virtual…</div>';
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = etDate();
       const list = await fetch('/api/capital?src=tracklist').then(r => r.json());
-      const dates = (list.dates || []).filter(d => d <= today);
+      const dates = (list.dates || []).filter(d => d <= today && !esFinde(d)); // sin findes: tramos de 0% no son rotaciones
       if (dates.length < 3) {
         body.innerHTML = '📈 <b style="color:var(--text2)">CARTERA VIRTUAL — construyéndose:</b> día <b>' + Math.max(dates.length, 1) + '</b> de 3 mínimos. Cada snapshot diario es una rotación de la cartera (top-3 candidatas, equiponderada). La equity curve aparece sola cuando haya 3+ snapshots — <i>la paciencia es parte del método</i>.';
         return;
@@ -11434,7 +11443,7 @@ const TrackRecord = {
     if (!body) return;
     body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Cargando snapshots y precios actuales…</div>';
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = etDate(); // ET, no UTC — después de las 19:00 CDT "hoy" no es mañana
       // snapshots remotos (inmutables) + locales (fallback pre-token)
       const list = await fetch('/api/capital?src=tracklist').then(r => r.json());
       const loc = JSON.parse(localStorage.getItem('trk_local') || '{}');
@@ -11442,9 +11451,11 @@ const TrackRecord = {
         body.innerHTML = '<div style="color:var(--amber);line-height:1.6">⚠ ' + escHtml(list.error) + '<br>Mientras tanto los snapshots se guardan en este navegador (localStorage) — no se pierden días, pero el registro inmutable multi-dispositivo necesita el token (2 min, como la de Finnhub).</div>';
         return;
       }
-      const remoteDates = (list.dates || []).filter(d => d < today);
+      // esFinde: snapshots de sábado/domingo (históricos, ej. 2026-07-12) duplican los picks del
+      // viernes con 0% — fuera de la estadística (los archivos son inmutables, se filtran al leer)
+      const remoteDates = (list.dates || []).filter(d => d < today && !esFinde(d));
       const snaps = (await Promise.all(remoteDates.slice(-60).map(d => fetch('/api/capital?src=trackget&date=' + d).then(r => r.json()).catch(() => null)))).filter(s => s?.candidatas?.length);
-      Object.entries(loc).forEach(([d, s]) => { if (d < today && !remoteDates.includes(d) && s?.candidatas?.length) snaps.push(s); });
+      Object.entries(loc).forEach(([d, s]) => { if (d < today && !esFinde(d) && !remoteDates.includes(d) && s?.candidatas?.length) snaps.push(s); });
       snaps.sort((a, b) => a.date < b.date ? -1 : 1);
       if (!snaps.length) {
         body.innerHTML = 'Todavía no hay snapshots de días PASADOS para auditar. Se crean solos cada día que el embudo escanea (hoy: ' + (localStorage.getItem('trk_sent_' + today) || Object.keys(loc).includes(today) ? '✓ registrado' : 'pendiente de escaneo') + '). Volvé en unos días — la paciencia es parte del método.';
@@ -12174,7 +12185,8 @@ const CandidatasHoy = {
     try { await this._trackInner(r); } finally { this._trackBusy = false; }
   },
   async _trackInner(r) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = etDate();
+    if (esFinde(today)) return; // sin mercado no hay snapshot que valga (los picks son los del viernes)
     if (localStorage.getItem('trk_sent_' + today)) return;
     if (!r?.cands?.length) return;
     const sectores = [...document.querySelectorAll('.os-cell')].map(c => {
