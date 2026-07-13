@@ -11,7 +11,7 @@ const YF_HEADERS = {
   'Origin': 'https://finance.yahoo.com',
 };
 
-async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false) {
+async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false, wantTs = false) {
   const url = `${YF_BASE}/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
   const res = await fetch(url, { headers: YF_HEADERS });
 
@@ -43,6 +43,7 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
   const rows = timestamps
     .map((ts, i) => ({
       date:   new Date(ts * 1000).toISOString().slice(0, 10),
+      epoch:  ts,
       close:  closes[i],
       volume: volumes[i],
       high:   highsRaw[i],
@@ -67,7 +68,9 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
   // Cap del histórico: 1 año diario por default; 3y diario (756) para el deep-dive de
   // analyze (α/β estables); 10y mensual (~120) para estacionalidad — Tanda 2 (2026-07-09);
   // 60d/5m (~4700 barras) para volume profile intradía — F-I2 (2026-07-10)
-  const cap = range === '60d' ? 5000 : range === '3y' ? 756 : 252;
+  // Terminal F0 (2026-07-13): 1d/5d/7d intradía necesitan la sesión completa (Globex ≈ 276
+  // barras 5m; 7d/1m ≈ 8,700) — el cap 252 truncaba el arranque del día. Sin callers previos.
+  const cap = range === '60d' ? 5000 : range === '7d' ? 9500 : (range === '1d' || range === '5d') ? 600 : range === '3y' ? 756 : 252;
   const histFull = rows.slice(-cap);
 
   // ── Volumen — para Opportunity Scanner (Tab 02) ──
@@ -91,7 +94,7 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
   const daily = interval === '1d';
   // F-I2: en intradía (5m/30m) el rango no cruza el año previo → ytdBase sería el inicio
   // del rango y el "ytd" saldría como retorno del rango — basura silenciosa. Null.
-  const intraday = interval === '5m' || interval === '30m';
+  const intraday = interval === '5m' || interval === '30m' || interval === '1m';
   return {
     price:  parseFloat(price.toFixed(2)),
     chg1d:  daily ? parseFloat(((price / prevClose    - 1) * 100).toFixed(2)) : null,
@@ -111,6 +114,9 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
       his: histFull.map(r => (r.high != null && !isNaN(r.high)) ? parseFloat(r.high.toFixed(2)) : null),
       los: histFull.map(r => (r.low != null && !isNaN(r.low)) ? parseFloat(r.low.toFixed(2)) : null)
     } : {}),
+    // Terminal F0: timestamps epoch por barra (solo intradía + &ts=1) — la sesión ET de cada
+    // barra (RTH/overnight/IB) se resuelve client-side; 'dates' solo trae el día
+    ...(intraday && wantTs ? { epochs: histFull.map(r => r.epoch) } : {}),
     // Campos nuevos para Opportunity Scanner — additivos, no rompen callers existentes
     regularMarketVolume: daily ? regularMarketVolume : null,
     averageVolume: daily ? averageVolume : null,
@@ -167,13 +173,14 @@ module.exports = async (req, res) => {
 
   // interval automático según range · 10y mensual (2026-07-08): para el heatmap de estacionalidad
   // · 60d/5m (2026-07-10 F-I2): volume profile intradía (Yahoo permite 5m hasta 60 días)
-  const intervalMap = { '1d': '5m', '5d': '30m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo', '60d': '5m' };
+  const intervalMap = { '1d': '5m', '5d': '30m', '7d': '1m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo', '60d': '5m' };
   const interval = intervalMap[range] || '1d';
 
   const wantHL = req.query.hl === '1'; // Perf M1: his/los solo cuando el caller los usa (mapa)
+  const wantTs = req.query.ts === '1'; // Terminal F0: epochs por barra
   await Promise.all(
     tickerList.map(async (ticker) => {
-      try { results[ticker] = await fetchTicker(ticker, range, interval, wantHL); }
+      try { results[ticker] = await fetchTicker(ticker, range, interval, wantHL, wantTs); }
       catch (e) { results[ticker] = { error: e.message || 'fetch failed' }; }
     })
   );

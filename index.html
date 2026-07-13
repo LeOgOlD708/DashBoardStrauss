@@ -929,6 +929,7 @@ html.auth-ok #auth-gate{display:none}
   <div class="tab tab-new" onclick="go('news',this)">07 · Noticias</div>
   <div class="tab tab-new" onclick="go('tecnico',this)">08 · Técnico</div>
   <div class="tab tab-new" onclick="go('inst',this)">09 · Institucional</div>
+  <div class="tab tab-new" onclick="go('term',this)">10 · Terminal</div>
 </div>
 
 <div class="main">
@@ -2855,6 +2856,34 @@ html.auth-ok #auth-gate{display:none}
 
 </div>
 
+<!-- ═══════════════ TAB 10 · TERMINAL (pieza final — blueprint v2) ═══════════════ -->
+<div id="tab-term" class="page">
+  <!-- ① VEREDICTO + countdown + barra 24h (sticky) -->
+  <div id="term-top" style="position:sticky;top:0;z-index:30;background:var(--bg);padding:6px 0 4px;border-bottom:1px solid var(--border2)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
+      <div id="term-verdict" class="mono" style="font-size:12px;color:var(--text2)">🖥️ TERMINAL — sala de situación intradía <span style="color:var(--text3)">(preparación y contexto; la ejecución va en tu broker)</span></div>
+      <div id="term-countdown" class="mono" style="font-size:12px;color:var(--text3)">⏱ cargando calendario…</div>
+    </div>
+    <div id="term-sessbar" style="height:34px"></div>
+  </div>
+
+  <!-- ② MAPA DE NIVELES -->
+  <div class="sh" style="margin-top:12px"><div class="sh-tag">Terminal</div><div class="sh-title">Mapa de Niveles del Día — los imanes de la sesión</div><button class="glossary-btn" onclick="openGlossary('terminal-mapa-niveles')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+      <span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em">INSTRUMENTO:</span>
+      <span id="term-instr-btns"></span>
+      <span id="term-fresh" class="mono" style="font-size:9px;margin-left:auto;color:var(--text3)"></span>
+    </div>
+    <div id="term-head" class="mono" style="font-size:11.5px;color:var(--text);margin-bottom:6px">Selecciona instrumento…</div>
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+      <div style="flex:2.2;min-width:420px"><canvas id="term-chart" style="width:100%;height:430px"></canvas></div>
+      <div style="flex:1;min-width:230px" id="term-levels"></div>
+    </div>
+  </div>
+  <div id="term-more" class="mono" style="font-size:10px;color:var(--text3);padding:4px 2px 12px">Fases siguientes: muros gamma (F3) · streaming OANDA (FW) · veredicto (F4) · riesgo/disciplina (F5) · sesgo estadístico con calibración propia (F6) · flujo (F7).</div>
+</div>
+
 <div id="tab-tecnico" class="page">
   <div class="sh">
     <div class="sh-tag" style="color:var(--blue);border-color:rgba(96,165,250,.3);background:rgba(96,165,250,.05)">Técnico</div>
@@ -3034,6 +3063,9 @@ function go(id,el){
   if (prevId === 'act' && id !== 'act' && window.OpportunityScanner && typeof OpportunityScanner.destroy === 'function') {
     OpportunityScanner.destroy();
   }
+  // ── Lifecycle Terminal (Tab 10) — mismo patrón: dueña de TODOS sus timers ──
+  if (id === 'term' && window.Terminal) { try { Terminal.init(); } catch (e) { console.warn('[Terminal] init:', e); } }
+  if (prevId === 'term' && id !== 'term' && window.Terminal) { try { Terminal.destroy(); } catch (e) {} }
 
   setTimeout(()=>{
     document.querySelectorAll('#tab-'+id+' canvas').forEach(cv=>{
@@ -4966,6 +4998,266 @@ function setChartRange(r) {
     chinaChart.update('none');
   }
 }
+
+// ═══════════════ TAB 10 · TERMINAL — sala de situación intradía (blueprint v2) ═══════════════
+// F0 esqueleto + F1 barra 24h/countdown + F2 mapa de niveles (FeedHub solo-polling).
+// Reglas: dueña de TODOS sus timers (init/destroy vía go()), document.hidden pausa,
+// NADA escribe en estructuras del motor v:3. Data delayed 10-15m declarada por diseño.
+const Terminal = {
+  _timers: [], _cfg: null, _cal: null, _calT: 0, _busy: false,
+  feed: { bars: [], bars30: [], lastOk: 0, err: null },
+  INSTRS: [
+    { tk: 'NQ=F', lbl: 'NQ', name: 'Nasdaq 100 futuro', fx: false, dec: 0 },
+    { tk: 'ES=F', lbl: 'ES', name: 'S&P 500 futuro', fx: false, dec: 1 },
+    { tk: 'EURUSD=X', lbl: 'EURUSD', name: 'Euro/Dólar spot', fx: true, dec: 5 },
+    { tk: 'GBPUSD=X', lbl: 'GBPUSD', name: 'Libra/Dólar spot', fx: true, dec: 5 },
+  ],
+  cfg() { if (!this._cfg) { try { this._cfg = JSON.parse(localStorage.getItem('terminal_cfg_v1') || '{}'); } catch (e) { this._cfg = {}; } } return this._cfg; },
+  saveCfg() { try { localStorage.setItem('terminal_cfg_v1', JSON.stringify(this._cfg)); } catch (e) {} },
+  instr() { const tk = this.cfg().instr || 'NQ=F'; return this.INSTRS.find(i => i.tk === tk) || this.INSTRS[0]; },
+
+  init() {
+    this.destroy();
+    this._renderBtns();
+    this._sessbar();
+    if (!this._cal || Date.now() - this._calT > 6 * 3600e3) this._calLoad();
+    this.feedStart();
+    this._timers.push(setInterval(() => this._clock(), 1000));
+    this._timers.push(setInterval(() => { if (!document.hidden) this.feedPoll(); }, 60000));
+  },
+  destroy() { this._timers.forEach(clearInterval); this._timers = []; },
+
+  // ── ET helpers (la sesión se define en America/New_York; etDate() global da el día) ──
+  _fmt: null,
+  etParts(epoch) {
+    if (!this._fmt) this._fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    const p = {}; this._fmt.formatToParts(new Date(epoch * 1000)).forEach(x => { p[x.type] = x.value; });
+    return { d: p.year + '-' + p.month + '-' + p.day, m: (+p.hour) * 60 + (+p.minute) };
+  },
+  // epoch de "ymd a las M minutos ET" — corrige DST con una pasada de verificación
+  epochET(ymd, mins) {
+    let e = Date.parse(ymd + 'T00:00:00-04:00') / 1000 + mins * 60;
+    for (let i = 0; i < 2; i++) { const p = this.etParts(e); const diff = (Date.parse(p.d) - Date.parse(ymd)) / 1000 + (p.m - mins) * 60; if (!diff) break; e -= diff; }
+    return e;
+  },
+
+  // ── F1: barra 24h (eje = día Globex 17:00→17:00 ET) + countdown ──
+  SESS: [
+    { a: 19 * 60, b: 28 * 60, col: 'rgba(96,165,250,.13)', lbl: 'ASIA' },
+    { a: 27 * 60, b: 35.5 * 60, col: 'rgba(167,139,250,.15)', lbl: 'LONDRES' },
+    { a: 32 * 60, b: 41 * 60, col: 'rgba(45,212,191,.14)', lbl: 'NY' },
+    { a: 32 * 60, b: 35.5 * 60, col: 'rgba(251,191,36,.16)', lbl: 'SOLAPE' },
+    { a: 35.5 * 60, b: 37.5 * 60, col: 'rgba(125,111,99,.18)', lbl: 'LUNCH' },
+  ],
+  _x(mEt) { const rel = ((mEt - 17 * 60) + 1440) % 1440; return rel / 1440 * 100; },
+  _sessbar() {
+    const el = document.getElementById('term-sessbar'); if (!el) return;
+    let h = '<div style="position:relative;height:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:5px;overflow:hidden">';
+    for (const s of this.SESS) { const x1 = this._x(s.a % 1440), x2 = this._x(s.b % 1440); h += '<div style="position:absolute;left:' + x1 + '%;width:' + (x2 - x1) + '%;top:0;bottom:0;background:' + s.col + '"></div><div class="mono" style="position:absolute;left:' + (x1 + 0.4) + '%;top:2px;font-size:7.5px;color:var(--text3);letter-spacing:.05em">' + s.lbl + '</div>'; }
+    // marcas RTH 9:30 / 16:00 ET
+    for (const [m, l] of [[570, '9:30'], [960, '16:00']]) h += '<div style="position:absolute;left:' + this._x(m) + '%;top:0;bottom:0;width:1px;background:rgba(45,212,191,.5)"></div><div class="mono" style="position:absolute;left:calc(' + this._x(m) + '% + 2px);bottom:1px;font-size:7px;color:var(--teal)">' + l + '</div>';
+    // pins de eventos próximos 24h (hora habitual del release)
+    const evs = this._nextEvents(24 * 3600);
+    for (const ev of evs.slice(0, 4)) h += '<div class="mono" title="' + escapeAttr(ev.name + ' · ' + ev.hhmm + ' ET (hora habitual)') + '" style="position:absolute;left:' + this._x(ev.mEt) + '%;top:0;font-size:9px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">▼</div>';
+    h += '<div id="term-now" style="position:absolute;top:0;bottom:0;width:2px;background:var(--red)"></div></div>';
+    el.innerHTML = h;
+  },
+  _calLoad() {
+    fetch('/api/fred-calendar').then(r => r.json()).then(j => {
+      this._cal = (j.events || []).map(ev => {
+        // F1: hora habitual determinística (F9 traerá la hora oficial FF/BLS)
+        const n = ev.name || '';
+        const mins = /FOMC/i.test(n) ? 14 * 60 : /ISM|UMich|Michigan|JOLTS|Home|Confianza|Confidence|Housing/i.test(n) ? 10 * 60 : 8.5 * 60;
+        return { ...ev, epoch: this.epochET(ev.date, mins), mEt: mins, hhmm: String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0') };
+      });
+      this._calT = Date.now(); this._sessbar();
+    }).catch(() => {});
+  },
+  _nextEvents(horizonSec) { const now = Date.now() / 1000; return (this._cal || []).filter(ev => ev.epoch > now && ev.epoch < now + horizonSec).sort((a, b) => a.epoch - b.epoch); },
+  _clock() {
+    const nm = document.getElementById('term-now');
+    if (nm) { const p = this.etParts(Date.now() / 1000); nm.style.left = this._x(p.m) + '%'; }
+    const cd = document.getElementById('term-countdown'); if (!cd) return;
+    const evs = this._nextEvents(7 * 86400);
+    const hi = evs.find(e => e.impact === 'high') || evs[0];
+    if (!hi) { cd.textContent = '⏱ sin eventos próximos en el calendario'; return; }
+    let s = Math.floor(hi.epoch - Date.now() / 1000);
+    const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600); s -= h * 3600; const m = Math.floor(s / 60); s -= m * 60;
+    const urgent = hi.epoch - Date.now() / 1000 < 3600 && hi.impact === 'high';
+    cd.innerHTML = '⏱ <b style="color:' + (urgent ? 'var(--red)' : hi.impact === 'high' ? 'var(--amber)' : 'var(--text2)') + '">' + escHtml(hi.name) + '</b> en ' + (d ? d + 'd ' : '') + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + ' <span style="color:var(--text3)">(' + hi.hhmm + ' ET habitual)</span>';
+    // freshness del feed
+    const fr = document.getElementById('term-fresh');
+    if (fr && this.feed.lastOk) { const age = Math.floor(Date.now() / 1000 - this.feed.lastOk); fr.innerHTML = age > 180 ? '<span style="color:var(--amber)">✕ STALE — sin datos hace ' + Math.floor(age / 60) + 'm</span>' : '<span style="color:var(--text3)">◐ delayed ~10-15m (Yahoo, por diseño) · refresco hace ' + age + 's</span>'; }
+  },
+
+  // ── F2: FeedHub (interfaz única; hoy solo implementación polling — FW enchufa OANDA) ──
+  _renderBtns() {
+    const el = document.getElementById('term-instr-btns'); if (!el) return;
+    const cur = this.instr().tk;
+    el.innerHTML = this.INSTRS.map(i => '<button type="button" onclick="Terminal.setInstr(\'' + i.tk + '\')" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-right:4px;border:1px solid ' + (i.tk === cur ? 'var(--teal)' : 'var(--border2)') + ';color:' + (i.tk === cur ? 'var(--teal)' : 'var(--text3)') + ';background:' + (i.tk === cur ? 'rgba(45,212,191,.08)' : 'transparent') + '">' + i.lbl + '</button>').join('');
+  },
+  setInstr(tk) { this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); },
+  _norm(d) {
+    if (!d || d.error || !d.epochs) return [];
+    return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
+      .filter(b => b.c != null && b.h != null && b.l != null).map(b => { b.et = this.etParts(b.t); return b; });
+  },
+  async feedStart() {
+    if (this._busy) return; this._busy = true;
+    const I = this.instr();
+    document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Cargando ' + I.lbl + '…</span>';
+    try {
+      const [d5, d1] = await Promise.all([
+        fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=5d&hl=1&ts=1').then(r => r.json()),
+        fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json()),
+      ]);
+      this.feed.bars30 = this._norm(d5?.[I.tk]); this.feed.bars = this._norm(d1?.[I.tk]);
+      if (this.feed.bars.length) this.feed.lastOk = Date.now() / 1000;
+      this.render();
+    } catch (e) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; }
+    this._busy = false;
+  },
+  async feedPoll() {
+    const I = this.instr();
+    try {
+      const d1 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json());
+      const nb = this._norm(d1?.[I.tk]);
+      if (nb.length) { this.feed.bars = nb; this.feed.lastOk = Date.now() / 1000; this.render(); }
+    } catch (e) { /* backoff natural: el próximo tick reintenta */ }
+  },
+
+  // ── cómputos del día (client-side, barras normalizadas — ver blueprint v2) ──
+  compute() {
+    const I = this.instr(), bars = this.feed.bars, b30 = this.feed.bars30;
+    if (!bars.length) return null;
+    const today = bars[bars.length - 1].et.d; // día ET de la última barra (sesión en curso)
+    const rth = bars.filter(b => b.et.d === today && b.et.m >= 570 && b.et.m < 960);
+    const on = I.fx ? [] : bars.filter(b => !(b.et.d === today && b.et.m >= 570 && b.et.m < 960) && b.t < this.epochET(today, 570));
+    const hi = a => a.length ? Math.max(...a.map(b => b.h)) : null, lo = a => a.length ? Math.min(...a.map(b => b.l)) : null;
+    // VWAP: RTH si abrió; si no, sesión completa (Globex) — etiquetado. Forex: sin volumen → null.
+    const vwapSrc = rth.length ? rth : bars, vwapLbl = rth.length ? 'VWAP RTH' : 'VWAP sesión';
+    let vwap = null, s1 = null;
+    if (!I.fx && vwapSrc.some(b => b.v > 0)) {
+      let cw = 0, cpv = 0; const pts = [];
+      for (const b of vwapSrc) { const tp = (b.h + b.l + b.c) / 3; cw += b.v; cpv += tp * b.v; pts.push({ t: b.t, vw: cw > 0 ? cpv / cw : null }); }
+      vwap = cw > 0 ? cpv / cw : null;
+      if (vwap != null) { let sw = 0; for (const b of vwapSrc) { const tp = (b.h + b.l + b.c) / 3; sw += b.v * (tp - vwap) * (tp - vwap); } s1 = cw > 0 ? Math.sqrt(sw / cw) : null; }
+      this._vwapPts = pts;
+    } else this._vwapPts = null;
+    // Día previo (de 5d/30m): futuros = RTH del último día completo; fx = día ET previo completo
+    const days = [...new Set(b30.map(b => b.et.d))].sort();
+    const prevD = days.filter(d => d < today).pop();
+    const pv = b30.filter(b => b.et.d === prevD && (I.fx || (b.et.m >= 570 && b.et.m < 960)));
+    // ADR5: rango por día (RTH futuros / día completo fx) de los días previos
+    const adrDays = days.filter(d => d < today);
+    const adrs = adrDays.map(d => { const a = b30.filter(b => b.et.d === d && (I.fx || (b.et.m >= 570 && b.et.m < 960))); return a.length ? hi(a) - lo(a) : null; }).filter(x => x > 0);
+    const adr = adrs.length ? adrs.reduce((a, b) => a + b, 0) / adrs.length : null;
+    const dayRange = (rth.length ? hi(rth) - lo(rth) : hi(bars) - lo(bars));
+    const ib = rth.filter(b => b.et.m < 630), or15 = rth.filter(b => b.et.m < 585);
+    const nowM = this.etParts(Date.now() / 1000).m;
+    return {
+      last: bars[bars.length - 1].c, lastT: bars[bars.length - 1].t, today, rth, on,
+      pdh: hi(pv), pdl: lo(pv), pdc: pv.length ? pv[pv.length - 1].c : null, prevD,
+      onh: hi(on), onl: lo(on),
+      ibh: hi(ib), ibl: lo(ib), ibLive: rth.length > 0 && nowM < 630,
+      orh: hi(or15), orl: lo(or15),
+      vwap, s1, vwapLbl, adr, dayRange, adrPct: adr ? dayRange / adr * 100 : null,
+    };
+  },
+
+  // ── render: header + ladder + chart ──
+  render() {
+    const I = this.instr(), c = this.compute();
+    if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; return; }
+    const f = v => v == null ? '—' : (+v).toFixed(I.dec);
+    const chg = c.pdc ? (c.last / c.pdc - 1) * 100 : null;
+    document.getElementById('term-head').innerHTML =
+      '<b style="color:var(--text)">' + I.lbl + '</b> <b style="font-size:15px;color:' + (chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + f(c.last) + '</b>'
+      + (chg != null ? ' <span style="color:' + (chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% vs cierre previo</span>' : '')
+      + ' · <span style="color:var(--text3)">sesión ' + escHtml(c.today) + ' ET · barra ' + Math.floor((Date.now() / 1000 - c.lastT) / 60) + 'm</span>'
+      + (c.adrPct != null ? ' · ADR' + (I.fx ? '' : ' RTH') + ' consumido <b style="color:' + (c.adrPct > 80 ? 'var(--amber)' : 'var(--text2)') + '">' + c.adrPct.toFixed(0) + '%</b><span style="color:var(--text3)" title="Rango de hoy vs rango promedio de los últimos 5 días — >80% = no persigas la ruptura">'
+      + (c.adrPct > 80 ? ' ⚠ día estirado' : '') + '</span>' : '')
+      + (c.ibLive ? ' · <span style="color:var(--purple)">IB en construcción hasta 10:30 ET</span>' : '')
+      + (I.fx ? ' · <span style="color:var(--text3)" title="El spot forex no reporta volumen — VWAP no computable; OR/IB son convención de futuros US">spot: sin VWAP/IB</span>' : '');
+    // ladder de niveles
+    const lv = [];
+    const add = (lbl, v, col, tip) => { if (v != null) lv.push({ lbl, v, col, tip }); };
+    add('PDH', c.pdh, 'var(--gold)', 'High del día previo (' + (c.prevD || '') + ') — imán/barrido clásico');
+    add('PDL', c.pdl, 'var(--gold)', 'Low del día previo');
+    add('PDC', c.pdc, 'var(--text2)', 'Cierre previo — referencia del gap');
+    add('ONH', c.onh, 'var(--teal)', 'High overnight (Globex) — extremo del balance nocturno, imán de la sesión NY (Isra)');
+    add('ONL', c.onl, 'var(--teal)', 'Low overnight');
+    add('IB High', c.ibh, 'var(--purple)', 'Initial Balance 9:30-10:30 ET' + (c.ibLive ? ' (EN CONSTRUCCIÓN)' : '') + ' — la regla 82%: el primer breakout suele definir el bias');
+    add('IB Low', c.ibl, 'var(--purple)', 'Initial Balance low');
+    add('OR 15m H', c.orh, 'var(--text3)', 'Opening range 15 min high');
+    add('OR 15m L', c.orl, 'var(--text3)', 'Opening range 15 min low');
+    if (c.vwap != null) { add(c.vwapLbl, c.vwap, 'var(--amber)', 'Precio medio ponderado por volumen — el precio justo del día'); if (c.s1) { add('+1σ', c.vwap + c.s1, 'var(--amber)', 'Banda 1σ superior'); add('−1σ', c.vwap - c.s1, 'var(--amber)', 'Banda 1σ inferior'); add('+2σ', c.vwap + 2 * c.s1, 'var(--amber)', 'Banda 2σ — estiramiento'); add('−2σ', c.vwap - 2 * c.s1, 'var(--amber)', 'Banda 2σ inferior'); } }
+    lv.sort((a, b) => b.v - a.v);
+    const spotIdx = lv.findIndex(L => L.v <= c.last);
+    let rows = lv.map(L => '<tr title="' + escapeAttr(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
+    const spotRow = '<tr><td colspan="3" class="mono" style="padding:3px 8px;font-size:10px;color:var(--red);background:rgba(248,113,113,.06)">📍 ' + f(c.last) + ' — precio</td></tr>';
+    rows.splice(spotIdx < 0 ? rows.length : spotIdx, 0, spotRow);
+    document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>';
+    this._draw(c, lv);
+  },
+  _draw(c, lv) {
+    const I = this.instr(), cv = document.getElementById('term-chart'); if (!cv) return;
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight || 430;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
+    const bars = this.feed.bars; if (!bars.length) return;
+    const ml = 8, mr = 74, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
+    let pMin = Math.min(...bars.map(b => b.l)), pMax = Math.max(...bars.map(b => b.h));
+    const pad = (pMax - pMin) * 0.14 || 1; pMin -= pad; pMax += pad;
+    // niveles dentro del eje entran al rango visible
+    for (const L of lv) { if (L.v > pMax && L.v < pMax + pad * 2) pMax = L.v + pad * 0.2; if (L.v < pMin && L.v > pMin - pad * 2) pMin = L.v - pad * 0.2; }
+    const X = i => ml + (i + 0.5) / bars.length * iw, Y = v => mt + (1 - (v - pMin) / (pMax - pMin)) * ih;
+    // sombreado IB + apertura RTH
+    const rthI = bars.findIndex(b => b.et.d === c.today && b.et.m >= 570 && b.et.m < 960);
+    if (rthI >= 0) {
+      g.strokeStyle = 'rgba(45,212,191,.35)'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(X(rthI) - 2, mt); g.lineTo(X(rthI) - 2, mt + ih); g.stroke(); g.setLineDash([]);
+      if (c.ibh != null && c.ibl != null) { const ibEnd = bars.findIndex(b => b.et.d === c.today && b.et.m >= 630); const x2 = ibEnd < 0 ? ml + iw : X(ibEnd); g.fillStyle = 'rgba(167,139,250,.07)'; g.fillRect(X(rthI) - 2, Y(c.ibh), x2 - X(rthI) + 2, Y(c.ibl) - Y(c.ibh)); }
+    }
+    // banda VWAP ±1σ/±2σ
+    if (this._vwapPts && c.vwap != null && c.s1) {
+      const off = bars.length - this._vwapPts.length;
+      for (const [k, alpha] of [[2, .05], [1, .09]]) {
+        g.fillStyle = 'rgba(251,191,36,' + alpha + ')'; g.beginPath();
+        this._vwapPts.forEach((p, i) => { const x = X(off + i); i ? g.lineTo(x, Y(p.vw + k * c.s1)) : g.moveTo(x, Y(p.vw + k * c.s1)); });
+        for (let i = this._vwapPts.length - 1; i >= 0; i--) g.lineTo(X(off + i), Y(this._vwapPts[i].vw - k * c.s1));
+        g.closePath(); g.fill();
+      }
+      g.strokeStyle = 'var(--amber)'; g.strokeStyle = 'rgba(251,191,36,.85)'; g.lineWidth = 1.4; g.beginPath();
+      this._vwapPts.forEach((p, i) => { const x = X(off + i); i ? g.lineTo(x, Y(p.vw)) : g.moveTo(x, Y(p.vw)); }); g.stroke(); g.lineWidth = 1;
+    }
+    // barras HLC
+    for (let i = 0; i < bars.length; i++) {
+      const b = bars[i], up = i === 0 ? b.c >= b.l : b.c >= bars[i - 1].c;
+      g.strokeStyle = up ? 'rgba(52,211,153,.8)' : 'rgba(248,113,113,.8)';
+      g.beginPath(); g.moveTo(X(i), Y(b.h)); g.lineTo(X(i), Y(b.l)); g.stroke();
+      g.beginPath(); g.moveTo(X(i), Y(b.c)); g.lineTo(X(i) + Math.max(1.5, iw / bars.length * 0.4), Y(b.c)); g.stroke();
+    }
+    // niveles horizontales + etiquetas margen derecho
+    g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+    const seen = [];
+    for (const L of lv) {
+      if (L.v < pMin || L.v > pMax) continue;
+      const y = Y(L.v), col = { 'var(--gold)': '#d4a94b', 'var(--teal)': '#2dd4bf', 'var(--purple)': '#a78bfa', 'var(--amber)': '#fbbf24', 'var(--text2)': '#a99e93', 'var(--text3)': '#7d6f63' }[L.col] || '#7d6f63';
+      g.strokeStyle = col + '66'; g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
+      g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
+      let ly = y; while (seen.some(s => Math.abs(s - ly) < 9)) ly += 9; seen.push(ly);
+      g.fillStyle = col; g.fillText(L.lbl + ' ' + (+L.v).toFixed(I.dec), ml + iw + 3, ly);
+    }
+    // spot
+    g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#f87171'; g.fillText('📍' + (+c.last).toFixed(I.dec), ml + iw + 3, Math.min(Math.max(Y(c.last), mt + 5), mt + ih - 5));
+    // eje x: horas ET cada ~2h
+    g.fillStyle = '#7d6f63'; g.textBaseline = 'top';
+    let lastLbl = -1;
+    for (let i = 0; i < bars.length; i++) { const m = bars[i].et.m; if (m % 120 === 0 && i - lastLbl > 12) { g.fillText(String(Math.floor(m / 60)).padStart(2, '0') + ':00', X(i) - 12, mt + ih + 4); lastLbl = i; } }
+  },
+};
+window.Terminal = Terminal;
 
 // ── Real-time price loop (60s) ──
 function startPriceLoop() {
@@ -14183,6 +14475,18 @@ const INDICATORS_GLOSSARY = {
       { c:'red',   t:'< 40% (0-1 de 5) + vol alto → flag Mag7 trap' }
     ],
     note: 'Top 5 holdings hardcodeados (refrescar trimestralmente, próximo: 2026-07-01). Si un constituyente falla en Yahoo, se calcula breadth con los que sí volvieron. Solo aplica a sectores SPDR (no macros).'
+  },
+  'terminal-mapa-niveles': {
+    name: 'Terminal · Mapa de Niveles del Día', category: 'Terminal · Intradía',
+    source: { label: 'Yahoo Finance intradía 5m/30m (delayed ~10-15 min futuros) — cómputo 100% client-side', url: 'https://finance.yahoo.com', freq: 'Poll 60s con la pestaña activa; pausa en background' },
+    formula: 'PDH/PDL/PDC = high/low/close de la sesión RTH previa (9:30-16:00 ET; en forex, día ET completo) · ONH/ONL = extremos de la sesión Globex overnight · IB = primera hora RTH (9:30-10:30 ET) · OR = primeros 15 min · VWAP = Σ(precio típico×vol)/Σvol anclado a RTH con bandas ±1σ/±2σ · ADR = rango promedio de los últimos 5 días; % consumido = rango de hoy ÷ ADR.',
+    interpret: 'Son los imanes de órdenes universales: todo el mundo los ve, y por eso actúan como soporte/resistencia y objetivos de barrido. El extremo overnight como imán de la sesión NY es la tesis de Isra/GEXBOT; el IB alimenta la regla 82% (el primer breakout suele definir el bias del día — stats NQ 2015-2025). ADR consumido >80% = el día ya corrió su rango típico, no persigas la ruptura. FOREX: el spot no reporta volumen → sin VWAP; OR/IB son convención de futuros US y no se muestran.',
+    thresholds: [
+      { c: 'green', t: 'Precio entre VWAP y +1σ con IB roto arriba → contexto de continuación alcista' },
+      { c: 'amber', t: 'ADR consumido >80% o precio en ±2σ → estirado, mejor esperar reversión/retest' },
+      { c: 'red', t: 'DATA DELAYED 10-15 min: este mapa es PREPARACIÓN y contexto, no timing de ejecución — el timing fino va en tu broker' }
+    ],
+    note: 'Fase F2 del blueprint Terminal v2. Las fases siguientes añaden muros gamma convertidos a NQ/ES (F3), streaming OANDA real-time para forex (FW) y probabilidades calibradas con data propia Databento (F6).'
   },
   'catalysts-llm': {
     name: 'Catalysts Sectoriales (LLM)',
