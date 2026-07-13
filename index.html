@@ -5368,7 +5368,7 @@ const Terminal = {
     }
     // 3) Risk-on/off por correlaciones del loop global (SPY↑ · VIX↓ · DXY↓ vs cierre previo)
     try {
-      const P = window.state?.data?.prices || {};
+      const P = (typeof state !== 'undefined' ? state?.data?.prices : null) || {}; // state es const del bloque, NO vive en window
       const votes = [['SPY', (P.SPY?.chg1d ?? null), v => v > 0], ['VIX', (P['^VIX']?.chg1d ?? null), v => v < 0], ['DXY', (P['DX-Y.NYB']?.chg1d ?? null), v => v < 0]];
       const avail = votes.filter(v => v[1] != null);
       if (avail.length >= 2) {
