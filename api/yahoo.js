@@ -35,12 +35,18 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
   const timestamps = result.timestamp || [];
   const closes     = result.indicators?.quote?.[0]?.close || [];
   const volumes    = result.indicators?.quote?.[0]?.volume || [];
+  // VP H/L (2026-07-12, research Dalton/TV): high/low por barra — SOLO se expone en intradía
+  // (60d/5m) para el volume profile verdadero; en daily engordaría el payload sin uso
+  const highsRaw = result.indicators?.quote?.[0]?.high || [];
+  const lowsRaw  = result.indicators?.quote?.[0]?.low || [];
 
   const rows = timestamps
     .map((ts, i) => ({
       date:   new Date(ts * 1000).toISOString().slice(0, 10),
       close:  closes[i],
       volume: volumes[i],
+      high:   highsRaw[i],
+      low:    lowsRaw[i],
     }))
     .filter(r => r.close != null && !isNaN(r.close) && r.close > 0);
 
@@ -98,6 +104,11 @@ async function fetchTicker(ticker, range = '1y', interval = '1d') {
     // Fase A Pipeline de Capital 2026-07-07: serie diaria de volúmenes (alineada con hist)
     // para U/D Volume Ratio 50d y A/D proxy 13w — huella institucional computada client-side
     vols:   histFull.map(r => (r.volume != null && !isNaN(r.volume)) ? r.volume : null),
+    // VP H/L: rangos reales por barra intradía → perfil de volumen VERDADERO (no aproximación por close)
+    ...(intraday ? {
+      his: histFull.map(r => (r.high != null && !isNaN(r.high)) ? parseFloat(r.high.toFixed(2)) : null),
+      los: histFull.map(r => (r.low != null && !isNaN(r.low)) ? parseFloat(r.low.toFixed(2)) : null)
+    } : {}),
     // Campos nuevos para Opportunity Scanner — additivos, no rompen callers existentes
     regularMarketVolume: daily ? regularMarketVolume : null,
     averageVolume: daily ? averageVolume : null,

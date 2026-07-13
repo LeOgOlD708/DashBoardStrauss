@@ -8680,9 +8680,45 @@ function sigmaChannel(arr) {
   return { a, b, sd, z: (arr[n - 1] - (a + b * (n - 1))) / sd };
 }
 
+// VP VERDADERO por rangos H→L (2026-07-12, research Dalton/TradingView): el volumen de cada
+// barra de 5m se DISTRIBUYE uniformemente entre los bins que su rango high-low cruza — el
+// perfil real, no la aproximación por close. Solo para display del mapa (las ZONAS siguen
+// usando volumeProfile clásico — no contaminar la serie auditada de niveles).
+function volumeProfileHL(highs, lows, vols, nBins) {
+  if (!Array.isArray(highs) || !Array.isArray(lows) || !Array.isArray(vols)) return null;
+  let lo = Infinity, hi = -Infinity, valid = 0;
+  for (let i = 0; i < highs.length; i++) {
+    if (highs[i] > 0 && lows[i] > 0 && vols[i] > 0 && highs[i] >= lows[i]) { valid++; if (lows[i] < lo) lo = lows[i]; if (highs[i] > hi) hi = highs[i]; }
+  }
+  if (valid < 30 || !(hi > lo)) return null;
+  const n = nBins || 50, w = (hi - lo) / n, bins = new Array(n).fill(0);
+  for (let i = 0; i < highs.length; i++) {
+    const h = highs[i], l = lows[i], v = vols[i];
+    if (!(h > 0 && l > 0 && v > 0)) continue;
+    const b0 = Math.max(0, Math.min(n - 1, Math.floor((l - lo) / w)));
+    const b1 = Math.max(0, Math.min(n - 1, Math.floor((h - lo) / w)));
+    const span = b1 - b0 + 1;
+    for (let b = b0; b <= b1; b++) bins[b] += v / span;
+  }
+  const total = bins.reduce((a, b) => a + b, 0);
+  if (!(total > 0)) return null;
+  let pocIdx = 0;
+  for (let i = 1; i < n; i++) if (bins[i] > bins[pocIdx]) pocIdx = i;
+  // Value Area 70% — algoritmo estándar TradingView: comparar fila inmediata arriba vs abajo,
+  // agregar la MAYOR, iterar (verificado contra la doc oficial en el research 2026-07-12)
+  let vaLo = pocIdx, vaHi = pocIdx, acc = bins[pocIdx];
+  while (acc < total * 0.7 && (vaLo > 0 || vaHi < n - 1)) {
+    const dn = vaLo > 0 ? bins[vaLo - 1] : -1, up = vaHi < n - 1 ? bins[vaHi + 1] : -1;
+    if (up >= dn) { vaHi++; acc += bins[vaHi]; } else { vaLo--; acc += bins[vaLo]; }
+  }
+  const mid = i => lo + (i + 0.5) * w;
+  return { poc: mid(pocIdx), vah: mid(vaHi), val: mid(vaLo), bins, lo, w, real: true };
+}
+
 // Volume Profile por bins de precio. APROXIMACIÓN DECLARADA: el volumen de cada barra se
 // asigna íntegro al bin de su CLOSE (sin distribución intra-barra — el proxy no expone H/L).
 // Con barras de 5m el error es marginal; con diarias es un perfil estructural grueso.
+// (El algoritmo de Value Area es el estándar TradingView: fila arriba vs abajo, gana la mayor.)
 function volumeProfile(closes, vols, nBins) {
   if (!Array.isArray(closes) || !Array.isArray(vols) || closes.length < 30) return null;
   const pts = [];
@@ -10609,6 +10645,7 @@ const InstDeep = {
     try {
       const h60 = d60?.[tk]?.hist, v60 = d60?.[tk]?.vols;
       this._h60 = h60 || null; this._v60 = v60 || null; // VP por VENTANA en el mapa (pedido Angel 07-12)
+      this._hi60 = d60?.[tk]?.his || null; this._lo60 = d60?.[tk]?.los || null; // H/L reales 5m → perfil VERDADERO
       const vp = (h60?.length >= 500) ? volumeProfile(h60, v60, 50) : null;
       const vp1y = volumeProfile(dU.hist, dU.vols, 40);
       const jan1 = new Date().getFullYear() + '-01-01';
@@ -11003,6 +11040,18 @@ const InstDeep = {
     let yMin = Math.min(...closes), yMax = Math.max(...closes);
     for (const z of zones) { yMin = Math.min(yMin, z.lo); yMax = Math.max(yMax, z.hi); }
     if (em) { yMin = Math.min(yMin, em.lo); yMax = Math.max(yMax, em.hi); }
+    // Fix "eje muerto" (feedback Angel 07-12): en ventanas cortas las zonas LEJANAS estiraban
+    // el eje (30D: precio en 695-745 pero eje 605-750 → 60% del chart vacío, perfil y precio
+    // aplastados). Con win ≤ 90 el eje se ciñe al rango del precio +30% de margen — las zonas
+    // que queden fuera SIGUEN en la escalera de liquidez de abajo (no se pierden).
+    const win9 = this._mapWin || 90;
+    if (win9 <= 90) {
+      const pMin = Math.min(...closes), pMax = Math.max(...closes);
+      const m9 = (pMax - pMin) * 0.30 + spot * 0.01;
+      yMin = Math.max(yMin, pMin - m9);
+      yMax = Math.min(yMax, pMax + m9);
+      if (em) { yMin = Math.min(yMin, em.lo - spot * 0.002); yMax = Math.max(yMax, em.hi + spot * 0.002); } // la banda EM (corta) siempre visible
+    }
     const pad = (yMax - yMin) * 0.03;
     this._mapChart = new Chart(cv, {
       type: 'line',
@@ -11018,19 +11067,58 @@ const InstDeep = {
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-        // VP de la VENTANA (pedido Angel 07-12: "ver la liquidez en diferentes temporalidades"):
-        // ≤60d usa barras de 5m (perfil fino); >60d usa cierres diarios (grueso, declarado en el label)
+        // VP de la VENTANA (pedido Angel 07-12 + research Dalton/TV): ≤60d usa H/L reales de 5m
+        // (perfil VERDADERO — el volumen se distribuye por el rango de cada barra); >60d usa
+        // cierres diarios con suavizado al dibujar (aproximación declarada).
         _emap: { zones, lvns, em, spot, sig: sigmaChannel(closes), ...(() => {
           const win = this._mapWin || 90;
           try {
+            let vpW = null, vpSrc = '', vpSmooth = false;
             if (win <= 60 && this._h60?.length >= 500) {
               const perDay = Math.max(1, Math.round(this._h60.length / 60));
               const nB = Math.min(this._h60.length, win * perDay);
-              return { vp: volumeProfile(this._h60.slice(-nB), this._v60.slice(-nB), 50), vpSrc: win + 'd · 5m' };
+              if (this._hi60?.length === this._h60.length) {
+                vpW = volumeProfileHL(this._hi60.slice(-nB), this._lo60.slice(-nB), this._v60.slice(-nB), 50);
+                vpSrc = win + 'd · 5m H/L real';
+              }
+              if (!vpW) { vpW = volumeProfile(this._h60.slice(-nB), this._v60.slice(-nB), 50); vpSrc = win + 'd · 5m'; }
+            } else {
+              vpW = volumeProfile(dU.hist.slice(-N), dU.vols.slice(-N), Math.min(50, Math.max(24, Math.round(N / 5))));
+              vpSrc = vpW ? (win >= 365 ? '1A · diario aprox' : win + 'd · diario aprox') : '60d · 5m';
+              vpSmooth = true; // suavizado kernel SOLO al dibujar (los niveles/zonas no se tocan)
             }
-            const vpW = volumeProfile(dU.hist.slice(-N), dU.vols.slice(-N), Math.min(50, Math.max(24, Math.round(N / 5))));
-            return { vp: vpW || this._vp || null, vpSrc: vpW ? (win >= 365 ? '1A · diario' : win + 'd · diario') : '60d · 5m' };
-          } catch (e) { return { vp: this._vp || null, vpSrc: '60d · 5m' }; }
+            // Metadata Dalton (research 07-12): forma del perfil + VWAP de la ventana + migración del VA
+            let vpMeta = null;
+            if (vpW) {
+              const rng = vpW.bins.length * vpW.w;
+              const pos = rng > 0 ? (vpW.poc - vpW.lo) / rng : 0.5;
+              const forma = pos >= 0.62 ? 'P (rally+aceptación arriba — alcista)' : pos <= 0.38 ? 'b (caída+aceptación abajo — bajista)' : 'D (balance)';
+              const cw = dU.hist.slice(-N), vw = dU.vols.slice(-N);
+              let sPV = 0, sV = 0;
+              for (let i9 = 0; i9 < cw.length; i9++) if (vw[i9] > 0) { sPV += cw[i9] * vw[i9]; sV += vw[i9]; }
+              const vwap = sV > 0 ? sPV / sV : null;
+              // migración del VA: la ventana actual vs la ventana ANTERIOR del mismo largo (Dalton: la señal de tendencia #1)
+              let vaMig = null;
+              const prevSlice = dU.hist.slice(-(N * 2), -N), prevVols = dU.vols.slice(-(N * 2), -N);
+              if (prevSlice.length >= Math.min(30, N * 0.8)) {
+                const vpPrev = volumeProfile(prevSlice, prevVols, 30);
+                if (vpPrev) vaMig = ((vpW.vah + vpW.val) / 2) - ((vpPrev.vah + vpPrev.val) / 2);
+              }
+              vpMeta = { forma, vwap, vaMig };
+            }
+            // POC MIGRATION LINE (research: "ver la liquidez MOVERSE"): POC de ventana móvil 20d
+            // cada 3 días a lo largo del período visible — la línea del VALOR vs la del precio
+            const mig = [];
+            try {
+              const H9 = dU.hist, V9 = dU.vols, total9 = H9.length;
+              const start9 = Math.max(20, total9 - N);
+              for (let i9 = start9; i9 < total9; i9 += 3) {
+                const vpm = volumeProfile(H9.slice(i9 - 20, i9 + 1), V9.slice(i9 - 20, i9 + 1), 24);
+                if (vpm) mig.push({ idx: i9 - (total9 - N), poc: vpm.poc }); // idx en coordenadas de la ventana
+              }
+            } catch (e) {}
+            return { vp: vpW || this._vp || null, vpSrc, vpSmooth, vpMeta, pocMig: mig.length >= 3 ? mig : null };
+          } catch (e) { return { vp: this._vp || null, vpSrc: '60d · 5m', vpSmooth: false, vpMeta: null, pocMig: null }; }
         })() },
         plugins: {
           legend: { display: false },
@@ -11056,22 +11144,74 @@ const InstDeep = {
           if (!a2) return;
           c2.save();
           c2.beginPath(); c2.rect(a2.left, a2.top, a2.right - a2.left, a2.bottom - a2.top); c2.clip();
-          const vMax = vp?.bins?.length ? Math.max(...vp.bins) : 0;
+          // Research Dalton/TV 2026-07-12: volumen codificado en OPACIDAD además de ancho (sqrt
+          // con piso), Value Area sombreada a todo el ancho, POC como línea completa ámbar,
+          // suavizado kernel al DIBUJAR en perfiles diarios (los niveles no se tocan).
+          let binsD = vp?.bins;
+          if (binsD?.length && chart2.options._emap?.vpSmooth) {
+            const k5 = [0.15, 0.35, 1, 0.35, 0.15], sm = new Array(binsD.length).fill(0);
+            for (let i = 0; i < binsD.length; i++) for (let j = -2; j <= 2; j++) {
+              const ii = i + j;
+              if (ii >= 0 && ii < binsD.length) sm[i] += binsD[ii] * k5[j + 2];
+            }
+            binsD = sm;
+          }
+          const vMax = binsD?.length ? Math.max(...binsD) : 0;
           if (vMax > 0) {
-            const maxW = (a2.right - a2.left) * 0.22;
-            for (let i = 0; i < vp.bins.length; i++) {
-              if (!vp.bins[i]) continue;
+            // Value Area: banda sombreada VAL→VAH a todo el ancho (Dalton: la zona de ACEPTACIÓN)
+            const yVah = ys.getPixelForValue(vp.vah), yVal = ys.getPixelForValue(vp.val);
+            c2.fillStyle = 'rgba(45,212,191,.055)';
+            c2.fillRect(a2.left, yVah, a2.right - a2.left, yVal - yVah);
+            c2.setLineDash([4, 4]); c2.lineWidth = 1; c2.strokeStyle = 'rgba(45,212,191,.35)';
+            c2.beginPath(); c2.moveTo(a2.left, yVah); c2.lineTo(a2.right, yVah); c2.moveTo(a2.left, yVal); c2.lineTo(a2.right, yVal); c2.stroke();
+            c2.setLineDash([]);
+            const maxW = (a2.right - a2.left) * 0.28;
+            for (let i = 0; i < binsD.length; i++) {
+              if (!binsD[i]) continue;
               const yTop = ys.getPixelForValue(vp.lo + (i + 1) * vp.w);
               const yBot = ys.getPixelForValue(vp.lo + i * vp.w);
               if (yBot < a2.top || yTop > a2.bottom) continue; // bin fuera del rango visible
-              const frac = vp.bins[i] / vMax;
-              const esPoc = Math.abs((vp.lo + (i + 0.5) * vp.w) - vp.poc) < vp.w * 0.6;
-              c2.fillStyle = esPoc ? 'rgba(45,212,191,.34)' : 'rgba(45,212,191,' + (0.07 + frac * 0.16).toFixed(2) + ')';
-              c2.fillRect(a2.left, yTop, maxW * frac, Math.max(1, yBot - yTop - 0.5));
+              const frac = binsD[i] / vMax;
+              const price9 = vp.lo + (i + 0.5) * vp.w;
+              const inVA = price9 >= vp.val && price9 <= vp.vah;
+              // ancho sqrt con piso (los bins chicos no desaparecen) · opacidad ∝ volumen · VA saturado
+              const wPx = Math.max(3, Math.sqrt(frac) * maxW);
+              const alpha = 0.10 + frac * (inVA ? 0.42 : 0.22);
+              c2.fillStyle = 'rgba(45,212,191,' + alpha.toFixed(2) + ')';
+              c2.fillRect(a2.left, yTop, wPx, Math.max(1, yBot - yTop - 0.5));
             }
+            // POC: línea horizontal COMPLETA ámbar (la convención que el ojo encuentra al instante)
+            const yPoc = ys.getPixelForValue(vp.poc);
+            if (yPoc > a2.top && yPoc < a2.bottom) {
+              c2.strokeStyle = 'rgba(230,180,80,.75)'; c2.lineWidth = 1.4; c2.setLineDash([]);
+              c2.beginPath(); c2.moveTo(a2.left, yPoc); c2.lineTo(a2.right, yPoc); c2.stroke();
+              c2.font = "600 9px 'IBM Plex Mono', monospace"; c2.fillStyle = '#e6b450';
+              c2.fillText('POC ' + (vp.poc >= 1000 ? vp.poc.toFixed(0) : vp.poc.toFixed(2)), a2.left + 4, yPoc - 3);
+            }
+            // POC MIGRATION: la línea del VALOR moviéndose en el tiempo (cian punteado escalonado)
+            const mig = chart2.options._emap?.pocMig;
+            if (mig?.length) {
+              const xs9 = chart2.scales.x;
+              c2.strokeStyle = 'rgba(96,165,250,.55)'; c2.lineWidth = 1.2; c2.setLineDash([2, 3]);
+              c2.beginPath();
+              let st9 = false;
+              for (const p9 of mig) {
+                if (p9.idx < 0) continue;
+                const x9 = xs9.getPixelForValue(p9.idx), y9 = ys.getPixelForValue(p9.poc);
+                if (!st9) { c2.moveTo(x9, y9); st9 = true; } else c2.lineTo(x9, y9);
+              }
+              c2.stroke(); c2.setLineDash([]);
+              if (st9) { c2.font = "600 8px 'IBM Plex Mono', monospace"; c2.fillStyle = 'rgba(96,165,250,.75)'; c2.fillText('POC móvil 20d', a2.left + 4, a2.top + 34); }
+            }
+            // Cabecera: fuente del perfil + forma Dalton + VWAP + migración del VA
             c2.font = "600 8px 'IBM Plex Mono', monospace";
-            c2.fillStyle = 'rgba(45,212,191,.55)';
-            c2.fillText('VP ' + (chart2.options._emap?.vpSrc || '60d'), a2.left + 4, a2.top + 10); // el perfil SIGUE a la ventana
+            c2.fillStyle = 'rgba(45,212,191,.75)';
+            c2.fillText('VP ' + (chart2.options._emap?.vpSrc || '60d'), a2.left + 4, a2.top + 10);
+            const meta9 = chart2.options._emap?.vpMeta;
+            if (meta9) {
+              c2.fillStyle = 'rgba(168,159,147,.85)';
+              c2.fillText('forma ' + meta9.forma.split(' ')[0] + (meta9.vwap ? ' · VWAP ' + (meta9.vwap >= 1000 ? meta9.vwap.toFixed(0) : meta9.vwap.toFixed(2)) : '') + (meta9.vaMig != null ? ' · VA ' + (meta9.vaMig >= 0 ? '↑' : '↓') + ' vs ventana previa' : ''), a2.left + 4, a2.top + 22);
+            }
           }
           c2.font = "600 8px 'IBM Plex Mono', monospace";
           // 📏 σ-REVERSIÓN (pedido Angel 07-11): canal de regresión ±2σ de la ventana visible —
