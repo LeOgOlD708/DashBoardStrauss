@@ -189,7 +189,7 @@ async function quoteMini(sym) { // precio + chg1d server-side (mismo criterio pe
     return { p, chg: prev ? (p / prev - 1) * 100 : null };
   } catch (e) { return null; }
 }
-async function digest() {
+async function digest(dry) {
   // v2 (pedido Angel 2026-07-09): el digest lee el último snapshot del track record y arma
   // el CONTEXTO COMPLETO del sistema — no solo cotizaciones.
   // Review 2026-07-10: los awaits secuenciales sumaban ~45s de peor caso (> maxDuration 30)
@@ -201,7 +201,22 @@ async function digest() {
     budget((async () => {
       const l = await trackList();
       if (!l.dates?.length) return { empty: true };
-      return { s: await trackGet(l.dates[l.dates.length - 1]) };
+      // Telegram v2 (2026-07-12): sin findes + snapshot ANTERIOR (Δ Howell) + primero de la
+      // semana ET (bloque del viernes)
+      const ds = l.dates.filter(d2 => { const w = new Date(d2 + 'T12:00:00Z').getUTCDay(); return w !== 0 && w !== 6; });
+      if (!ds.length) return { empty: true };
+      const last = ds[ds.length - 1], prevD = ds.length >= 2 ? ds[ds.length - 2] : null;
+      const et = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/New_York' }));
+      const monday = new Date(et); monday.setDate(et.getDate() - ((et.getDay() + 6) % 7));
+      const mStr = monday.toISOString().slice(0, 10);
+      const wk = ds.filter(d2 => d2 >= mStr);
+      const w1 = wk.length >= 2 && wk[0] !== last ? wk[0] : null;
+      const [sL, sP, sW] = await Promise.all([
+        trackGet(last),
+        prevD ? trackGet(prevD).catch(() => null) : null,
+        w1 ? trackGet(w1).catch(() => null) : null
+      ]);
+      return { s: sL, prev: sP, week1: sW };
     })().catch(() => null), 12000),
     budget(Promise.all([optAgg('QQQ').catch(() => null), cotPositioning().catch(() => null)]), 12000)
   ]);
@@ -219,6 +234,10 @@ async function digest() {
       const s = snapLast.s;
       const reg = [];
       if (s.postura) reg.push('🧭 ' + s.postura);
+      // Δ score Howell vs snapshot anterior — al teléfono cuando el régimen se MUEVE
+      const h1 = parseFloat(s.hero), h0 = parseFloat(snapLast.prev?.hero);
+      if (isFinite(h1) && isFinite(h0) && Math.abs(h1 - h0) >= 0.25)
+        reg.push((h1 < h0 ? '📉' : '📈') + ' Howell ' + h1.toFixed(1) + ' (' + (h1 - h0 >= 0 ? '+' : '') + (h1 - h0).toFixed(1) + ' vs snapshot previo)' + (h0 - h1 >= 1 ? ' ⚠️' : ''));
       if (s.quad?.q) reg.push(s.quad.q.replace(/·\s*/, '') + (s.quad.conf != null ? ' (' + Math.round(s.quad.conf) + '%' + (s.quad.conf < 40 ? ' difuso' : '') + ')' : ''));
       if (s.nfci != null) reg.push('NFCI ' + Math.round(s.nfci) + '/100');
       if (s.gli) reg.push('GLI ' + s.gli);
@@ -231,7 +250,8 @@ async function digest() {
           ? '🔎 <b>Picks en ' + L0.sector + '</b> (RS≥75+template+U/D): ' + pk.slice(0, 4).join(' · ')
           : '🔎 Dentro de ' + L0.sector + ': ' + L0.stocks.slice(0, 4).map(st => st.tk + ' RS' + st.rs).join(' · ') + ' (sin picks que pasen el filtro hoy)');
       }
-      if (s.candidatas?.length) L.push('🎯 Embudo (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: ' + s.candidatas.slice(0, 3).map(c => c.tk).join(', '));
+      if (s.candidatas?.length) L.push('🎯 Embudo (' + s.date + '): ' + s.candidatas.length + ' candidatas · top: '
+        + s.candidatas.slice(0, 3).map(c => c.tk + (c.netPrem != null && Math.abs(c.netPrem) >= 0.5 ? ' 🌊' + (c.netPrem >= 0 ? '+' : '−') + Math.abs(c.netPrem).toFixed(0) + 'M' : '')).join(' · '));
     } else if (snapLast?.empty) {
       L.push('🧾 Sin snapshots aún — abrí el dashboard y escaneá candidatas para arrancar el registro del día.');
     }
@@ -241,7 +261,8 @@ async function digest() {
     const [q, cot] = instData || [null, null];
     const parts = [];
     if (q) parts.push('QQQ P/C ' + (q.pcVol ?? '—') + ' · GEX $' + q.gexTotalBn + 'bn (walls ' + q.putWall + '/' + q.callWall + (q.gammaFlip != null ? ' · flip ' + q.gammaFlip : '') + ')'
-      + (q.netPremM != null ? ' · 🌊 flujo hoy ' + (q.netPremM >= 0 ? '+' : '−') + '$' + Math.abs(q.netPremM).toFixed(0) + 'M' + (q.flipVol != null ? ' (flip hoy ' + q.flipVol + ')' : '') : ''));
+      + (q.netPremM != null ? ' · 🌊 flujo hoy ' + (q.netPremM >= 0 ? '+' : '−') + '$' + Math.abs(q.netPremM).toFixed(0) + 'M' + (q.flipVol != null ? ' (flip hoy ' + q.flipVol + ')' : '') : '')
+      + (q.emWeekly?.pct != null ? ' · EM sem ±' + q.emWeekly.pct + '%' : '')); // la banda que la semana descuenta
     if (cot?.mkts) {
       const nq = cot.mkts.find(m => m.code === '209742');
       if (nq && !nq.error) parts.push('COT NQ p' + nq.pctil3y + (nq.pctil3y >= 90 ? ' ⚠️ crowded long' : nq.pctil3y <= 10 ? ' ⚡ crowded short' : ''));
@@ -267,7 +288,30 @@ async function digest() {
       L.push('🎯 Zonas de entrada (top-3 del embudo): ' + partsZ.join(' · '));
     }
   } catch (e) { /* las zonas jamás rompen el digest */ }
-  L.push('<a href="https://dash-board-strauss.vercel.app/#act">Abrir dashboard → Activos</a>'); // #act = deep-link al tab del embudo (menos fricción digest→scan)
+  // 📅 BLOQUE SEMANAL (solo viernes ET): la semana del embudo en una línea — sin cron nuevo
+  try {
+    const dowET = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' }).format(new Date());
+    const w1 = snapLast?.week1;
+    if (dowET === 'Fri' && w1?.candidatas?.length && w1.spy > 0 && spy?.p) {
+      const top3 = w1.candidatas.slice(0, 3).filter(c => c.price > 0);
+      const qw = await budget(Promise.all(top3.map(c => quoteMini(c.tk))), 8000);
+      const rets = top3.map((c, i) => qw?.[i]?.p ? (qw[i].p / c.price - 1) * 100 : null).filter(v => v != null);
+      const spyW = (spy.p / w1.spy - 1) * 100;
+      if (rets.length >= 2) {
+        const avg = rets.reduce((a, b) => a + b, 0) / rets.length;
+        L.push('📅 <b>SEMANA</b> (' + w1.date + '→hoy): top-3 del embudo ' + f(avg) + ' vs SPY ' + f(spyW) + ' → excess <b>' + f(avg - spyW) + '</b>');
+      }
+    }
+  } catch (e) { /* el bloque semanal jamás rompe el digest */ }
+  // 🩺 salud: si alguna fuente NO respondió al armar ESTE digest, decirlo (dato ausente ≠ dato ok)
+  const down = [];
+  if (!spy) down.push('Yahoo');
+  if (!instData?.[0]) down.push('CBOE');
+  if (!instData?.[1]) down.push('CFTC');
+  if (snapLast == null) down.push('GitHub/track');
+  if (down.length) L.push('🩺 ⚠ Sin respuesta al armar este digest: ' + down.join(', '));
+  L.push('<a href="https://dash-board-strauss.vercel.app/#act">→ Activos</a> · <a href="https://dash-board-strauss.vercel.app/#inst">→ Institucional</a>');
+  if (dry) return { dry: true, text: L.join('\n') }; // verificación sin mandar Telegram real
   await tgSend(L.join('\n'));
   return { sent: true, ts: new Date().toISOString() };
 }
@@ -712,7 +756,7 @@ async function optcAgg(cur) {
 // Lee las zonas del último snapshot (top-3 del embudo) y avisa si el precio ESTÁ o ENTRÓ
 // hoy en zona. Stateless: "entró hoy" = cierre previo FUERA (arriba) y precio actual dentro
 // — sin archivo de estado. Si no hay nada que avisar, no manda nada (cero spam).
-async function zoneAlerts() {
+async function zoneAlerts(dry) {
   const l = await trackList();
   if (!l.dates?.length) return { sent: false, reason: 'sin snapshots' };
   const s = await trackGet(l.dates[l.dates.length - 1]);
@@ -728,14 +772,32 @@ async function zoneAlerts() {
     // prev close desde chg: prev = p / (1 + chg/100). "Entró hoy" si venía de ARRIBA de la banda
     const prev = (q.chg != null && q.chg > -100) ? q.p / (1 + q.chg / 100) : null; // guard chg=-100 (review)
     const entered = prev != null && prev > z.hi;
-    hits.push('🎯 <b>' + z.tk + (entered ? ' ENTRÓ HOY' : ' EN ZONA') + '</b> ' + z.lo + '–' + z.hi
-      + ' (precio ' + q.p.toFixed(2) + ') · score ' + z.score + ' · ' + (z.comp || '').split('+').slice(0, 3).join('+'));
+    hits.push({ tk: z.tk, txt: '🎯 <b>' + z.tk + (entered ? ' ENTRÓ HOY' : ' EN ZONA') + '</b> ' + z.lo + '–' + z.hi
+      + ' (precio ' + q.p.toFixed(2) + ') · score ' + z.score + ' · ' + (z.comp || '').split('+').slice(0, 3).join('+') });
   });
   if (!hits.length) return { sent: false, reason: 'ninguna zona activa', checked: zonas.length };
-  await tgSend('⚡ <b>Alerta de zonas</b> · ' + new Date().toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' })
-    + '\n' + hits.join('\n')
+  // Telegram v2 (2026-07-12) · CONFLUENCIA: el flujo de opciones del DÍA de cada ticker en
+  // zona — "en zona + dinero entrando" ≠ "en zona con flujo en contra" (máx 3, presupuesto 10s)
+  try {
+    const flowTks = hits.slice(0, 3);
+    const flows = await Promise.race([
+      Promise.all(flowTks.map(h => optAgg(h.tk).then(o => o.netPremM).catch(() => null))),
+      new Promise(r => setTimeout(() => r(null), 10000))
+    ]);
+    if (flows) flowTks.forEach((h, i) => {
+      const np = flows[i];
+      if (np == null || Math.abs(np) < 0.5) return;
+      h.txt += np >= 0
+        ? ' · 🌊+$' + Math.abs(np).toFixed(0) + 'M <b>confluencia a favor</b>'
+        : ' · ⚠ 🌊−$' + Math.abs(np).toFixed(0) + 'M flujo del día EN CONTRA';
+    });
+  } catch (e) { /* la confluencia jamás rompe la alerta */ }
+  const msg = '⚡ <b>Alerta de zonas</b> · ' + new Date().toLocaleDateString('es-MX', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'America/Mexico_City' })
+    + '\n' + hits.map(h => h.txt).join('\n')
     + '\nZonas del embudo (snapshot ' + s.date + ') — contexto, no señal: tu price action decide el timing.'
-    + '\n<a href="https://dash-board-strauss.vercel.app/#act">Abrir dashboard</a>');
+    + '\n<a href="https://dash-board-strauss.vercel.app/#act">→ Activos</a> · <a href="https://dash-board-strauss.vercel.app/#inst">→ Institucional</a>';
+  if (dry) return { dry: true, text: msg };
+  await tgSend(msg);
   return { sent: true, hits: hits.length, ts: new Date().toISOString() };
 }
 
@@ -786,7 +848,7 @@ module.exports = async (req, res) => {
       // E6: mismo candado que digest — solo el cron de Vercel (o quien tenga el secret)
       const sec = process.env.CRON_SECRET;
       if (sec && req.headers.authorization !== 'Bearer ' + sec) return res.status(401).json({ error: 'no autorizado' });
-      const out = await zoneAlerts();
+      const out = await zoneAlerts(req.query.dry === '1');
       res.setHeader('Cache-Control', 'max-age=0, no-cache');
       return res.status(200).json(out);
     }
@@ -794,7 +856,7 @@ module.exports = async (req, res) => {
       // protegido: si CRON_SECRET está configurada, solo el cron de Vercel puede dispararlo
       const sec = process.env.CRON_SECRET;
       if (sec && req.headers.authorization !== 'Bearer ' + sec) return res.status(401).json({ error: 'no autorizado' });
-      const out = await digest();
+      const out = await digest(req.query.dry === '1');
       res.setHeader('Cache-Control', 'max-age=0, no-cache');
       return res.status(200).json(out);
     }

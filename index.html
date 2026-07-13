@@ -2147,6 +2147,7 @@ html.auth-ok #auth-gate{display:none}
       <div style="display:flex;gap:6px">
         <button type="button" onclick="TrackRecord.audit()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">⚖ AUDITAR AHORA</button>
         <button type="button" onclick="TrackRecord.paper()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--blue);color:var(--blue);background:rgba(96,165,250,.06)">📈 CARTERA VIRTUAL</button>
+        <button type="button" onclick="SaludFuentes.run()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.06)" title="Ping EN VIVO a las 15 fuentes de datos del sistema: ¿responden AHORA? ¿con qué latencia? ¿alguna sirviendo data vieja?">🩺 FUENTES</button>
       </div>
     </div>
     <div id="trk-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">Cada día que el embudo escanea, las candidatas quedan grabadas (fecha, precio de entrada, métricas, régimen) en un archivo INMUTABLE del repo — el primer escaneo del día gana y la historia no se puede reescribir. ⚖ compara cada snapshot pasado contra los precios de HOY. 📈 CARTERA VIRTUAL: simula comprar las top-3 candidatas de cada snapshot y rotar al siguiente — la equity curve REAL del sistema vs SPY (se activa con 3+ snapshots). Con 20+ snapshots la respuesta empieza a ser estadística y no anécdota.</div>
@@ -2811,7 +2812,10 @@ html.auth-ok #auth-gate{display:none}
   <div class="card" style="border-color:rgba(167,139,250,.25);margin-bottom:14px"><div class="card-accent" style="background:var(--purple)"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:6px">
       <span class="mono" style="font-size:10px;color:var(--purple);letter-spacing:.06em">📡 SEÑALES DE ≤1 DÍA DE LATENCIA SOBRE LAS CANDIDATAS DEL ÚLTIMO SNAPSHOT — CADA SCAN QUEDA REGISTRADO COMO PREDICCIÓN AUDITABLE</span>
+      <span style="display:flex;gap:6px">
       <button type="button" onclick="RadarFlujo.scan()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--purple);color:var(--purple);background:rgba(167,139,250,.08)">📡 ESCANEAR FLUJO</button>
+      <button type="button" onclick="RadarFlujo.auditar()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:transparent" title="Evalúa las predicciones registradas del radar contra los precios posteriores: ¿los scores altos batieron a los bajos? El radar solo se gana un lugar en el motor si esto da positivo">⚖ EVALUAR RADAR</button>
+      </span>
     </div>
     <div id="radar-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">El radar responde la pregunta opuesta al embudo: el embudo rankea lo que YA es fuerte (RS/momentum = rezagado por construcción); el radar busca dónde está entrando dinero HOY (prima de opciones, aperturas vol&gt;OI, ΔOI overnight, volumen anómalo, dark pools) ANTES de que el RS lo capture. Score OBSERVACIONAL: no toca el motor — primero debe ganarse su lugar demostrando hit-rate con registros propios.</div>
   </div>
@@ -8306,6 +8310,10 @@ try {
     const elAct = [...document.querySelectorAll('.tab')].find(t => t.textContent.includes('Activos'));
     if (elAct) setTimeout(() => go('act', elAct), 300); // tras el primer paint
   }
+  if (location.hash === '#inst') { // Telegram v2 (2026-07-12): deep-link directo al Tab 09
+    const elInst = [...document.querySelectorAll('.tab')].find(t => t.textContent.includes('Institucional'));
+    if (elInst) setTimeout(() => go('inst', elInst), 300);
+  }
 } catch (e) { /* nunca romper el boot */ }
 
 // ── Loading State ──
@@ -9974,6 +9982,63 @@ const RadarFlujo = {
     pts += (c.dpRise ? 8 : 0) + (c.tsUp ? 7 : 0);                          // dark pools: actividad + tamaño de bloque
     return Math.round(pts);
   },
+  // ⚖ RadarAudit (auditoría 2026-07-12): el evaluador que faltaba — cada predicción registrada
+  // (radar_v1) se compara contra el precio ACTUAL: ¿los scores ALTOS rinden más que los BAJOS?
+  // Split por mediana del MISMO día (cross-section, sin sesgo temporal). n<20 = ANÉCDOTA.
+  async auditar() {
+    const body = document.getElementById('radar-body');
+    if (!body) return;
+    try {
+      const regs = JSON.parse(localStorage.getItem('radar_v1') || '[]');
+      const today = etDate();
+      const evals = regs.filter(r2 => r2.d < today && !esFinde(r2.d) && r2.px > 0 && r2.sc != null);
+      if (evals.length < 6) {
+        body.innerHTML = '<span style="color:var(--text3)">⚖ RadarAudit: ' + regs.length + ' predicciones registradas, <b>' + evals.length + '</b> con edad evaluable (mínimo 6, ideal 20+). Se acumulan solas con cada scan en día de mercado — volvé en unos días.</span>';
+        return;
+      }
+      body.innerHTML = '<span style="color:var(--text3)">⚖ Evaluando ' + evals.length + ' predicciones contra precios actuales…</span>';
+      const tks = [...new Set(evals.map(r2 => r2.tk))];
+      const priceNow = {};
+      for (let i = 0; i < tks.length; i += 20) {
+        try {
+          const j = await fetch('/api/yahoo?tickers=' + tks.slice(i, i + 20).join(',') + '&priceOnly=true').then(r2 => r2.json());
+          Object.entries(j).forEach(([k, v]) => { if (v?.price) priceNow[k] = v.price; });
+        } catch (e) {}
+      }
+      // split ALTO vs BAJO por la MEDIANA de cada día (compara dentro del mismo set)
+      const porDia = {};
+      evals.forEach(r2 => { (porDia[r2.d] = porDia[r2.d] || []).push(r2); });
+      const alto = [], bajo = [];
+      Object.values(porDia).forEach(dia => {
+        const scs = dia.map(r2 => r2.sc).sort((a, b) => a - b);
+        const med = scs[Math.floor(scs.length / 2)];
+        dia.forEach(r2 => {
+          const pNow = priceNow[r2.tk];
+          if (!pNow) return;
+          const ret = (pNow / r2.px - 1) * 100;
+          (r2.sc >= med ? alto : bajo).push(ret);
+        });
+      });
+      if (!alto.length || !bajo.length) { body.innerHTML = '⚖ RadarAudit: sin suficientes pares alto/bajo evaluables todavía.'; return; }
+      const avg9 = a => a.reduce((x, y) => x + y, 0) / a.length;
+      const aA = avg9(alto), aB = avg9(bajo), spread = aA - aB;
+      const n9 = alto.length + bajo.length;
+      const ver = n9 < 20
+        ? '<span style="color:var(--amber)">⚠ n=' + n9 + ' — ANÉCDOTA, no estadística (el veredicto serio necesita 20+)</span>'
+        : spread > 0.5 ? '<span style="color:var(--green)">✓ Los scores altos BATEN a los bajos — el radar muestra señal; candidato a promoción (decisión Angel)</span>'
+        : spread < -0.5 ? '<span style="color:var(--red)">✗ Los scores altos NO baten a los bajos — el radar no discrimina; NO promover</span>'
+        : '<span style="color:var(--amber)">≈ Sin diferencia distinguible — seguir acumulando</span>';
+      body.innerHTML = '<div class="mono" style="font-size:10px;color:var(--purple);letter-spacing:.06em;margin-bottom:6px">⚖ RADAR AUDIT — ¿el score de flujo temprano PREDICE? (' + n9 + ' predicciones evaluadas, retorno desde cada registro hasta hoy)</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+        + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">SCORE ALTO (≥mediana del día) n=' + alto.length + '</div><div style="font-size:16px;font-weight:700;color:' + (aA >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (aA >= 0 ? '+' : '') + aA.toFixed(2) + '%</div></div>'
+        + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">SCORE BAJO n=' + bajo.length + '</div><div style="font-size:16px;font-weight:700;color:' + (aB >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (aB >= 0 ? '+' : '') + aB.toFixed(2) + '%</div></div>'
+        + '<div style="padding:8px 12px;background:var(--surface2);border:1px solid rgba(167,139,250,.35);border-radius:6px"><div style="font-size:8px;color:var(--purple)">SPREAD (EL VEREDICTO)</div><div style="font-size:16px;font-weight:700;color:' + (spread > 0 ? 'var(--green)' : 'var(--red)') + '">' + (spread >= 0 ? '+' : '') + spread.toFixed(2) + 'pp</div></div>'
+        + '</div><div style="font-size:10px">' + ver + '</div>'
+        + '<div style="font-size:9px;color:var(--text3);margin-top:4px">Método: split por la MEDIANA de score de cada día (cross-section — compara tickers escaneados juntos). El radar sigue OBSERVACIONAL hasta que este spread sea positivo con n≥20.</div>';
+    } catch (e) {
+      body.innerHTML = '<span style="color:var(--red)">⚖ RadarAudit: ' + escHtml(e.message) + '</span>';
+    }
+  },
   _register(rows) {
     try { // 1 registro/día/ticker, first-write-wins (patrón inst_zonas_v1) → hit-rate futuro
       const today = new Date().toISOString().slice(0, 10);
@@ -10104,6 +10169,63 @@ const RadarFlujo = {
     } catch (e) {
       body.innerHTML = '<span style="color:var(--red)">⚠ Radar: ' + escHtml(e.message) + '</span>';
     } finally { this._busy = false; }
+  }
+};
+
+// ══ 🩺 SALUD DE FUENTES (auditoría 2026-07-12, pedido Angel "ampliar las calls para ver
+// que realmente funcionan"): ping EN VIVO a cada fuente con latencia y verificación de shape.
+// Estados: ✅ responde con data · ⚠ responde degradado/stale · ❌ caída/sin data.
+const SaludFuentes = {
+  CHECKS: [
+    ['Yahoo Finance', '/api/yahoo?tickers=SPY&priceOnly=true', j => j?.SPY?.price > 0],
+    ['FRED (macro)', '/api/fred?series=WRESBAL&limit=2', j => Array.isArray(j?.WRESBAL) && j.WRESBAL.length > 0],
+    ['CBOE opciones', '/api/capital?src=opt&tickers=QQQ', j => (j?.QQQ?.spot ?? j?.spot) > 0],
+    ['Deribit crypto', '/api/capital?src=optc&tickers=BTC-USD', j => j && !j.error && JSON.stringify(j).length > 200],
+    ['FINRA short vol', '/api/capital?src=finra&tickers=SPY', j => !!(j?.data && Object.keys(j.data).length) || !!j?.file],
+    ['FINRA dark pools', '/api/capital?src=ats&tickers=SPY&weeks=4', j => !!(j?.data?.SPY && !j.data.SPY.error && j.data.SPY.weeks?.length)],
+    ['stockanalysis (ownership)', '/api/capital?src=stats&tickers=NVDA', j => !!(j?.data?.NVDA || j?.NVDA)],
+    ['SEC insiders (Form 4)', '/api/capital?src=insiders&tickers=NVDA', j => j && !j.error && (j.buys != null || j.ticker)],
+    ['CFTC COT', '/api/capital?src=cot', j => !!(j?.mkts?.length)],
+    ['Screener 52w (TV/Finviz)', '/api/capital?src=screener', j => j && !j.error],
+    ['ETF flows (shares out)', '/api/flows?tickers=XLK', j => !!(j?.data?.XLK)],
+    ['Holdings ETF', '/api/holdings?tickers=XLV', j => j && !j.error],
+    ['BIS (GLI cross-border)', '/api/bis', j => j && !j.error],
+    ['Noticias RSS', '/api/news', j => j && !j.error],
+    ['GitHub track (snapshots)', '/api/capital?src=tracklist', j => Array.isArray(j?.dates)]
+  ],
+  async run() {
+    const body = document.getElementById('trk-body');
+    if (!body) return;
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Pingueando las ' + this.CHECKS.length + ' fuentes en vivo…</div>';
+    const rows = await Promise.all(this.CHECKS.map(async ([name, url, okFn]) => {
+      const t0 = Date.now();
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 20000);
+        const r = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(to);
+        const ms = Date.now() - t0;
+        const stale = r.headers.get('X-Fred-Stale');
+        let j = null;
+        try { j = await r.json(); } catch (e) {}
+        const ok = r.ok && j && okFn(j);
+        const errTxt = !ok ? (j?.error || (j && typeof j === 'object' ? (Object.values(j)[0]?.error || '') : '') || 'HTTP ' + r.status) : '';
+        let estado = ok ? '✅' : '❌', nota = '';
+        if (ok && stale) { estado = '⚠'; nota = 'sirviendo LAST-GOOD de ' + new Date(+stale).toLocaleString('es-MX', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) + ' (WAF FRED activo)'; }
+        else if (!ok) nota = String(errTxt).slice(0, 90);
+        else if (ms > 8000) { estado = '⚠'; nota = 'lenta (' + (ms / 1000).toFixed(1) + 's)'; }
+        return { name, estado, ms, nota };
+      } catch (e) {
+        return { name, estado: '❌', ms: Date.now() - t0, nota: e.name === 'AbortError' ? 'timeout 20s' : String(e.message).slice(0, 80) };
+      }
+    }));
+    const okN = rows.filter(r2 => r2.estado === '✅').length;
+    const warnN = rows.filter(r2 => r2.estado === '⚠').length;
+    body.innerHTML = '<div class="mono" style="font-size:10px;letter-spacing:.06em;margin-bottom:8px;color:' + (okN === rows.length ? 'var(--green)' : warnN ? 'var(--amber)' : 'var(--red)') + '">🩺 SALUD DE FUENTES — ' + okN + '/' + rows.length + ' sanas' + (warnN ? ' · ' + warnN + ' degradadas' : '') + (rows.length - okN - warnN ? ' · ' + (rows.length - okN - warnN) + ' caídas' : '') + ' <span style="color:var(--text3)">(ping en vivo, sin cache del navegador)</span></div>'
+      + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FUENTE</th><th>ESTADO</th><th>LATENCIA</th><th>NOTA</th></tr></thead><tbody>'
+      + rows.map(r2 => '<tr><td>' + r2.name + '</td><td style="text-align:center">' + r2.estado + '</td><td class="mono">' + (r2.ms / 1000).toFixed(1) + 's</td><td style="font-size:9px;color:' + (r2.estado === '✅' ? 'var(--text3)' : 'var(--amber)') + '">' + escHtml(r2.nota || '—') + '</td></tr>').join('')
+      + '</tbody></table></div>'
+      + '<div style="font-size:9px;color:var(--text3);margin-top:5px">Nota honesta: la latencia incluye el cold-start de Vercel y el CDN puede servir cache fresco — el ping mide "¿me daría data AHORA?", no el uptime del proveedor. FINRA se cae a ratos (conocido) y FRED puede estar en last-good (⚠ = funcional con data de hace horas).</div>';
   }
 };
 
@@ -10622,6 +10744,7 @@ const InstDeep = {
     body.innerHTML = parts.join('');
     // E2: el Mapa de Entrada — precio diario 90d con las zonas del motor como bandas
     try { this._renderMap(tk, dU, opt); } catch (e) { /* el mapa nunca rompe la radiografía */ }
+    try { this._dpPaint(); } catch (e) { /* el chart de dark pools tampoco */ }
     // E5: registrar las zonas consultadas (1/día por ticker) para la auditoría de fiabilidad
     try { this._registerZones(tk); } catch (e) {}
     // canvas del perfil (puro, muere con el innerHTML — patrón SeasonMap)
@@ -10750,15 +10873,70 @@ const InstDeep = {
     } catch (e) { return null; }
   },
   // ── TEMPORALIDAD (2026-07-11): DARK POOLS con ventana 4/8/12 semanas (data ya en memoria) ──
+  _dpRows(win) {
+    const { d, dU } = this._dpCtx || {};
+    if (!d) return [];
+    return d.weeks.slice(-win).map(w => {
+      const tot = weekVolOf(dU, w.week);
+      return { ...w, dp: tot ? (w.ats / tot * 100) : null, off: tot ? ((w.ats + w.otc) / tot * 100) : null, ts: w.atsTrades > 0 ? w.ats / w.atsTrades : null };
+    });
+  },
+  // 📈 Chart de liquidez oculta (pedido Angel 2026-07-12): la trayectoria era solo TEXTO —
+  // barras dp% por semana según la ventana + línea dorada del TAMAÑO DE BLOQUE (ats/trades).
+  _dpPaint() {
+    const cv9 = document.getElementById('instd-dp-cv');
+    if (!cv9 || !this._dpCtx) return;
+    const rows2 = this._dpRows(this._dpWin || 4);
+    const cx = cv9.getContext('2d'), W9 = cv9.width, H9 = cv9.height;
+    cx.clearRect(0, 0, W9, H9);
+    const padB = 16, padT = 14, plotH = H9 - padB - padT;
+    const n9 = rows2.length;
+    if (!n9) return;
+    const bw = Math.floor(W9 / n9) - 6;
+    const dps = rows2.map(r9 => r9.dp).filter(v => v != null);
+    if (!dps.length) return;
+    const dpMax = Math.max(...dps) * 1.2;
+    const avg = dps.reduce((a, b) => a + b, 0) / dps.length;
+    // barras dp%
+    rows2.forEach((r9, i9) => {
+      const x9 = i9 * (W9 / n9) + 3;
+      if (r9.dp != null) {
+        const h9 = (r9.dp / dpMax) * plotH;
+        cx.fillStyle = r9.dp >= avg * 1.1 ? 'rgba(45,212,191,.75)' : 'rgba(45,212,191,.35)';
+        cx.fillRect(x9, padT + plotH - h9, bw, h9);
+        cx.fillStyle = '#a89f93'; cx.font = "8px 'IBM Plex Mono',monospace"; cx.textAlign = 'center';
+        cx.fillText(r9.dp.toFixed(0) + '%', x9 + bw / 2, padT + plotH - h9 - 3);
+      }
+      cx.fillStyle = 'rgba(168,159,147,.7)'; cx.font = "7.5px 'IBM Plex Mono',monospace"; cx.textAlign = 'center';
+      cx.fillText(r9.week.slice(5), x9 + bw / 2, H9 - 4);
+    });
+    // promedio dp% (punteado)
+    const yAvg = padT + plotH - (avg / dpMax) * plotH;
+    cx.strokeStyle = 'rgba(240,236,228,.4)'; cx.setLineDash([3, 3]); cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(0, yAvg); cx.lineTo(W9, yAvg); cx.stroke(); cx.setLineDash([]);
+    // línea dorada: tamaño medio de bloque (escala propia min→max) = ¿bloques institucionales creciendo?
+    const tss = rows2.map(r9 => r9.ts).filter(v => v != null);
+    if (tss.length >= 2) {
+      const tMin = Math.min(...tss), tMax = Math.max(...tss);
+      if (tMax > tMin) {
+        cx.strokeStyle = '#e6b450'; cx.lineWidth = 1.6; cx.beginPath();
+        let started = false;
+        rows2.forEach((r9, i9) => {
+          if (r9.ts == null) return;
+          const x9 = i9 * (W9 / n9) + 3 + bw / 2;
+          const y9 = padT + plotH - ((r9.ts - tMin) / (tMax - tMin)) * (plotH * 0.8);
+          if (!started) { cx.moveTo(x9, y9); started = true; } else cx.lineTo(x9, y9);
+        });
+        cx.stroke();
+      }
+    }
+  },
   _dpHtml() {
     const { d, dU } = this._dpCtx || {};
     if (!d) return '';
     const win = this._dpWin || 4;
-    const wks = d.weeks.slice(-win);
-    const rows2 = wks.map(w => {
-      const tot = weekVolOf(dU, w.week);
-      return { ...w, dp: tot ? (w.ats / tot * 100) : null, off: tot ? ((w.ats + w.otc) / tot * 100) : null };
-    });
+    const rows2 = this._dpRows(win);
+    if (!rows2.length) return '';
     const L2 = rows2[rows2.length - 1], P2 = rows2.length > 1 ? rows2[rows2.length - 2] : null;
     const dTrend = (L2.dp != null && P2?.dp != null) ? L2.dp - P2.dp : null;
     const fmtM = v => (v / 1e6).toFixed(1) + 'M';
@@ -10782,13 +10960,15 @@ const InstDeep = {
           + (vsAvg != null ? ' · vs promedio ' + (win - 1) + 'sem: <span style="color:' + (vsAvg >= 1 ? 'var(--green)' : vsAvg <= -1 ? 'var(--red)' : 'var(--text3)') + '" title="dp% de la última semana contra el promedio de las anteriores de la ventana — sostenido al alza con precio plano = patrón de acumulación silenciosa">' + (vsAvg >= 0 ? '+' : '') + vsAvg.toFixed(1) + 'pp</span>' : '')
         : 'ATS: ' + fmtM(L2.ats) + ' shares (sin denominador local para %)')
       + '<br><span style="color:var(--text3)">Trayectoria dp% (' + win + ' sem): ' + histTxt
-      + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span></div>';
+      + (venues ? '<br>Top venues: ' + venues : '') + (internal ? ' · internalizadores: ' + internal : '') + '</span>'
+      + '<div style="margin-top:8px"><canvas id="instd-dp-cv" width="620" height="110" title="Liquidez oculta semana a semana (ventana ' + win + ' sem): barras teal = dark pool % del volumen (brillantes = sobre el promedio punteado) · línea dorada = TAMAÑO medio de bloque (shares/trade, escala propia) — bloques creciendo con dp% sostenido = huella de acumulación institucional"></canvas>'
+      + '<div style="font-size:8.5px;color:var(--text3);margin-top:2px"><span style="color:#2dd4bf">■</span> dp% semanal · ┄ promedio de la ventana · <span style="color:#e6b450">━</span> tamaño de bloque (ats/trades — arriba = bloques más grandes)</div></div></div>';
   },
   setDpWin(w) {
     if (this._dpWin === w) return;
     this._dpWin = w;
     const el = document.getElementById('instd-dp');
-    if (el && this._dpCtx) el.innerHTML = this._dpHtml();
+    if (el && this._dpCtx) { el.innerHTML = this._dpHtml(); try { this._dpPaint(); } catch (e) {} }
   },
   // TEMPORALIDAD: ventana del Mapa de Entrada (el hist de 1 año ya está descargado — solo recorta)
   setMapWin(n) {
@@ -11462,7 +11642,7 @@ const TrackRecord = {
         return;
       }
       // precios actuales de todos los tickers involucrados (batches de 20)
-      const tks = new Set(['SPY']);
+      const tks = new Set(['SPY', 'QQQ']); // QQQ: benchmark dual (candidatas growth-sesgadas — batir a SPY puede ser solo beta)
       snaps.forEach(s => s.candidatas.forEach(c => tks.add(c.tk)));
       snaps.forEach(s => (s.lideres || []).forEach(L => { tks.add(L.sector); L.stocks.forEach(st => tks.add(st.tk)); })); // F4.2
       const arr = [...tks], priceNow = {};
@@ -11484,7 +11664,11 @@ const TrackRecord = {
         const retSpy = (spyNow / s.spy - 1) * 100;
         const retMed = evals.reduce((a, b) => a + b.ret, 0) / evals.length;
         const hits = evals.filter(e => e.ret > retSpy).length;
-        rows.push({ date: s.date, dias, n: evals.length, retMed, retSpy, excess: retMed - retSpy, hitPct: hits / evals.length * 100, postura: s.postura || '—' });
+        // Upgrades auditoría 2026-07-12: excess POR DÍA (ventanas comparables) · motor (R1:
+        // segmentar v1 vs v2) · vs QQQ (benchmark dual — inst.qqqSpot grabado desde 07-10)
+        const excess = retMed - retSpy;
+        const excQ = (s.inst?.qqqSpot > 0 && priceNow.QQQ > 0) ? retMed - (priceNow.QQQ / s.inst.qqqSpot - 1) * 100 : null;
+        rows.push({ date: s.date, dias, n: evals.length, retMed, retSpy, excess, excDia: excess / Math.max(1, dias), excQ, mot: s.motor || 'v1', hitPct: hits / evals.length * 100, postura: s.postura || '—' });
       }
       if (!rows.length) { body.innerHTML = 'Snapshots encontrados pero sin precios evaluables (¿tickers deslistados?).'; return; }
       // agregados
@@ -11492,6 +11676,15 @@ const TrackRecord = {
       const exMed = rows.reduce((a, b) => a + b.excess, 0) / n;
       const hitGlobal = rows.reduce((a, b) => a + b.hitPct, 0) / n;
       const ganadores = rows.filter(r2 => r2.excess > 0).length;
+      const exDiaMed = rows.reduce((a, b) => a + b.excDia, 0) / n;
+      const rowsQ = rows.filter(r2 => r2.excQ != null);
+      const exQMed = rowsQ.length ? rowsQ.reduce((a, b) => a + b.excQ, 0) / rowsQ.length : null;
+      // R1: segmentar por motor (el corte v:3 lo exige) — se muestra cuando ambos tengan historia
+      const porMotor = {};
+      rows.forEach(r2 => { (porMotor[r2.mot] = porMotor[r2.mot] || []).push(r2.excess); });
+      const motorLine = Object.keys(porMotor).length > 1
+        ? '🔀 Por motor: ' + Object.entries(porMotor).map(([m2, a2]) => m2 + ' n=' + a2.length + ' exc ' + (a2.reduce((x, y) => x + y, 0) / a2.length >= 0 ? '+' : '') + (a2.reduce((x, y) => x + y, 0) / a2.length).toFixed(1) + '%').join(' · ') + ' <span style="color:var(--text3)">(R1: los rankings v1 y v2 no se mezclan)</span>'
+        : '<span style="color:var(--text3)">🔀 Motor ' + (rows[0]?.mot || 'v1') + ' en toda la muestra — la comparación v1 vs v2 se activa cuando ambos tengan historia</span>';
       const tile = (lbl, val, col, tip) => '<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px" title="' + tip + '"><div style="font-size:8px;color:var(--text3);letter-spacing:.06em">' + lbl + '</div><div style="font-size:17px;font-weight:700;color:' + col + '">' + val + '</div></div>';
       const exCol = exMed > 1 ? 'var(--green)' : exMed < -1 ? 'var(--red)' : 'var(--amber)';
       const veredicto = n < 20
@@ -11504,15 +11697,20 @@ const TrackRecord = {
         + tile('EXCESS MEDIO vs SPY', (exMed >= 0 ? '+' : '') + exMed.toFixed(1) + '%', exCol, 'Promedio del (retorno medio de candidatas − retorno SPY) por snapshot, desde cada fecha hasta hoy')
         + tile('HIT RATE', hitGlobal.toFixed(0) + '%', hitGlobal > 55 ? 'var(--green)' : hitGlobal < 45 ? 'var(--red)' : 'var(--amber)', '% de candidatas que superaron al SPY (promedio entre snapshots)')
         + tile('DÍAS GANADORES', ganadores + '/' + n, ganadores / n > 0.5 ? 'var(--green)' : 'var(--red)', 'Snapshots donde el basket de candidatas le ganó al SPY')
+        + tile('EXCESS/DÍA', (exDiaMed >= 0 ? '+' : '') + exDiaMed.toFixed(2) + '%', exDiaMed > 0.05 ? 'var(--green)' : exDiaMed < -0.05 ? 'var(--red)' : 'var(--amber)', 'Excess normalizado por días transcurridos — hace comparables el snapshot de hace 3 días con el de hace 30 (ventanas distintas)')
+        + (exQMed != null ? tile('vs QQQ', (exQMed >= 0 ? '+' : '') + exQMed.toFixed(1) + '%', exQMed > 1 ? 'var(--green)' : exQMed < -1 ? 'var(--red)' : 'var(--amber)', 'Benchmark dual: las candidatas son growth-sesgadas — batir a SPY puede ser solo beta; batir a QQQ es selección') : '')
         + '</div>'
-        + '<div style="margin-bottom:8px;font-size:10px">' + veredicto + '</div>'
-        + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FECHA</th><th>HACE</th><th>N CAND</th><th>RET MEDIO</th><th>SPY</th><th>EXCESS</th><th>HIT</th><th>POSTURA ESE DÍA</th></tr></thead><tbody>'
+        + '<div style="margin-bottom:6px;font-size:10px">' + veredicto + '</div>'
+        + '<div style="margin-bottom:8px;font-size:9.5px" class="mono">' + motorLine + '</div>'
+        + '<div style="overflow-x:auto"><table class="drill-table"><thead><tr><th>FECHA</th><th>MOTOR</th><th>HACE</th><th>N</th><th>RET MEDIO</th><th>SPY</th><th>EXCESS</th><th>EXC/DÍA</th><th>vs QQQ</th><th>HIT</th><th>POSTURA</th></tr></thead><tbody>'
         + rows.slice().reverse().map(r2 => {
           const ec = r2.excess > 0 ? 'var(--green)' : 'var(--red)';
-          return '<tr><td class="mono">' + r2.date + '</td><td>' + r2.dias + 'd</td><td>' + r2.n + '</td>'
+          return '<tr><td class="mono">' + r2.date + '</td><td class="mono" style="font-size:9px;color:var(--text3)">' + r2.mot + '</td><td>' + r2.dias + 'd</td><td>' + r2.n + '</td>'
             + '<td style="color:' + (r2.retMed >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r2.retMed >= 0 ? '+' : '') + r2.retMed.toFixed(1) + '%</td>'
             + '<td>' + (r2.retSpy >= 0 ? '+' : '') + r2.retSpy.toFixed(1) + '%</td>'
             + '<td style="color:' + ec + ';font-weight:700">' + (r2.excess >= 0 ? '+' : '') + r2.excess.toFixed(1) + '%</td>'
+            + '<td style="color:' + (r2.excDia >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r2.excDia >= 0 ? '+' : '') + r2.excDia.toFixed(2) + '%</td>'
+            + '<td style="color:' + (r2.excQ == null ? 'var(--text3)' : r2.excQ >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r2.excQ == null ? '—' : (r2.excQ >= 0 ? '+' : '') + r2.excQ.toFixed(1) + '%') + '</td>'
             + '<td>' + r2.hitPct.toFixed(0) + '%</td><td style="font-size:9px;color:var(--text3)">' + escHtml(r2.postura) + '</td></tr>';
         }).join('')
         + '</tbody></table></div>'
