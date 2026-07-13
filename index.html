@@ -9735,6 +9735,11 @@ const InstPanel = {
   _render(d) {
     const strip = document.getElementById('inst-strip');
     const fK = v => v == null ? '—' : (+v).toLocaleString('en-US');
+    // Cadena DELGADA (cazado con TWST 2026-07-13): pocos strikes / poco OI hacen que muros,
+    // flip y max pain sean ruido — se declara y el GEX baja de $bn a $M para no mostrar "$0bn"
+    const nStk = (d.strikes || []).length, oiTot = (d.strikes || []).reduce((a9, s9) => a9 + (s9.cOI || 0) + (s9.pOI || 0), 0);
+    const thin = nStk > 0 && (nStk < 15 || oiTot < 5000);
+    const fGbn = v => { if (v == null) return '—'; const a9 = Math.abs(v); return (thin || (a9 > 0 && a9 < 0.05)) ? '$' + Math.round(v * 1000) + 'M' : '$' + v + 'bn'; };
     const gexCol = d.gexTotalBn >= 0 ? 'var(--green)' : 'var(--red)';
     // #19a: la memoria de deriva SOLO se alimenta con la ventana default ≤45d — mezclar
     // ventanas contaminaría la serie diaria de muros (inst_walls_v1)
@@ -9744,8 +9749,8 @@ const InstPanel = {
     strip.innerHTML =
       '<b style="color:var(--text)">' + d.tk + '</b> spot ' + d.spot.toFixed(2)
       + ' · P/C vol <b>' + (d.pcVol ?? '—') + '</b> · P/C OI <b>' + (d.pcOI ?? '—') + '</b>'
-      + ' · GEX neto <b style="color:' + gexCol + '">$' + d.gexTotalBn + 'bn</b>' + drift(d.gexTotalBn, prev?.gex, 'GEX neto')
-      + (d.gexVolTotalBn != null ? ' · <span title="GEX del DÍA (Γ×volumen negociado hoy) — la capa rápida vs la estructura; su flip = pivote del día (vista GEX HOY)">hoy <b style="color:' + (d.gexVolTotalBn >= 0 ? 'var(--green)' : 'var(--red)') + '">$' + d.gexVolTotalBn + 'bn</b>' + (d.flipVol != null ? ' ⚖' + fK(d.flipVol) : '') + '</span>' : '')
+      + ' · GEX neto <b style="color:' + gexCol + '">' + fGbn(d.gexTotalBn) + '</b>' + drift(d.gexTotalBn, prev?.gex, 'GEX neto')
+      + (d.gexVolTotalBn != null ? ' · <span title="GEX del DÍA (Γ×volumen negociado hoy) — la capa rápida vs la estructura; su flip = pivote del día (vista GEX HOY)">hoy <b style="color:' + (d.gexVolTotalBn >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fGbn(d.gexVolTotalBn) + '</b>' + (d.flipVol != null ? ' ⚖' + fK(d.flipVol) : '') + '</span>' : '')
       + (() => { // FUERZA DEL MURO (innovación 07-13): % del GEX total concentrado en el strike —
         // un "muro" con 3% del gamma es decorativo; con 20% es una pared de verdad
         const sumAbs = (d.strikes || []).reduce((a9, s9) => a9 + Math.abs(s9.gex), 0);
@@ -9758,6 +9763,7 @@ const InstPanel = {
       + ' · 🛡 Put wall <b style="color:var(--red)">' + fK(d.putWall) + '</b>' + (this._wallFza?.pw || '') + drift(d.putWall, prev?.pw, 'Put wall')
       + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
       + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>'
+      + (thin ? '<div class="mono" style="font-size:9.5px;color:var(--amber);margin-top:4px">⚠ Cadena de opciones DELGADA (' + nStk + ' strikes en la ventana · OI total ' + oiTot.toLocaleString('en-US') + ' contratos): muros, flip, max pain y fuerza del muro son POCO FIABLES en este activo — pesa más el perfil de volumen, dark pools y ownership de la radiografía.</div>' : '')
       + '<div id="inst-futconv" class="mono" style="font-size:10px;color:var(--text2)"></div>';
     this._lastD = d;
     this._chartRender(d);
@@ -9910,7 +9916,7 @@ const InstPanel = {
     const net = d.netPremM, netCol = net >= 0 ? 'var(--green)' : 'var(--red)';
     const tot = Math.max(d.premCallsM + d.premPutsM, 0.01);
     const cw = Math.round(d.premCallsM / tot * 100), pw = 100 - cw;
-    const fM = v => '$' + Math.abs(v).toFixed(1) + 'M';
+    const fM = v => { const a9 = Math.abs(v); return a9 > 0 && a9 < 0.1 ? '$' + Math.round(a9 * 1000) + 'K' : '$' + a9.toFixed(1) + 'M'; };
     // Aperturas nuevas: vol del lado > OI del lado (posición abriéndose HOY), rankeadas por |prima|
     const th = esIdx ? 1000 : 200; // umbral de contratos: índices/ETFs tienen ruido 0DTE
     const nuevas = (d.strikes || [])
@@ -10166,7 +10172,9 @@ const RadarFlujo = {
           dpTxt = (dpRise ? 'vol↑' : 'vol=') + ' ' + (tsUp ? 'bloque↑' : 'bloque=');
         }
         const c = { sesgo, apertN, osRank: null, zvol, doiNorm, dpRise, tsUp };
-        rows.push({ tk, c, os, sesgo, apertN, zvol, doiNorm, doiTxt, dpTxt, netPremM: o.netPremM, px: y?.price || o.spot });
+        const oiT9 = (o.strikes || []).reduce((a2, s) => a2 + (s.cOI || 0) + (s.pOI || 0), 0);
+        const thin = ((o.strikes || []).length < 15 || oiT9 < 5000);
+        rows.push({ tk, c, os, sesgo, apertN, zvol, doiNorm, doiTxt, dpTxt, netPremM: o.netPremM, px: y?.price || o.spot, thin });
       }
       const valid = rows.filter(r => !r.na);
       const osSorted = valid.filter(r => r.os != null).map(r => r.os).sort((a, b) => a - b);
@@ -10196,7 +10204,7 @@ const RadarFlujo = {
         + valid.map(r => {
           const col = r.score >= 65 ? 'var(--green)' : r.score >= 45 ? 'var(--amber)' : 'var(--text3)';
           return '<tr style="border-top:1px solid var(--border2);cursor:pointer" onclick="InstTab.analyze(\'' + r.tk + '\')" title="Click → radiografía completa de ' + r.tk + '">'
-            + '<td style="padding:4px 8px"><b style="color:var(--text)">' + escHtml(r.tk) + '</b></td>'
+            + '<td style="padding:4px 8px"><b style="color:var(--text)">' + escHtml(r.tk) + '</b>' + (r.thin ? ' <span style="font-size:9px;color:var(--amber)" title="Cadena de opciones DELGADA (pocos strikes / poco OI): prima, O/S y aperturas son poco significativas aquí — el percentil O/S dentro del set puede INFLAR su score. Interpretar con cautela.">⚠ delgada</span>' : '') + '</td>'
             + '<td style="min-width:110px"><div style="display:flex;align-items:center;gap:6px"><b style="color:' + col + '">' + r.score + '</b>'
             + (r.dSc != null && Math.abs(r.dSc) >= 3 ? '<span style="font-size:9px;color:' + (r.dSc > 0 ? 'var(--green)' : 'var(--red)') + '" title="Δ vs su registro previo (' + r.dScD + '): el flujo se está ' + (r.dSc > 0 ? 'CONSTRUYENDO' : 'apagando') + ' en este ticker">' + (r.dSc > 0 ? '↑+' : '↓') + r.dSc + '</span>' : '')
             + '<div style="flex:1;max-width:70px;height:7px;background:var(--surface2);border-radius:4px;overflow:hidden"><div style="width:' + r.score + '%;height:100%;background:' + col + ';opacity:.75"></div></div></div></td>'
