@@ -2881,7 +2881,11 @@ html.auth-ok #auth-gate{display:none}
       <div style="flex:1;min-width:230px" id="term-levels"></div>
     </div>
   </div>
-  <div id="term-more" class="mono" style="font-size:10px;color:var(--text3);padding:4px 2px 12px">Fases siguientes: streaming OANDA real-time forex (FW) · veredicto del día (F4) · riesgo/disciplina (F5) · sesgo estadístico con calibración propia Databento (F6) · flujo del día (F7).</div>
+  <!-- ⑦ RIESGO Y DISCIPLINA (F5) — 100% localStorage, cero red -->
+  <div class="sh"><div class="sh-tag">Disciplina</div><div class="sh-title">Riesgo y Disciplina — lo que salva la cuenta</div><button class="glossary-btn" onclick="openGlossary('terminal-riesgo')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card" style="margin-bottom:14px"><div id="term-risk"></div></div>
+
+  <div id="term-more" class="mono" style="font-size:10px;color:var(--text3);padding:4px 2px 12px">Fases siguientes: streaming OANDA real-time forex (FW) · sesgo estadístico con calibración propia Databento (F6) · flujo del día (F7) · coherencia (F8) · noticias/calendario completo (F9).</div>
 </div>
 
 <div id="tab-tecnico" class="page">
@@ -5022,10 +5026,15 @@ const Terminal = {
     this._sessbar();
     if (!this._cal || Date.now() - this._calT > 6 * 3600e3) this._calLoad();
     this.feedStart();
+    this.renderRisk();
+    this.showGate(); // F5: checklist-gate diario — solo aparece si el plan de HOY no existe
     this._timers.push(setInterval(() => this._clock(), 1000));
     this._timers.push(setInterval(() => { if (!document.hidden) this.feedPoll(); }, 60000));
   },
-  destroy() { this._timers.forEach(clearInterval); this._timers = []; },
+  destroy() {
+    this._timers.forEach(clearInterval); this._timers = [];
+    document.getElementById('term-gate')?.remove(); // el gate es fixed — no debe sobrevivir al tab
+  },
 
   // ── ET helpers (la sesión se define en America/New_York; etDate() global da el día) ──
   _fmt: null,
@@ -5199,6 +5208,144 @@ const Terminal = {
     };
   },
 
+  // ══ F5: RIESGO Y DISCIPLINA — 100% localStorage, cero red, cero contacto con el motor ══
+  PROPS: {
+    ftmo2: { lbl: 'FTMO 2-step', dll: b => b * 0.05, max: b => b * 0.10, note: 'pérdida diaria 5% (reset medianoche CET) · máxima 10% estática' },
+    ftmo1: { lbl: 'FTMO 1-step', dll: b => b * 0.03, max: b => b * 0.10, note: 'diaria 3% · máxima 10% trailing EOD' },
+    ts50: { lbl: 'TopStep 50k', dll: () => 1000, max: () => 2000, note: 'DLL $1,000 (reset 5pm CT) · MLL $2,000 TRAILING intraday' },
+    ts100: { lbl: 'TopStep 100k', dll: () => 2000, max: () => 3000, note: 'DLL $2,000 · MLL $3,000 trailing intraday' },
+    ts150: { lbl: 'TopStep 150k', dll: () => 3000, max: () => 4500, note: 'DLL $3,000 · MLL $4,500 trailing intraday' },
+    none: { lbl: 'Personal (sin prop)', dll: b => b * 0.05, max: () => null, note: 'límite diario sugerido 5% — edítalo con el balance' },
+  },
+  PTVAL: { 'NQ=F': [['NQ', 20], ['MNQ', 2]], 'ES=F': [['ES', 50], ['MES', 5]], 'EURUSD=X': [['lote std (pip $10)', 10]], 'GBPUSD=X': [['lote std (pip $10)', 10]] },
+  _dayAll: null,
+  _day() {
+    const d = etDate();
+    if (!this._dayAll) { try { this._dayAll = JSON.parse(localStorage.getItem('term_day_v1') || '{}'); } catch (e) { this._dayAll = {}; } }
+    if (!this._dayAll[d]) this._dayAll[d] = { trades: [] };
+    return this._dayAll[d];
+  },
+  _saveDay() {
+    const ks = Object.keys(this._dayAll || {}).sort();
+    while (ks.length > 40) delete this._dayAll[ks.shift()]; // cap 40 días
+    try { localStorage.setItem('term_day_v1', JSON.stringify(this._dayAll)); } catch (e) {}
+  },
+  _check() { try { return JSON.parse(localStorage.getItem('term_check_v1') || '{}'); } catch (e) { return {}; } },
+  _saveCheck(all) { const ks = Object.keys(all).sort(); while (ks.length > 40) delete all[ks.shift()]; try { localStorage.setItem('term_check_v1', JSON.stringify(all)); } catch (e) {} },
+  // racha de pérdidas CONSECUTIVAS al final del día (el tilt vive ahí: 73% de cuentas prop
+  // rotas violaron su stop, concentrado en la 3ª-5ª pérdida seguida)
+  _streak() { const t = this._day().trades; let s = 0; for (let i = t.length - 1; i >= 0 && t[i].r < 0; i--) s++; return s; },
+  _breaker() {
+    const s = this._streak(), cfg = this.cfg();
+    const bal = +cfg.balance || 10000, riskPct = +cfg.riskPct || 0.5;
+    const pnl$ = this._day().trades.reduce((a, t) => a + t.r, 0) * bal * riskPct / 100;
+    const P = this.PROPS[cfg.prop || 'none'], dll = P.dll(bal);
+    if (dll && -pnl$ >= dll) return { lvl: 4, txt: '⛔ DAILY LOSS LIMIT tocado — FIN DEL DÍA (regla prop)', col: 'var(--red)' };
+    if (s >= 4) return { lvl: 4, txt: '⛔ 4 pérdidas seguidas — FIN DEL DÍA (circuit breaker)', col: 'var(--red)' };
+    if (s === 3) return { lvl: 3, txt: '🛑 3 pérdidas seguidas — pausa 1 HORA obligatoria', col: 'var(--red)' };
+    if (s === 2) return { lvl: 2, txt: '⚠ 2 pérdidas seguidas — pausa 30 min (aléjate de la pantalla)', col: 'var(--amber)' };
+    return { lvl: 0, txt: '', col: '' };
+  },
+  logTrade() {
+    const r = parseFloat(document.getElementById('term-r-in')?.value);
+    if (isNaN(r) || Math.abs(r) > 20) { alert('R inválido (ej: +1.5 o -1)'); return; }
+    const n = (document.getElementById('term-n-in')?.value || '').slice(0, 60);
+    this._day().trades.push({ t: Math.floor(Date.now() / 1000), i: this.instr().lbl, r, n });
+    this._saveDay(); this.renderRisk();
+  },
+  delTrade(i) { this._day().trades.splice(i, 1); this._saveDay(); this.renderRisk(); },
+  setRiskCfg() {
+    const c = this.cfg();
+    c.prop = document.getElementById('term-prop')?.value || c.prop;
+    c.balance = parseFloat(document.getElementById('term-bal')?.value) || c.balance;
+    c.riskPct = parseFloat(document.getElementById('term-rp')?.value) || c.riskPct;
+    this.saveCfg(); this.renderRisk();
+  },
+  _atr() { const b = this.feed.bars; if (b.length < 15) return null; let s = 0; for (let i = b.length - 14; i < b.length; i++) s += Math.max(b[i].h, b[i - 1].c) - Math.min(b[i].l, b[i - 1].c); return s / 14; },
+  renderRisk() {
+    const el = document.getElementById('term-risk'); if (!el) return;
+    const I = this.instr(), cfg = this.cfg();
+    const prop = cfg.prop || 'none', bal = +cfg.balance || 10000, riskPct = +cfg.riskPct || 0.5;
+    const P = this.PROPS[prop], dll = P.dll(bal), maxL = P.max(bal);
+    const trades = this._day().trades;
+    const pnlR = trades.reduce((a, t) => a + t.r, 0), risk$ = bal * riskPct / 100, pnl$ = pnlR * risk$;
+    const dllUsed = dll ? Math.min(100, Math.max(0, -pnl$ / dll * 100)) : 0;
+    const brk = this._breaker();
+    // borde rojo de TODA la terminal cuando el breaker manda parar
+    const tab = document.getElementById('tab-term');
+    if (tab) tab.style.boxShadow = brk.lvl >= 4 ? 'inset 0 0 0 3px var(--red)' : brk.lvl >= 2 ? 'inset 0 0 0 2px rgba(251,191,36,.5)' : '';
+    // sizing por ATR (superior al % fijo cuando el régimen cambia overnight)
+    const atr = this._atr(), fx = I.fx, unit = fx ? 'pips' : 'pts';
+    const atrU = atr != null ? (fx ? atr * 10000 : atr) : null;
+    const stopDef = atrU != null ? Math.max(fx ? 5 : 10, Math.round(atrU * 1.5)) : (fx ? 15 : 40);
+    const stopIn = parseFloat(document.getElementById('term-stop')?.value) || stopDef;
+    const sizing = (this.PTVAL[I.tk] || []).map(([veh, pv]) => { const q = risk$ / (stopIn * pv); return veh + ': <b style="color:var(--teal)">' + (q >= 1 ? Math.floor(q) : q.toFixed(2)) + '</b>'; }).join(' · ');
+    // stats del journal (todos los días guardados)
+    let all = []; Object.values(this._dayAll || {}).forEach(d => all.push(...(d.trades || [])));
+    const wins = all.filter(t => t.r > 0), losses = all.filter(t => t.r < 0);
+    const exp = all.length ? (all.reduce((a, t) => a + t.r, 0) / all.length) : null;
+    const chk = this._check()[etDate()];
+    el.innerHTML =
+      (brk.lvl ? '<div class="mono" style="font-size:12px;color:' + brk.col + ';border:1px solid ' + brk.col + ';border-radius:5px;padding:6px 10px;margin-bottom:8px"><b>' + brk.txt + '</b> — el 73% de las cuentas prop rotas violaron su propio stop, casi siempre en la 3ª-5ª pérdida seguida. La estadística eres tú.</div>' : '')
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px" class="mono">'
+      // col 1: config + estado del día
+      + '<div style="flex:1;min-width:250px"><div style="color:var(--text3);letter-spacing:.06em;font-size:9px;margin-bottom:4px">CUENTA / RIESGO</div>'
+      + '<select id="term-prop" onchange="Terminal.setRiskCfg()" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">' + Object.entries(this.PROPS).map(([k, p]) => '<option value="' + k + '"' + (k === prop ? ' selected' : '') + '>' + p.lbl + '</option>').join('') + '</select>'
+      + ' $<input id="term-bal" value="' + bal + '" onchange="Terminal.setRiskCfg()" style="width:64px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px" title="Balance de la cuenta">'
+      + ' riesgo <input id="term-rp" value="' + riskPct + '" onchange="Terminal.setRiskCfg()" style="width:34px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px" title="% del balance arriesgado por trade (1R)">%'
+      + '<div style="color:var(--text3);font-size:9px;margin-top:3px">' + P.note + ' · 1R = $' + risk$.toFixed(0) + '</div>'
+      + '<div style="margin-top:8px;color:var(--text3);letter-spacing:.06em;font-size:9px">HOY (' + etDate() + ' ET)</div>'
+      + '<div style="font-size:13px">P&L <b style="color:' + (pnlR >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (pnlR >= 0 ? '+' : '') + pnlR.toFixed(2) + 'R</b> <span style="color:var(--text3)">≈ $' + pnl$.toFixed(0) + '</span> · ' + trades.length + ' trades' + (trades.length >= 5 ? ' <span style="color:var(--amber)" title="Overtrading: el quintil más activo rinde 6-7%/año PEOR (Barber) — cada trade extra suele restar">⚠ muchos</span>' : '') + '</div>'
+      + (dll ? '<div title="Distancia al Daily Loss Limit de la prop"><div style="display:flex;height:7px;border-radius:4px;overflow:hidden;background:var(--surface2);max-width:230px;margin:4px 0"><div style="width:' + dllUsed + '%;background:' + (dllUsed > 70 ? 'var(--red)' : dllUsed > 40 ? 'var(--amber)' : 'var(--teal)') + '"></div></div><span style="color:var(--text3);font-size:9px">DLL usado ' + dllUsed.toFixed(0) + '% — quedan $' + Math.max(0, dll + Math.min(0, pnl$)).toFixed(0) + ' de $' + dll.toFixed(0) + (maxL ? ' · MLL $' + maxL.toFixed(0) : '') + '</span></div>' : '')
+      + '</div>'
+      // col 2: sizing
+      + '<div style="flex:1;min-width:220px"><div style="color:var(--text3);letter-spacing:.06em;font-size:9px;margin-bottom:4px">SIZING POR ATR — ' + I.lbl + '</div>'
+      + '<div>ATR14 (5m): <b>' + (atrU != null ? atrU.toFixed(fx ? 1 : 0) + ' ' + unit : '—') + '</b></div>'
+      + '<div style="margin:4px 0">stop <input id="term-stop" value="' + stopIn + '" onchange="Terminal.renderRisk()" style="width:44px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px"> ' + unit + ' <span style="color:var(--text3);font-size:9px">(sugerido 1.5×ATR = ' + (atrU != null ? Math.round(atrU * 1.5) : '—') + ')</span></div>'
+      + '<div>tamaño p/1R: ' + (sizing || '—') + '</div>'
+      + '<div style="color:var(--text3);font-size:9px;margin-top:3px">riesgo $ constante entre regímenes: la posición se encoge cuando el ATR crece</div>'
+      + '<div style="margin-top:8px;color:var(--text3);letter-spacing:.06em;font-size:9px">PLAN DE HOY</div>'
+      + (chk && chk.mode === 'trade' ? '<div style="font-size:9.5px;color:var(--text2)">A: ' + escHtml((chk.a || '').slice(0, 70)) + '<br>B: ' + escHtml((chk.b || '').slice(0, 70)) + '<br><span style="color:var(--amber)">✗ ' + escHtml((chk.inv || '').slice(0, 70)) + '</span></div>' : chk && chk.mode === 'watch' ? '<div style="color:var(--text3)">👁 hoy solo miras — sin operar (tu propia regla)</div>' : '<div style="color:var(--amber)">sin plan aún</div>')
+      + '<button type="button" onclick="Terminal.showGate(true)" style="margin-top:3px;font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:2px 8px;border-radius:4px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent">✎ editar plan</button></div>'
+      // col 3: registro + journal
+      + '<div style="flex:1.3;min-width:260px"><div style="color:var(--text3);letter-spacing:.06em;font-size:9px;margin-bottom:4px">REGISTRAR TRADE (en R)</div>'
+      + '<input id="term-r-in" placeholder="+1.5 / -1" style="width:64px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:3px"> '
+      + '<input id="term-n-in" placeholder="nota corta" style="width:110px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:3px"> '
+      + '<button type="button" onclick="Terminal.logTrade()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.08)">registrar</button>'
+      + (trades.length ? '<table style="width:100%;border-collapse:collapse;font-size:9.5px;margin-top:5px">' + trades.map((t, i) => '<tr style="border-top:1px solid var(--border2)"><td style="padding:2px 4px;color:var(--text3)">' + new Date(t.t * 1000).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + '</td><td>' + t.i + '</td><td style="color:' + (t.r >= 0 ? 'var(--green)' : 'var(--red)') + '"><b>' + (t.r >= 0 ? '+' : '') + t.r + 'R</b></td><td style="color:var(--text3)">' + escHtml(t.n || '') + '</td><td style="text-align:right"><span onclick="Terminal.delTrade(' + i + ')" style="cursor:pointer;color:var(--text3)" title="borrar">✕</span></td></tr>').join('') + '</table>' : '<div style="color:var(--text3);font-size:9.5px;margin-top:5px">sin trades hoy</div>')
+      + '<div style="margin-top:6px;color:var(--text3);font-size:9px" title="Expectancy = media de R por trade — LA métrica; positiva y estable con n≥30 es lo único que autoriza subir tamaño">HISTÓRICO: n=' + all.length + ' · win ' + (all.length ? Math.round(wins.length / all.length * 100) + '%' : '—') + ' · expectancy ' + (exp != null ? (exp >= 0 ? '+' : '') + exp.toFixed(2) + 'R' : '—') + (all.length && all.length < 30 ? ' <span style="color:var(--amber)">(n<30: ANÉCDOTA, no estadística)</span>' : '') + '</div>'
+      + '</div></div>';
+  },
+  // ── checklist pre-sesión: modal-GATE diario — la terminal abre cuando el plan existe ──
+  showGate(force) {
+    const d = etDate(), all = this._check();
+    if (!force && all[d]) return;
+    const old = document.getElementById('term-gate'); if (old) old.remove();
+    const c0 = all[d] || {};
+    const div = document.createElement('div');
+    div.id = 'term-gate';
+    div.style.cssText = 'position:fixed;inset:0;background:rgba(8,5,7,.94);z-index:300;display:flex;align-items:center;justify-content:center;padding:16px';
+    const ta = (id, ph, v) => '<textarea id="' + id + '" placeholder="' + ph + '" style="width:100%;height:44px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;padding:5px;margin:3px 0;resize:vertical">' + escHtml(v || '') + '</textarea>';
+    div.innerHTML = '<div class="card" style="max-width:600px;width:100%"><div class="mono" style="font-size:13px;color:var(--text);margin-bottom:4px"><b>📋 CHECKLIST PRE-SESIÓN — ' + d + ' ET</b></div>'
+      + '<div class="mono" style="font-size:9.5px;color:var(--text3);margin-bottom:8px">La terminal abre cuando el plan existe. Un plan escrito ANTES de la apertura es la diferencia entre operar y reaccionar.</div>'
+      + '<div class="mono" style="font-size:9px;color:var(--teal)">PLAN A — escenario principal</div>' + ta('term-g-a', 'ej: si NQ mantiene el ONL 29,543 → largo hacia VWAP/PDL', c0.a)
+      + '<div class="mono" style="font-size:9px;color:var(--amber)">PLAN B — escenario alterno</div>' + ta('term-g-b', 'ej: si pierde ONL con fuerza → short al EM− / PW SPY', c0.b)
+      + '<div class="mono" style="font-size:9px;color:var(--red)">INVALIDACIÓN — dónde estás EQUIVOCADO y cuánto arriesgas</div>' + ta('term-g-i', 'ej: bias muere si recupera el IB high; máx 3 trades, 0.5% c/u', c0.inv)
+      + '<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">'
+      + '<button type="button" onclick="Terminal.saveGate(\'trade\')" style="font-size:11px;font-family:\'IBM Plex Mono\',monospace;padding:6px 16px;border-radius:5px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.08)"><b>EMPEZAR SESIÓN</b></button>'
+      + '<button type="button" onclick="Terminal.saveGate(\'watch\')" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:6px 12px;border-radius:5px;cursor:pointer;border:1px solid var(--border2);color:var(--text3);background:transparent">hoy solo miro — no opero</button>'
+      + '</div></div>';
+    document.body.appendChild(div);
+  },
+  saveGate(mode) {
+    const a = document.getElementById('term-g-a')?.value.trim(), b = document.getElementById('term-g-b')?.value.trim(), inv = document.getElementById('term-g-i')?.value.trim();
+    if (mode === 'trade' && (!a || !inv)) { alert('Mínimo: Plan A e Invalidación. Sin invalidación escrita no hay plan — hay esperanza.'); return; }
+    const all = this._check(); all[etDate()] = { a, b, inv, mode, ts: Date.now() };
+    this._saveCheck(all);
+    document.getElementById('term-gate')?.remove();
+    this.renderRisk();
+  },
+
   // ── F4: VEREDICTO DEL DÍA — bias (IB/overnight) · régimen gamma · risk-on/off ──
   // Observacional puro: lee lo ya computado (c, _walls) + los precios del loop global 60s.
   _verdict(c) {
@@ -5289,6 +5436,7 @@ const Terminal = {
     rows.splice(spotIdx < 0 ? rows.length : spotIdx, 0, spotRow);
     document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>';
     this._draw(c, lv);
+    this.renderRisk(); // F5: el sizing usa el ATR de las barras recién llegadas
   },
   _draw(c, lv) {
     const I = this.instr(), cv = document.getElementById('term-chart'); if (!cv) return;
@@ -14565,6 +14713,18 @@ const INDICATORS_GLOSSARY = {
       { c:'red',   t:'< 40% (0-1 de 5) + vol alto → flag Mag7 trap' }
     ],
     note: 'Top 5 holdings hardcodeados (refrescar trimestralmente, próximo: 2026-07-01). Si un constituyente falla en Yahoo, se calcula breadth con los que sí volvieron. Solo aplica a sectores SPDR (no macros).'
+  },
+  'terminal-riesgo': {
+    name: 'Terminal · Riesgo y Disciplina', category: 'Terminal · Intradía',
+    source: { label: 'Reglas prop 2026 (FTMO/TopStep oficiales) + evidencia: Barber et al. (Taiwán, 360k day traders), encuesta PipFarm sobre tilt, sizing por ATR (QuantifiedStrategies)', url: 'https://help.topstep.com', freq: '100% local (localStorage) — nada sale de tu navegador' },
+    formula: 'P&L del día = Σ R registrados × (balance × riesgo%/trade) · DLL según prop (FTMO 5%/3%, TopStep $1k/2k/3k con MLL trailing) · Circuit breaker: 2 pérdidas seguidas = pausa 30min, 3 = 1h, 4 o DLL = fin del día (borde rojo) · Sizing = riesgo$ ÷ (stop × valor del punto), stop sugerido 1.5×ATR14(5m) · Expectancy = media de R por trade.',
+    interpret: 'La evidencia es brutal: >80% de day traders pierden y el quintil MÁS activo rinde 6-7%/año peor (Barber) — el límite de trades/día es un edge real. El 73% de cuentas prop rotas violaron su propio stop, casi siempre en la 3ª-5ª pérdida consecutiva — por eso el breaker es escalonado y pinta TODA la terminal de rojo cuando manda parar. El checklist-gate obliga a escribir plan A/B e invalidación ANTES de ver el mapa: un plan escrito es la diferencia entre operar y reaccionar. Sizing por ATR mantiene el riesgo $ constante cuando el régimen cambia.',
+    thresholds: [
+      { c: 'green', t: 'Expectancy positiva con n≥30 y DLL <40% usado — proceso sano' },
+      { c: 'amber', t: '2 pérdidas seguidas o >5 trades/día o DLL >40% — el tilt acecha' },
+      { c: 'red', t: '3-4 pérdidas seguidas o DLL tocado — FIN: la próxima decisión buena es cerrar la pantalla' }
+    ],
+    note: 'Fase F5 del blueprint Terminal v2. Todo vive en tu localStorage (term_day_v1/term_check_v1) — cero red, cero motor. El registro en R es manual y honesto: la terminal no puede saber tus fills; tu journal sí.'
   },
   'terminal-mapa-niveles': {
     name: 'Terminal · Mapa de Niveles del Día', category: 'Terminal · Intradía',
