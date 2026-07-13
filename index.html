@@ -1329,6 +1329,17 @@ html.auth-ok #auth-gate{display:none}
     <div class="mono" style="font-size:9px;color:var(--text3);margin-top:6px;line-height:1.5">Índice oficial de la Chicago Fed (105 series, semanal, ya normalizado) convertido a score 0-100 de risk-on: Score = 100·(1−Φ(NFCI)). Bandas: &gt;70 RISK-ON (condiciones laxas) · &lt;30 RISK-OFF (tight). Línea azul: S&amp;P 500 normalizado en la misma ventana — los tramos rojos del score deberían anteceder/coincidir con los drawdowns.</div>
   </div>
 
+  <!-- ── J1 · MOTOR DE ANÁLOGOS HISTÓRICOS (innovación 2026-07-13, metodología Verdad Capital) ── -->
+  <div class="zone-divider">Análogos históricos · ¿A qué se parece HOY?</div>
+  <div class="card" style="border-color:rgba(167,139,250,.25);margin-bottom:10px"><div class="card-accent" style="background:var(--purple)"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div class="lbl">🔮 Análogos históricos — nearest-neighbor macro <button class="help-i" type="button" onclick="event.stopPropagation();openGlossary('analogos-historicos')">?</button></div>
+      <button type="button" onclick="Analogos.run()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--purple);color:var(--purple);background:rgba(167,139,250,.08)">🔍 BUSCAR ANÁLOGOS</button>
+    </div>
+    <div id="analog-body" class="mono" style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6">Convierte el estado macro de HOY en un vector (NFCI · momentum de crecimiento · inflación · vol realizada · distancia a máximos) y busca las semanas más PARECIDAS de los últimos ~3 años — y qué hizo el SPY después de cada una. Metodología Verdad Capital (nearest-neighbor macro, distancia euclidiana sobre dimensiones z-scoreadas). Es CONTEXTO estadístico, no predicción.</div>
+    <div class="ch-wrap" id="analog-wrap" style="height:170px;display:none;margin-top:8px"><canvas id="analog-cv"></canvas></div>
+  </div>
+
   <!-- Three Horizons eliminado en Fase A — Net Liquidity Δ13w rescatado al mini-card de Z1.
        Score Howell ya está en Verdict Hero · Score Fidelity en Eco Score · Régimen en Banner.
        DXY/HY/VIX thermometers son redundantes con Operational Context y barras del Hero. -->
@@ -2148,6 +2159,7 @@ html.auth-ok #auth-gate{display:none}
         <button type="button" onclick="TrackRecord.audit()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(230,180,80,.08)">⚖ AUDITAR AHORA</button>
         <button type="button" onclick="TrackRecord.paper()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--blue);color:var(--blue);background:rgba(96,165,250,.06)">📈 CARTERA VIRTUAL</button>
         <button type="button" onclick="SaludFuentes.run()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.06)" title="Ping EN VIVO a las 15 fuentes de datos del sistema: ¿responden AHORA? ¿con qué latencia? ¿alguna sirviendo data vieja?">🩺 FUENTES</button>
+        <button type="button" onclick="AutoCalib.run()" style="font-size:10px;font-family:'IBM Plex Mono',monospace;padding:5px 14px;border-radius:5px;cursor:pointer;border:1px solid var(--purple);color:var(--purple);background:rgba(167,139,250,.06)" title="¿Qué COMPONENTE del score realmente predice? Split alto-vs-bajo por componente (score, zona, semáforo, flujo, RS, MOM) contra el retorno forward realizado — la curva de calibración del sistema con sus propios datos. NO re-pesa nada: muestra la evidencia para decidir">🧬 CALIBRACIÓN</button>
       </div>
     </div>
     <div id="trk-body" class="mono" style="font-size:10px;color:var(--text3);line-height:1.6">Cada día que el embudo escanea, las candidatas quedan grabadas (fecha, precio de entrada, métricas, régimen) en un archivo INMUTABLE del repo — el primer escaneo del día gana y la historia no se puede reescribir. ⚖ compara cada snapshot pasado contra los precios de HOY. 📈 CARTERA VIRTUAL: simula comprar las top-3 candidatas de cada snapshot y rotar al siguiente — la equity curve REAL del sistema vs SPY (se activa con 3+ snapshots). Con 20+ snapshots la respuesta empieza a ser estadística y no anécdota.</div>
@@ -10211,6 +10223,142 @@ const RadarFlujo = {
   }
 };
 
+// ══ 🔮 J1 · MOTOR DE ANÁLOGOS HISTÓRICOS (innovación 2026-07-13) ══
+// Metodología Verdad Capital: el estado macro de HOY como vector → distancia euclidiana
+// (dims z-scoreadas) contra una rejilla semanal de ~3 años → los N más parecidos y qué
+// hizo el SPY 5/10/20d después. CONTEXTO estadístico con n declarado — no predicción.
+const Analogos = {
+  _busy: false, _chart: null,
+  // valor vigente de una serie FRED (desc) en una fecha — última observación ≤ fecha
+  _at(serieAsc, date) {
+    for (let i = serieAsc.length - 1; i >= 0; i--) if (serieAsc[i].date <= date) return serieAsc[i].value;
+    return null;
+  },
+  async run() {
+    if (this._busy) return;
+    this._busy = true;
+    const body = document.getElementById('analog-body');
+    try {
+      body.innerHTML = '<span style="color:var(--text3)">🔍 Cargando historia (NFCI 200 sem + SPY 3 años)…</span>';
+      const [nf, spyj] = await Promise.all([
+        fetch('/api/fred?series=NFCI&limit=200').then(r => r.json()).catch(() => null),
+        fetch('/api/yahoo?tickers=SPY&range=3y').then(r => r.json()).catch(() => null)
+      ]);
+      const nfci = Array.isArray(nf?.NFCI) ? nf.NFCI.slice().reverse() : null; // asc
+      const spy = spyj?.SPY;
+      if (!nfci?.length || !spy?.hist?.length || spy.hist.length < 300) { body.innerHTML = '⚠ Historia insuficiente (FRED NFCI o SPY 3y no disponibles ahora).'; return; }
+      const H = spy.hist, D = spy.dates, len = H.length;
+      const asc = s => (s || []).slice().reverse();
+      const ind = asc(state.data.indpro), pay = asc(state.data.payems), rrs = asc(state.data.rrsfs), pce = asc(state.data.corePce);
+      // dims por fecha: growth = media de YoY de INDPRO/PAYEMS/RRSFS · infl = PCE 3m anualizado − YoY
+      const yoyAt = (s, date) => {
+        const cur = this._at(s, date);
+        const prevDate = (parseInt(date.slice(0, 4)) - 1) + date.slice(4);
+        const prev = this._at(s, prevDate);
+        return (cur != null && prev != null && prev !== 0) ? (cur / prev - 1) * 100 : null;
+      };
+      const inflAt = (date) => {
+        const idx = (() => { for (let i = pce.length - 1; i >= 0; i--) if (pce[i].date <= date) return i; return -1; })();
+        if (idx < 12) return null;
+        const m3 = (Math.pow(pce[idx].value / pce[idx - 3].value, 4) - 1) * 100;
+        const yy = (pce[idx].value / pce[idx - 12].value - 1) * 100;
+        return m3 - yy; // acelera si >0
+      };
+      const rv20 = i => {
+        if (i < 21) return null;
+        let s2 = 0, n2 = 0, m2 = 0;
+        const rets = [];
+        for (let k = i - 19; k <= i; k++) { const r2 = Math.log(H[k] / H[k - 1]); rets.push(r2); m2 += r2; }
+        m2 /= rets.length;
+        rets.forEach(r2 => { s2 += (r2 - m2) * (r2 - m2); });
+        return Math.sqrt(s2 / rets.length) * Math.sqrt(252) * 100;
+      };
+      const d52 = i => { let mx = 0; for (let k = Math.max(0, i - 251); k <= i; k++) if (H[k] > mx) mx = H[k]; return (H[i] / mx - 1) * 100; };
+      // rejilla semanal: cada 5 días hábiles, con 252 de cola atrás y 21 de forward adelante
+      const grid = [];
+      for (let i = 260; i < len; i += 5) {
+        const g = yoyAt(ind, D[i]), p2 = yoyAt(pay, D[i]), r2 = yoyAt(rrs, D[i]);
+        const gs = [g, p2, r2].filter(v => v != null);
+        const vec = [this._at(nfci, D[i]), gs.length ? gs.reduce((a, b) => a + b, 0) / gs.length : null, inflAt(D[i]), rv20(i), d52(i)];
+        if (vec.some(v => v == null)) continue;
+        grid.push({ i, date: D[i], vec });
+      }
+      // HOY = último día
+      const iT = len - 1;
+      const gT = yoyAt(ind, D[iT]), pT = yoyAt(pay, D[iT]), rT = yoyAt(rrs, D[iT]);
+      const gsT = [gT, pT, rT].filter(v => v != null);
+      const vecHoy = [this._at(nfci, D[iT]), gsT.length ? gsT.reduce((a, b) => a + b, 0) / gsT.length : null, inflAt(D[iT]), rv20(iT), d52(iT)];
+      if (vecHoy.some(v => v == null) || grid.length < 40) { body.innerHTML = '⚠ Vector de hoy incompleto o rejilla corta (' + grid.length + ' puntos).'; return; }
+      // z-score por dimensión (sobre rejilla + hoy) y distancia euclidiana
+      const all = [...grid.map(g2 => g2.vec), vecHoy];
+      const mu = [0, 0, 0, 0, 0], sd = [0, 0, 0, 0, 0];
+      for (let d9 = 0; d9 < 5; d9++) {
+        const vals = all.map(v => v[d9]);
+        mu[d9] = vals.reduce((a, b) => a + b, 0) / vals.length;
+        sd[d9] = Math.sqrt(vals.reduce((a, b) => a + (b - mu[d9]) ** 2, 0) / vals.length) || 1;
+      }
+      const zHoy = vecHoy.map((v, d9) => (v - mu[d9]) / sd[d9]);
+      grid.forEach(g2 => {
+        const z2 = g2.vec.map((v, d9) => (v - mu[d9]) / sd[d9]);
+        g2.dist = Math.sqrt(z2.reduce((a, b, d9) => a + (b - zHoy[d9]) ** 2, 0));
+      });
+      // análogos: excluir los últimos 30 días (trivialmente parecidos) y sin forward completo
+      const eleg = grid.filter(g2 => g2.i <= len - 22 && g2.i < len - 30);
+      eleg.sort((a, b) => a.dist - b.dist);
+      const top = eleg.slice(0, 8);
+      const fwd = (i, k) => (H[Math.min(len - 1, i + k)] / H[i] - 1) * 100;
+      top.forEach(t2 => { t2.f5 = fwd(t2.i, 5); t2.f10 = fwd(t2.i, 10); t2.f20 = fwd(t2.i, 20); });
+      const base20 = eleg.map(g2 => fwd(g2.i, 20));
+      const avg9 = a => a.reduce((x, y) => x + y, 0) / a.length;
+      const aT = avg9(top.map(t2 => t2.f20)), aB = avg9(base20);
+      const posT = top.filter(t2 => t2.f20 > 0).length;
+      const fP = v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+      const col9 = v => v >= 0.3 ? 'var(--green)' : v <= -0.3 ? 'var(--red)' : 'var(--amber)';
+      body.innerHTML =
+        '<div style="color:var(--text2);font-size:10px;margin-bottom:6px">Vector HOY (z): NFCI ' + zHoy[0].toFixed(1) + ' · crecimiento ' + zHoy[1].toFixed(1) + ' · inflación ' + zHoy[2].toFixed(1) + ' · vol ' + zHoy[3].toFixed(1) + ' · dist-máx ' + zHoy[4].toFixed(1) + ' — rejilla de <b>' + grid.length + '</b> semanas (~3 años)</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">'
+        + '<div style="padding:7px 11px;background:var(--surface2);border:1px solid rgba(167,139,250,.3);border-radius:6px"><div style="font-size:8px;color:var(--purple)">SPY +20d EN LOS 8 ANÁLOGOS</div><div style="font-size:15px;font-weight:700;color:' + col9(aT - aB) + '">' + fP(aT) + '</div></div>'
+        + '<div style="padding:7px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">BASE (toda la rejilla)</div><div style="font-size:15px;font-weight:700;color:var(--text2)">' + fP(aB) + '</div></div>'
+        + '<div style="padding:7px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:6px"><div style="font-size:8px;color:var(--text3)">ANÁLOGOS POSITIVOS +20d</div><div style="font-size:15px;font-weight:700;color:var(--text2)">' + posT + '/8</div></div>'
+        + '</div>'
+        + '<div style="overflow-x:auto"><table class="drill-table" style="font-size:10px"><thead><tr><th>ANÁLOGO</th><th>DIST</th><th>SPY +5d</th><th>+10d</th><th>+20d</th></tr></thead><tbody>'
+        + top.map(t2 => '<tr><td class="mono">' + t2.date + '</td><td>' + t2.dist.toFixed(2) + '</td>'
+          + ['f5', 'f10', 'f20'].map(k => '<td style="color:' + (t2[k] >= 0 ? 'var(--green)' : 'var(--red)') + '">' + fP(t2[k]) + '</td>').join('') + '</tr>').join('')
+        + '</tbody></table></div>'
+        + '<div style="font-size:9px;color:var(--text3);margin-top:5px">⚠ n=8 análogos sobre ~3 años con ventanas SOLAPADAS — contexto, no estadística. La rejilla crece sola (NFCI semanal + SPY). Dims: NFCI · momentum crecimiento (YoY INDPRO/PAYEMS/RRSFS) · aceleración PCE · vol realizada 20d · distancia a máx 52w — patrón Verdad Capital.</div>';
+      // scatter distancia-vs-tiempo (los análogos en dorado)
+      const wrap9 = document.getElementById('analog-wrap');
+      if (wrap9) {
+        wrap9.style.display = '';
+        const cv9 = document.getElementById('analog-cv');
+        if (cv9 && typeof Chart !== 'undefined') {
+          if (this._chart) { try { this._chart.destroy(); } catch (e) {} }
+          const topSet = new Set(top.map(t2 => t2.date));
+          this._chart = new Chart(cv9, {
+            type: 'scatter',
+            data: { datasets: [{
+              data: grid.map(g2 => ({ x: g2.i, y: g2.dist })),
+              backgroundColor: grid.map(g2 => topSet.has(g2.date) ? '#e6b450' : 'rgba(167,139,250,.35)'),
+              pointRadius: grid.map(g2 => topSet.has(g2.date) ? 5 : 2.5),
+              _dates: grid.map(g2 => g2.date)
+            }] },
+            options: {
+              responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+              plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.dataset._dates[c.dataIndex] + ' · distancia ' + c.parsed.y.toFixed(2) + (topSet.has(c.dataset._dates[c.dataIndex]) ? ' ★ ANÁLOGO' : '') } } },
+              scales: {
+                x: { ticks: { color: '#7a716a', font: { size: 8.5 }, maxTicksLimit: 8, callback: v => (D[Math.round(v)] || '').slice(0, 7) }, grid: { color: 'rgba(255,255,255,.03)' } },
+                y: { title: { display: true, text: '← más parecido a HOY · distancia', color: '#7a716a', font: { size: 8.5 } }, ticks: { color: '#7a716a', font: { size: 8.5 } }, grid: { color: 'rgba(255,255,255,.04)' } }
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      body.innerHTML = '<span style="color:var(--red)">⚠ Análogos: ' + escHtml(e.message) + '</span>';
+    } finally { this._busy = false; }
+  }
+};
+
 // ══ 🩺 SALUD DE FUENTES (auditoría 2026-07-12, pedido Angel "ampliar las calls para ver
 // que realmente funcionan"): ping EN VIVO a cada fuente con latencia y verificación de shape.
 // Estados: ✅ responde con data · ⚠ responde degradado/stale · ❌ caída/sin data.
@@ -10265,6 +10413,96 @@ const SaludFuentes = {
       + rows.map(r2 => '<tr><td>' + r2.name + '</td><td style="text-align:center">' + r2.estado + '</td><td class="mono">' + (r2.ms / 1000).toFixed(1) + 's</td><td style="font-size:9px;color:' + (r2.estado === '✅' ? 'var(--text3)' : 'var(--amber)') + '">' + escHtml(r2.nota || '—') + '</td></tr>').join('')
       + '</tbody></table></div>'
       + '<div style="font-size:9px;color:var(--text3);margin-top:5px">Nota honesta: la latencia incluye el cold-start de Vercel y el CDN puede servir cache fresco — el ping mide "¿me daría data AHORA?", no el uptime del proveedor. FINRA se cae a ratos (conocido) y FRED puede estar en last-good (⚠ = funcional con data de hace horas).</div>';
+  }
+};
+
+// ══ 🧬 J2 · AUTO-CALIBRACIÓN VISIBLE (innovación 2026-07-13) ══
+// ¿Qué componente del candScore PREDICE de verdad? Por cada snapshot pasado, split de
+// candidatas alto-vs-bajo (mediana del día) POR COMPONENTE contra el excess forward
+// realizado. NO re-pesa nada automáticamente — muestra la evidencia (decisión Angel).
+// Es el cierre del loop del corte v:3: el sistema mirándose al espejo con sus datos.
+const AutoCalib = {
+  COMPONENTES: [
+    ['score', 'SCORE total (candScore)', c => c.score],
+    ['zona', 'Calidad de ZONA', c => c.zonaScore],
+    ['enZona', 'EN ZONA (sí/no)', c => c.enZona === true ? 1 : c.enZona === false ? 0 : null],
+    ['sema', 'SEMÁFORO (verdes−rojas)', c => { if (!c.sema) return null; const m2 = String(c.sema).match(/(\d+)\/(\d+)/); return m2 ? (+m2[1] - +m2[2]) : null; }],
+    ['netPrem', '🌊 FLUJO del día', c => c.netPrem],
+    ['rs', 'RS (fuerza relativa)', c => c.rs],
+    ['mom', 'MOM (momentum vol-adj)', c => c.mom]
+  ],
+  async run() {
+    const body = document.getElementById('trk-body');
+    if (!body) return;
+    body.innerHTML = '<div class="os-catalysts-modal-loader"><div class="os-catalysts-modal-spinner"></div>Calibrando: componentes vs retorno forward realizado…</div>';
+    try {
+      const today = etDate();
+      const list = await fetch('/api/capital?src=tracklist').then(r => r.json());
+      const dates = (list.dates || []).filter(d => d < today && !esFinde(d));
+      if (!dates.length) { body.innerHTML = 'Sin snapshots de días pasados para calibrar.'; return; }
+      const snaps = (await Promise.all(dates.slice(-60).map(d => fetch('/api/capital?src=trackget&date=' + d).then(r => r.json()).catch(() => null)))).filter(s => s?.candidatas?.length && s.spy > 0);
+      if (!snaps.length) { body.innerHTML = 'Snapshots sin candidatas evaluables.'; return; }
+      // precios actuales
+      const tks = new Set(['SPY']);
+      snaps.forEach(s => s.candidatas.forEach(c => tks.add(c.tk)));
+      const arr = [...tks], priceNow = {};
+      for (let i = 0; i < arr.length; i += 20) {
+        try {
+          const j = await fetch('/api/yahoo?tickers=' + arr.slice(i, i + 20).join(',') + '&priceOnly=true').then(r => r.json());
+          Object.entries(j).forEach(([k, v]) => { if (v?.price) priceNow[k] = v.price; });
+        } catch (e) {}
+      }
+      const spyNow = priceNow.SPY;
+      if (!spyNow) { body.innerHTML = 'Sin precio SPY para el benchmark.'; return; }
+      // dataset: cada candidata de cada snapshot con su excess forward realizado
+      const filas = [];
+      for (const s of snaps) {
+        const retSpy = (spyNow / s.spy - 1) * 100;
+        for (const c of s.candidatas) {
+          if (!(c.price > 0) || !(priceNow[c.tk] > 0)) continue;
+          filas.push({ d: s.date, c, excess: (priceNow[c.tk] / c.price - 1) * 100 - retSpy });
+        }
+      }
+      if (filas.length < 10) { body.innerHTML = 'Solo ' + filas.length + ' pares candidata-forward — la calibración necesita más días de snapshots.'; return; }
+      // por componente: split por MEDIANA del MISMO día (cross-section, sin sesgo temporal)
+      const resultados = [];
+      for (const [key, lbl, fn] of this.COMPONENTES) {
+        const porDia = {};
+        filas.forEach(f2 => { const v = fn(f2.c); if (v != null) (porDia[f2.d] = porDia[f2.d] || []).push({ v, ex: f2.excess }); });
+        const alto = [], bajo = [];
+        Object.values(porDia).forEach(dia => {
+          if (dia.length < 4) return; // sin cross-section suficiente ese día
+          const vs = dia.map(x => x.v).sort((a, b) => a - b);
+          const med = vs[Math.floor(vs.length / 2)];
+          dia.forEach(x => (x.v >= med ? alto : bajo).push(x.ex));
+        });
+        if (alto.length < 5 || bajo.length < 5) { resultados.push({ lbl, n: alto.length + bajo.length, spread: null }); continue; }
+        const avg9 = a => a.reduce((x, y) => x + y, 0) / a.length;
+        resultados.push({ lbl, n: alto.length + bajo.length, aAlto: avg9(alto), aBajo: avg9(bajo), spread: avg9(alto) - avg9(bajo), hit: alto.filter(v => v > 0).length / alto.length * 100 });
+      }
+      resultados.sort((a, b) => (b.spread ?? -99) - (a.spread ?? -99));
+      const n = filas.length;
+      const gate = n < 20 ? '<span style="color:var(--amber)">⚠ n=' + n + ' pares — ANÉCDOTA (el veredicto de calibración necesita 20+, ideal 100+; crece solo con cada snapshot)</span>'
+        : '<span style="color:var(--text2)">n=' + n + ' pares candidata-forward de ' + snaps.length + ' snapshots</span>';
+      const maxAbs = Math.max(...resultados.map(r2 => Math.abs(r2.spread ?? 0)), 0.1);
+      body.innerHTML = '<div class="mono" style="font-size:10px;color:var(--purple);letter-spacing:.06em;margin-bottom:6px">🧬 AUTO-CALIBRACIÓN — ¿qué componente del sistema PREDICE? (split alto-vs-bajo por mediana del día, excess vs SPY desde cada snapshot hasta hoy)</div>'
+        + '<div style="margin-bottom:8px;font-size:10px">' + gate + '</div>'
+        + '<div style="overflow-x:auto"><table class="drill-table" style="font-size:10px"><thead><tr><th>COMPONENTE</th><th>SPREAD alto−bajo</th><th></th><th>ALTO</th><th>BAJO</th><th>HIT alto</th><th>n</th></tr></thead><tbody>'
+        + resultados.map(r2 => {
+          if (r2.spread == null) return '<tr><td>' + r2.lbl + '</td><td colspan="6" style="color:var(--text3)">datos insuficientes (n=' + r2.n + ')</td></tr>';
+          const col = r2.spread > 0.3 ? 'var(--green)' : r2.spread < -0.3 ? 'var(--red)' : 'var(--amber)';
+          const w9 = Math.round(Math.abs(r2.spread) / maxAbs * 100);
+          return '<tr><td>' + r2.lbl + '</td>'
+            + '<td style="color:' + col + ';font-weight:700">' + (r2.spread >= 0 ? '+' : '') + r2.spread.toFixed(2) + 'pp</td>'
+            + '<td style="min-width:80px"><div style="height:7px;background:var(--surface2);border-radius:3px;overflow:hidden"><div style="width:' + w9 + '%;height:100%;background:' + col + ';opacity:.7"></div></div></td>'
+            + '<td>' + (r2.aAlto >= 0 ? '+' : '') + r2.aAlto.toFixed(2) + '%</td><td>' + (r2.aBajo >= 0 ? '+' : '') + r2.aBajo.toFixed(2) + '%</td>'
+            + '<td>' + r2.hit.toFixed(0) + '%</td><td style="color:var(--text3)">' + r2.n + '</td></tr>';
+        }).join('')
+        + '</tbody></table></div>'
+        + '<div style="font-size:9px;color:var(--text3);margin-top:5px">Spread &gt; 0 = el componente DISCRIMINA (las candidatas altas en él rindieron más). Este panel NO re-pesa el motor — muestra la evidencia; la promoción/democión de pesos es decisión de Angel cuando n≥20 por componente. Ningún producto comercial enseña su propia curva de calibración.</div>';
+    } catch (e) {
+      body.innerHTML = '<span style="color:var(--red)">🧬 Calibración: ' + escHtml(e.message) + '</span>';
+    }
   }
 };
 
@@ -12963,6 +13201,14 @@ const INDICATORS_GLOSSARY = {
     interpret: 'Versión del Relative Rotation Graph institucional. Cada sector gira en sentido horario por 4 cuadrantes: Mejorando → Líder → Debilitándose → Rezagado. El capital ENTRA en Mejorando/Líder y SALE en Debilitándose/Rezagado.',
     thresholds: [{ c: 'green', t: 'X>100 y Y>100 → Líder (el capital ESTÁ aquí)' }, { c: 'green', t: 'X<100 y Y>100 → Mejorando (el capital ENTRA)' }, { c: 'amber', t: 'X>100 y Y<100 → Debilitándose (el capital SALE)' }, { c: 'red', t: 'X<100 y Y<100 → Rezagado (capital ya salió)' }],
     note: 'La estela muestra 6 semanas. Señal integrada: se cruza con la fase Howell. HONESTIDAD METODOLÓGICA: es una aproximación NO propietaria del RRG de JdK/StockCharts (falta el escalado por desviación estándar y la normalización contra el universo) — interpretar SOLO el cuadrante y la dirección del giro, NO la distancia al centro ni comparar magnitudes entre sectores de distinta volatilidad.'
+  },
+  'analogos-historicos': {
+    name: 'Análogos históricos (nearest-neighbor macro)', category: 'Macro · Contexto',
+    source: { label: 'FRED (NFCI 200 sem + composites mensuales ya cargados) + Yahoo SPY 3 años', url: 'https://verdadcap.com/archive/analogous-market-moments', freq: 'On-demand (botón)' },
+    formula: 'Estado de HOY = vector de 5 dims [NFCI, momentum de crecimiento (media YoY INDPRO/PAYEMS/RRSFS), aceleración de inflación (PCE 3m anualizado − YoY), vol realizada 20d del SPY, distancia a máx 52w] → z-score por dimensión → distancia euclidiana contra una rejilla semanal de ~3 años → los 8 más cercanos son los ANÁLOGOS, y se reporta qué hizo el SPY 5/10/20 días después de cada uno vs la base incondicional.',
+    interpret: 'Metodología Verdad Capital ("Analogous Market Moments"): en jun-2024 sus análogos anticiparon riesgo real (4 de 8 precedieron drawdowns vs 9% de base). La pregunta que responde: "¿cuándo se ha sentido el mercado ASÍ, y qué pasó después?" — régimen por similitud, sin modelo.',
+    thresholds: [{ c: 'green', t: 'Análogos +20d muy por ENCIMA de la base → el régimen actual históricamente favoreció al riesgo' }, { c: 'red', t: 'Análogos muy por DEBAJO de la base → régimen históricamente adverso — selectividad' }, { c: 'amber', t: 'n=8 sobre ~3 años con ventanas solapadas: CONTEXTO estadístico, jamás predicción puntual' }],
+    note: 'La rejilla crece sola cada semana. Limitación honesta: ~3 años de historia (NFCI limit-200 + SPY 3y) — cubre el ciclo 2023-26 pero no 2008/2020; ampliable si algún día persistimos historia más larga. Los snapshots propios del sistema (quad/GEX/marea) se sumarán al vector cuando el banco tenga profundidad.'
   },
   'radar-anticipacion': {
     name: 'Radar de Anticipación (flujo temprano)', category: 'Institucional · Flujo',

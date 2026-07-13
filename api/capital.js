@@ -190,6 +190,7 @@ async function quoteMini(sym) { // precio + chg1d server-side (mismo criterio pe
   } catch (e) { return null; }
 }
 async function digest(dry) {
+  const tD0 = Date.now(); // presupuesto global — la narrativa LLM solo corre si sobra tiempo
   // v2 (pedido Angel 2026-07-09): el digest lee el último snapshot del track record y arma
   // el CONTEXTO COMPLETO del sistema — no solo cotizaciones.
   // Review 2026-07-10: los awaits secuenciales sumaban ~45s de peor caso (> maxDuration 30)
@@ -303,6 +304,23 @@ async function digest(dry) {
       }
     }
   } catch (e) { /* el bloque semanal jamás rompe el digest */ }
+  // 🧠 J3 · DIGEST NARRADO (innovación 2026-07-13, patrón Deephaven): Gemini INTERPRETA los
+  // datos del digest — no los repite. Guardas: solo puede usar números presentes en las líneas
+  // (anti-alucinación), presupuesto 9s, y si falla el digest templado sale igual.
+  try {
+    const gKey = process.env.GEMINI_API_KEY;
+    if (gKey && L.length >= 3 && Date.now() - tD0 < 18000) { // si los bloques tardaron, el digest templado sale sin narrativa
+      const promptN = 'Eres Phoenix, el analista del sistema Rebirth Capital de Ángel. Estos son los datos EXACTOS del sistema hoy (líneas de su digest, con HTML de Telegram):\n\n' + L.join('\n')
+        + '\n\nEscribe UNA lectura interpretativa de 3-4 frases en español (máx 380 caracteres): qué manda hoy, la tensión o divergencia principal entre señales, y qué vigilar. REGLAS: usa SOLO números/hechos presentes arriba (cero inventos), sin HTML, sin repetir las cifras una por una, tono directo de mesa de trading, sin disclaimers.';
+      const gr = await budget(fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + gKey, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: promptN }] }], generationConfig: { maxOutputTokens: 220, temperature: 0.4 } }),
+        signal: AbortSignal.timeout(9000)
+      }).then(r2 => r2.json()).catch(() => null), 9500);
+      const narr = gr?.candidates?.[0]?.content?.parts?.map(p2 => p2.text || '').join('').trim();
+      if (narr && narr.length > 40 && narr.length < 700) L.splice(1, 0, '🧠 <i>' + narr.replace(/</g, '&lt;').replace(/\n+/g, ' ') + '</i>');
+    }
+  } catch (e) { /* la narrativa jamás rompe el digest */ }
   // 🩺 salud: si alguna fuente NO respondió al armar ESTE digest, decirlo (dato ausente ≠ dato ok)
   const down = [];
   if (!spy) down.push('Yahoo');
