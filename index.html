@@ -10608,6 +10608,7 @@ const InstDeep = {
     // ── 📐 niveles ──
     try {
       const h60 = d60?.[tk]?.hist, v60 = d60?.[tk]?.vols;
+      this._h60 = h60 || null; this._v60 = v60 || null; // VP por VENTANA en el mapa (pedido Angel 07-12)
       const vp = (h60?.length >= 500) ? volumeProfile(h60, v60, 50) : null;
       const vp1y = volumeProfile(dU.hist, dU.vols, 40);
       const jan1 = new Date().getFullYear() + '-01-01';
@@ -10711,7 +10712,7 @@ const InstDeep = {
           + [[30, '30D'], [90, '90D'], [180, '180D'], [365, '1A']].map(([n, lbl]) =>
               '<button type="button" id="instd-mapw-' + n + '" onclick="InstDeep.setMapWin(' + n + ')" style="font-size:8px;font-family:\'IBM Plex Mono\',monospace;padding:1px 7px;border-radius:3px;cursor:pointer;background:transparent;border:1px solid ' + ((InstDeep._mapWin || 90) === n ? 'var(--gold)' : 'var(--border2)') + ';color:' + ((InstDeep._mapWin || 90) === n ? 'var(--gold)' : 'var(--text3)') + '" title="Ventana del chart de precio (las zonas NO cambian — se computan con su propia lógica multi-timeframe)">' + lbl + '</button>').join(' ')
           + '<div class="ch-wrap" style="height:400px;margin-top:10px"><canvas id="instd-map-cv" role="img" aria-label="Mapa de entrada: precio con zonas institucionales">Mapa de entrada.</canvas></div>'
-          + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual · <span style="color:#2dd4bf">barras laterales = volume profile 60d</span> (dónde se OPERÓ el volumen — la barra más brillante es el POC)</div>'
+          + '<div style="color:var(--text3);font-size:9.5px;margin-top:3px">Bandas: <span style="color:var(--green)">soporte</span> / <span style="color:var(--red)">resistencia</span> (opacidad = score) · <span style="color:#a78bfa">imán</span> · <span style="color:#60a5fa">banda EM</span> · gris = LVN (air pocket) · punteada blanca = precio actual · <span style="color:#2dd4bf">barras laterales = volume profile DE LA VENTANA</span> (cambia con los botones 30D-1A: dónde se operó el volumen EN ESE período — la barra brillante es su POC; ≤60d con barras de 5 min, mayores con diarias)</div>'
           + '<div style="font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text3);margin-top:12px">ESCALERA DE LIQUIDEZ <span style="font-weight:400">— de resistencias (arriba) a soportes (abajo)</span></div>'
           + zonesHtml + lvnHtml + sigmaHtml
           + '<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;margin-top:12px">'
@@ -11017,7 +11018,20 @@ const InstDeep = {
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
-        _emap: { zones, lvns, em, spot, vp: this._vp || null, sig: sigmaChannel(closes) }, // σ: canal ±2σ de la VENTANA visible
+        // VP de la VENTANA (pedido Angel 07-12: "ver la liquidez en diferentes temporalidades"):
+        // ≤60d usa barras de 5m (perfil fino); >60d usa cierres diarios (grueso, declarado en el label)
+        _emap: { zones, lvns, em, spot, sig: sigmaChannel(closes), ...(() => {
+          const win = this._mapWin || 90;
+          try {
+            if (win <= 60 && this._h60?.length >= 500) {
+              const perDay = Math.max(1, Math.round(this._h60.length / 60));
+              const nB = Math.min(this._h60.length, win * perDay);
+              return { vp: volumeProfile(this._h60.slice(-nB), this._v60.slice(-nB), 50), vpSrc: win + 'd · 5m' };
+            }
+            const vpW = volumeProfile(dU.hist.slice(-N), dU.vols.slice(-N), Math.min(50, Math.max(24, Math.round(N / 5))));
+            return { vp: vpW || this._vp || null, vpSrc: vpW ? (win >= 365 ? '1A · diario' : win + 'd · diario') : '60d · 5m' };
+          } catch (e) { return { vp: this._vp || null, vpSrc: '60d · 5m' }; }
+        })() },
         plugins: {
           legend: { display: false },
           tooltip: { mode: 'index', intersect: false, titleFont: { size: 12 }, bodyFont: { size: 12 }, callbacks: { label: c => tk + ': ' + c.parsed.y.toFixed(2) } }
@@ -11057,7 +11071,7 @@ const InstDeep = {
             }
             c2.font = "600 8px 'IBM Plex Mono', monospace";
             c2.fillStyle = 'rgba(45,212,191,.55)';
-            c2.fillText('VP 60d', a2.left + 4, a2.top + 10);
+            c2.fillText('VP ' + (chart2.options._emap?.vpSrc || '60d'), a2.left + 4, a2.top + 10); // el perfil SIGUE a la ventana
           }
           c2.font = "600 8px 'IBM Plex Mono', monospace";
           // 📏 σ-REVERSIÓN (pedido Angel 07-11): canal de regresión ±2σ de la ventana visible —
