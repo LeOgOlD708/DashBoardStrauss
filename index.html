@@ -5230,10 +5230,10 @@ const Terminal = {
         if (W.prim.callWall != null) add('🧲 CW ' + W.primEtf, W.prim.callWall * r, 'var(--green)', 'Call wall de ' + W.primEtf + ' (' + W.prim.callWall + ') en puntos del futuro — techo/imán donde los dealers frenan' + fz(W.prim.callWall) + '.' + aprox);
         if (W.prim.putWall != null) add('🛡 PW ' + W.primEtf, W.prim.putWall * r, 'var(--red)', 'Put wall de ' + W.primEtf + ' (' + W.prim.putWall + ') — soporte/acelerador' + fz(W.prim.putWall) + '.' + aprox);
         if (W.prim.gammaFlip != null) add('⚖ Flip', W.prim.gammaFlip * r, 'var(--gold)', 'Gamma flip de ' + W.primEtf + ' (' + W.prim.gammaFlip + ') — arriba los dealers estabilizan (chop), abajo amplifican (el precio patina).' + aprox);
-        if (W.prim.emDaily > 0 && c.pdc != null) {
-          const emPct = W.prim.emDaily / W.prim.spot;
-          add('EM+', c.pdc * (1 + emPct), 'var(--teal)', 'Expected move del día (+' + (emPct * 100).toFixed(2) + '%, straddle ATM de ' + W.primEtf + ') anclado al cierre previo — el techo del rango "normal" de hoy');
-          add('EM−', c.pdc * (1 - emPct), 'var(--teal)', 'Expected move inferior del día');
+        const emPct = (W.prim.emDaily?.pct ?? null); // emDaily es objeto {exp,dte,em,pct,ivAtm}
+        if (emPct > 0 && c.pdc != null) {
+          add('EM+', c.pdc * (1 + emPct / 100), 'var(--teal)', 'Expected move del día ±' + emPct.toFixed(2) + '% (straddle ATM ' + W.primEtf + ', exp ' + (W.prim.emDaily.exp || '') + ') anclado al cierre previo — el techo del rango "normal" de hoy');
+          add('EM−', c.pdc * (1 - emPct / 100), 'var(--teal)', 'Expected move inferior del día');
         }
       }
       if (W.sec) { // blind spots: los muros del índice hermano — NQ reacciona ahí "sin razón visible en su propia cadena"
