@@ -11106,14 +11106,16 @@ const InstDeep = {
               }
               vpMeta = { forma, vwap, vaMig };
             }
-            // POC MIGRATION LINE (research: "ver la liquidez MOVERSE"): POC de ventana móvil 20d
-            // cada 3 días a lo largo del período visible — la línea del VALOR vs la del precio
+            // POC MIGRATION LINE (research: "ver la liquidez MOVERSE"): POC de ventana móvil 30d
+            // cada 3 días a lo largo del período visible — la línea del VALOR vs la del precio.
+            // (Bug cazado en pruebas multi-activo 07-12: con 21 barras volumeProfile devolvía
+            // null SIEMPRE — su mínimo es 30; la ventana móvil ahora es de 31 barras.)
             const mig = [];
             try {
               const H9 = dU.hist, V9 = dU.vols, total9 = H9.length;
-              const start9 = Math.max(20, total9 - N);
+              const start9 = Math.max(30, total9 - N);
               for (let i9 = start9; i9 < total9; i9 += 3) {
-                const vpm = volumeProfile(H9.slice(i9 - 20, i9 + 1), V9.slice(i9 - 20, i9 + 1), 24);
+                const vpm = volumeProfile(H9.slice(i9 - 30, i9 + 1), V9.slice(i9 - 30, i9 + 1), 24);
                 if (vpm) mig.push({ idx: i9 - (total9 - N), poc: vpm.poc }); // idx en coordenadas de la ventana
               }
             } catch (e) {}
@@ -11201,7 +11203,7 @@ const InstDeep = {
                 if (!st9) { c2.moveTo(x9, y9); st9 = true; } else c2.lineTo(x9, y9);
               }
               c2.stroke(); c2.setLineDash([]);
-              if (st9) { c2.font = "600 8px 'IBM Plex Mono', monospace"; c2.fillStyle = 'rgba(96,165,250,.75)'; c2.fillText('POC móvil 20d', a2.left + 4, a2.top + 34); }
+              if (st9) { c2.font = "600 8px 'IBM Plex Mono', monospace"; c2.fillStyle = 'rgba(96,165,250,.75)'; c2.fillText('POC móvil 30d', a2.left + 4, a2.top + 34); }
             }
             // Cabecera: fuente del perfil + forma Dalton + VWAP + migración del VA
             c2.font = "600 8px 'IBM Plex Mono', monospace";
