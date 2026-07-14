@@ -5383,16 +5383,27 @@ const Terminal = {
       if (!zf) { this._zones = null; return; }
       // semáforo en modo degradado (sin FINRA/SEC/stats — mismo camino que crypto en Radar)
       let sig = null; try { sig = semaphoreSignals(ztk, dU, zf.opt, null, null, null); } catch (e) {}
-      const z = { ztk, spot: zf.spot, zones: zf.zones || [], sig, ts: Date.now() };
+      // ratio espejo→instrumento CONGELADO al cargar (el basis NQ/QQQ es ~constante) —
+      // con ratio vivo las zonas derivarían con el precio en vez de ser niveles fijos.
+      // Crypto: mismas unidades (BTC-USD≈BTC-USDT) → ratio 1.
+      const px = this.feed.bars.length ? this.feed.bars[this.feed.bars.length - 1].c : 0;
+      const ratio = ztk === I.tk ? 1 : (px > 0 && zf.spot > 0 ? px / zf.spot : 1);
+      const z = { ztk, spot: zf.spot, ratio, zones: zf.zones || [], sig, ts: Date.now() };
       this._zCache[ztk] = { ts: Date.now(), z };
       this._zones = z;
-    } catch (e) { this._zones = null; }
+    } catch (e) { if (gen === this._gen) this._zones = null; } // guard: un loader viejo no borra las zonas del instrumento nuevo
   },
   // toggles de overlays del chart (T2) — default todo ON, persistido en cfg
   ov(k) { const o = this.cfg().ov || {}; return o[k] !== false; },
   setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = c.ov[k] === false; this.saveCfg(); this._renderBtns(); this.render(); },
   async feedPoll() {
     const I = this.instr();
+    // T2: refresco de zonas por TTL 30 min — feedStart solo corre al cambiar instrumento/tf,
+    // sin esto las zonas y el chip 🚦 quedarían congelados toda la sesión
+    if (this._zones && Date.now() - this._zones.ts > 1800e3) {
+      const zg = this._gen; this._zones.ts = Date.now(); // anti re-disparo mientras carga
+      this._loadZones(I, zg).then(() => { if (zg === this._gen) this.render(); });
+    }
     // FW/T1: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
     // bucle de reconexión; el badge declara el silencio. Solo reconectar si murió.
     const liveSrc = I.src === 'deriv' || I.src === 'okx';
@@ -5883,9 +5894,10 @@ const Terminal = {
     }
     // ── T2: ZONAS DEL MOTOR — bandas de confluencia diaria, opacidad ∝ score ──
     // (debajo de las velas: contexto, no protagonista; conversión espejo→instrumento por ratio)
-    if (this._zones && this.ov('zonas') && this._zones.zones.length && this._zones.spot > 0) {
-      const zr = c.last / this._zones.spot;
-      const zs = this._zones.zones.filter(z => z.cat !== 'DEBIL').slice(0, 6);
+    if (this._zones && this.ov('zonas') && this._zones.zones.length) {
+      const zr = this._zones.ratio || 1; // congelado al load — las zonas son niveles FIJOS
+      // visibilidad ANTES del top-6: que el score no descarte la única zona dibujable
+      const zs = this._zones.zones.filter(z => z.cat !== 'DEBIL' && z.hi * zr >= pMin && z.lo * zr <= pMax).slice(0, 6);
       g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
       for (const z of zs) {
         const zy1 = Math.max(mt, Y(z.hi * zr)), zy2 = Math.min(mt + ih, Y(z.lo * zr));
@@ -5894,8 +5906,8 @@ const Terminal = {
         const za = Math.min(0.05 + z.score * 0.022, 0.16) * (z.degradada ? 0.55 : 1);
         g.fillStyle = 'rgba(' + zcol + ',' + za.toFixed(3) + ')';
         g.fillRect(ml, zy1, iw, Math.max(2, zy2 - zy1));
-        g.strokeStyle = 'rgba(' + zcol + ',' + (z.cat === 'ENTRADA' ? '.45' : '.25') + ')'; g.setLineDash([6, 4]);
-        g.beginPath(); g.moveTo(ml, Y(z.mid * zr)); g.lineTo(ml + iw, Y(z.mid * zr)); g.stroke(); g.setLineDash([]);
+        const my = Y(z.mid * zr);
+        if (my >= mt && my <= mt + ih) { g.strokeStyle = 'rgba(' + zcol + ',' + (z.cat === 'ENTRADA' ? '.45' : '.25') + ')'; g.setLineDash([6, 4]); g.beginPath(); g.moveTo(ml, my); g.lineTo(ml + iw, my); g.stroke(); g.setLineDash([]); }
         g.fillStyle = 'rgba(' + zcol + ',.85)';
         g.fillText((z.cat === 'ENTRADA' ? '◆' : '◇') + ' ' + z.side.toUpperCase() + ' ×' + z.score.toFixed(1) + (z.degradada ? ' (gastada ' + z.touches + ' toques)' : ''), ml + 4, Math.max(mt + 6, Math.min((zy1 + zy2) / 2, mt + ih - 6)));
       }
