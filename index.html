@@ -5248,7 +5248,7 @@ const Terminal = {
     const [d5, d1] = await Promise.all([
       fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=5d&hl=1&ts=1').then(r => r.json()),
       fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=' + r1 + '&hl=1&ts=1').then(r => r.json()),
-      this._loadWalls(I), // F3: muros en paralelo (cache 1h propio; null en forex)
+      this._loadWalls(I, gen), // F3: muros en paralelo (cache 1h propio; null en forex)
     ]);
     if (gen !== undefined && gen !== this._gen) return; // fix #1: respuesta tardía de otro instrumento
     this.feed.bars30 = this._norm(d5?.[I.tk]);
@@ -5504,8 +5504,9 @@ const Terminal = {
   // ── F3: muros gamma del ETF espejo convertidos al futuro + blind spots del índice hermano ──
   // NQ ← cadena QQQ (primaria) + SPY (blind spots) · ES ← SPY + QQQ. Conversión por ratio de
   // precios spot (custom-conv estilo GEXBOT, aprox declarada: el basis del futuro mete ±pts).
-  _optCache: {}, _walls: null,
-  async _loadWalls(I) {
+  _optCache: {}, _walls: null, _wallsT: 0,
+  async _loadWalls(I, gen) {
+    this._wallsT = Date.now();
     if (I.fx) { this._walls = null; return; }
     const map = { 'NQ=F': ['QQQ', 'SPY'], 'ES=F': ['SPY', 'QQQ'] };
     const [prim, sec] = map[I.tk] || [];
@@ -5521,6 +5522,7 @@ const Terminal = {
       return null;
     };
     const [p, s] = await Promise.all([get(prim), get(sec)]);
+    if (gen !== undefined && gen !== this._gen) return; // un loader viejo no escribe muros del instrumento nuevo
     this._walls = (p || s) ? { prim: p, sec: s, primEtf: prim, secEtf: sec } : null;
   },
   // fuerza del muro (misma métrica que Tab 09): % del GEX total de la ventana en ese strike
@@ -5572,6 +5574,12 @@ const Terminal = {
     if (this._zones && Date.now() - this._zones.ts > 1800e3) {
       const zg = this._gen; this._zones.ts = Date.now(); // anti re-disparo mientras carga
       this._loadZones(I, zg).then(() => { if (zg === this._gen) this.render(); });
+    }
+    // muros: mismo trato (antes solo cargaban en feedStart — el chip Γ del veredicto y las
+    // líneas CW/PW quedaban congelados toda la sesión; la cadena CBOE es delayed 15m igualmente)
+    if (this._walls && Date.now() - this._wallsT > 1800e3) {
+      const wg = this._gen;
+      this._loadWalls(I, wg).then(() => { if (wg === this._gen && !document.hidden) this.render(); });
     }
     // FW/T1: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
     // bucle de reconexión; el badge declara el silencio. Solo reconectar si murió.
@@ -5769,7 +5777,10 @@ const Terminal = {
     if (!bars.length) return null;
     const today = bars[bars.length - 1].et.d; // día ET de la última barra (sesión en curso)
     const rth = bars.filter(b => b.et.d === today && b.et.m >= 570 && b.et.m < 960);
-    const on = I.fx ? [] : bars.filter(b => !(b.et.d === today && b.et.m >= 570 && b.et.m < 960) && b.t < this.epochET(today, 570));
+    // overnight: en crypto 24/7 el buffer OKX cubre ~2 días — se acota a la ventana Globex
+    // equivalente (16:00 ET previo → 9:30 hoy = 63000s) para que ONH/ONL no salgan inflados
+    const onFrom = I.src === 'okx' ? this.epochET(today, 570) - 63000 : 0;
+    const on = I.fx ? [] : bars.filter(b => !(b.et.d === today && b.et.m >= 570 && b.et.m < 960) && b.t < this.epochET(today, 570) && b.t >= onFrom);
     const hi = a => a.length ? Math.max(...a.map(b => b.h)) : null, lo = a => a.length ? Math.min(...a.map(b => b.l)) : null;
     // VWAP: RTH si abrió; si no, sesión completa (Globex) — etiquetado. Forex: sin volumen → null.
     const vwapSrc = rth.length ? rth : bars, vwapLbl = rth.length ? 'VWAP RTH' : 'VWAP sesión';
@@ -5863,6 +5874,9 @@ const Terminal = {
   _atr() { const b = this.feed.bars; if (b.length < 15) return null; let s = 0; for (let i = b.length - 14; i < b.length; i++) s += Math.max(b[i].h, b[i - 1].c) - Math.min(b[i].l, b[i - 1].c); return s / 14; },
   renderRisk() {
     const el = document.getElementById('term-risk'); if (!el) return;
+    // el repintado por tick del WS (~5s) NO debe pisar lo que Angel está tecleando:
+    // con el foco dentro del panel no se reconstruye (se repinta al salir del input)
+    if (el.contains(document.activeElement)) return;
     const I = this.instr(), cfg = this.cfg();
     const prop = cfg.prop || 'none', bal = +cfg.balance || 10000, riskPct = +cfg.riskPct || 0.5;
     const P = this.PROPS[prop], dll = P.dll(bal), maxL = P.max(bal);
@@ -5954,8 +5968,10 @@ const Terminal = {
     // 1) BIAS del día — regla 82%: el primer breakout del IB suele definir la dirección
     if (c) {
       if (!I.fx && c.rth.length && !c.ibLive && c.ibh != null) {
-        if (c.last > c.ibh) parts.push(['🟢 BIAS LONG', 'var(--green)', 'IB roto ARRIBA (regla 82%, NQ 2015-2025): el primer breakout suele definir el día — no operar contra este bias sin razón fuerte']);
-        else if (c.last < c.ibl) parts.push(['🔴 BIAS SHORT', 'var(--red)', 'IB roto ABAJO — bias vendedor del día (regla 82%)']);
+        // la estadística 82% es de NQ — en crypto el IB es marco prestado, no ley
+        const ibCav = I.src === 'okx' ? ' (marco de futuros US aplicado a crypto: la estadística 82% es de NQ, tómala como referencia, no como ley)' : '';
+        if (c.last > c.ibh) parts.push(['🟢 BIAS LONG', 'var(--green)', 'IB roto ARRIBA' + (I.src === 'okx' ? ibCav : ' (regla 82%, NQ 2015-2025)') + ': el primer breakout suele definir el día — no operar contra este bias sin razón fuerte']);
+        else if (c.last < c.ibl) parts.push(['🔴 BIAS SHORT', 'var(--red)', 'IB roto ABAJO — bias vendedor del día' + (I.src === 'okx' ? ibCav : ' (regla 82%)')]);
         else parts.push(['⚪ DENTRO DEL IB', 'var(--text2)', 'El precio volvió dentro del Initial Balance — día aún sin dueño; ojo con falsos breakouts (34% histórico)']);
       } else if (!I.fx && c.ibLive) parts.push(['⏳ IB EN CONSTRUCCIÓN', 'var(--purple)', 'Primera hora RTH (9:30-10:30 ET) — el bias del día se define al romper este rango']);
       else if (c.pdc != null) { const g = (c.last / c.pdc - 1) * 100; parts.push([(g >= 0 ? '↗ overnight +' : '↘ overnight −') + Math.abs(g).toFixed(2) + '%', g >= 0 ? 'var(--green)' : 'var(--red)', 'Dirección de la sesión ' + (I.fx ? 'del día' : 'Globex') + ' vs cierre previo — el bias formal llega con el IB (9:30-10:30 ET)']); }
@@ -6026,8 +6042,8 @@ const Terminal = {
     add('PDH', c.pdh, 'var(--gold)', 'High del día previo (' + (c.prevD || '') + ') — imán/barrido clásico');
     add('PDL', c.pdl, 'var(--gold)', 'Low del día previo');
     add('PDC', c.pdc, 'var(--text2)', 'Cierre previo — referencia del gap');
-    add('ONH', c.onh, 'var(--teal)', 'High overnight (Globex) — extremo del balance nocturno, imán de la sesión NY (Isra)');
-    add('ONL', c.onl, 'var(--teal)', 'Low overnight');
+    add('ONH', c.onh, 'var(--teal)', I.src === 'okx' ? 'High overnight (16:00 ET previo → 9:30) — BTC opera 24/7; ventana equivalente a Globex para leer la sesión US' : 'High overnight (Globex) — extremo del balance nocturno, imán de la sesión NY (Isra)');
+    add('ONL', c.onl, 'var(--teal)', I.src === 'okx' ? 'Low overnight (ventana 16:00 ET previo → 9:30)' : 'Low overnight');
     add('IB High', c.ibh, 'var(--purple)', 'Initial Balance 9:30-10:30 ET' + (c.ibLive ? ' (EN CONSTRUCCIÓN)' : '') + ' — la regla 82%: el primer breakout suele definir el bias');
     add('IB Low', c.ibl, 'var(--purple)', 'Initial Balance low');
     add('OR 15m H', c.orh, 'var(--text3)', 'Opening range 15 min high');
