@@ -2873,7 +2873,11 @@ html.auth-ok #auth-gate{display:none}
     #tab-term.term-ck{position:fixed;inset:0;z-index:9999;overflow:auto;background:var(--bg);padding:10px 16px;margin:0;display:block!important}
     .term-ck-root{overflow:hidden}
     #tab-term.term-ck #term-chart{height:calc(100vh - 480px)!important;min-height:380px}
-    @media (max-width:640px){#tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}}
+    /* V5 móvil: el chart manda — más alto en pantalla chica (Angel: "no se ve nada") */
+    @media (max-width:640px){
+      #tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}
+      #tab-term #term-chart{height:56vh;min-height:360px}
+    }
     /* T4: marquee de noticias — corre de verdad, pausa al hover */
     #term-news{overflow:hidden;white-space:nowrap;border:1px solid var(--border2);border-radius:6px;padding:5px 0;margin-bottom:14px;background:var(--surface)}
     #term-news .tm-in{display:inline-block;padding-left:100%;animation:term-marq var(--tm-dur,90s) linear infinite;will-change:transform}
@@ -6467,14 +6471,23 @@ const Terminal = {
         const zy1 = Math.max(mt, Y(z.hi * zr)), zy2 = Math.min(mt + ih, Y(z.lo * zr));
         if (zy2 <= mt || zy1 >= mt + ih || zy2 - zy1 < 1) continue; // fuera del rango visible
         const zcol = z.side === 'soporte' ? '52,211,153' : '248,113,113';
-        const za = Math.min(0.05 + z.score * 0.022, 0.16) * (z.degradada ? 0.55 : 1);
+        const enZona = c.last >= z.lo * zr && c.last <= z.hi * zr; // V5: la zona ACTIVA grita
+        const za = Math.min(0.09 + z.score * 0.04, 0.28) * (z.degradada ? 0.55 : 1) * (enZona ? 1.35 : 1);
         g.fillStyle = 'rgba(' + zcol + ',' + za.toFixed(3) + ')';
         g.fillRect(ml, zy1, iw, Math.max(2, zy2 - zy1));
+        // bordes sólidos lo/hi — la zona se VE como zona, no como mancha (V5)
+        g.strokeStyle = 'rgba(' + zcol + ',' + (enZona ? '.9' : '.5') + ')'; g.lineWidth = enZona ? 1.6 : 1;
+        if (enZona) { g.shadowColor = 'rgba(' + zcol + ',.8)'; g.shadowBlur = 7; }
+        g.beginPath(); g.moveTo(ml, zy1); g.lineTo(ml + iw, zy1); g.moveTo(ml, zy2); g.lineTo(ml + iw, zy2); g.stroke();
+        g.shadowBlur = 0; g.lineWidth = 1;
         const my = Y(z.mid * zr);
         if (my >= mt && my <= mt + ih) { g.strokeStyle = 'rgba(' + zcol + ',' + (z.cat === 'ENTRADA' ? '.45' : '.25') + ')'; g.setLineDash([6, 4]); g.beginPath(); g.moveTo(ml, my); g.lineTo(ml + iw, my); g.stroke(); g.setLineDash([]); }
-        g.fillStyle = 'rgba(' + zcol + ',.85)';
         const su = (this._setups || []).find(x => x.z === z); // V4: las estrellas viven junto a su zona
-        g.fillText((z.cat === 'ENTRADA' ? '◆' : '◇') + ' ' + z.side.toUpperCase() + ' ×' + z.score.toFixed(1) + (su ? ' ' + '★'.repeat(Math.round(su.stars)) : '') + (z.degradada ? ' (gastada ' + z.touches + ' toques)' : ''), ml + 4, Math.max(mt + 6, Math.min((zy1 + zy2) / 2, mt + ih - 6)));
+        g.font = 'bold 10px "IBM Plex Mono",monospace';
+        g.fillStyle = 'rgba(' + zcol + ',.95)';
+        g.fillText((enZona ? '▶ EN ZONA · ' : '') + (z.cat === 'ENTRADA' ? '◆' : '◇') + ' ' + z.side.toUpperCase() + ' ×' + z.score.toFixed(1) + (z.degradada ? ' (gastada)' : ''), ml + 4, Math.max(mt + 7, Math.min((zy1 + zy2) / 2, mt + ih - 7)));
+        if (su) { g.fillStyle = '#d4a94b'; g.fillText('★'.repeat(Math.round(su.stars)) + '☆'.repeat(5 - Math.round(su.stars)), ml + 4, Math.max(mt + 18, Math.min((zy1 + zy2) / 2 + 12, mt + ih - 7))); }
+        g.font = '8.5px "IBM Plex Mono",monospace';
       }
     }
     // ── V1: PERFIL DE VOLUMEN de la sesión — histograma lateral derecho, bajo las velas ──
@@ -6486,7 +6499,7 @@ const Terminal = {
         if (py2 < mt || py1 > mt + ih) continue;
         const w = S.bins[i] / S.max * maxW;
         const inVA = i >= S.vaLoI && i <= S.vaHiI;
-        g.fillStyle = inVA ? 'rgba(201,168,76,.17)' : 'rgba(201,168,76,.07)';
+        g.fillStyle = inVA ? 'rgba(201,168,76,.30)' : 'rgba(201,168,76,.12)'; // V5: el perfil se VE
         g.fillRect(ml + iw - w, Math.max(mt, py1), w, Math.max(1, Math.min(mt + ih, py2) - Math.max(mt, py1)));
       }
     }
@@ -6505,10 +6518,11 @@ const Terminal = {
         const hx = X(bi2) - bw2 / 2 + ((s.t - anchor2) / tfs2) * bw2;
         for (const [hp, husd] of s.rows) {
           if (hp < pMin || hp > pMax) continue;
-          const ha = Math.min(0.5, Math.pow(husd / ref2, 0.6) * 0.5);
-          if (ha < 0.03) continue;
-          g.fillStyle = 'rgba(201,168,76,' + ha.toFixed(3) + ')';
-          g.fillRect(hx, Y(hp) - 1, Math.max(2, bw2 * 0.1), 2);
+          const rel = husd / ref2, ha = Math.min(0.8, Math.pow(rel, 0.5) * 0.7); // V5: curva más brillante
+          if (ha < 0.05) continue;
+          // dos tonos: liquidez normal dorada · top decile ROJO-ámbar (el muro grita)
+          g.fillStyle = rel >= 1 ? 'rgba(251,146,60,' + ha.toFixed(3) + ')' : 'rgba(201,168,76,' + ha.toFixed(3) + ')';
+          g.fillRect(hx, Y(hp) - 1.5, Math.max(2.5, bw2 * 0.12), 3);
         }
       }
     }
@@ -6562,22 +6576,26 @@ const Terminal = {
       const DA = this._da;
       if (DA && DA.cov.length) {
         const maxD = Math.max(...DA.cov.map(x => Math.abs(x.delta))) || 1;
-        const base = mt + ih - 13, amp = 11;
+        const base = mt + ih - 18, amp = 15; // V5: la tira respira y se ve
+        const dw = Math.max(2.5, iw / bars.length * 0.55);
         for (const x of DA.cov) {
-          const h2 = Math.max(1, Math.abs(x.delta) / maxD * amp);
-          g.fillStyle = x.delta >= 0 ? 'rgba(52,211,153,.5)' : 'rgba(248,113,113,.5)';
-          g.fillRect(X(x.i) - 1.5, x.delta >= 0 ? base - h2 : base, 3, h2);
+          const h2 = Math.max(1.5, Math.abs(x.delta) / maxD * amp);
+          g.fillStyle = x.delta >= 0 ? 'rgba(52,211,153,.7)' : 'rgba(248,113,113,.7)';
+          g.fillRect(X(x.i) - dw / 2, x.delta >= 0 ? base - h2 : base, dw, h2);
         }
         g.strokeStyle = 'rgba(125,111,99,.35)'; g.beginPath(); g.moveTo(X(DA.cov[0].i) - 3, base); g.lineTo(X(DA.cov[DA.cov.length - 1].i) + 3, base); g.stroke();
-        g.font = '10px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+        g.font = '13px "IBM Plex Mono",monospace'; g.textBaseline = 'middle'; // V5: marcadores visibles en móvil
         if (DA.div && DA.divAt && DA.divAt.h >= pMin && DA.divAt.l <= pMax) {
-          g.fillStyle = '#fbbf24';
-          g.fillText('⚠', X(DA.divAt.i) - 5, Y(DA.div === 'bajista' ? DA.divAt.h : DA.divAt.l) + (DA.div === 'bajista' ? -10 : 10));
+          g.fillStyle = '#fbbf24'; g.shadowColor = '#fbbf24'; g.shadowBlur = 6;
+          g.fillText('⚠', X(DA.divAt.i) - 6, Y(DA.div === 'bajista' ? DA.divAt.h : DA.divAt.l) + (DA.div === 'bajista' ? -11 : 11));
+          g.shadowBlur = 0;
         }
         if (DA.abs && DA.abs.h >= pMin && DA.abs.l <= pMax) {
-          g.fillStyle = '#2dd4bf';
-          g.fillText('🧲', X(DA.abs.i) - 6, Y(DA.abs.side === 'compradora' ? DA.abs.l : DA.abs.h) + (DA.abs.side === 'compradora' ? 12 : -12));
+          g.fillStyle = '#2dd4bf'; g.shadowColor = '#2dd4bf'; g.shadowBlur = 6;
+          g.fillText('🧲', X(DA.abs.i) - 7, Y(DA.abs.side === 'compradora' ? DA.abs.l : DA.abs.h) + (DA.abs.side === 'compradora' ? 13 : -13));
+          g.shadowBlur = 0;
         }
+        g.font = '8.5px "IBM Plex Mono",monospace';
       }
     }
     // ── V2: marcadores 🎯 de la señal FADE (hoy, este instrumento) — ámbar=pendiente ✓verde ✗rojo ──
