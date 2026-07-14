@@ -5025,6 +5025,10 @@ const Terminal = {
   // 5m/30m, SIN cuenta ni token, app_id público). Reemplaza a OANDA (cuenta imposible).
   DERIVSYM: { 'EURUSD=X': 'frxEURUSD', 'GBPUSD=X': 'frxGBPUSD' },
   _ws: null, _wsLastTick: 0, _derivDeadUntil: 0, _lastPaint: 0,
+  // fix review #1: token de generación — un switch de instrumento invalida cualquier
+  // carga EN VUELO (sin esto, un doble-switch rápido en FX dejaba los ticks del par
+  // viejo pintándose bajo la etiqueta del nuevo). _pendingStart re-dispara al soltar _busy.
+  _gen: 0, _pendingStart: false, _flowBusy: false,
   INSTRS: [
     { tk: 'NQ=F', lbl: 'NQ', name: 'Nasdaq 100 futuro', fx: false, dec: 0 },
     { tk: 'ES=F', lbl: 'ES', name: 'S&P 500 futuro', fx: false, dec: 1 },
@@ -5130,7 +5134,7 @@ const Terminal = {
     const fr = document.getElementById('term-fresh');
     if (fr && this.feed.lastOk) {
       const age = Math.floor(Date.now() / 1000 - this.feed.lastOk);
-      const fxWs = this.instr().fx && this._ws;
+      const fxWs = this.instr().fx && this._ws && this._ws.readyState === 1; // fix #5: socket ABIERTO, no solo existente
       const live = fxWs && Date.now() - this._wsLastTick < 30e3;
       fr.innerHTML = live ? '<span style="color:var(--teal)">⚡ EN VIVO (Deriv WS) · último tick hace ' + age + 's</span>'
         : fxWs ? '<span style="color:var(--text3)">◐ stream Deriv conectado, mercado sin ticks · último dato hace ' + (age > 180 ? Math.floor(age / 60) + 'm' : age + 's') + '</span>'
@@ -5145,38 +5149,42 @@ const Terminal = {
     const cur = this.instr().tk;
     el.innerHTML = this.INSTRS.map(i => '<button type="button" onclick="Terminal.setInstr(\'' + i.tk + '\')" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-right:4px;border:1px solid ' + (i.tk === cur ? 'var(--teal)' : 'var(--border2)') + ';color:' + (i.tk === cur ? 'var(--teal)' : 'var(--text3)') + ';background:' + (i.tk === cur ? 'rgba(45,212,191,.08)' : 'transparent') + '">' + i.lbl + '</button>').join('');
   },
-  setInstr(tk) { this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
       .filter(b => b.c != null && b.h != null && b.l != null).map(b => { b.et = this.etParts(b.t); return b; });
   },
   async feedStart() {
-    if (this._busy) return; this._busy = true;
+    if (this._busy) { this._pendingStart = true; return; } // fix #1: no perder el switch
+    this._busy = true;
+    const gen = this._gen;
     const I = this.instr();
     document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Cargando ' + I.lbl + '…</span>';
     this._wsKill();
     try {
       if (I.fx && this.DERIVSYM[I.tk] && Date.now() > this._derivDeadUntil) {
         // FW: forex por Deriv WS (velas + stream). Si muere → Yahoo 10 min y reintento.
-        try { await this._derivStart(I); this._walls = null; }
-        catch (e) { console.warn('[Terminal] Deriv caído → fallback Yahoo:', e); this._derivDeadUntil = Date.now() + 600e3; this._wsKill(); await this._yahooStart(I); }
-      } else await this._yahooStart(I);
-      this.render();
-    } catch (e) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; }
+        try { await this._derivStart(I, gen); this._walls = null; }
+        catch (e) { console.warn('[Terminal] Deriv caído → fallback Yahoo:', e); this._derivDeadUntil = Date.now() + 600e3; this._wsKill(); if (gen === this._gen) await this._yahooStart(I, gen); }
+      } else await this._yahooStart(I, gen);
+      if (gen === this._gen) this.render();
+    } catch (e) { if (gen === this._gen) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; } }
     this._busy = false;
+    if (this._pendingStart) { this._pendingStart = false; this.feedStart(); }
   },
-  async _yahooStart(I) {
+  async _yahooStart(I, gen) {
     const [d5, d1] = await Promise.all([
       fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=5d&hl=1&ts=1').then(r => r.json()),
       fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json()),
       this._loadWalls(I), // F3: muros en paralelo (cache 1h propio; null en forex)
     ]);
+    if (gen !== undefined && gen !== this._gen) return; // fix #1: respuesta tardía de otro instrumento
     this.feed.bars30 = this._norm(d5?.[I.tk]); this.feed.bars = this._norm(d1?.[I.tk]);
     if (this.feed.bars.length) this.feed.lastOk = Date.now() / 1000;
   },
   // ── FW: bootstrap de velas + suscripción OHLC 5m por Deriv WS ──
-  _derivStart(I) {
+  _derivStart(I, gen) {
     const sym = this.DERIVSYM[I.tk];
     return new Promise((res, rej) => {
       const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
@@ -5189,6 +5197,7 @@ const Terminal = {
         ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: 300, count: 300, end: 'latest', adjust_start_time: 1, subscribe: 1, req_id: 5 }));
       };
       ws.onmessage = ev => {
+        if (gen !== undefined && gen !== this._gen) return; // fix #1: socket de otra generación
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
         if (m.error) { if (!settled) { settled = true; clearTimeout(to); rej(new Error(m.error.message || 'deriv error')); } return; }
         if (m.candles) {
@@ -5203,16 +5212,17 @@ const Terminal = {
           const b = { t, h: +m.ohlc.high, l: +m.ohlc.low, c: +m.ohlc.close, v: 0, et: this.etParts(t) };
           const arr = this.feed.bars, lastB = arr[arr.length - 1];
           if (lastB && lastB.t === t) arr[arr.length - 1] = b; else if (!lastB || t > lastB.t) arr.push(b);
+          if (arr.length > 600) arr.shift(); // fix #2: cap (pestaña abierta días no acumula miles)
           this.feed.lastOk = Date.now() / 1000; this._wsLastTick = Date.now();
           // repintar con moderación (los updates llegan ~1/s; el mapa entero no necesita 60fps)
           if (Date.now() - this._lastPaint > 5000 && !document.hidden) { this._lastPaint = Date.now(); this.render(); }
         }
       };
-      ws.onclose = () => { if (!settled) { settled = true; clearTimeout(to); rej(new Error('Deriv WS cerrado')); } this._wsLastTick = 0; };
+      ws.onclose = () => { if (!settled) { settled = true; clearTimeout(to); rej(new Error('Deriv WS cerrado')); } if (this._ws === ws) this._wsLastTick = 0; }; // fix #2: no tocar el estado del socket nuevo
       ws.onerror = () => {};
     });
   },
-  _wsKill() { if (this._ws) { try { this._ws.onmessage = null; this._ws.close(); } catch (e) {} this._ws = null; } this._wsLastTick = 0; },
+  _wsKill() { if (this._ws) { const w = this._ws; try { w.onmessage = null; w.onclose = null; w.onerror = null; w.close(); } catch (e) {} this._ws = null; } this._wsLastTick = 0; },
   // ── F3: muros gamma del ETF espejo convertidos al futuro + blind spots del índice hermano ──
   // NQ ← cadena QQQ (primaria) + SPY (blind spots) · ES ← SPY + QQQ. Conversión por ratio de
   // precios spot (custom-conv estilo GEXBOT, aprox declarada: el basis del futuro mete ±pts).
@@ -5267,22 +5277,29 @@ const Terminal = {
     return s;
   },
   async _flowLoad() {
+    if (this._flowBusy) return; this._flowBusy = true; // fix review #6: sin fetches solapados
     const I = this.instr(), etf = this.FLOWETF[I.tk];
-    if (!etf) { this._flowRender(); return; }
+    if (!etf) { this._flowBusy = false; this._flowRender(); return; }
     try {
       const j = await fetch('/api/capital?src=opt&tickers=' + etf + '&live=1').then(r => r.json());
       const d = j && !j.error && j.spot > 0 ? j : null; // single-ticker devuelve objeto PLANO
       if (d) {
         this._flowData = { etf, np: d.netPremM, dex: d.dexTotalBn, gexV: d.gexVolTotalBn, flipV: d.flipVol };
         this._flowT = Date.now();
-        const s = this._hiroSeries(etf), last = s.pts[s.pts.length - 1], now = Math.floor(Date.now() / 1000);
-        if (!last || now - last.t > 480 || last.np !== d.netPremM) {
-          s.pts.push({ t: now, np: d.netPremM, dex: d.dexTotalBn });
-          if (s.pts.length > 150) s.pts.shift();
-          try { localStorage.setItem('term_hiro_v1', JSON.stringify(s)); } catch (e) {}
+        // fix review #4: la CURVA solo muestrea en RTH — pre-market la cadena aún sirve
+        // el acumulado de AYER y sembraba un falso "apagándose ↓" en la apertura
+        const nowM = this.etParts(Date.now() / 1000).m;
+        if (nowM >= 570 && nowM < 960) {
+          const s = this._hiroSeries(etf), last = s.pts[s.pts.length - 1], now = Math.floor(Date.now() / 1000);
+          if (!last || now - last.t > 480 || last.np !== d.netPremM) {
+            s.pts.push({ t: now, np: d.netPremM, dex: d.dexTotalBn });
+            if (s.pts.length > 150) s.pts.shift();
+            try { localStorage.setItem('term_hiro_v1', JSON.stringify(s)); } catch (e) {}
+          }
         }
       }
     } catch (e) { /* el badge declara la edad; el próximo tick reintenta */ }
+    this._flowBusy = false;
     this._flowRender();
   },
   _flowRender() {
@@ -5300,9 +5317,12 @@ const Terminal = {
     const first = s.pts[0], lastP = s.pts[s.pts.length - 1];
     const slope = (first && lastP && s.pts.length > 1) ? lastP.np - first.np : 0;
     const dir = s.pts.length < 2 ? '· primera muestra del día' : slope > 3 ? '<span style="color:var(--green)">construyéndose ↑</span>' : slope < -3 ? '<span style="color:var(--red)">apagándose ↓</span>' : 'plano →';
-    // z-vol: última barra CERRADA vs las 30 previas del mismo día ET (solo futuros con volumen)
+    // z-vol: última barra RTH CERRADA vs las 30 previas RTH del MISMO día ET —
+    // fix review #3: sin acotar a RTH, la 1ª barra de 9:30 se comparaba contra
+    // volumen overnight fino → "⚡ anómala" falsa cada apertura
     let zTxt = '';
-    const bars = this.feed.bars.filter(b => b.v > 0);
+    const zDay = this.feed.bars.length ? this.feed.bars[this.feed.bars.length - 1].et.d : null;
+    const bars = this.feed.bars.filter(b => b.v > 0 && b.et.d === zDay && b.et.m >= 570 && b.et.m < 960);
     if (bars.length > 12) {
       const closed = bars.slice(0, -1), lastB = closed[closed.length - 1];
       const win = closed.slice(-31, -1);
@@ -5315,12 +5335,13 @@ const Terminal = {
     // rango restante esperado: σ EWMA λ0.94 de retornos 5m del día × √(barras a 16:00) — aprox declarada
     let ewTxt = '';
     const rets = []; const db = this.feed.bars;
-    for (let i = 1; i < db.length; i++) if (db[i].et.d === db[db.length - 1].et.d && db[i - 1].c > 0) rets.push(Math.log(db[i].c / db[i - 1].c));
+    // fix review #3: exigir que AMBAS barras sean del mismo día (sin el gap overnight en la serie)
+    for (let i = 1; i < db.length; i++) if (db[i].et.d === db[db.length - 1].et.d && db[i - 1].et.d === db[i].et.d && db[i - 1].c > 0) rets.push(Math.log(db[i].c / db[i - 1].c));
     if (rets.length > 12) {
       let v = rets[0] * rets[0];
       for (let i = 1; i < rets.length; i++) v = 0.94 * v + 0.06 * rets[i] * rets[i];
       const nowM = this.etParts(Date.now() / 1000).m;
-      const barsLeft = Math.max(0, Math.floor((960 - nowM) / 5));
+      const barsLeft = nowM < 570 ? 78 : Math.max(0, Math.floor((960 - nowM) / 5)); // pre-market = RTH completo
       if (barsLeft > 0) {
         const px = db[db.length - 1].c, rng = px * Math.sqrt(v) * Math.sqrt(barsLeft);
         ewTxt = '<div style="margin-top:2px;color:var(--text3)">rango restante esperado ±' + (I.dec ? rng.toFixed(I.dec) : Math.round(rng)) + ' hasta 16:00 <span style="font-size:8.5px">(σ EWMA λ.94 — aprox; GARCH real llega con F6)</span></div>';

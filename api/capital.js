@@ -932,7 +932,9 @@ module.exports = async (req, res) => {
         res.setHeader('Cache-Control', req.query.live ? 's-maxage=600, stale-while-revalidate=600' : 's-maxage=3600, stale-while-revalidate=3600');
         return res.status(200).json(out);
       } catch (e) {
-        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // el "sin opciones" tampoco cambia en 1h
+        // fix review F7: un hiccup de CBOE no debe congelar el slow-HIRO 1h — la rama
+        // live cachea el error solo 60s; la normal sigue en 1h ("sin opciones" no cambia)
+        res.setHeader('Cache-Control', req.query.live ? 's-maxage=60, stale-while-revalidate=60' : 's-maxage=3600, stale-while-revalidate=3600');
         return res.status(200).json({ error: e.message });
       }
     }

@@ -308,7 +308,9 @@ module.exports = async (req, res) => {
   // No cachear si todo falló y no hay events
   const cacheControl = (errors.length > 0 && results.length === 0)
     ? 'max-age=0, no-cache, no-store'
-    : 's-maxage=14400, stale-while-revalidate=3600';
+    : ff.length === 0
+      ? 's-maxage=900, stale-while-revalidate=3600' // fix review F9: FF caído no se congela 4h — reintento en 15 min
+      : 's-maxage=14400, stale-while-revalidate=3600';
   res.setHeader('Cache-Control', cacheControl);
   return res.status(200).json({
     events: results,
