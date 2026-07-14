@@ -2867,6 +2867,13 @@ html.auth-ok #auth-gate{display:none}
     <div id="term-sessbar" style="height:34px"></div>
   </div>
 
+  <!-- T1 COCKPIT: el Terminal toma la pantalla completa como overlay; ESC sale -->
+  <style>
+    #tab-term.term-ck{position:fixed;inset:0;z-index:9999;overflow:auto;background:var(--bg);padding:10px 16px;margin:0;display:block!important}
+    .term-ck-root{overflow:hidden}
+    #tab-term.term-ck #term-chart{height:calc(100vh - 480px)!important;min-height:380px}
+    @media (max-width:640px){#tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}}
+  </style>
   <!-- ② MAPA DE NIVELES -->
   <div class="sh" style="margin-top:12px"><div class="sh-tag">Terminal</div><div class="sh-title">Mapa de Niveles del Día — los imanes de la sesión</div><button class="glossary-btn" onclick="openGlossary('terminal-mapa-niveles')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
@@ -5029,12 +5036,24 @@ const Terminal = {
   // carga EN VUELO (sin esto, un doble-switch rápido en FX dejaba los ticks del par
   // viejo pintándose bajo la etiqueta del nuevo). _pendingStart re-dispara al soltar _busy.
   _gen: 0, _pendingStart: false, _flowBusy: false,
+  // T1 COCKPIT: dos grupos (dropdowns) — src decide el feed: yahoo (delayed) ·
+  // deriv (WS vivo, spot sin volumen) · okx (WS vivo CON volumen → VWAP real).
+  // crypto va como fx:false a propósito: tiene volumen y sesión RTH computable.
   INSTRS: [
-    { tk: 'NQ=F', lbl: 'NQ', name: 'Nasdaq 100 futuro', fx: false, dec: 0 },
-    { tk: 'ES=F', lbl: 'ES', name: 'S&P 500 futuro', fx: false, dec: 1 },
-    { tk: 'EURUSD=X', lbl: 'EURUSD', name: 'Euro/Dólar spot', fx: true, dec: 5 },
-    { tk: 'GBPUSD=X', lbl: 'GBPUSD', name: 'Libra/Dólar spot', fx: true, dec: 5 },
+    { tk: 'NQ=F', lbl: 'NQ · Nasdaq 100', grp: 'idx', src: 'yahoo', fx: false, dec: 0 },
+    { tk: 'ES=F', lbl: 'ES · S&P 500', grp: 'idx', src: 'yahoo', fx: false, dec: 1 },
+    { tk: 'BTC-USD', lbl: 'BTC · Bitcoin', grp: 'idx', src: 'okx', okx: 'BTC-USDT', fx: false, dec: 0 },
+    { tk: 'ETH-USD', lbl: 'ETH · Ethereum', grp: 'idx', src: 'okx', okx: 'ETH-USDT', fx: false, dec: 1 },
+    { tk: 'XAUUSD=X', lbl: 'ORO · XAU/USD', grp: 'idx', src: 'deriv', deriv: 'frxXAUUSD', fx: true, dec: 2 },
+    { tk: 'EURUSD=X', lbl: 'EUR/USD', grp: 'fx', src: 'deriv', deriv: 'frxEURUSD', fx: true, dec: 5 },
+    { tk: 'GBPUSD=X', lbl: 'GBP/USD', grp: 'fx', src: 'deriv', deriv: 'frxGBPUSD', fx: true, dec: 5 },
+    { tk: 'USDJPY=X', lbl: 'USD/JPY', grp: 'fx', src: 'deriv', deriv: 'frxUSDJPY', fx: true, dec: 3 },
+    { tk: 'AUDUSD=X', lbl: 'AUD/USD', grp: 'fx', src: 'deriv', deriv: 'frxAUDUSD', fx: true, dec: 5 },
+    { tk: 'USDCAD=X', lbl: 'USD/CAD', grp: 'fx', src: 'deriv', deriv: 'frxUSDCAD', fx: true, dec: 5 },
+    { tk: 'EURJPY=X', lbl: 'EUR/JPY', grp: 'fx', src: 'deriv', deriv: 'frxEURJPY', fx: true, dec: 3 },
   ],
+  tf() { return this.cfg().tf || 5; },           // temporalidad en minutos: 1 · 5 · 15
+  ctype() { return this.cfg().ctype || 'velas' }, // tipo de gráfico: velas · linea · area
   cfg() { if (!this._cfg) { try { this._cfg = JSON.parse(localStorage.getItem('terminal_cfg_v1') || '{}'); } catch (e) { this._cfg = {}; } } return this._cfg; },
   saveCfg() { try { localStorage.setItem('terminal_cfg_v1', JSON.stringify(this._cfg)); } catch (e) {} },
   instr() { const tk = this.cfg().instr || 'NQ=F'; return this.INSTRS.find(i => i.tk === tk) || this.INSTRS[0]; },
@@ -5056,7 +5075,8 @@ const Terminal = {
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
-    this._wsKill(); // FW: el stream Deriv no debe sobrevivir al tab
+    this._wsKill(); // FW: el stream (Deriv/OKX) no debe sobrevivir al tab
+    this.toggleCockpit(false); // T1: salir del cockpit al abandonar el tab
     document.getElementById('term-gate')?.remove(); // el gate es fixed — no debe sobrevivir al tab
   },
 
@@ -5134,20 +5154,41 @@ const Terminal = {
     const fr = document.getElementById('term-fresh');
     if (fr && this.feed.lastOk) {
       const age = Math.floor(Date.now() / 1000 - this.feed.lastOk);
-      const fxWs = this.instr().fx && this._ws && this._ws.readyState === 1; // fix #5: socket ABIERTO, no solo existente
+      const srcI = this.instr(), srcName = srcI.src === 'okx' ? 'OKX' : 'Deriv';
+      const fxWs = (srcI.src === 'deriv' || srcI.src === 'okx') && this._ws && this._ws.readyState === 1; // fix #5: socket ABIERTO
       const live = fxWs && Date.now() - this._wsLastTick < 30e3;
-      fr.innerHTML = live ? '<span style="color:var(--teal)">⚡ EN VIVO (Deriv WS) · último tick hace ' + age + 's</span>'
-        : fxWs ? '<span style="color:var(--text3)">◐ stream Deriv conectado, mercado sin ticks · último dato hace ' + (age > 180 ? Math.floor(age / 60) + 'm' : age + 's') + '</span>'
+      fr.innerHTML = live ? '<span style="color:var(--teal)">⚡ EN VIVO (' + srcName + ' WS) · último tick hace ' + age + 's</span>'
+        : fxWs ? '<span style="color:var(--text3)">◐ stream ' + srcName + ' conectado, mercado sin ticks · último dato hace ' + (age > 180 ? Math.floor(age / 60) + 'm' : age + 's') + '</span>'
         : age > 180 ? '<span style="color:var(--amber)">✕ STALE — sin datos hace ' + Math.floor(age / 60) + 'm</span>'
         : '<span style="color:var(--text3)">◐ delayed ~10-15m (Yahoo, por diseño) · refresco hace ' + age + 's</span>';
     }
   },
 
-  // ── F2: FeedHub (interfaz única; hoy solo implementación polling — FW enchufa OANDA) ──
+  // ── T1: controles cockpit — dropdowns por grupo + tipo de gráfico + temporalidad + ⛶ ──
   _renderBtns() {
     const el = document.getElementById('term-instr-btns'); if (!el) return;
-    const cur = this.instr().tk;
-    el.innerHTML = this.INSTRS.map(i => '<button type="button" onclick="Terminal.setInstr(\'' + i.tk + '\')" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-right:4px;border:1px solid ' + (i.tk === cur ? 'var(--teal)' : 'var(--border2)') + ';color:' + (i.tk === cur ? 'var(--teal)' : 'var(--text3)') + ';background:' + (i.tk === cur ? 'rgba(45,212,191,.08)' : 'transparent') + '">' + i.lbl + '</button>').join('');
+    const cur = this.instr().tk, tf = this.tf(), ct = this.ctype();
+    const selStyle = 'background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-size:10.5px;font-family:\'IBM Plex Mono\',monospace;padding:4px 6px;cursor:pointer';
+    const opt = (grp, ph) => '<option value="">' + ph + '</option>' + this.INSTRS.filter(i => i.grp === grp).map(i => '<option value="' + i.tk + '"' + (i.tk === cur ? ' selected' : '') + '>' + i.lbl + (i.src !== 'yahoo' ? ' ⚡' : '') + '</option>').join('');
+    const btn = (on, lbl, fn, title) => '<button type="button" onclick="' + fn + '" title="' + (title || '') + '" style="font-size:9.5px;font-family:\'IBM Plex Mono\',monospace;padding:3px 9px;border-radius:4px;cursor:pointer;border:1px solid ' + (on ? 'var(--teal)' : 'var(--border2)') + ';color:' + (on ? 'var(--teal)' : 'var(--text3)') + ';background:' + (on ? 'rgba(45,212,191,.08)' : 'transparent') + '">' + lbl + '</button>';
+    el.innerHTML =
+      '<select onchange="if(this.value)Terminal.setInstr(this.value)" style="' + selStyle + '">' + opt('idx', '📊 ÍNDICES & CFD') + '</select> '
+      + '<select onchange="if(this.value)Terminal.setInstr(this.value)" style="' + selStyle + '">' + opt('fx', '💱 FOREX') + '</select>'
+      + '<span style="display:inline-flex;gap:3px;margin-left:10px">' + [1, 5, 15].map(m => btn(tf === m, m + 'm', 'Terminal.setTf(' + m + ')', 'temporalidad ' + m + ' minutos')).join('') + '</span>'
+      + '<span style="display:inline-flex;gap:3px;margin-left:10px">' + [['velas', '🕯'], ['linea', '📈'], ['area', '⛰']].map(([t, ic]) => btn(ct === t, ic + ' ' + t, 'Terminal.setCtype(\'' + t + '\')', 'tipo de gráfico')).join('') + '</span>'
+      + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>';
+  },
+  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this.feedStart(); },
+  setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
+  _ckEsc: null,
+  toggleCockpit(force) {
+    const tab = document.getElementById('tab-term'); if (!tab) return;
+    const on = force !== undefined ? force : !tab.classList.contains('term-ck');
+    tab.classList.toggle('term-ck', on);
+    document.documentElement.classList.toggle('term-ck-root', on);
+    if (on && !this._ckEsc) { this._ckEsc = e => { if (e.key === 'Escape') this.toggleCockpit(false); }; document.addEventListener('keydown', this._ckEsc); }
+    if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
+    setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
   setInstr(tk) { this._gen++; this._wsKill(); this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
@@ -5163,10 +5204,14 @@ const Terminal = {
     document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Cargando ' + I.lbl + '…</span>';
     this._wsKill();
     try {
-      if (I.fx && this.DERIVSYM[I.tk] && Date.now() > this._derivDeadUntil) {
-        // FW: forex por Deriv WS (velas + stream). Si muere → Yahoo 10 min y reintento.
+      if (I.src === 'deriv' && I.deriv && Date.now() > this._derivDeadUntil) {
+        // FW: forex/oro por Deriv WS (velas + stream). Si muere → Yahoo 10 min y reintento.
         try { await this._derivStart(I, gen); this._walls = null; }
         catch (e) { console.warn('[Terminal] Deriv caído → fallback Yahoo:', e); this._derivDeadUntil = Date.now() + 600e3; this._wsKill(); if (gen === this._gen) await this._yahooStart(I, gen); }
+      } else if (I.src === 'okx' && Date.now() > this._derivDeadUntil) {
+        // T1: crypto por OKX (REST bootstrap + WS vela viva CON volumen → VWAP real)
+        try { await this._okxStart(I, gen); this._walls = null; }
+        catch (e) { console.warn('[Terminal] OKX caído → fallback Yahoo:', e); this._derivDeadUntil = Date.now() + 600e3; this._wsKill(); if (gen === this._gen) await this._yahooStart(I, gen); }
       } else await this._yahooStart(I, gen);
       if (gen === this._gen) this.render();
     } catch (e) { if (gen === this._gen) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; } }
@@ -5174,27 +5219,83 @@ const Terminal = {
     if (this._pendingStart) { this._pendingStart = false; this.feedStart(); }
   },
   async _yahooStart(I, gen) {
+    const tfMin = this.tf(), r1 = tfMin === 1 ? '7d' : '1d'; // Yahoo: 7d→1m · 1d→5m · 15m se agrega client-side
     const [d5, d1] = await Promise.all([
       fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=5d&hl=1&ts=1').then(r => r.json()),
-      fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json()),
+      fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=' + r1 + '&hl=1&ts=1').then(r => r.json()),
       this._loadWalls(I), // F3: muros en paralelo (cache 1h propio; null en forex)
     ]);
     if (gen !== undefined && gen !== this._gen) return; // fix #1: respuesta tardía de otro instrumento
-    this.feed.bars30 = this._norm(d5?.[I.tk]); this.feed.bars = this._norm(d1?.[I.tk]);
+    this.feed.bars30 = this._norm(d5?.[I.tk]);
+    let b = this._norm(d1?.[I.tk]);
+    if (tfMin === 1) b = b.slice(-500);
+    if (tfMin === 15) b = this._agg(b, 15);
+    this.feed.bars = b;
     if (this.feed.bars.length) this.feed.lastOk = Date.now() / 1000;
+  },
+  // agrega barras 5m → tfMin por anclas de reloj (para 15m en Yahoo)
+  _agg(bars, tfMin) {
+    const out = [];
+    for (const b of bars) {
+      const anchor = b.t - (b.t % (tfMin * 60));
+      const last = out[out.length - 1];
+      if (last && last.t === anchor) { last.h = Math.max(last.h, b.h); last.l = Math.min(last.l, b.l); last.c = b.c; last.v += b.v; }
+      else out.push({ t: anchor, o: b.c, h: b.h, l: b.l, c: b.c, v: b.v, et: this.etParts(anchor) });
+    }
+    return out;
+  },
+  // ── T1: OKX crypto — REST bootstrap (velas tf + 30m) + WS de la vela viva ──
+  _okxStart(I, gen) {
+    const inst = I.okx, bar = this.tf() + 'm';
+    const mapC = rows => rows.map(r => ({ t: Math.floor(+r[0] / 1000), o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5], et: this.etParts(Math.floor(+r[0] / 1000)) })).reverse(); // OKX manda desc
+    return new Promise(async (res, rej) => {
+      try {
+        const [jB, j30] = await Promise.all([
+          fetch('https://www.okx.com/api/v5/market/candles?instId=' + inst + '&bar=' + bar + '&limit=300').then(r => r.json()),
+          fetch('https://www.okx.com/api/v5/market/candles?instId=' + inst + '&bar=30m&limit=260').then(r => r.json()),
+        ]);
+        if (gen !== undefined && gen !== this._gen) { res(); return; }
+        if (jB.code !== '0' || !jB.data || !jB.data.length) throw new Error('OKX REST ' + (jB.msg || jB.code));
+        this.feed.bars = mapC(jB.data);
+        this.feed.bars30 = (j30.code === '0' && j30.data) ? mapC(j30.data) : [];
+        this.feed.lastOk = Date.now() / 1000;
+      } catch (e) { rej(e); return; }
+      try {
+        const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/business');
+        this._ws = ws;
+        const to = setTimeout(() => res(), 6000); // el bootstrap ya vive — el WS es la mejora
+        ws.onopen = () => ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'candle' + bar, instId: inst }] }));
+        ws.onmessage = ev => {
+          if (gen !== undefined && gen !== this._gen) return;
+          let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+          if (!m.data || !m.data[0]) return;
+          const r = m.data[0], t = Math.floor(+r[0] / 1000);
+          const b = { t, o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5], et: this.etParts(t) };
+          const arr = this.feed.bars, lastB = arr[arr.length - 1];
+          if (lastB && lastB.t === t) arr[arr.length - 1] = b; else if (!lastB || t > lastB.t) arr.push(b);
+          if (arr.length > 600) arr.shift();
+          this.feed.lastOk = Date.now() / 1000; this._wsLastTick = Date.now();
+          clearTimeout(to); res();
+          if (Date.now() - this._lastPaint > 5000 && !document.hidden) { this._lastPaint = Date.now(); this.render(); }
+        };
+        ws.onclose = () => { if (this._ws === ws) this._wsLastTick = 0; res(); };
+        ws.onerror = () => {};
+      } catch (e) { res(); } // sin WS seguimos vivos del bootstrap + poll 60s
+    });
   },
   // ── FW: bootstrap de velas + suscripción OHLC 5m por Deriv WS ──
   _derivStart(I, gen) {
-    const sym = this.DERIVSYM[I.tk];
+    const sym = I.deriv; // T1: el símbolo vive en el instrumento (majors + XAU)
+    const gran = this.tf() * 60, nBars = this.tf() === 1 ? 420 : this.tf() === 15 ? 240 : 300;
     return new Promise((res, rej) => {
       const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
       this._ws = ws;
       let got30 = false, got5 = false, settled = false;
       const to = setTimeout(() => { if (!settled) { settled = true; rej(new Error('Deriv timeout')); } }, 12000);
-      const norm = cs => cs.map(c => ({ t: +c.epoch, h: +c.high, l: +c.low, c: +c.close, v: 0, et: this.etParts(+c.epoch) }));
+      const norm = cs => cs.map(c => ({ t: +c.epoch, o: +c.open, h: +c.high, l: +c.low, c: +c.close, v: 0, et: this.etParts(+c.epoch) }));
       ws.onopen = () => {
         ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: 1800, count: 260, end: 'latest', adjust_start_time: 1, req_id: 30 }));
-        ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: 300, count: 300, end: 'latest', adjust_start_time: 1, subscribe: 1, req_id: 5 }));
+        ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: gran, count: nBars, end: 'latest', adjust_start_time: 1, subscribe: 1, req_id: 5 }));
       };
       ws.onmessage = ev => {
         if (gen !== undefined && gen !== this._gen) return; // fix #1: socket de otra generación
@@ -5209,7 +5310,7 @@ const Terminal = {
         } else if (m.ohlc) {
           // vela 5m EN VIVO: actualizar la vela abierta / apender al cerrar (open_time = ancla)
           const t = +m.ohlc.open_time;
-          const b = { t, h: +m.ohlc.high, l: +m.ohlc.low, c: +m.ohlc.close, v: 0, et: this.etParts(t) };
+          const b = { t, o: +m.ohlc.open, h: +m.ohlc.high, l: +m.ohlc.low, c: +m.ohlc.close, v: 0, et: this.etParts(t) };
           const arr = this.feed.bars, lastB = arr[arr.length - 1];
           if (lastB && lastB.t === t) arr[arr.length - 1] = b; else if (!lastB || t > lastB.t) arr.push(b);
           if (arr.length > 600) arr.shift(); // fix #2: cap (pestaña abierta días no acumula miles)
@@ -5253,13 +5354,17 @@ const Terminal = {
   },
   async feedPoll() {
     const I = this.instr();
-    // FW: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
+    // FW/T1: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
     // bucle de reconexión; el badge declara el silencio. Solo reconectar si murió.
-    if (I.fx && this._ws && this._ws.readyState <= 1) return;
-    if (I.fx && this.DERIVSYM[I.tk]) { this.feedStart(); return; }
+    const liveSrc = I.src === 'deriv' || I.src === 'okx';
+    if (liveSrc && this._ws && this._ws.readyState <= 1) return;
+    if (liveSrc) { this.feedStart(); return; }
     try {
-      const d1 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json());
-      const nb = this._norm(d1?.[I.tk]);
+      const tfMin = this.tf(), r1 = tfMin === 1 ? '7d' : '1d';
+      const d1 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=' + r1 + '&hl=1&ts=1').then(r => r.json());
+      let nb = this._norm(d1?.[I.tk]);
+      if (tfMin === 1) nb = nb.slice(-500);
+      if (tfMin === 15) nb = this._agg(nb, 15);
       if (nb.length) { this.feed.bars = nb; this.feed.lastOk = Date.now() / 1000; this.render(); }
     } catch (e) { /* backoff natural: el próximo tick reintenta */ }
   },
@@ -5307,7 +5412,7 @@ const Terminal = {
     const I = this.instr(), etf = this.FLOWETF[I.tk];
     const fb = document.getElementById('term-flow-fresh');
     if (!etf) {
-      el.innerHTML = '<span style="color:var(--text3)">El flujo de opciones no aplica a spot forex (sin cadena listada). Este panel vive en NQ/ES vía su ETF espejo (QQQ/SPY).</span>';
+      el.innerHTML = '<span style="color:var(--text3)">' + (I.src === 'okx' ? 'El flujo de opciones de ' + I.lbl.split(' ')[0] + ' (Deribit) se integra en T3 del cockpit.' : 'El flujo de opciones no aplica a spot (sin cadena listada). Este panel vive en NQ/ES vía su ETF espejo (QQQ/SPY).') + '</span>';
       if (fb) fb.textContent = '';
       return;
     }
@@ -5394,6 +5499,8 @@ const Terminal = {
     const D = this._cohData;
     if (!D) { el.innerHTML = '<span style="color:var(--text3)">cargando…</span>'; return; }
     const I = this.instr();
+    // T1: los instrumentos nuevos calibran sus pares correctos en T4 — honesto, no inventado
+    if (!['NQ=F', 'ES=F', 'EURUSD=X', 'GBPUSD=X'].includes(I.tk)) { el.innerHTML = '<span style="color:var(--text3)">La coherencia de ' + escHtml(I.lbl) + ' se conecta en T4 (cada instrumento necesita SUS pares de confirmación correctos — no se inventa).</span>'; if (fb) fb.textContent = ''; return; }
     const fx = I.fx;
     const selfTk = I.tk, sib = fx ? (selfTk === 'EURUSD=X' ? 'GBPUSD=X' : 'EURUSD=X') : (selfTk === 'NQ=F' ? 'ES=F' : 'NQ=F');
     const need = fx ? [selfTk, sib, 'DX-Y.NYB', 'ES=F'] : [selfTk, sib, 'DX-Y.NYB', '^VIX'];
@@ -5490,7 +5597,7 @@ const Terminal = {
     ts150: { lbl: 'TopStep 150k', dll: () => 3000, max: () => 4500, note: 'DLL $3,000 · MLL $4,500 trailing intraday' },
     none: { lbl: 'Personal (sin prop)', dll: b => b * 0.05, max: () => null, note: 'límite diario sugerido 5% — edítalo con el balance' },
   },
-  PTVAL: { 'NQ=F': [['NQ', 20], ['MNQ', 2]], 'ES=F': [['ES', 50], ['MES', 5]], 'EURUSD=X': [['lote std (pip $10)', 10]], 'GBPUSD=X': [['lote std (pip $10)', 10]] },
+  PTVAL: { 'NQ=F': [['NQ', 20], ['MNQ', 2]], 'ES=F': [['ES', 50], ['MES', 5]], 'EURUSD=X': [['lote std (pip $10)', 10]], 'GBPUSD=X': [['lote std (pip $10)', 10]], 'USDJPY=X': [['lote std (pip ~$6.2, aprox)', 6.2]], 'AUDUSD=X': [['lote std (pip $10)', 10]], 'USDCAD=X': [['lote std (pip ~$7.5, aprox)', 7.5]], 'EURJPY=X': [['lote std (pip ~$6.2, aprox)', 6.2]], 'BTC-USD': [['BTC (1:1 $/pt)', 1]], 'ETH-USD': [['ETH (1:1 $/pt)', 1]], 'XAUUSD=X': [['XAU 100oz ($100/pt)', 100]] },
   _dayAll: null,
   _day() {
     const d = etDate();
@@ -5741,12 +5848,38 @@ const Terminal = {
       g.strokeStyle = 'var(--amber)'; g.strokeStyle = 'rgba(251,191,36,.85)'; g.lineWidth = 1.4; g.beginPath();
       this._vwapPts.forEach((p, i) => { const x = X(off + i); i ? g.lineTo(x, Y(p.vw)) : g.moveTo(x, Y(p.vw)); }); g.stroke(); g.lineWidth = 1;
     }
-    // barras HLC
-    for (let i = 0; i < bars.length; i++) {
-      const b = bars[i], up = i === 0 ? b.c >= b.l : b.c >= bars[i - 1].c;
-      g.strokeStyle = up ? 'rgba(52,211,153,.8)' : 'rgba(248,113,113,.8)';
-      g.beginPath(); g.moveTo(X(i), Y(b.h)); g.lineTo(X(i), Y(b.l)); g.stroke();
-      g.beginPath(); g.moveTo(X(i), Y(b.c)); g.lineTo(X(i) + Math.max(1.5, iw / bars.length * 0.4), Y(b.c)); g.stroke();
+    // ── T1 chart engine v2: velas · línea · área (el "o" de Yahoo se aproxima
+    //    con el cierre previo — Deriv/OKX traen open real) ──
+    const ct = this.ctype();
+    if (ct === 'linea' || ct === 'area') {
+      if (ct === 'area') {
+        const gr = g.createLinearGradient(0, mt, 0, mt + ih);
+        gr.addColorStop(0, 'rgba(45,212,191,.20)'); gr.addColorStop(1, 'rgba(45,212,191,0)');
+        g.fillStyle = gr; g.beginPath();
+        bars.forEach((b, i) => { const x = X(i), y = Y(b.c); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+        g.lineTo(X(bars.length - 1), mt + ih); g.lineTo(X(0), mt + ih); g.closePath(); g.fill();
+      }
+      g.strokeStyle = 'rgba(45,212,191,.95)'; g.lineWidth = 1.6;
+      g.shadowColor = 'rgba(45,212,191,.45)'; g.shadowBlur = 6;
+      g.beginPath(); bars.forEach((b, i) => { const x = X(i), y = Y(b.c); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+      g.shadowBlur = 0; g.lineWidth = 1;
+    } else {
+      const bw = Math.max(1.5, iw / bars.length * 0.62);
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i], o = b.o != null ? b.o : (i ? bars[i - 1].c : b.c), up = b.c >= o;
+        const col = up ? '52,211,153' : '248,113,113';
+        g.strokeStyle = 'rgba(' + col + ',.75)';
+        g.beginPath(); g.moveTo(X(i), Y(b.h)); g.lineTo(X(i), Y(b.l)); g.stroke();
+        const y1 = Y(Math.max(o, b.c)), y2 = Y(Math.min(o, b.c));
+        g.fillStyle = 'rgba(' + col + ',' + (up ? '.55' : '.62') + ')';
+        g.fillRect(X(i) - bw / 2, y1, bw, Math.max(1, y2 - y1));
+      }
+      // la vela VIVA late: borde con glow en la última
+      const lb = bars[bars.length - 1], lo = lb.o != null ? lb.o : (bars.length > 1 ? bars[bars.length - 2].c : lb.c);
+      const lcol = lb.c >= lo ? 'rgba(52,211,153,.95)' : 'rgba(248,113,113,.95)';
+      g.strokeStyle = lcol; g.shadowColor = lcol; g.shadowBlur = 7;
+      g.strokeRect(X(bars.length - 1) - bw / 2, Y(Math.max(lo, lb.c)), bw, Math.max(1.5, Math.abs(Y(lo) - Y(lb.c))));
+      g.shadowBlur = 0;
     }
     // niveles horizontales + etiquetas margen derecho
     g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
