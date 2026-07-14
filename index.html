@@ -5195,7 +5195,7 @@ const Terminal = {
       + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>'
       // T2: toggles de overlays — qué capas del motor viven SOBRE el chart
       + '<span style="display:inline-flex;gap:3px;margin-left:10px;padding-left:10px;border-left:1px solid var(--border2)">'
-      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
+      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['delta', '± delta', 'Delta por vela (dólares agresores, desde que abriste la Terminal) + divergencia CVD ⚠ + absorción 🧲'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
       + '</span>';
   },
   setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.feedStart(); },
@@ -5374,8 +5374,12 @@ const Terminal = {
     // sobreviven a setTf y a reconexiones — solo un switch de instrumento o el rollover
     // diario arrancan de cero.
     const prev = this._of;
-    if (prev && prev.tk === I.tk && prev.day === etDate()) prev.mode = null; // la rama re-asigna el modo
-    else this._of = { tk: I.tk, mode: null, etf: null, trades: [], cvd: 0, buys: 0, sells: 0, n: 0, bigs: 0, day: etDate(), ticks: [], spread: null, lastPx: null, lastDir: 0 };
+    if (prev && prev.tk === I.tk && prev.day === etDate()) {
+      prev.mode = null; // la rama re-asigna el modo
+      // V3a: el delta por vela está anclado al tf — si cambió, sus cubetas ya no calzan
+      if (prev.tfd !== this.tf()) { prev.dbars = {}; prev.tfd = this.tf(); }
+    }
+    else this._of = { tk: I.tk, mode: null, etf: null, trades: [], cvd: 0, buys: 0, sells: 0, n: 0, bigs: 0, day: etDate(), ticks: [], spread: null, lastPx: null, lastDir: 0, dbars: {}, tfd: this.tf() };
     if (I.src === 'okx' && I.okx) return this._ofOkx(I, gen);
     if (I.src === 'deriv') { this._of.mode = 'fxmid'; this._ofRender(); return; } // los ticks llegan por el propio WS de _derivStart
     if (I.tk === 'NQ=F' || I.tk === 'ES=F') return this._ofFinnhub(I, gen);
@@ -5396,7 +5400,9 @@ const Terminal = {
           if (!(usd > 0)) continue;
           T.cvd += buy ? usd : -usd; T.n++; if (buy) T.buys += usd; else T.sells += usd;
           if (usd >= 100000) T.bigs++;
-          T.trades.push({ t: Math.floor(+r.ts / 1000), px, usd, buy, big: usd >= 100000 });
+          const tt = Math.floor(+r.ts / 1000);
+          T.trades.push({ t: tt, px, usd, buy, big: usd >= 100000 });
+          this._dbarAdd(T, tt, usd, buy); // V3a: delta por vela
         }
         if (T.trades.length > 60) T.trades.splice(0, T.trades.length - 60);
         this._ofPaintMaybe();
@@ -5433,7 +5439,9 @@ const Terminal = {
           const buy = dir > 0;
           T.cvd += buy ? usd : -usd; T.n++; if (buy) T.buys += usd; else T.sells += usd;
           if (usd >= 250000) T.bigs++;
-          T.trades.push({ t: Math.floor(r.t / 1000), px, usd, buy, big: usd >= 250000 });
+          const tt = Math.floor(r.t / 1000);
+          T.trades.push({ t: tt, px, usd, buy, big: usd >= 250000 });
+          this._dbarAdd(T, tt, usd, buy); // V3a: delta por vela (tick-rule, aprox declarada)
         }
         if (T.trades.length > 60) T.trades.splice(0, T.trades.length - 60);
         this._ofPaintMaybe();
@@ -5443,6 +5451,47 @@ const Terminal = {
     } catch (e) { this._of.mode = 'none'; this._ofRender(); }
   },
   _ofPaintMaybe() { if (Date.now() - this._ofPaint > 900 && !document.hidden) { this._ofPaint = Date.now(); this._ofRender(); } },
+  // ══ V3a: DELTA POR VELA — dólares agresores por cubeta del tf (desde que la Terminal abrió) ══
+  _dbarAdd(T, t, usd, buy) {
+    const step = (T.tfd || 5) * 60, anchor = t - (t % step);
+    const D = T.dbars = T.dbars || {};
+    const cell = D[anchor] = D[anchor] || { b: 0, s: 0 };
+    if (buy) cell.b += usd; else cell.s += usd;
+    const ks = Object.keys(D);
+    if (ks.length > 320) { ks.sort(); delete D[ks[0]]; }
+  },
+  // Divergencia CVD + absorción sobre las velas CERRADAS con cobertura de delta.
+  // Real en crypto (lado OKX) · aprox tick-rule en NQ/ES (declarado) · nada en forex.
+  _deltaAnalysis(c) {
+    const T = this._of;
+    if (!T || !T.dbars || (T.mode !== 'real' && T.mode !== 'tick') || !c) return null;
+    const bars = this.feed.bars;
+    const cov = []; // velas cerradas con delta acumulado
+    let cum = 0;
+    for (let i = 0; i < bars.length - 1; i++) {
+      const d = T.dbars[bars[i].t];
+      if (!d) { if (cov.length) break; continue; } // cobertura contigua desde la 1ª cubeta
+      cum += d.b - d.s;
+      cov.push({ i, t: bars[i].t, h: bars[i].h, l: bars[i].l, o: bars[i].o, cl: bars[i].c, delta: d.b - d.s, tot: d.b + d.s, cvd: cum });
+    }
+    if (cov.length < 12) return null; // sin historia suficiente desde que abrió la Terminal
+    const out = { cov, div: null, divAt: null, abs: null };
+    // divergencia: el último extremo de precio de la ventana no viene confirmado por el CVD
+    const win = cov.slice(-20), lastB = win[win.length - 1], prev = win.slice(0, -1);
+    const maxH = Math.max(...prev.map(x => x.h)), maxCvd = Math.max(...prev.map(x => x.cvd));
+    const minL = Math.min(...prev.map(x => x.l)), minCvd = Math.min(...prev.map(x => x.cvd));
+    if (lastB.h > maxH && lastB.cvd < maxCvd) { out.div = 'bajista'; out.divAt = lastB; }
+    else if (lastB.l < minL && lastB.cvd > minCvd) { out.div = 'alcista'; out.divAt = lastB; }
+    // absorción (solo lado REAL): agresión top-cuartil sin progreso de precio
+    if (T.mode === 'real' && cov.length >= 16) {
+      const atr = this._atr();
+      const tots = cov.map(x => Math.abs(x.delta)).sort((a, b) => a - b);
+      const p75 = tots[Math.floor(tots.length * 0.75)];
+      if (atr && p75 > 0 && Math.abs(lastB.delta) >= p75 && (lastB.h - lastB.l) <= atr * 0.5)
+        out.abs = { ...lastB, side: lastB.delta < 0 ? 'compradora' : 'vendedora' }; // venta agresiva absorbida = absorción COMPRADORA
+    }
+    return out;
+  },
   // ── T4: MARQUEE DE NOTICIAS — el feed news.js existente, corriendo en la franja ──
   _newsT: 0,
   async _newsLoad() {
@@ -6132,6 +6181,12 @@ const Terminal = {
       const fsA = this._fade().filter(s => s.tk === I.tk && s.res == null && Date.now() / 1000 - s.t < 2700);
       if (fsA.length) { const s = fsA[fsA.length - 1]; parts.push(['🎯 FADE ' + (s.side === 'short' ? '↓' : '↑'), 'var(--amber)', 'Toque de ' + (s.z >= 0 ? '+' : '') + s.z + 'σ en día no-tendencia sin la cinta en contra → objetivo VWAP congelado ' + (+s.tgt).toFixed(I.dec) + ' · invalida en ' + (+s.stp).toFixed(I.dec) + ' (3σ). OBSERVACIONAL: se registra y resuelve solo — el win-rate acumulado vive junto al RVOL']); }
     }
+    // 2.4) V3a: divergencia CVD y absorción — warnings tempranos de la cinta
+    if (c) {
+      const DA = this._da;
+      if (DA && DA.div) parts.push(['⚠ DIV ' + DA.div, DA.div === 'bajista' ? 'var(--red)' : 'var(--green)', 'Divergencia CVD: el precio hizo un nuevo ' + (DA.div === 'bajista' ? 'máximo' : 'mínimo') + ' de la ventana pero el delta acumulado NO lo confirma — la agresión se está agotando (warning temprano, no señal de entrada)' + (this._of && this._of.mode === 'tick' ? ' · tick-rule aprox' : ' · lado agresor real')]);
+      if (DA && DA.abs) parts.push(['🧲 absorción ' + DA.abs.side, 'var(--teal)', 'Agresión ' + (DA.abs.side === 'compradora' ? 'VENDEDORA' : 'COMPRADORA') + ' del cuartil alto sin progreso de precio (rango <0.5×ATR): alguien grande la está absorbiendo con órdenes pasivas — el nivel aguanta mientras no lo rompan (lado real OKX)']);
+    }
     // 2.5) T4: LA CINTA VOTA — presión agresora sostenida entra al veredicto (umbral alto:
     // solo habla cuando hay sesgo claro; con flujo parejo se calla)
     const OF = this._of;
@@ -6173,6 +6228,7 @@ const Terminal = {
     this._svpData = c ? this._svp(this.feed.bars, c) : null;
     if (c && this._svpData) this._regSample(c, this._svpData);
     if (c && !I.fx) this._fadeCheck(c); // V2: la señal y su resolución auditada
+    this._da = c ? this._deltaAnalysis(c) : null; // V3a: una sola pasada por render (chart + veredicto)
     this._verdict(c);
     if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; return; }
     const f = v => v == null ? '—' : (+v).toFixed(I.dec);
@@ -6340,6 +6396,29 @@ const Terminal = {
       g.strokeStyle = lcol; g.shadowColor = lcol; g.shadowBlur = 7;
       g.strokeRect(X(bars.length - 1) - bw / 2, Y(Math.max(lo, lb.c)), bw, Math.max(1.5, Math.abs(Y(lo) - Y(lb.c))));
       g.shadowBlur = 0;
+    }
+    // ── V3a: DELTA POR VELA — tira inferior (verde compra/rojo venta) + ⚠ divergencia + 🧲 absorción ──
+    if (this.ov('delta')) {
+      const DA = this._da;
+      if (DA && DA.cov.length) {
+        const maxD = Math.max(...DA.cov.map(x => Math.abs(x.delta))) || 1;
+        const base = mt + ih - 13, amp = 11;
+        for (const x of DA.cov) {
+          const h2 = Math.max(1, Math.abs(x.delta) / maxD * amp);
+          g.fillStyle = x.delta >= 0 ? 'rgba(52,211,153,.5)' : 'rgba(248,113,113,.5)';
+          g.fillRect(X(x.i) - 1.5, x.delta >= 0 ? base - h2 : base, 3, h2);
+        }
+        g.strokeStyle = 'rgba(125,111,99,.35)'; g.beginPath(); g.moveTo(X(DA.cov[0].i) - 3, base); g.lineTo(X(DA.cov[DA.cov.length - 1].i) + 3, base); g.stroke();
+        g.font = '10px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+        if (DA.div && DA.divAt && DA.divAt.h >= pMin && DA.divAt.l <= pMax) {
+          g.fillStyle = '#fbbf24';
+          g.fillText('⚠', X(DA.divAt.i) - 5, Y(DA.div === 'bajista' ? DA.divAt.h : DA.divAt.l) + (DA.div === 'bajista' ? -10 : 10));
+        }
+        if (DA.abs && DA.abs.h >= pMin && DA.abs.l <= pMax) {
+          g.fillStyle = '#2dd4bf';
+          g.fillText('🧲', X(DA.abs.i) - 6, Y(DA.abs.side === 'compradora' ? DA.abs.l : DA.abs.h) + (DA.abs.side === 'compradora' ? 12 : -12));
+        }
+      }
     }
     // ── V2: marcadores 🎯 de la señal FADE (hoy, este instrumento) — ámbar=pendiente ✓verde ✗rojo ──
     if (this.ov('vwap') && c) {
