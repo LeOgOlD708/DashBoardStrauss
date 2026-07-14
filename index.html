@@ -2873,6 +2873,14 @@ html.auth-ok #auth-gate{display:none}
     .term-ck-root{overflow:hidden}
     #tab-term.term-ck #term-chart{height:calc(100vh - 480px)!important;min-height:380px}
     @media (max-width:640px){#tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}}
+    /* T4: marquee de noticias — corre de verdad, pausa al hover */
+    #term-news{overflow:hidden;white-space:nowrap;border:1px solid var(--border2);border-radius:6px;padding:5px 0;margin-bottom:14px;background:var(--surface)}
+    #term-news .tm-in{display:inline-block;padding-left:100%;animation:term-marq var(--tm-dur,90s) linear infinite;will-change:transform}
+    #term-news:hover .tm-in{animation-play-state:paused}
+    #term-news a{color:inherit;text-decoration:none}
+    #term-news a:hover{text-decoration:underline}
+    @keyframes term-marq{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
+    @media (prefers-reduced-motion:reduce){#term-news .tm-in{animation:none;padding-left:0;white-space:normal}}
   </style>
   <!-- ② MAPA DE NIVELES -->
   <div class="sh" style="margin-top:12px"><div class="sh-tag">Terminal</div><div class="sh-title">Mapa de Niveles del Día — los imanes de la sesión</div><button class="glossary-btn" onclick="openGlossary('terminal-mapa-niveles')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
@@ -2889,6 +2897,8 @@ html.auth-ok #auth-gate{display:none}
       <div style="flex:.9;min-width:200px" id="term-oflow" class="mono"></div>
     </div>
   </div>
+  <!-- T4: MARQUEE DE NOTICIAS — el mercado hablando en la franja -->
+  <div id="term-news" class="mono" style="font-size:10.5px;display:none"></div>
   <!-- ④ FLUJO slow-HIRO (F7) + ⑤ COHERENCIA (F8) -->
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
     <div class="card" style="flex:1.4;min-width:340px;margin-bottom:0">
@@ -5073,6 +5083,9 @@ const Terminal = {
     this._flowLoad(); this._cohLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._flowLoad(); }, 600e3));
     this._timers.push(setInterval(() => { if (!document.hidden) this._cohLoad(); }, 120e3));
+    // T4: marquee de noticias cada 5 min (el gate de cadencia vive en _newsLoad)
+    this._newsT = 0; this._newsLoad();
+    this._timers.push(setInterval(() => { if (!document.hidden) this._newsLoad(); }, 300e3));
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
@@ -5430,6 +5443,28 @@ const Terminal = {
     } catch (e) { this._of.mode = 'none'; this._ofRender(); }
   },
   _ofPaintMaybe() { if (Date.now() - this._ofPaint > 900 && !document.hidden) { this._ofPaint = Date.now(); this._ofRender(); } },
+  // ── T4: MARQUEE DE NOTICIAS — el feed news.js existente, corriendo en la franja ──
+  _newsT: 0,
+  async _newsLoad() {
+    if (Date.now() - this._newsT < 300e3) return; // cadencia 5 min
+    this._newsT = Date.now();
+    const el = document.getElementById('term-news'); if (!el) return;
+    try {
+      const items = await fetch('/api/news').then(r => r.json());
+      if (!Array.isArray(items) || !items.length) return;
+      const sel = items.filter(n => n.impact === 'high' || n.impact === 'medium').slice(0, 14);
+      if (!sel.length) return;
+      const seg = sel.map(n => {
+        const hh = n.pubDate ? new Date(n.pubDate).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
+        const dot = n.impact === 'high' ? '<b style="color:var(--red)">●</b>' : '<b style="color:var(--amber)">●</b>';
+        return dot + ' <span style="color:var(--text3)">' + hh + '</span> <a href="' + escHtml(n.link || '#') + '" target="_blank" rel="noopener" title="' + escHtml((n.source || '') + ' · impacto ' + (n.impact || '')) + '" style="color:var(--text2)">' + escHtml((n.title || '').slice(0, 110)) + '</a>';
+      }).join(' <span style="color:var(--border2)">│</span> ');
+      el.style.display = 'block';
+      // duración ∝ contenido (~6s por titular) — el marquee corre, no salta
+      el.style.setProperty('--tm-dur', Math.max(50, sel.length * 6.5) + 's');
+      el.innerHTML = '<span class="tm-in">📰 ' + seg + '</span>';
+    } catch (e) { /* sin noticias no hay marquee — la Terminal sigue */ }
+  },
   _ofRender() {
     const el = document.getElementById('term-oflow'); if (!el || !this._of) return;
     const T = this._of, I = this.instr();
@@ -5926,6 +5961,20 @@ const Terminal = {
     if (W && W.gexTotalBn != null) {
       const pos = W.gexTotalBn >= 0;
       parts.push([pos ? 'Γ+ pegajoso' : 'Γ− reactivo', pos ? 'var(--teal)' : 'var(--amber)', 'GEX neto de ' + this._walls.primEtf + ' ' + W.gexTotalBn + 'bn: ' + (pos ? 'dealers ESTABILIZAN — rangos, mean-reversion, los muros frenan' : 'dealers AMPLIFICAN — el precio patina, breakouts corren más, stops más amplios') + ' (régimen, no predicción — pierde poder en alta vol)']);
+    }
+    // 2.5) T4: LA CINTA VOTA — presión agresora sostenida entra al veredicto (umbral alto:
+    // solo habla cuando hay sesgo claro; con flujo parejo se calla)
+    const OF = this._of;
+    if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0) {
+      const bp = OF.buys / (OF.buys + OF.sells) * 100;
+      if (bp >= 58) parts.push(['🌊 cinta COMPRA ' + bp.toFixed(0) + '%', 'var(--green)', 'El ' + bp.toFixed(0) + '% de los dólares agresores de la sesión están comprando (' + (OF.mode === 'real' ? 'lado real OKX' : 'tick-rule aprox ' + (OF.etf || '')) + ', ' + OF.n + ' trades)']);
+      else if (bp <= 42) parts.push(['🌊 cinta VENDE ' + (100 - bp).toFixed(0) + '%', 'var(--red)', 'El ' + (100 - bp).toFixed(0) + '% de los dólares agresores de la sesión están vendiendo (' + (OF.mode === 'real' ? 'lado real OKX' : 'tick-rule aprox ' + (OF.etf || '')) + ', ' + OF.n + ' trades)']);
+    } else if (OF && OF.mode === 'fxmid' && OF.ticks.length >= 40) {
+      const w = OF.ticks.slice(-60); let u = 0, d = 0;
+      for (let i = 1; i < w.length; i++) { if (w[i].mid > w[i - 1].mid) u++; else if (w[i].mid < w[i - 1].mid) d++; }
+      const p = (u + d) ? u / (u + d) * 100 : 50;
+      if (p >= 62) parts.push(['🌊 presión ↑' + p.toFixed(0) + '%', 'var(--green)', p.toFixed(0) + '% de los últimos ' + w.length + ' ticks del mid al alza — dirección, no volumen (el spot no tiene cinta)']);
+      else if (p <= 38) parts.push(['🌊 presión ↓' + (100 - p).toFixed(0) + '%', 'var(--red)', (100 - p).toFixed(0) + '% de los últimos ' + w.length + ' ticks del mid a la baja — dirección, no volumen']);
     }
     // 3) Risk-on/off por correlaciones del loop global (SPY↑ · VIX↓ · DXY↓ vs cierre previo)
     try {
