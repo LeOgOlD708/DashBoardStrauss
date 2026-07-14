@@ -5086,6 +5086,9 @@ const Terminal = {
     // T4: marquee de noticias cada 5 min (el gate de cadencia vive en _newsLoad)
     this._newsT = 0; this._newsLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._newsLoad(); }, 300e3));
+    // V3b: heatmap de liquidez — el poll se auto-gatea (solo crypto + toggle + visible)
+    this._hmPoll();
+    this._timers.push(setInterval(() => this._hmPoll(), 6000));
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
@@ -5195,7 +5198,7 @@ const Terminal = {
       + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>'
       // T2: toggles de overlays — qué capas del motor viven SOBRE el chart
       + '<span style="display:inline-flex;gap:3px;margin-left:10px;padding-left:10px;border-left:1px solid var(--border2)">'
-      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['delta', '± delta', 'Delta por vela (dólares agresores, desde que abriste la Terminal) + divergencia CVD ⚠ + absorción 🧲'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
+      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['delta', '± delta', 'Delta por vela (dólares agresores, desde que abriste la Terminal) + divergencia CVD ⚠ + absorción 🧲'], ['heatmap', '🔥 heatmap', 'Liquidez PASIVA del libro OKX (60 niveles por lado, ~6s) — dónde descansan las órdenes límite y cuándo las retiran. Solo crypto: nadie publica L2 gratis de equities/forex'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
       + '</span>';
   },
   setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.feedStart(); },
@@ -5210,7 +5213,7 @@ const Terminal = {
     if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
     setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
-  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5451,6 +5454,27 @@ const Terminal = {
     } catch (e) { this._of.mode = 'none'; this._ofRender(); }
   },
   _ofPaintMaybe() { if (Date.now() - this._ofPaint > 900 && !document.hidden) { this._ofPaint = Date.now(); this._ofRender(); } },
+  // ══ V3b: HEATMAP DE LIQUIDEZ (estilo Bookmap) — el libro OKX muestreado cada ~6s ══
+  // Dónde VIVE la liquidez pasiva y cuándo la retiran. Solo crypto: nadie publica L2
+  // gratis de equities/forex (se declara en el toggle). REST books sz=60 validado CORS.
+  _hm: null, _hmT: 0,
+  async _hmPoll() {
+    const I = this.instr();
+    if (I.src !== 'okx' || !I.okx || !this.ov('heatmap') || document.hidden) return;
+    if (Date.now() - this._hmT < 5500) return;
+    this._hmT = Date.now();
+    try {
+      const j = await fetch('https://www.okx.com/api/v5/market/books?instId=' + I.okx + '&sz=60').then(r => r.json());
+      if (j.code !== '0' || !j.data || !j.data[0]) return;
+      const d = j.data[0], t = Math.floor(+d.ts / 1000);
+      const rows = [];
+      for (const b of d.bids) rows.push([+b[0], +b[0] * +b[1]]); // [precio, USD descansando]
+      for (const a of d.asks) rows.push([+a[0], +a[0] * +a[1]]);
+      if (!this._hm || this._hm.inst !== I.okx) this._hm = { inst: I.okx, snaps: [] };
+      this._hm.snaps.push({ t, rows });
+      if (this._hm.snaps.length > 200) this._hm.snaps.shift(); // ~20 min de historia
+    } catch (e) { /* un poll fallido no mata el mapa */ }
+  },
   // ══ V3a: DELTA POR VELA — dólares agresores por cubeta del tf (desde que la Terminal abrió) ══
   _dbarAdd(T, t, usd, buy) {
     const step = (T.tfd || 5) * 60, anchor = t - (t % step);
@@ -6350,6 +6374,28 @@ const Terminal = {
         const inVA = i >= S.vaLoI && i <= S.vaHiI;
         g.fillStyle = inVA ? 'rgba(201,168,76,.17)' : 'rgba(201,168,76,.07)';
         g.fillRect(ml + iw - w, Math.max(mt, py1), w, Math.max(1, Math.min(mt + ih, py2) - Math.max(mt, py1)));
+      }
+    }
+    // ── V3b: HEATMAP DE LIQUIDEZ — columnas de calor del libro (solo crypto, bajo las velas) ──
+    if (this._hm && this._hm.snaps.length && this.ov('heatmap') && I.src === 'okx' && this._hm.inst === I.okx) {
+      const HS = this._hm.snaps, tfs2 = this.tf() * 60, bw2 = iw / bars.length;
+      // escala robusta p95: un iceberg no apaga el resto del mapa
+      const all2 = []; for (const s of HS) for (const r of s.rows) all2.push(r[1]);
+      all2.sort((a, b) => a - b);
+      const ref2 = all2[Math.floor(all2.length * 0.95)] || 1;
+      for (const s of HS) {
+        const anchor2 = s.t - (s.t % tfs2);
+        let bi2 = -1;
+        for (let i = bars.length - 1; i >= 0; i--) { if (bars[i].t === anchor2) { bi2 = i; break; } if (bars[i].t < anchor2) break; }
+        if (bi2 < 0) continue;
+        const hx = X(bi2) - bw2 / 2 + ((s.t - anchor2) / tfs2) * bw2;
+        for (const [hp, husd] of s.rows) {
+          if (hp < pMin || hp > pMax) continue;
+          const ha = Math.min(0.5, Math.pow(husd / ref2, 0.6) * 0.5);
+          if (ha < 0.03) continue;
+          g.fillStyle = 'rgba(201,168,76,' + ha.toFixed(3) + ')';
+          g.fillRect(hx, Y(hp) - 1, Math.max(2, bw2 * 0.1), 2);
+        }
       }
     }
     // banda VWAP ±1σ/±2σ
