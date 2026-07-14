@@ -5210,7 +5210,7 @@ const Terminal = {
     if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
     setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
-  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5626,6 +5626,54 @@ const Terminal = {
       trend, lbl: trend ? '⚡ DÍA TENDENCIA ' + (mig >= 0 ? '↗' : '↘') : '♻ DÍA BALANCE',
       tip: 'POC migró ' + (mig >= 0 ? '+' : '') + mig.toFixed(1) + 'σ en ~30min · banda σ ×' + sExp.toFixed(2) + (gNeg ? ' · Γ− amplifica' : '') + ' — ' + (trend ? 'los fades a VWAP/±2σ PIERDEN su edge: opera con la dirección, no contra ella' : 'rotación VAH↔VAL: los extremos ±2σ tienden a revertir a VWAP (research ~63%, valídalo con tu registro)'),
     };
+  },
+  // ══ V2: FADE σ — reversión a la media AUDITADA (la señal se gana la confianza con datos) ══
+  // Dispara al tocar ±2σ del VWAP SOLO si el día no es tendencia (V1) y la cinta no empuja
+  // en contra. Objetivo/stop CONGELADOS al disparo (VWAP y 3σ de ese momento) → auditable
+  // sin ambigüedad. Cada señal se registra en term_fade_v1 y se resuelve sola: ✓ tocó el
+  // objetivo antes que el stop · ✗ al revés (stop primero manda si la misma barra toca ambos).
+  _fadeArm: { up: true, dn: true },
+  _fade() { try { return JSON.parse(localStorage.getItem('term_fade_v1') || '[]'); } catch (e) { return []; } },
+  _fadeSave(a) { try { localStorage.setItem('term_fade_v1', JSON.stringify(a.slice(-400))); } catch (e) {} },
+  _fadeCheck(c) {
+    if (!c || c.vwap == null || !c.s1 || this.feed.bars.length < 3) return;
+    const I = this.instr(), z = (c.last - c.vwap) / c.s1;
+    if (Math.abs(z) < 1) { this._fadeArm.up = true; this._fadeArm.dn = true; } // re-armado por excursión
+    this._fadeResolve(c);
+    const side = z >= 2 ? 'short' : z <= -2 ? 'long' : null;
+    if (!side) return;
+    const armKey = side === 'short' ? 'up' : 'dn';
+    if (!this._fadeArm[armKey]) return;
+    const RG = this._regime(c, this._svpData);
+    if (RG && RG.trend) return; // en día TENDENCIA no se fadea — el research y la honestidad coinciden
+    const OF = this._of;
+    if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0) {
+      const bp = OF.buys / (OF.buys + OF.sells) * 100;
+      if ((side === 'short' && bp >= 58) || (side === 'long' && bp <= 42)) return; // la cinta empuja en contra
+    }
+    this._fadeArm[armKey] = false;
+    const a = this._fade();
+    a.push({ d: c.today, tk: I.tk, t: c.lastT, side, px: c.last, z: +z.toFixed(2), tgt: c.vwap, stp: c.vwap + (side === 'short' ? 3 : -3) * c.s1, res: null });
+    this._fadeSave(a);
+  },
+  _fadeResolve(c) {
+    const I = this.instr(), a = this._fade(); let ch = false;
+    for (const s of a) {
+      if (s.res != null || s.tk !== I.tk) continue;
+      for (const b of this.feed.bars) {
+        if (b.t <= s.t) continue;
+        const hitS = s.side === 'short' ? b.h >= s.stp : b.l <= s.stp;
+        const hitT = s.side === 'short' ? b.l <= s.tgt : b.h >= s.tgt;
+        if (hitS) { s.res = 0; s.rt = b.t; ch = true; break; }
+        if (hitT) { s.res = 1; s.rt = b.t; ch = true; break; }
+      }
+    }
+    if (ch) this._fadeSave(a);
+  },
+  _fadeStats(tk) {
+    const done = this._fade().filter(s => s.tk === tk && s.res != null);
+    const w = done.filter(s => s.res === 1).length;
+    return done.length ? { n: done.length, w } : null;
   },
   // ══ V1: RVOL por SLOT HORARIO — volumen actual vs el MISMO slot 30m de días previos ══
   // (el volumen intradía es U-shaped: comparar vs promedio del día entero engaña)
@@ -6066,6 +6114,11 @@ const Terminal = {
     }
     // 2.2) V1: RÉGIMEN DEL DÍA — el interruptor de la reversión a la media
     if (c) { const RG = this._regime(c, this._svpData); if (RG) parts.push([RG.lbl, RG.trend ? 'var(--amber)' : 'var(--teal)', RG.tip]); }
+    // 2.3) V2: señal FADE pendiente y reciente (<45 min) — observacional, se audita sola
+    if (c) {
+      const fsA = this._fade().filter(s => s.tk === I.tk && s.res == null && Date.now() / 1000 - s.t < 2700);
+      if (fsA.length) { const s = fsA[fsA.length - 1]; parts.push(['🎯 FADE ' + (s.side === 'short' ? '↓' : '↑'), 'var(--amber)', 'Toque de ' + (s.z >= 0 ? '+' : '') + s.z + 'σ en día no-tendencia sin la cinta en contra → objetivo VWAP congelado ' + (+s.tgt).toFixed(I.dec) + ' · invalida en ' + (+s.stp).toFixed(I.dec) + ' (3σ). OBSERVACIONAL: se registra y resuelve solo — el win-rate acumulado vive junto al RVOL']); }
+    }
     // 2.5) T4: LA CINTA VOTA — presión agresora sostenida entra al veredicto (umbral alto:
     // solo habla cuando hay sesgo claro; con flujo parejo se calla)
     const OF = this._of;
@@ -6106,6 +6159,7 @@ const Terminal = {
     // V1: el perfil y su trail de régimen se computan ANTES del veredicto (lo consumen)
     this._svpData = c ? this._svp(this.feed.bars, c) : null;
     if (c && this._svpData) this._regSample(c, this._svpData);
+    if (c && !I.fx) this._fadeCheck(c); // V2: la señal y su resolución auditada
     this._verdict(c);
     if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; return; }
     const f = v => v == null ? '—' : (+v).toFixed(I.dec);
@@ -6119,6 +6173,9 @@ const Terminal = {
       + (c.ibLive ? ' · <span style="color:var(--purple)">IB en construcción hasta 10:30 ET</span>' : '')
       // V1: RVOL vs el mismo slot 30m de días previos (patrón U intradía)
       + (() => { const rv = this._rvol(c); return rv ? ' · RVOL <b style="color:' + (rv.r >= 2 ? 'var(--amber)' : rv.r < 0.6 ? 'var(--text3)' : 'var(--text2)') + '" title="Volumen del slot 30m actual' + (rv.live ? ' (en curso, prorrateado)' : '') + ' vs el promedio del MISMO slot horario de ' + rv.n + ' días previos — el volumen intradía es U-shaped: compararlo vs el día entero engaña. ≥2× = convicción real detrás del movimiento; <0.6× = movimiento sin participación (sospechoso)">' + rv.r.toFixed(1) + '×' + (rv.r >= 2 ? ' ⚡' : rv.r < 0.6 ? ' 💤' : '') + '</b>' : ''; })()
+      // V2: z-score vivo (estiramiento vs VWAP) + win-rate AUDITADO de la señal FADE en este instrumento
+      + (c.vwap != null && c.s1 ? (() => { const z = (c.last - c.vwap) / c.s1; return Math.abs(z) >= 1.5 ? ' · <b style="color:' + (Math.abs(z) >= 2 ? 'var(--amber)' : 'var(--text2)') + '" title="Z-score del precio vs VWAP: a cuántas σ está estirado. ±2σ en día BALANCE = candidato a reversión (la señal 🎯 lo registra y audita sola)">' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ</b>' : ''; })() : '')
+      + (() => { const st = this._fadeStats(I.tk); return st && st.n >= 3 ? ' · <span style="font-size:9.5px;color:var(--text3)" title="Registro AUDITADO de la señal FADE 2σ en ESTE instrumento: ✓ = tocó su objetivo VWAP (congelado al disparo) antes que el 3σ · ✗ = al revés. El ~63% del research se valida aquí con TU data — n<20 es anécdota, no estadística">🎯 ' + st.w + '✓/' + (st.n - st.w) + '✗</span>' : ''; })()
       + (I.fx ? ' · <span style="color:var(--text3)" title="El spot forex no reporta volumen — VWAP no computable; OR/IB son convención de futuros US">spot: sin VWAP/IB</span>' : '')
       // T2: chip semáforo institucional del ticker espejo (modo degradado, hover = pills)
       + (this._zones && this._zones.sig && this.ov('sema') ? (() => {
@@ -6270,6 +6327,21 @@ const Terminal = {
       g.strokeStyle = lcol; g.shadowColor = lcol; g.shadowBlur = 7;
       g.strokeRect(X(bars.length - 1) - bw / 2, Y(Math.max(lo, lb.c)), bw, Math.max(1.5, Math.abs(Y(lo) - Y(lb.c))));
       g.shadowBlur = 0;
+    }
+    // ── V2: marcadores 🎯 de la señal FADE (hoy, este instrumento) — ámbar=pendiente ✓verde ✗rojo ──
+    if (this.ov('vwap') && c) {
+      const sigs = this._fade().filter(s => s.tk === I.tk && s.d === c.today).slice(-12);
+      if (sigs.length) {
+        g.font = '11px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+        for (const s of sigs) {
+          let bi = -1;
+          for (let i = bars.length - 1; i >= 0; i--) { if (bars[i].t <= s.t) { bi = i; break; } }
+          if (bi < 0 || s.px < pMin || s.px > pMax) continue;
+          const scol = s.res == null ? '#fbbf24' : s.res ? '#34d399' : '#f87171';
+          g.fillStyle = scol;
+          g.fillText(s.res == null ? '◎' : s.res ? '◉' : '⊘', X(bi) - 4, Y(s.px) + (s.side === 'short' ? -9 : 9));
+        }
+      }
     }
     // niveles horizontales + etiquetas margen derecho — gateados por toggle (T2):
     // muros = 🧲🛡⚖👻/EM · vwap = líneas ámbar · niveles = el resto (PDH/ON/IB/OR)
