@@ -5598,14 +5598,17 @@ const Terminal = {
   _regSample(c, svp) {
     const now = Date.now() / 1000, last = this._regTrail[this._regTrail.length - 1];
     if (last && now - last.t < 60) return;
-    this._regTrail.push({ t: now, poc: svp ? svp.poc : null, s1: c.s1 || null });
+    // día ET + base del perfil (Globex vs RTH) viajan con la muestra: comparar POCs de
+    // universos distintos fabricaba "TENDENCIA" falsa justo en la ventana del IB
+    this._regTrail.push({ t: now, d: c.today, rb: svp.rthBased, poc: svp.poc, s1: c.s1 || null });
     if (this._regTrail.length > 480) this._regTrail.shift();
   },
   _regime(c, svp) {
     if (!svp) return null;
     const now = Date.now() / 1000;
-    const back = this._regTrail.filter(s => now - s.t >= 1800 && s.poc != null);
-    if (!back.length) return null; // necesita ~30 min de historia propia
+    // misma sesión + misma base + ventana 30-60 min (tab oculto no deja "hace ~30min" viejo de horas)
+    const back = this._regTrail.filter(s => now - s.t >= 1800 && now - s.t <= 3600 && s.poc != null && s.d === c.today && s.rb === svp.rthBased);
+    if (!back.length) return null; // necesita ~30 min de historia propia comparable
     const ref = back[back.length - 1];
     const unit = c.s1 || (c.adr ? c.adr / 4 : null);
     if (!unit) return null;
@@ -5614,7 +5617,9 @@ const Terminal = {
     const gNeg = this._walls?.prim?.gexTotalBn != null && this._walls.prim.gexTotalBn < 0;
     let score = 0;
     if (Math.abs(mig) >= 0.8) score += 2; else if (Math.abs(mig) >= 0.4) score += 1;
-    if (sExp >= 1.2) score += 1;
+    // la σ acumulativa crece casi por construcción en la 1ª hora RTH — no cuenta ahí
+    const rthMature = !svp.rthBased || (c.rth.length && now - c.rth[0].t >= 3600);
+    if (sExp >= 1.2 && rthMature) score += 1;
     if (gNeg) score += 1;
     const trend = score >= 2;
     return {
@@ -5630,7 +5635,8 @@ const Terminal = {
     const todays = withV.filter(b => b.et.d === c.today);
     if (!todays.length) return null;
     const cur = todays[todays.length - 1], slot = cur.et.m - (cur.et.m % 30);
-    const prevs = withV.filter(b => b.et.d !== c.today && (b.et.m - (b.et.m % 30)) === slot);
+    // findes fuera del promedio (crypto sábado/domingo y Globex domingo desinflan el slot)
+    const prevs = withV.filter(b => b.et.d !== c.today && !esFinde(b.et.d) && (b.et.m - (b.et.m % 30)) === slot);
     if (prevs.length < 2) return null;
     const avg = prevs.reduce((a, b) => a + b.v, 0) / prevs.length;
     if (!(avg > 0)) return null;
