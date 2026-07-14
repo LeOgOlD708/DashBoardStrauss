@@ -10940,10 +10940,12 @@ const InstPanel = {
   // — habilita leer la DERIVA (¿el call wall lleva días subiendo? ¿el put wall se desplomó?).
   _hist(d) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      // ET, no UTC (mismo fix que zonas/radar 07-13): después de las 20:00 ET la fecha UTC
+      // ya es mañana y la lectura nocturna se archivaba corrida +1 día. Finde: no se escribe.
+      const today = etDate();
       const all = JSON.parse(localStorage.getItem('inst_walls_v1') || '{}');
       const arr = all[d.tk] || [];
-      if (!arr.length || arr[arr.length - 1].d !== today) {
+      if (!esFinde(today) && (!arr.length || arr[arr.length - 1].d !== today)) {
         arr.push({ d: today, cw: d.callWall, pw: d.putWall, fl: d.gammaFlip, gex: d.gexTotalBn, pc: d.pcVol });
         all[d.tk] = arr.slice(-30);
         const tks = Object.keys(all);
@@ -11096,20 +11098,25 @@ const InstPanel = {
   // Guarda las últimas 2 lecturas de días DISTINTOS por ticker (solo se necesita ayer vs hoy).
   _oiHist(d) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      // ET, no UTC (mismo fix que zonas/radar 07-13): la lectura de madrugada se archivaba
+      // bajo la fecha de MAÑANA y la sesión real la sobrescribía → paso del ΔOI perdido.
+      // Finde: el OI es el del viernes — no se escribe entrada espuria.
+      const today = etDate();
       const all = JSON.parse(localStorage.getItem('inst_oi_v1') || '{}');
       const arr = all[d.tk] || [];
-      const snap = {};
-      for (const s of (d.strikes || [])) snap[s.k] = [s.cOI, s.pOI];
-      if (!arr.length || arr[arr.length - 1].d !== today) arr.push({ d: today, s: snap });
-      else arr[arr.length - 1].s = snap; // misma sesión: el OI de cierre no cambia intradía, refrescar es inocuo
-      all[d.tk] = arr.slice(-10); // TEMPORALIDAD: 10 lecturas → ΔOI vs ayer / ~5 sesiones / 1ª lectura
-      const tks = Object.keys(all);
-      if (tks.length > 12) { // cap: el ticker con lectura más vieja sale
-        tks.sort((a, b) => ((all[a][all[a].length - 1] || {}).d || '') < ((all[b][all[b].length - 1] || {}).d || '') ? -1 : 1);
-        delete all[tks[0]];
+      if (!esFinde(today)) {
+        const snap = {};
+        for (const s of (d.strikes || [])) snap[s.k] = [s.cOI, s.pOI];
+        if (!arr.length || arr[arr.length - 1].d !== today) arr.push({ d: today, s: snap });
+        else arr[arr.length - 1].s = snap; // misma sesión: el OI de cierre no cambia intradía, refrescar es inocuo
+        all[d.tk] = arr.slice(-10); // TEMPORALIDAD: 10 lecturas → ΔOI vs ayer / ~5 sesiones / 1ª lectura
+        const tks = Object.keys(all);
+        if (tks.length > 12) { // cap: el ticker con lectura más vieja sale
+          tks.sort((a, b) => ((all[a][all[a].length - 1] || {}).d || '') < ((all[b][all[b].length - 1] || {}).d || '') ? -1 : 1);
+          delete all[tks[0]];
+        }
+        localStorage.setItem('inst_oi_v1', JSON.stringify(all));
       }
-      localStorage.setItem('inst_oi_v1', JSON.stringify(all));
       this._oiArr = arr; // TEMPORALIDAD: la serie completa disponible para el selector de referencia
       return arr.length >= 2 ? arr[arr.length - 2] : null; // lectura previa de OTRO día
     } catch (e) { this._oiArr = null; return null; }
@@ -11401,9 +11408,13 @@ const RadarFlujo = {
         rows.push({ tk, c, os, sesgo, apertN, zvol, doiNorm, doiTxt, dpTxt, netPremM: o.netPremM, px: y?.price || o.spot, thin });
       }
       const valid = rows.filter(r => !r.na);
-      const osSorted = valid.filter(r => r.os != null).map(r => r.os).sort((a, b) => a - b);
+      // v1.1: los índices/ETF quedan FUERA del percentil O/S — su ratio opciones÷acción es
+      // estructuralmente altísimo: se iban a ~1.0 inflando su score Y comprimiendo el de
+      // las acciones reales. Índice → osRank null (neutro en _score).
+      const esIdx9 = t9 => /^(QQQ|SPY|IWM|DIA|SPX|NDX)$/.test(t9);
+      const osSorted = valid.filter(r => r.os != null && !esIdx9(r.tk)).map(r => r.os).sort((a, b) => a - b);
       for (const r of valid) { // O/S: percentil DENTRO del set escaneado (cross-section honesto sin histórico)
-        if (r.os != null && osSorted.length > 1) r.c.osRank = osSorted.indexOf(r.os) / (osSorted.length - 1);
+        if (r.os != null && !esIdx9(r.tk) && osSorted.length > 1) r.c.osRank = osSorted.indexOf(r.os) / (osSorted.length - 1);
         r.score = this._score(r.c);
       }
       valid.sort((a, b) => b.score - a.score);
@@ -12430,10 +12441,10 @@ const InstDeep = {
   _ivRank(tk, ivAtm) {
     if (!ivAtm) return null;
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = etDate(); // ET, no UTC (mismo fix que zonas/radar) · finde: no se escribe
       const all = JSON.parse(localStorage.getItem('inst_iv_v1') || '{}');
       const arr = all[tk] || [];
-      if (!arr.length || arr[arr.length - 1].d !== today) {
+      if (!esFinde(today) && (!arr.length || arr[arr.length - 1].d !== today)) {
         arr.push({ d: today, iv: ivAtm });
         all[tk] = arr.slice(-260);
         const tks = Object.keys(all);
@@ -12899,7 +12910,7 @@ const CotCard = {
       if (el) el.textContent = 'data del martes ' + (d.updated || '—') + ' · CFTC';
       const fK = v => (v >= 0 ? '+' : '−') + (Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(Math.abs(v) >= 100000 ? 0 : 1) + 'K' : Math.abs(v));
       const spark = (arr) => {
-        if (!arr?.length) return '';
+        if (!arr || arr.length < 2) return ''; // 1 punto → 0/0 = NaN en el polyline
         const lo = Math.min(...arr), hi = Math.max(...arr), rg = hi - lo || 1;
         const pts = arr.map((v, i) => (i / (arr.length - 1) * 60).toFixed(1) + ',' + (14 - (v - lo) / rg * 12).toFixed(1)).join(' ');
         const zeroY = (lo < 0 && hi > 0) ? (14 - (0 - lo) / rg * 12).toFixed(1) : null;
@@ -12908,7 +12919,7 @@ const CotCard = {
           + '<polyline points="' + pts + '" fill="none" stroke="' + (arr[arr.length - 1] >= arr[0] ? 'var(--green)' : 'var(--red)') + '" stroke-width="1.1"/></svg>';
       };
       const rows = d.mkts.map(m => {
-        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + m.lbl + '</td><td colspan="6" style="color:var(--text3)">' + escHtml(m.error) + '</td></tr>';
+        if (m.error) return '<tr><td style="padding:3px 8px 3px 0;color:var(--text3)">' + escHtml(m.lbl) + '</td><td colspan="6" style="color:var(--text3)">' + escHtml(m.error) + '</td></tr>';
         const p = m.pctil3y;
         const flag = p >= 90 ? { c: 'var(--red)', t: 'CROWDED LONG', tip: 'especuladores en su percentil ' + p + ' de largos en 3 años — posicionamiento saturado: contrarian BAJISTA (riesgo de unwind)' }
           : p <= 10 ? { c: 'var(--teal)', t: 'CROWDED SHORT', tip: 'especuladores en su percentil ' + p + ' (cortos extremos) en 3 años — combustible de short squeeze: contrarian ALCISTA' }
@@ -12918,7 +12929,7 @@ const CotCard = {
         const gauge = '<div style="position:relative;width:84px;height:9px;border-radius:4px;background:linear-gradient(90deg,rgba(45,212,191,.55) 0%,rgba(45,212,191,.15) 12%,rgba(125,111,99,.18) 30%,rgba(125,111,99,.18) 70%,rgba(248,113,113,.15) 88%,rgba(248,113,113,.55) 100%);margin:0 auto" title="' + flag.tip + '">'
           + '<span style="position:absolute;left:calc(' + Math.max(2, Math.min(98, p)) + '% - 2px);top:-2.5px;width:4px;height:14px;border-radius:2px;background:' + (p >= 90 ? 'var(--red)' : p <= 10 ? 'var(--teal)' : '#f0ece4') + ';box-shadow:0 0 4px rgba(0,0,0,.6)"></span></div>';
         return '<tr>'
-          + '<td style="padding:3px 8px 3px 0;color:var(--text2);white-space:nowrap">' + m.lbl + '</td>'
+          + '<td style="padding:3px 8px 3px 0;color:var(--text2);white-space:nowrap">' + escHtml(m.lbl) + '</td>'
           + '<td style="padding:3px 8px;text-align:right;color:' + (m.net >= 0 ? 'var(--green)' : 'var(--red)') + '" title="posición NETA de especuladores (non-commercials): largos − cortos, en contratos">' + fK(m.net) + '</td>'
           + '<td style="padding:3px 8px;text-align:right;color:var(--text3)" title="posición NETA de COMMERCIALS (hedgers: productores, bancos cubriendo — el otro lado del mercado). En los extremos suelen ser el smart money: van contra los especuladores por necesidad de cobertura, no por opinión">' + (m.netComm != null ? fK(m.netComm) : '—') + '</td>'
           + '<td style="padding:3px 8px;text-align:right;color:' + (m.dWeek >= 0 ? 'var(--green)' : 'var(--red)') + '" title="cambio vs la semana anterior (specs)">' + fK(m.dWeek) + '</td>'
