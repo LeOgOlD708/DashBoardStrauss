@@ -5503,7 +5503,9 @@ const Terminal = {
     const map = { 'NQ=F': 'QQQ', 'ES=F': 'SPY' };
     const etf = map[I.tk];
     if (!etf) { this._pin0 = null; return; }
-    if (this._pin0 && this._pin0.etf === etf && Date.now() - this._pin0T < 1800e3) return;
+    // el gate retiene TAMBIÉN con _pin0 null (finde/dte>1/fetch fallido) — sin esto el
+    // feedPoll de 60s spameaba el endpoint 60 req/h todo el sábado
+    if (Date.now() - this._pin0T < 1800e3 && (!this._pin0 || this._pin0.etf === etf)) return;
     this._pin0T = Date.now();
     try {
       const j = await fetch('/api/capital?src=opt&tickers=' + etf + '&exp=d').then(r => r.json());
@@ -6412,8 +6414,10 @@ const Terminal = {
         if (W.sec.putWall != null) add('👻 PW ' + W.secEtf, W.sec.putWall * r2, 'var(--text3)', 'BLIND SPOT: put wall de ' + W.secEtf + ' proyectado.' + aprox);
       }
     }
-    // V4: PIN 0DTE — el imán del cierre (conversión por ratio como los muros)
-    if (this._pin0 && !I.fx && this._pin0.spot > 0) {
+    // V4: PIN 0DTE — el imán del cierre (conversión por ratio como los muros).
+    // Solo mientras su expiración VIVE: exp = hoy ET y antes de las 16:05 — el server
+    // clampa dte y no delata cadenas ya expiradas (el pin muerto engañaría al Globex vespertino)
+    if (this._pin0 && !I.fx && this._pin0.spot > 0 && this._pin0.exp === etDate() && this.etParts(Date.now() / 1000).m <= 965) {
       const P0 = this._pin0;
       add('📌 PIN 0DTE', P0.k * (c.last / P0.spot), 'var(--purple)', 'Strike con MÁXIMA gamma que expira HOY: ' + P0.etf + ' ' + P0.k + (P0.pct ? ' concentra el ' + P0.pct.toFixed(0) + '% del GEX 0DTE' : '') + ' — imán de pin risk hacia el cierre (>40% del volumen de opciones de índices es same-day). Cadena delayed 15m, conversión aprox.', P0.pct, 'muros');
     }
