@@ -5177,7 +5177,11 @@ const Terminal = {
       + '<select onchange="if(this.value)Terminal.setInstr(this.value)" style="' + selStyle + '">' + opt('fx', '💱 FOREX') + '</select>'
       + '<span style="display:inline-flex;gap:3px;margin-left:10px">' + [1, 5, 15].map(m => btn(tf === m, m + 'm', 'Terminal.setTf(' + m + ')', 'temporalidad ' + m + ' minutos')).join('') + '</span>'
       + '<span style="display:inline-flex;gap:3px;margin-left:10px">' + [['velas', '🕯'], ['linea', '📈'], ['area', '⛰']].map(([t, ic]) => btn(ct === t, ic + ' ' + t, 'Terminal.setCtype(\'' + t + '\')', 'tipo de gráfico')).join('') + '</span>'
-      + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>';
+      + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>'
+      // T2: toggles de overlays — qué capas del motor viven SOBRE el chart
+      + '<span style="display:inline-flex;gap:3px;margin-left:10px;padding-left:10px;border-left:1px solid var(--border2)">'
+      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
+      + '</span>';
   },
   setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this.feedStart(); },
   setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
@@ -5191,7 +5195,7 @@ const Terminal = {
     if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
     setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
-  setInstr(tk) { this._gen++; this._wsKill(); this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._zones = null; this._walls = null; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5214,7 +5218,11 @@ const Terminal = {
         try { await this._okxStart(I, gen); this._walls = null; }
         catch (e) { console.warn('[Terminal] OKX caído → fallback Yahoo:', e); if (gen === this._gen) { this._okxDeadUntil = Date.now() + 600e3; this._wsKill(); await this._yahooStart(I, gen); } }
       } else await this._yahooStart(I, gen);
-      if (gen === this._gen) this.render();
+      if (gen === this._gen) {
+        this.render();
+        // T2: zonas del motor en paralelo (cache 30 min) — repinta al llegar
+        this._loadZones(I, gen).then(() => { if (gen === this._gen) this.render(); });
+      }
     } catch (e) { if (gen === this._gen) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; } }
     this._busy = false;
     if (this._pendingStart) { this._pendingStart = false; this.feedStart(); }
@@ -5355,6 +5363,34 @@ const Terminal = {
     const st = (d.strikes || []).find(x => x.k === k);
     return (st && sum > 0) ? Math.abs(st.gex) / sum * 100 : null;
   },
+  // ── T2: ZONAS DEL MOTOR sobre el chart — reusa zonesFor (Tab 09) del ticker espejo ──
+  // NQ/ES → QQQ/SPY (conversión por ratio, aprox declarada) · BTC/ETH → directo (opt Deribit).
+  // Forex/XAU: el motor de zonas es diario+cadena — no existe para spot, honesto.
+  ZMAP: { 'NQ=F': 'QQQ', 'ES=F': 'SPY', 'BTC-USD': 'BTC-USD', 'ETH-USD': 'ETH-USD' },
+  _zCache: {}, _zones: null,
+  async _loadZones(I, gen) {
+    const ztk = this.ZMAP[I.tk];
+    if (!ztk) { this._zones = null; return; }
+    const cch = this._zCache[ztk];
+    if (cch && Date.now() - cch.ts < 1800e3) { this._zones = cch.z; return; }
+    try {
+      const y1 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(ztk) + '&range=1y').then(r => r.json());
+      if (gen !== this._gen) return;
+      const dU = y1?.[ztk];
+      if (!dU?.hist?.length || dU.error) { this._zones = null; return; }
+      const zf = await InstDeep.zonesFor(ztk, dU.hist, dU.vols, dU.dates);
+      if (gen !== this._gen) return;
+      if (!zf) { this._zones = null; return; }
+      // semáforo en modo degradado (sin FINRA/SEC/stats — mismo camino que crypto en Radar)
+      let sig = null; try { sig = semaphoreSignals(ztk, dU, zf.opt, null, null, null); } catch (e) {}
+      const z = { ztk, spot: zf.spot, zones: zf.zones || [], sig, ts: Date.now() };
+      this._zCache[ztk] = { ts: Date.now(), z };
+      this._zones = z;
+    } catch (e) { this._zones = null; }
+  },
+  // toggles de overlays del chart (T2) — default todo ON, persistido en cfg
+  ov(k) { const o = this.cfg().ov || {}; return o[k] !== false; },
+  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = c.ov[k] === false; this.saveCfg(); this._renderBtns(); this.render(); },
   async feedPoll() {
     const I = this.instr();
     // FW/T1: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
@@ -5778,10 +5814,15 @@ const Terminal = {
       + (c.adrPct != null ? ' · ADR' + (I.fx ? '' : ' RTH') + ' consumido <b style="color:' + (c.adrPct > 80 ? 'var(--amber)' : 'var(--text2)') + '">' + c.adrPct.toFixed(0) + '%</b><span style="color:var(--text3)" title="Rango de hoy vs rango promedio de los últimos 5 días — >80% = no persigas la ruptura">'
       + (c.adrPct > 80 ? ' ⚠ día estirado' : '') + '</span>' : '')
       + (c.ibLive ? ' · <span style="color:var(--purple)">IB en construcción hasta 10:30 ET</span>' : '')
-      + (I.fx ? ' · <span style="color:var(--text3)" title="El spot forex no reporta volumen — VWAP no computable; OR/IB son convención de futuros US">spot: sin VWAP/IB</span>' : '');
+      + (I.fx ? ' · <span style="color:var(--text3)" title="El spot forex no reporta volumen — VWAP no computable; OR/IB son convención de futuros US">spot: sin VWAP/IB</span>' : '')
+      // T2: chip semáforo institucional del ticker espejo (modo degradado, hover = pills)
+      + (this._zones && this._zones.sig && this.ov('sema') ? (() => {
+        const zn = this._zones, modo = zn.sig.pills.find(p => p.lbl.startsWith('MODO'));
+        return ' · <span title="' + escHtml('Semáforo de ' + zn.ztk + ' (motor Tab 09, sin FINRA/SEC aquí): ' + zn.sig.pills.map(p => p.lbl).join(' · ') + ' — el detalle completo vive en 09 · Institucional') + '" style="border:1px solid var(--border2);border-radius:4px;padding:1px 6px;font-size:10px">🚦 ' + zn.ztk + (modo ? ' <b style="color:' + modo.col + '">' + escHtml(modo.lbl.replace('MODO ', '')) + '</b>' : '') + ' <b style="color:var(--green)">' + zn.sig.verdes + '✓</b>/<b style="color:var(--red)">' + zn.sig.rojas + '✗</b></span>';
+      })() : '');
     // ladder de niveles
     const lv = [];
-    const add = (lbl, v, col, tip) => { if (v != null) lv.push({ lbl, v, col, tip }); };
+    const add = (lbl, v, col, tip, w) => { if (v != null) lv.push({ lbl, v, col, tip, w }); }; // w = fuerza 🧱 (% GEX) para grosor en el chart
     add('PDH', c.pdh, 'var(--gold)', 'High del día previo (' + (c.prevD || '') + ') — imán/barrido clásico');
     add('PDL', c.pdl, 'var(--gold)', 'Low del día previo');
     add('PDC', c.pdc, 'var(--text2)', 'Cierre previo — referencia del gap');
@@ -5798,8 +5839,8 @@ const Terminal = {
       if (W.prim) {
         const r = c.last / W.prim.spot;
         const fz = k => { const p = this._wallPct(W.prim, k); return p == null ? '' : ' · fuerza ' + p.toFixed(0) + '% del GEX' + (p >= 15 ? ' (muro DURO 🧱)' : p < 8 ? ' (decorativo)' : ''); };
-        if (W.prim.callWall != null) add('🧲 CW ' + W.primEtf, W.prim.callWall * r, 'var(--green)', 'Call wall de ' + W.primEtf + ' (' + W.prim.callWall + ') en puntos del futuro — techo/imán donde los dealers frenan' + fz(W.prim.callWall) + '.' + aprox);
-        if (W.prim.putWall != null) add('🛡 PW ' + W.primEtf, W.prim.putWall * r, 'var(--red)', 'Put wall de ' + W.primEtf + ' (' + W.prim.putWall + ') — soporte/acelerador' + fz(W.prim.putWall) + '.' + aprox);
+        if (W.prim.callWall != null) add('🧲 CW ' + W.primEtf, W.prim.callWall * r, 'var(--green)', 'Call wall de ' + W.primEtf + ' (' + W.prim.callWall + ') en puntos del futuro — techo/imán donde los dealers frenan' + fz(W.prim.callWall) + '.' + aprox, this._wallPct(W.prim, W.prim.callWall));
+        if (W.prim.putWall != null) add('🛡 PW ' + W.primEtf, W.prim.putWall * r, 'var(--red)', 'Put wall de ' + W.primEtf + ' (' + W.prim.putWall + ') — soporte/acelerador' + fz(W.prim.putWall) + '.' + aprox, this._wallPct(W.prim, W.prim.putWall));
         if (W.prim.gammaFlip != null) add('⚖ Flip', W.prim.gammaFlip * r, 'var(--gold)', 'Gamma flip de ' + W.primEtf + ' (' + W.prim.gammaFlip + ') — arriba los dealers estabilizan (chop), abajo amplifican (el precio patina).' + aprox);
         const emPct = (W.prim.emDaily?.pct ?? null); // emDaily es objeto {exp,dte,em,pct,ivAtm}
         if (emPct > 0 && c.pdc != null) {
@@ -5840,8 +5881,27 @@ const Terminal = {
       g.strokeStyle = 'rgba(45,212,191,.35)'; g.setLineDash([2, 3]); g.beginPath(); g.moveTo(X(rthI) - 2, mt); g.lineTo(X(rthI) - 2, mt + ih); g.stroke(); g.setLineDash([]);
       if (c.ibh != null && c.ibl != null) { const ibEnd = bars.findIndex(b => b.et.d === c.today && b.et.m >= 630); const x2 = ibEnd < 0 ? ml + iw : X(ibEnd); g.fillStyle = 'rgba(167,139,250,.07)'; g.fillRect(X(rthI) - 2, Y(c.ibh), x2 - X(rthI) + 2, Y(c.ibl) - Y(c.ibh)); }
     }
+    // ── T2: ZONAS DEL MOTOR — bandas de confluencia diaria, opacidad ∝ score ──
+    // (debajo de las velas: contexto, no protagonista; conversión espejo→instrumento por ratio)
+    if (this._zones && this.ov('zonas') && this._zones.zones.length && this._zones.spot > 0) {
+      const zr = c.last / this._zones.spot;
+      const zs = this._zones.zones.filter(z => z.cat !== 'DEBIL').slice(0, 6);
+      g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+      for (const z of zs) {
+        const zy1 = Math.max(mt, Y(z.hi * zr)), zy2 = Math.min(mt + ih, Y(z.lo * zr));
+        if (zy2 <= mt || zy1 >= mt + ih || zy2 - zy1 < 1) continue; // fuera del rango visible
+        const zcol = z.side === 'soporte' ? '52,211,153' : '248,113,113';
+        const za = Math.min(0.05 + z.score * 0.022, 0.16) * (z.degradada ? 0.55 : 1);
+        g.fillStyle = 'rgba(' + zcol + ',' + za.toFixed(3) + ')';
+        g.fillRect(ml, zy1, iw, Math.max(2, zy2 - zy1));
+        g.strokeStyle = 'rgba(' + zcol + ',' + (z.cat === 'ENTRADA' ? '.45' : '.25') + ')'; g.setLineDash([6, 4]);
+        g.beginPath(); g.moveTo(ml, Y(z.mid * zr)); g.lineTo(ml + iw, Y(z.mid * zr)); g.stroke(); g.setLineDash([]);
+        g.fillStyle = 'rgba(' + zcol + ',.85)';
+        g.fillText((z.cat === 'ENTRADA' ? '◆' : '◇') + ' ' + z.side.toUpperCase() + ' ×' + z.score.toFixed(1) + (z.degradada ? ' (gastada ' + z.touches + ' toques)' : ''), ml + 4, Math.max(mt + 6, Math.min((zy1 + zy2) / 2, mt + ih - 6)));
+      }
+    }
     // banda VWAP ±1σ/±2σ
-    if (this._vwapPts && c.vwap != null && c.s1) {
+    if (this.ov('vwap') && this._vwapPts && c.vwap != null && c.s1) {
       const off = bars.length - this._vwapPts.length;
       for (const [k, alpha] of [[2, .05], [1, .09]]) {
         g.fillStyle = 'rgba(251,191,36,' + alpha + ')'; g.beginPath();
@@ -5885,16 +5945,23 @@ const Terminal = {
       g.strokeRect(X(bars.length - 1) - bw / 2, Y(Math.max(lo, lb.c)), bw, Math.max(1.5, Math.abs(Y(lo) - Y(lb.c))));
       g.shadowBlur = 0;
     }
-    // niveles horizontales + etiquetas margen derecho
+    // niveles horizontales + etiquetas margen derecho — gateados por toggle (T2):
+    // muros = 🧲🛡⚖👻/EM · vwap = líneas ámbar · niveles = el resto (PDH/ON/IB/OR)
     g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+    const kindOf = L => /^(🧲|🛡|⚖|👻|EM)/.test(L.lbl) ? 'muros' : L.col === 'var(--amber)' ? 'vwap' : 'niveles';
     const seen = [];
     for (const L of lv) {
-      if (L.v < pMin || L.v > pMax) continue;
+      if (L.v < pMin || L.v > pMax || !this.ov(kindOf(L))) continue;
       const y = Y(L.v), col = { 'var(--gold)': '#d4a94b', 'var(--teal)': '#2dd4bf', 'var(--purple)': '#a78bfa', 'var(--amber)': '#fbbf24', 'var(--text2)': '#a99e93', 'var(--text3)': '#7d6f63', 'var(--green)': '#34d399', 'var(--red)': '#f87171' }[L.col] || '#7d6f63';
-      g.strokeStyle = col + '66'; g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
+      // 🧱 T2: el grosor del muro ES su fuerza (% del GEX en ese strike); ≥15% brilla
+      const wall = L.w != null;
+      g.lineWidth = wall ? Math.min(1 + L.w / 6, 4.5) : 1;
+      if (wall && L.w >= 15) { g.shadowColor = col; g.shadowBlur = 5; }
+      g.strokeStyle = col + (wall ? '99' : '66'); g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
+      g.shadowBlur = 0; g.lineWidth = 1;
       let ly = y; while (seen.some(s => Math.abs(s - ly) < 9)) ly += 9; seen.push(ly);
-      g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec), ml + iw + 3, ly);
+      g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
     }
     // spot
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
