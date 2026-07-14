@@ -5198,7 +5198,7 @@ const Terminal = {
       + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
       + '</span>';
   },
-  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this.feedStart(); },
+  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.feedStart(); },
   setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
   _ckEsc: null,
   toggleCockpit(force) {
@@ -5645,7 +5645,10 @@ const Terminal = {
     const armKey = side === 'short' ? 'up' : 'dn';
     if (!this._fadeArm[armKey]) return;
     const RG = this._regime(c, this._svpData);
-    if (RG && RG.trend) return; // en día TENDENCIA no se fadea — el research y la honestidad coinciden
+    // la premisa de la señal ES "día no-tendencia": sin régimen verificado (RG null =
+    // <30-60 min de historia, o σ RTH recién nacida) NO se dispara — el win-rate debe
+    // medir el edge condicional a balance, no una mezcla de regímenes
+    if (!RG || RG.trend) return;
     const OF = this._of;
     if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0) {
       const bp = OF.buys / (OF.buys + OF.sells) * 100;
@@ -5653,15 +5656,25 @@ const Terminal = {
     }
     this._fadeArm[armKey] = false;
     const a = this._fade();
-    a.push({ d: c.today, tk: I.tk, t: c.lastT, side, px: c.last, z: +z.toFixed(2), tgt: c.vwap, stp: c.vwap + (side === 'short' ? 3 : -3) * c.s1, res: null });
+    if (a.some(x => x.tk === I.tk && x.t === c.lastT && x.side === side)) return; // dedupe intra-vela (z oscilando) y multi-tab
+    a.push({ d: c.today, tk: I.tk, tf: this.tf(), t: c.lastT, side, px: c.last, z: +z.toFixed(2), rg: RG.lbl, tgt: c.vwap, stp: c.vwap + (side === 'short' ? 3 : -3) * c.s1, res: null });
     this._fadeSave(a);
   },
   _fadeResolve(c) {
     const I = this.instr(), a = this._fade(); let ch = false;
     for (const s of a) {
       if (s.res != null || s.tk !== I.tk) continue;
+      if (s.tf != null && s.tf !== this.tf()) continue; // cada señal se resuelve con barras de SU tf (orden y anclas consistentes)
+      // la vela del DISPARO cuenta solo para el stop y solo ya cerrada — su mecha post-disparo
+      // puede tocar 3σ (2σ→3σ = 1σ: alcanzable intra-vela); para el target NO (vino del VWAP)
+      const closedAfter = this.feed.bars.some(b => b.t > s.t);
+      if (closedAfter) {
+        const tb = this.feed.bars.find(b => b.t === s.t);
+        if (tb && (s.side === 'short' ? tb.h >= s.stp : tb.l <= s.stp)) { s.res = 0; s.rt = tb.t; ch = true; continue; }
+      }
       for (const b of this.feed.bars) {
         if (b.t <= s.t) continue;
+        if (b.et.d !== s.d) continue; // la señal muere con su sesión: el gap de mañana no puede "resolverla"
         const hitS = s.side === 'short' ? b.h >= s.stp : b.l <= s.stp;
         const hitT = s.side === 'short' ? b.l <= s.tgt : b.h >= s.tgt;
         if (hitS) { s.res = 0; s.rt = b.t; ch = true; break; }
