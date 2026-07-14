@@ -5010,6 +5010,10 @@ function setChartRange(r) {
 const Terminal = {
   _timers: [], _cfg: null, _cal: null, _calT: 0, _busy: false,
   feed: { bars: [], bars30: [], lastOk: 0, err: null },
+  // FW: Deriv WS para forex — validado en vivo 2026-07-13 (ticks bid/ask 1/s + velas
+  // 5m/30m, SIN cuenta ni token, app_id público). Reemplaza a OANDA (cuenta imposible).
+  DERIVSYM: { 'EURUSD=X': 'frxEURUSD', 'GBPUSD=X': 'frxGBPUSD' },
+  _ws: null, _wsLastTick: 0, _derivDeadUntil: 0, _lastPaint: 0,
   INSTRS: [
     { tk: 'NQ=F', lbl: 'NQ', name: 'Nasdaq 100 futuro', fx: false, dec: 0 },
     { tk: 'ES=F', lbl: 'ES', name: 'S&P 500 futuro', fx: false, dec: 1 },
@@ -5033,6 +5037,7 @@ const Terminal = {
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
+    this._wsKill(); // FW: el stream Deriv no debe sobrevivir al tab
     document.getElementById('term-gate')?.remove(); // el gate es fixed — no debe sobrevivir al tab
   },
 
@@ -5096,7 +5101,15 @@ const Terminal = {
     cd.innerHTML = '⏱ <b style="color:' + (urgent ? 'var(--red)' : hi.impact === 'high' ? 'var(--amber)' : 'var(--text2)') + '">' + escHtml(hi.name) + '</b> en ' + (d ? d + 'd ' : '') + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + ' <span style="color:var(--text3)">(' + hi.hhmm + ' ET habitual)</span>';
     // freshness del feed
     const fr = document.getElementById('term-fresh');
-    if (fr && this.feed.lastOk) { const age = Math.floor(Date.now() / 1000 - this.feed.lastOk); fr.innerHTML = age > 180 ? '<span style="color:var(--amber)">✕ STALE — sin datos hace ' + Math.floor(age / 60) + 'm</span>' : '<span style="color:var(--text3)">◐ delayed ~10-15m (Yahoo, por diseño) · refresco hace ' + age + 's</span>'; }
+    if (fr && this.feed.lastOk) {
+      const age = Math.floor(Date.now() / 1000 - this.feed.lastOk);
+      const fxWs = this.instr().fx && this._ws;
+      const live = fxWs && Date.now() - this._wsLastTick < 30e3;
+      fr.innerHTML = live ? '<span style="color:var(--teal)">⚡ EN VIVO (Deriv WS) · último tick hace ' + age + 's</span>'
+        : fxWs ? '<span style="color:var(--text3)">◐ stream Deriv conectado, mercado sin ticks · último dato hace ' + (age > 180 ? Math.floor(age / 60) + 'm' : age + 's') + '</span>'
+        : age > 180 ? '<span style="color:var(--amber)">✕ STALE — sin datos hace ' + Math.floor(age / 60) + 'm</span>'
+        : '<span style="color:var(--text3)">◐ delayed ~10-15m (Yahoo, por diseño) · refresco hace ' + age + 's</span>';
+    }
   },
 
   // ── F2: FeedHub (interfaz única; hoy solo implementación polling — FW enchufa OANDA) ──
@@ -5115,18 +5128,64 @@ const Terminal = {
     if (this._busy) return; this._busy = true;
     const I = this.instr();
     document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Cargando ' + I.lbl + '…</span>';
+    this._wsKill();
     try {
-      const [d5, d1] = await Promise.all([
-        fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=5d&hl=1&ts=1').then(r => r.json()),
-        fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json()),
-        this._loadWalls(I), // F3: muros en paralelo (cache 1h propio; null en forex)
-      ]);
-      this.feed.bars30 = this._norm(d5?.[I.tk]); this.feed.bars = this._norm(d1?.[I.tk]);
-      if (this.feed.bars.length) this.feed.lastOk = Date.now() / 1000;
+      if (I.fx && this.DERIVSYM[I.tk] && Date.now() > this._derivDeadUntil) {
+        // FW: forex por Deriv WS (velas + stream). Si muere → Yahoo 10 min y reintento.
+        try { await this._derivStart(I); this._walls = null; }
+        catch (e) { console.warn('[Terminal] Deriv caído → fallback Yahoo:', e); this._derivDeadUntil = Date.now() + 600e3; this._wsKill(); await this._yahooStart(I); }
+      } else await this._yahooStart(I);
       this.render();
     } catch (e) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; }
     this._busy = false;
   },
+  async _yahooStart(I) {
+    const [d5, d1] = await Promise.all([
+      fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=5d&hl=1&ts=1').then(r => r.json()),
+      fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json()),
+      this._loadWalls(I), // F3: muros en paralelo (cache 1h propio; null en forex)
+    ]);
+    this.feed.bars30 = this._norm(d5?.[I.tk]); this.feed.bars = this._norm(d1?.[I.tk]);
+    if (this.feed.bars.length) this.feed.lastOk = Date.now() / 1000;
+  },
+  // ── FW: bootstrap de velas + suscripción OHLC 5m por Deriv WS ──
+  _derivStart(I) {
+    const sym = this.DERIVSYM[I.tk];
+    return new Promise((res, rej) => {
+      const ws = new WebSocket('wss://ws.derivws.com/websockets/v3?app_id=1089');
+      this._ws = ws;
+      let got30 = false, got5 = false, settled = false;
+      const to = setTimeout(() => { if (!settled) { settled = true; rej(new Error('Deriv timeout')); } }, 12000);
+      const norm = cs => cs.map(c => ({ t: +c.epoch, h: +c.high, l: +c.low, c: +c.close, v: 0, et: this.etParts(+c.epoch) }));
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: 1800, count: 260, end: 'latest', adjust_start_time: 1, req_id: 30 }));
+        ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: 300, count: 300, end: 'latest', adjust_start_time: 1, subscribe: 1, req_id: 5 }));
+      };
+      ws.onmessage = ev => {
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.error) { if (!settled) { settled = true; clearTimeout(to); rej(new Error(m.error.message || 'deriv error')); } return; }
+        if (m.candles) {
+          // discriminar por echo_req.granularity (Deriv SIEMPRE ecoa el request)
+          const g = m.echo_req ? +m.echo_req.granularity : 0;
+          if (g === 1800) { this.feed.bars30 = norm(m.candles); got30 = true; }
+          else { this.feed.bars = norm(m.candles); got5 = true; this.feed.lastOk = Date.now() / 1000; }
+          if (got30 && got5 && !settled) { settled = true; clearTimeout(to); res(); }
+        } else if (m.ohlc) {
+          // vela 5m EN VIVO: actualizar la vela abierta / apender al cerrar (open_time = ancla)
+          const t = +m.ohlc.open_time;
+          const b = { t, h: +m.ohlc.high, l: +m.ohlc.low, c: +m.ohlc.close, v: 0, et: this.etParts(t) };
+          const arr = this.feed.bars, lastB = arr[arr.length - 1];
+          if (lastB && lastB.t === t) arr[arr.length - 1] = b; else if (!lastB || t > lastB.t) arr.push(b);
+          this.feed.lastOk = Date.now() / 1000; this._wsLastTick = Date.now();
+          // repintar con moderación (los updates llegan ~1/s; el mapa entero no necesita 60fps)
+          if (Date.now() - this._lastPaint > 5000 && !document.hidden) { this._lastPaint = Date.now(); this.render(); }
+        }
+      };
+      ws.onclose = () => { if (!settled) { settled = true; clearTimeout(to); rej(new Error('Deriv WS cerrado')); } this._wsLastTick = 0; };
+      ws.onerror = () => {};
+    });
+  },
+  _wsKill() { if (this._ws) { try { this._ws.onmessage = null; this._ws.close(); } catch (e) {} this._ws = null; } this._wsLastTick = 0; },
   // ── F3: muros gamma del ETF espejo convertidos al futuro + blind spots del índice hermano ──
   // NQ ← cadena QQQ (primaria) + SPY (blind spots) · ES ← SPY + QQQ. Conversión por ratio de
   // precios spot (custom-conv estilo GEXBOT, aprox declarada: el basis del futuro mete ±pts).
@@ -5157,6 +5216,10 @@ const Terminal = {
   },
   async feedPoll() {
     const I = this.instr();
+    // FW: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
+    // bucle de reconexión; el badge declara el silencio. Solo reconectar si murió.
+    if (I.fx && this._ws && this._ws.readyState <= 1) return;
+    if (I.fx && this.DERIVSYM[I.tk]) { this.feedStart(); return; }
     try {
       const d1 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=1d&hl=1&ts=1').then(r => r.json());
       const nb = this._norm(d1?.[I.tk]);
@@ -14736,7 +14799,7 @@ const INDICATORS_GLOSSARY = {
       { c: 'amber', t: 'ADR consumido >80% o precio en ±2σ → estirado, mejor esperar reversión/retest' },
       { c: 'red', t: 'DATA DELAYED 10-15 min: este mapa es PREPARACIÓN y contexto, no timing de ejecución — el timing fino va en tu broker' }
     ],
-    note: 'Fase F2 del blueprint Terminal v2. Las fases siguientes añaden muros gamma convertidos a NQ/ES (F3), streaming OANDA real-time para forex (FW) y probabilidades calibradas con data propia Databento (F6).'
+    note: 'Fase F2 del blueprint Terminal v2. F3 añadió los muros gamma convertidos a NQ/ES. FW (2026-07-13): forex EN VIVO vía Deriv WebSocket — velas 5m/30m + la vela abierta actualizándose cada segundo, sin cuenta ni token (OANDA quedó descartada); si el stream cae, la terminal degrada sola a Yahoo delayed y lo declara en el badge. F6 traerá probabilidades calibradas con data propia Databento.'
   },
   'catalysts-llm': {
     name: 'Catalysts Sectoriales (LLM)',
