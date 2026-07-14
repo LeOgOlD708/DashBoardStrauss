@@ -5489,12 +5489,17 @@ const Terminal = {
   _deltaAnalysis(c) {
     const T = this._of;
     if (!T || !T.dbars || (T.mode !== 'real' && T.mode !== 'tick') || !c) return null;
+    // render sucio post-switch: _of aún del instrumento/tf anterior (anclas de tiempo COINCIDEN
+    // entre instrumentos — mezclaría deltas de BTC sobre velas de ETH)
+    if (T.tk !== this.instr().tk || T.tfd !== this.tf()) return null;
     const bars = this.feed.bars;
-    const cov = []; // velas cerradas con delta acumulado
+    let cov = []; // velas cerradas con delta acumulado
     let cum = 0;
     for (let i = 0; i < bars.length - 1; i++) {
       const d = T.dbars[bars[i].t];
-      if (!d) { if (cov.length) break; continue; } // cobertura contigua desde la 1ª cubeta
+      // hueco (WS caído y revivido): quedarse con el tramo contiguo más RECIENTE —
+      // conservar el viejo congelaba un ⚠/🧲 stale como "actual" el resto del día
+      if (!d) { cov = []; cum = 0; continue; }
       cum += d.b - d.s;
       cov.push({ i, t: bars[i].t, h: bars[i].h, l: bars[i].l, o: bars[i].o, cl: bars[i].c, delta: d.b - d.s, tot: d.b + d.s, cvd: cum });
     }
@@ -6205,8 +6210,8 @@ const Terminal = {
       const fsA = this._fade().filter(s => s.tk === I.tk && s.res == null && Date.now() / 1000 - s.t < 2700);
       if (fsA.length) { const s = fsA[fsA.length - 1]; parts.push(['🎯 FADE ' + (s.side === 'short' ? '↓' : '↑'), 'var(--amber)', 'Toque de ' + (s.z >= 0 ? '+' : '') + s.z + 'σ en día no-tendencia sin la cinta en contra → objetivo VWAP congelado ' + (+s.tgt).toFixed(I.dec) + ' · invalida en ' + (+s.stp).toFixed(I.dec) + ' (3σ). OBSERVACIONAL: se registra y resuelve solo — el win-rate acumulado vive junto al RVOL']); }
     }
-    // 2.4) V3a: divergencia CVD y absorción — warnings tempranos de la cinta
-    if (c) {
+    // 2.4) V3a: divergencia CVD y absorción — warnings tempranos de la cinta (respetan su toggle)
+    if (c && this.ov('delta')) {
       const DA = this._da;
       if (DA && DA.div) parts.push(['⚠ DIV ' + DA.div, DA.div === 'bajista' ? 'var(--red)' : 'var(--green)', 'Divergencia CVD: el precio hizo un nuevo ' + (DA.div === 'bajista' ? 'máximo' : 'mínimo') + ' de la ventana pero el delta acumulado NO lo confirma — la agresión se está agotando (warning temprano, no señal de entrada)' + (this._of && this._of.mode === 'tick' ? ' · tick-rule aprox' : ' · lado agresor real')]);
       if (DA && DA.abs) parts.push(['🧲 absorción ' + DA.abs.side, 'var(--teal)', 'Agresión ' + (DA.abs.side === 'compradora' ? 'VENDEDORA' : 'COMPRADORA') + ' del cuartil alto sin progreso de precio (rango <0.5×ATR): alguien grande la está absorbiendo con órdenes pasivas — el nivel aguanta mientras no lo rompan (lado real OKX)']);
