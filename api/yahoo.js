@@ -190,7 +190,7 @@ module.exports = async (req, res) => {
   );
 
   // Cache: 1min para intraday, 5min para 5d, 24h para 10y mensual, 15min para el resto
-  const cacheTime = range === '1d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : range === '3y' ? 21600 : 900;
+  const cacheTime = range === '1d' || range === '7d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : range === '3y' ? 21600 : 900;
   res.setHeader('Cache-Control', `s-maxage=${cacheTime}, stale-while-revalidate=60`);
   return res.status(200).json(results);
 };
