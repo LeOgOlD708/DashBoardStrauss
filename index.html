@@ -2881,11 +2881,22 @@ html.auth-ok #auth-gate{display:none}
       <div style="flex:1;min-width:230px" id="term-levels"></div>
     </div>
   </div>
+  <!-- ④ FLUJO slow-HIRO (F7) + ⑤ COHERENCIA (F8) -->
+  <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <div class="card" style="flex:1.4;min-width:340px;margin-bottom:0">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="lbl" style="margin:0">🌊 Flujo del día — slow-HIRO</span><button class="glossary-btn" onclick="openGlossary('terminal-flujo')" title="¿Qué es esto?" style="margin:0;flex:none">?</button><span id="term-flow-fresh" class="mono" style="font-size:8.5px;margin-left:auto;color:var(--text3)"></span></div>
+      <div id="term-flow" class="mono" style="font-size:10.5px;color:var(--text3)">cargando flujo…</div>
+    </div>
+    <div class="card" style="flex:1;min-width:280px;margin-bottom:0">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px"><span class="lbl" style="margin:0">🧭 Coherencia del movimiento</span><button class="glossary-btn" onclick="openGlossary('terminal-coherencia')" title="¿Qué es esto?" style="margin:0;flex:none">?</button><span id="term-coh-fresh" class="mono" style="font-size:8.5px;margin-left:auto;color:var(--text3)"></span></div>
+      <div id="term-coh" class="mono" style="font-size:10.5px;color:var(--text3)">cargando coherencia…</div>
+    </div>
+  </div>
   <!-- ⑦ RIESGO Y DISCIPLINA (F5) — 100% localStorage, cero red -->
   <div class="sh"><div class="sh-tag">Disciplina</div><div class="sh-title">Riesgo y Disciplina — lo que salva la cuenta</div><button class="glossary-btn" onclick="openGlossary('terminal-riesgo')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px"><div id="term-risk"></div></div>
 
-  <div id="term-more" class="mono" style="font-size:10px;color:var(--text3);padding:4px 2px 12px">Fases siguientes: streaming OANDA real-time forex (FW) · sesgo estadístico con calibración propia Databento (F6) · flujo del día (F7) · coherencia (F8) · noticias/calendario completo (F9).</div>
+  <div id="term-more" class="mono" style="font-size:10px;color:var(--text3);padding:4px 2px 12px">Fase pendiente: sesgo estadístico con calibración propia Databento (F6 — requiere registro gratis). Construidas: FW forex Deriv en vivo · F7 flujo slow-HIRO · F8 coherencia · F9 calendario oficial.</div>
 </div>
 
 <div id="tab-tecnico" class="page">
@@ -5034,6 +5045,10 @@ const Terminal = {
     this.showGate(); // F5: checklist-gate diario — solo aparece si el plan de HOY no existe
     this._timers.push(setInterval(() => this._clock(), 1000));
     this._timers.push(setInterval(() => { if (!document.hidden) this.feedPoll(); }, 60000));
+    // F7+F8: flujo cada 10 min (cadencia = s-maxage del branch live) · coherencia cada 2 min
+    this._flowLoad(); this._cohLoad();
+    this._timers.push(setInterval(() => { if (!document.hidden) this._flowLoad(); }, 600e3));
+    this._timers.push(setInterval(() => { if (!document.hidden) this._cohLoad(); }, 120e3));
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
@@ -5130,7 +5145,7 @@ const Terminal = {
     const cur = this.instr().tk;
     el.innerHTML = this.INSTRS.map(i => '<button type="button" onclick="Terminal.setInstr(\'' + i.tk + '\')" style="font-size:9px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-right:4px;border:1px solid ' + (i.tk === cur ? 'var(--teal)' : 'var(--border2)') + ';color:' + (i.tk === cur ? 'var(--teal)' : 'var(--text3)') + ';background:' + (i.tk === cur ? 'rgba(45,212,191,.08)' : 'transparent') + '">' + i.lbl + '</button>').join('');
   },
-  setInstr(tk) { this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); },
+  setInstr(tk) { this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5237,6 +5252,168 @@ const Terminal = {
       const nb = this._norm(d1?.[I.tk]);
       if (nb.length) { this.feed.bars = nb; this.feed.lastOk = Date.now() / 1000; this.render(); }
     } catch (e) { /* backoff natural: el próximo tick reintenta */ }
+  },
+
+  // ── F7: FLUJO slow-HIRO — prima neta del día muestreada cada 10 min (&live=1) ──
+  // Concepto HIRO (SpotGamma) en versión lenta: netPremM ya es el ACUMULADO del día,
+  // muestrearlo periódicamente dibuja la curva de flujo. Serie en localStorage por
+  // día ET + ETF (term_hiro_v1). Forex: sin cadena de opciones → nota honesta.
+  FLOWETF: { 'NQ=F': 'QQQ', 'ES=F': 'SPY' },
+  _flowData: null, _flowT: 0,
+  _hiroSeries(etf) {
+    let s = null; try { s = JSON.parse(localStorage.getItem('term_hiro_v1') || 'null'); } catch (e) {}
+    const d = etDate();
+    if (!s || s.d !== d || s.etf !== etf) s = { d, etf, pts: [] };
+    return s;
+  },
+  async _flowLoad() {
+    const I = this.instr(), etf = this.FLOWETF[I.tk];
+    if (!etf) { this._flowRender(); return; }
+    try {
+      const j = await fetch('/api/capital?src=opt&tickers=' + etf + '&live=1').then(r => r.json());
+      const d = j && !j.error && j.spot > 0 ? j : null; // single-ticker devuelve objeto PLANO
+      if (d) {
+        this._flowData = { etf, np: d.netPremM, dex: d.dexTotalBn, gexV: d.gexVolTotalBn, flipV: d.flipVol };
+        this._flowT = Date.now();
+        const s = this._hiroSeries(etf), last = s.pts[s.pts.length - 1], now = Math.floor(Date.now() / 1000);
+        if (!last || now - last.t > 480 || last.np !== d.netPremM) {
+          s.pts.push({ t: now, np: d.netPremM, dex: d.dexTotalBn });
+          if (s.pts.length > 150) s.pts.shift();
+          try { localStorage.setItem('term_hiro_v1', JSON.stringify(s)); } catch (e) {}
+        }
+      }
+    } catch (e) { /* el badge declara la edad; el próximo tick reintenta */ }
+    this._flowRender();
+  },
+  _flowRender() {
+    const el = document.getElementById('term-flow'); if (!el) return;
+    const I = this.instr(), etf = this.FLOWETF[I.tk];
+    const fb = document.getElementById('term-flow-fresh');
+    if (!etf) {
+      el.innerHTML = '<span style="color:var(--text3)">El flujo de opciones no aplica a spot forex (sin cadena listada). Este panel vive en NQ/ES vía su ETF espejo (QQQ/SPY).</span>';
+      if (fb) fb.textContent = '';
+      return;
+    }
+    const d = this._flowData;
+    if (!d || d.etf !== etf) { el.innerHTML = '<span style="color:var(--text3)">cargando flujo de ' + etf + '…</span>'; if (d) this._flowLoad(); return; }
+    const s = this._hiroSeries(etf);
+    const first = s.pts[0], lastP = s.pts[s.pts.length - 1];
+    const slope = (first && lastP && s.pts.length > 1) ? lastP.np - first.np : 0;
+    const dir = s.pts.length < 2 ? '· primera muestra del día' : slope > 3 ? '<span style="color:var(--green)">construyéndose ↑</span>' : slope < -3 ? '<span style="color:var(--red)">apagándose ↓</span>' : 'plano →';
+    // z-vol: última barra CERRADA vs las 30 previas del mismo día ET (solo futuros con volumen)
+    let zTxt = '';
+    const bars = this.feed.bars.filter(b => b.v > 0);
+    if (bars.length > 12) {
+      const closed = bars.slice(0, -1), lastB = closed[closed.length - 1];
+      const win = closed.slice(-31, -1);
+      if (lastB && win.length >= 10) {
+        const mu = win.reduce((a, b) => a + b.v, 0) / win.length;
+        const sd = Math.sqrt(win.reduce((a, b) => a + (b.v - mu) * (b.v - mu), 0) / win.length);
+        if (sd > 0) { const z = (lastB.v - mu) / sd; zTxt = '<div style="margin-top:4px;color:' + (z >= 2 ? 'var(--amber)' : 'var(--text3)') + '">z-vol últ. barra cerrada: <b>' + (z >= 0 ? '+' : '') + z.toFixed(1) + '</b>' + (z >= 2 ? ' ⚡ participación anómala' : '') + ' <span style="font-size:8.5px">(vs 30 barras del día)</span></div>'; }
+      }
+    }
+    // rango restante esperado: σ EWMA λ0.94 de retornos 5m del día × √(barras a 16:00) — aprox declarada
+    let ewTxt = '';
+    const rets = []; const db = this.feed.bars;
+    for (let i = 1; i < db.length; i++) if (db[i].et.d === db[db.length - 1].et.d && db[i - 1].c > 0) rets.push(Math.log(db[i].c / db[i - 1].c));
+    if (rets.length > 12) {
+      let v = rets[0] * rets[0];
+      for (let i = 1; i < rets.length; i++) v = 0.94 * v + 0.06 * rets[i] * rets[i];
+      const nowM = this.etParts(Date.now() / 1000).m;
+      const barsLeft = Math.max(0, Math.floor((960 - nowM) / 5));
+      if (barsLeft > 0) {
+        const px = db[db.length - 1].c, rng = px * Math.sqrt(v) * Math.sqrt(barsLeft);
+        ewTxt = '<div style="margin-top:2px;color:var(--text3)">rango restante esperado ±' + (I.dec ? rng.toFixed(I.dec) : Math.round(rng)) + ' hasta 16:00 <span style="font-size:8.5px">(σ EWMA λ.94 — aprox; GARCH real llega con F6)</span></div>';
+      }
+    }
+    el.innerHTML = '<div style="font-size:13px;color:var(--text)"><b style="color:' + (d.np >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (d.np >= 0 ? '+' : '−') + '$' + Math.abs(d.np).toFixed(0) + 'M</b> prima neta hoy (' + etf + ') ' + dir + '</div>'
+      + '<div style="margin-top:3px;color:var(--text3)">DEX ' + (d.dex != null ? (d.dex >= 0 ? '+' : '') + d.dex.toFixed(1) + 'bn' : '—') + (d.gexV != null ? ' · GEX hoy ' + d.gexV.toFixed(2) + 'bn' : '') + (d.flipV != null ? ' · flip hoy ' + d.flipV : '') + '</div>'
+      + '<canvas id="term-flow-chart" style="width:100%;height:74px;margin-top:6px"></canvas>'
+      + zTxt + ewTxt;
+    this._flowChart(s);
+    if (fb) { const age = Math.floor((Date.now() - this._flowT) / 1000); fb.innerHTML = this._flowT ? (age > 1500 ? '<span style="color:var(--amber)">✕ STALE hace ' + Math.floor(age / 60) + 'm</span>' : '◐ live 10 min · hace ' + (age > 90 ? Math.floor(age / 60) + 'm' : age + 's')) : ''; }
+  },
+  _flowChart(s) {
+    const cv = document.getElementById('term-flow-chart'); if (!cv || s.pts.length < 2) return;
+    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    const ctx = cv.getContext('2d'); ctx.scale(dpr, dpr);
+    const xs = s.pts.map(p => p.t), ys = s.pts.map(p => p.np);
+    const x0 = xs[0], x1 = xs[xs.length - 1] || x0 + 1;
+    const yMax = Math.max(...ys, 0), yMin = Math.min(...ys, 0), ySpan = (yMax - yMin) || 1;
+    const X = t => 4 + (W - 8) * (x1 > x0 ? (t - x0) / (x1 - x0) : 0), Y = v => 4 + (H - 8) * (1 - (v - yMin) / ySpan);
+    ctx.strokeStyle = 'rgba(125,111,99,.45)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(4, Y(0)); ctx.lineTo(W - 4, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.strokeStyle = ys[ys.length - 1] >= 0 ? 'rgba(74,222,128,.9)' : 'rgba(248,113,113,.9)'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); s.pts.forEach((p, i) => { const x = X(p.t), y = Y(p.np); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }); ctx.stroke();
+    ctx.fillStyle = 'rgba(125,111,99,.9)'; ctx.font = '8.5px IBM Plex Mono';
+    ctx.fillText('curva del día (muestras c/10 min)', 6, H - 4);
+  },
+
+  // ── F8: COHERENCIA — ¿el movimiento del instrumento está confirmado? ──────────
+  // Solo barras 5m CERRADAS y ALINEADAS por epoch (blueprint). Dirección = Δ close
+  // de las últimas 6 barras comunes (~30 min). Futuros: hermano ✓ / DXY inverso ✓ /
+  // VIX inverso ✓. Forex: DXY inverso ✓ / par hermano ✓ (+ES como contexto).
+  COH_TKS: ['NQ=F', 'ES=F', 'DX-Y.NYB', '^VIX', 'EURUSD=X', 'GBPUSD=X'],
+  _cohData: null, _cohT: 0,
+  async _cohLoad() {
+    try {
+      const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(this.COH_TKS.join(',')) + '&range=1d&ts=1').then(r => r.json());
+      const out = {};
+      for (const tk of this.COH_TKS) {
+        const d = j?.[tk];
+        if (d && !d.error && d.epochs) out[tk] = d.epochs.map((t, i) => ({ t, c: d.hist?.[i] })).filter(b => b.c != null);
+      }
+      if (Object.keys(out).length >= 3) { this._cohData = out; this._cohT = Date.now(); }
+    } catch (e) { /* badge declara edad */ }
+    this._cohRender();
+  },
+  _cohRender() {
+    const el = document.getElementById('term-coh'); if (!el) return;
+    const fb = document.getElementById('term-coh-fresh');
+    const D = this._cohData;
+    if (!D) { el.innerHTML = '<span style="color:var(--text3)">cargando…</span>'; return; }
+    const I = this.instr();
+    const fx = I.fx;
+    const selfTk = I.tk, sib = fx ? (selfTk === 'EURUSD=X' ? 'GBPUSD=X' : 'EURUSD=X') : (selfTk === 'NQ=F' ? 'ES=F' : 'NQ=F');
+    const need = fx ? [selfTk, sib, 'DX-Y.NYB', 'ES=F'] : [selfTk, sib, 'DX-Y.NYB', '^VIX'];
+    const series = need.map(tk => D[tk]);
+    if (series.some(s => !s || s.length < 8)) { el.innerHTML = '<span style="color:var(--text3)">esperando barras alineadas de ' + need.filter((tk, i) => !series[i] || series[i].length < 8).join(', ') + '…</span>'; return; }
+    // alinear: epochs comunes, descartando la última barra de cada serie (puede estar formándose)
+    const sets = series.map(s => new Set(s.slice(0, -1).map(b => b.t)));
+    const common = [...sets[0]].filter(t => sets.every(x => x.has(t))).sort((a, b) => a - b);
+    if (common.length < 7) { el.innerHTML = '<span style="color:var(--text3)">pocas barras comunes cerradas aún (' + common.length + '/7) — el panel arranca ~35 min tras la apertura de la sesión</span>'; if (fb) fb.textContent = ''; return; }
+    const K = common.slice(-7);
+    const dOf = tk => { const m = new Map(D[tk].map(b => [b.t, b.c])); const a = m.get(K[0]), b = m.get(K[K.length - 1]); return (a > 0 && b != null) ? (b - a) / a * 100 : null; };
+    const dSelf = dOf(selfTk);
+    if (dSelf == null) { el.innerHTML = '<span style="color:var(--text3)">sin datos alineados</span>'; return; }
+    const up = dSelf > 0;
+    const flat = Math.abs(dSelf) < 0.03;
+    const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(2) + '%';
+    const row = (lbl, v, ok, expl) => '<div style="display:flex;justify-content:space-between;margin-top:3px"><span style="color:var(--text3)">' + lbl + '</span><span style="color:' + (ok === null ? 'var(--text3)' : ok ? 'var(--green)' : 'var(--amber)') + '">' + (v == null ? '—' : fmt(v)) + ' ' + (ok === null ? '' : ok ? '✓' : '⚠') + (ok === false ? ' <span style="font-size:8.5px">' + expl + '</span>' : '') + '</span></div>';
+    let checks = [], html = '';
+    if (fx) {
+      const dDxy = dOf('DX-Y.NYB'), dSib = dOf(sib), dEs = dOf('ES=F');
+      const okDxy = dDxy == null ? null : (up ? dDxy < 0 : dDxy > 0);
+      const okSib = dSib == null ? null : (up ? dSib > 0 : dSib < 0);
+      checks = [okDxy, okSib].filter(x => x !== null);
+      html = row('DXY (inverso)', dDxy, okDxy, 'debería ir al revés') + row(sib.replace('=X', '') + ' (hermano)', dSib, okSib, 'el par hermano diverge') + row('ES (contexto risk)', dEs, null, '');
+    } else {
+      const dSib = dOf(sib), dDxy = dOf('DX-Y.NYB'), dVix = dOf('^VIX');
+      const okSib = dSib == null ? null : (up ? dSib > 0 : dSib < 0);
+      const okDxy = dDxy == null ? null : (up ? dDxy < 0 : dDxy > 0);
+      const okVix = dVix == null ? null : (up ? dVix < 0 : dVix > 0);
+      checks = [okSib, okDxy, okVix].filter(x => x !== null);
+      html = row(sib.replace('=F', '') + ' (hermano)', dSib, okSib, 'los índices divergen') + row('DXY (inverso)', dDxy, okDxy, 'dólar no confirma') + row('VIX (inverso)', dVix, okVix, 'el miedo no confirma');
+    }
+    const okN = checks.filter(Boolean).length;
+    const verdict = flat ? ['SIN DIRECCIÓN', 'var(--text3)', 'últimos 30 min planos (' + fmt(dSelf) + ')']
+      : okN === checks.length ? ['COHERENTE ' + okN + '/' + checks.length, 'var(--green)', I.lbl + ' ' + (up ? 'subiendo' : 'cayendo') + ' ' + fmt(dSelf) + ' con todo confirmando']
+      : okN >= checks.length - 1 ? ['PARCIAL ' + okN + '/' + checks.length, 'var(--amber)', I.lbl + ' ' + (up ? 'sube' : 'cae') + ' ' + fmt(dSelf) + ' — una pata no confirma']
+      : ['DIVERGENTE ' + okN + '/' + checks.length, 'var(--red)', 'movimiento sin respaldo — cuidado con perseguirlo'];
+    el.innerHTML = '<div style="font-size:12.5px"><b style="color:' + verdict[1] + '">' + verdict[0] + '</b> <span style="color:var(--text3);font-size:9.5px">' + verdict[2] + '</span></div>'
+      + html
+      + '<div style="margin-top:5px;color:var(--text3);font-size:8.5px">últimas 6 barras 5m CERRADAS y alineadas (~30 min) — el filtro anti-incoherencia de la investigación</div>';
+    if (fb) { const age = Math.floor((Date.now() - this._cohT) / 1000); fb.innerHTML = this._cohT ? (age > 360 ? '<span style="color:var(--amber)">✕ STALE hace ' + Math.floor(age / 60) + 'm</span>' : '◐ poll 2 min · hace ' + age + 's') : ''; }
   },
 
   // ── cómputos del día (client-side, barras normalizadas — ver blueprint v2) ──
@@ -14812,6 +14989,30 @@ const INDICATORS_GLOSSARY = {
       { c: 'red', t: 'DATA DELAYED 10-15 min: este mapa es PREPARACIÓN y contexto, no timing de ejecución — el timing fino va en tu broker' }
     ],
     note: 'Fase F2 del blueprint Terminal v2. F3 añadió los muros gamma convertidos a NQ/ES. FW (2026-07-13): forex EN VIVO vía Deriv WebSocket — velas 5m/30m + la vela abierta actualizándose cada segundo, sin cuenta ni token (OANDA quedó descartada); si el stream cae, la terminal degrada sola a Yahoo delayed y lo declara en el badge. F6 traerá probabilidades calibradas con data propia Databento.'
+  },
+  'terminal-flujo': {
+    name: 'Terminal · Flujo del día (slow-HIRO)', category: 'Terminal · Intradía',
+    source: { label: 'CBOE cadena de opciones del ETF espejo (QQQ para NQ, SPY para ES) vía &live=1', url: 'https://www.cboe.com/delayed_quotes/', freq: 'Muestra cada 10 min (cache CDN del branch live) con la pestaña activa' },
+    formula: 'Prima neta hoy = Σ(prima negociada en calls) − Σ(prima en puts) del día, en $M — el MISMO netPremM del Tab 09. Muestrearla cada 10 min dibuja la curva intradía (concepto HIRO de SpotGamma, en versión lenta y gratis). z-vol = (volumen de la última barra 5m cerrada − media de las 30 previas del día) ÷ desviación. Rango restante = σ EWMA λ0.94 de retornos 5m × √(barras hasta 16:00) × precio.',
+    interpret: 'La CURVA importa más que el número: prima construyéndose ↑ = el posicionamiento en opciones acompaña al movimiento; apagándose ↓ con precio subiendo = rally sin gasolina de flujo. z-vol ≥2 = participación anómala en la última barra (algo pasó). El rango EWMA es aproximación declarada — el GARCH real llega con la calibración F6.',
+    thresholds: [
+      { c: 'green', t: 'Prima neta positiva Y construyéndose con el precio a favor → flujo confirma' },
+      { c: 'amber', t: 'Precio sube pero la curva se apaga → movimiento sin respaldo de opciones' },
+      { c: 'red', t: 'Es data del ETF espejo con cache 10 min — contexto, NO señal de timing' }
+    ],
+    note: 'Fase F7 del blueprint Terminal v2. Serie en term_hiro_v1 (localStorage, se resetea cada día ET). Forex no tiene cadena de opciones listada — el panel lo declara en vez de inventar.'
+  },
+  'terminal-coherencia': {
+    name: 'Terminal · Coherencia del movimiento', category: 'Terminal · Intradía',
+    source: { label: 'Yahoo intradía 5m: NQ/ES/DXY/VIX/EURUSD/GBPUSD en un solo batch', url: 'https://finance.yahoo.com', freq: 'Poll cada 2 min con la pestaña activa' },
+    formula: 'Dirección = Δ% del close en las últimas 6 barras 5m CERRADAS y ALINEADAS por epoch entre todas las series (~30 min; la barra en formación se descarta). Futuros: hermano (NQ↔ES) mismo signo ✓ · DXY inverso ✓ · VIX inverso ✓. Forex: DXY inverso ✓ · par hermano mismo signo ✓ · ES como contexto risk (informativo).',
+    interpret: 'El filtro anti-incoherencia de la investigación: "NQ subiendo con DXY↑ y VIX↑ = movimiento incoherente — cuidado con perseguirlo". Respaldo citado: risk-off canónico = VIX↑+DXY↑; filtros de coherencia VIX subieron win-rate 48%→55% en los backtests de la síntesis. COHERENTE = las patas confirman; DIVERGENTE = el movimiento no tiene respaldo cruzado.',
+    thresholds: [
+      { c: 'green', t: 'COHERENTE 3/3 → el movimiento tiene respaldo de índices, dólar y volatilidad' },
+      { c: 'amber', t: 'PARCIAL → una pata no confirma; reduce tamaño o espera' },
+      { c: 'red', t: 'DIVERGENTE → alto riesgo de reversión; no perseguir' }
+    ],
+    note: 'Fase F8 del blueprint Terminal v2. Solo barras cerradas alineadas (regla del blueprint) — al abrir la sesión el panel tarda ~35 min en armar sus 7 barras comunes y lo dice.'
   },
   'catalysts-llm': {
     name: 'Catalysts Sectoriales (LLM)',

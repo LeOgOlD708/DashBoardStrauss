@@ -927,7 +927,9 @@ module.exports = async (req, res) => {
       // 403/404) NO es un error del sistema → 200 con {error} (patrón insiders, consola limpia)
       try {
         const out = await optAgg(tickers[0], String(req.query.exp || 'm')); // #19a: ventana m/w/d
-        res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // 1h — muros se mueven lento
+        // F7 Terminal: &live=1 = cache CDN corto (10 min) para slow-HIRO/DEX intradía.
+        // Misma data, URL distinta → entrada de cache separada; muros siguen en 1h.
+        res.setHeader('Cache-Control', req.query.live ? 's-maxage=600, stale-while-revalidate=600' : 's-maxage=3600, stale-while-revalidate=3600');
         return res.status(200).json(out);
       } catch (e) {
         res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=3600'); // el "sin opciones" tampoco cambia en 1h
