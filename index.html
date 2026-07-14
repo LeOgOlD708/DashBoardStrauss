@@ -5446,7 +5446,7 @@ const Terminal = {
   // ── T4: MARQUEE DE NOTICIAS — el feed news.js existente, corriendo en la franja ──
   _newsT: 0,
   async _newsLoad() {
-    if (Date.now() - this._newsT < 300e3) return; // cadencia 5 min
+    if (Date.now() - this._newsT < 290e3) return; // cadencia 5 min (gate < interval: sin ciclos saltados)
     this._newsT = Date.now();
     const el = document.getElementById('term-news'); if (!el) return;
     try {
@@ -5455,10 +5455,14 @@ const Terminal = {
       const sel = items.filter(n => n.impact === 'high' || n.impact === 'medium').slice(0, 14);
       if (!sel.length) return;
       const seg = sel.map(n => {
-        const hh = n.pubDate ? new Date(n.pubDate).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
+        const pd = new Date(n.pubDate || '');
+        const hh = n.pubDate && !isNaN(pd) ? pd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '';
         const dot = n.impact === 'high' ? '<b style="color:var(--red)">●</b>' : '<b style="color:var(--amber)">●</b>';
-        return dot + ' <span style="color:var(--text3)">' + hh + '</span> <a href="' + escHtml(n.link || '#') + '" target="_blank" rel="noopener" title="' + escHtml((n.source || '') + ' · impacto ' + (n.impact || '')) + '" style="color:var(--text2)">' + escHtml((n.title || '').slice(0, 110)) + '</a>';
+        const lk = /^https?:\/\//i.test(n.link || '') ? n.link : '#'; // whitelist: RSS externo no inyecta javascript:
+        return dot + ' <span style="color:var(--text3)">' + hh + '</span> <a href="' + escHtml(lk) + '" target="_blank" rel="noopener" title="' + escHtml((n.source || '') + ' · impacto ' + (n.impact || '')) + '" style="color:var(--text2)">' + escHtml((n.title || '').slice(0, 110)) + '</a>';
       }).join(' <span style="color:var(--border2)">│</span> ');
+      if (this._newsHtml === seg) return; // mismo contenido → no reiniciar la animación a mitad de scroll
+      this._newsHtml = seg;
       el.style.display = 'block';
       // duración ∝ contenido (~6s por titular) — el marquee corre, no salta
       el.style.setProperty('--tm-dur', Math.max(50, sel.length * 6.5) + 's');
@@ -5715,7 +5719,7 @@ const Terminal = {
     if (!D) { el.innerHTML = '<span style="color:var(--text3)">cargando…</span>'; return; }
     const I = this.instr();
     // T1: los instrumentos nuevos calibran sus pares correctos en T4 — honesto, no inventado
-    if (!['NQ=F', 'ES=F', 'EURUSD=X', 'GBPUSD=X'].includes(I.tk)) { el.innerHTML = '<span style="color:var(--text3)">La coherencia de ' + escHtml(I.lbl) + ' se conecta en T4 (cada instrumento necesita SUS pares de confirmación correctos — no se inventa).</span>'; if (fb) fb.textContent = ''; return; }
+    if (!['NQ=F', 'ES=F', 'EURUSD=X', 'GBPUSD=X'].includes(I.tk)) { el.innerHTML = '<span style="color:var(--text3)">Sin pares de confirmación calibrados para ' + escHtml(I.lbl) + ' todavía — no se inventan correlaciones. La coherencia vive en NQ/ES (vs hermano+DXY+VIX) y EUR/GBP (vs par hermano+DXY).</span>'; if (fb) fb.textContent = ''; return; }
     const fx = I.fx;
     const selfTk = I.tk, sib = fx ? (selfTk === 'EURUSD=X' ? 'GBPUSD=X' : 'EURUSD=X') : (selfTk === 'NQ=F' ? 'ES=F' : 'NQ=F');
     const need = fx ? [selfTk, sib, 'DX-Y.NYB', 'ES=F'] : [selfTk, sib, 'DX-Y.NYB', '^VIX'];
@@ -5965,11 +5969,17 @@ const Terminal = {
     // 2.5) T4: LA CINTA VOTA — presión agresora sostenida entra al veredicto (umbral alto:
     // solo habla cuando hay sesgo claro; con flujo parejo se calla)
     const OF = this._of;
-    if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0) {
+    // frescura: la cinta solo vota con data de HOY y reciente (<5 min el último trade /
+    // <2 min el último tick) — sin esto el chip afirmaría presión de una sesión ya muerta
+    const ofLastTr = OF && OF.trades.length ? OF.trades[OF.trades.length - 1] : null;
+    const ofFresh = OF && OF.day === etDate() && ofLastTr && (Date.now() / 1000 - ofLastTr.t) < 300;
+    const fxLastTk = OF && OF.ticks.length ? OF.ticks[OF.ticks.length - 1] : null;
+    const fxFresh = fxLastTk && (Date.now() / 1000 - fxLastTk.t) < 120;
+    if (OF && ofFresh && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0) {
       const bp = OF.buys / (OF.buys + OF.sells) * 100;
       if (bp >= 58) parts.push(['🌊 cinta COMPRA ' + bp.toFixed(0) + '%', 'var(--green)', 'El ' + bp.toFixed(0) + '% de los dólares agresores de la sesión están comprando (' + (OF.mode === 'real' ? 'lado real OKX' : 'tick-rule aprox ' + (OF.etf || '')) + ', ' + OF.n + ' trades)']);
       else if (bp <= 42) parts.push(['🌊 cinta VENDE ' + (100 - bp).toFixed(0) + '%', 'var(--red)', 'El ' + (100 - bp).toFixed(0) + '% de los dólares agresores de la sesión están vendiendo (' + (OF.mode === 'real' ? 'lado real OKX' : 'tick-rule aprox ' + (OF.etf || '')) + ', ' + OF.n + ' trades)']);
-    } else if (OF && OF.mode === 'fxmid' && OF.ticks.length >= 40) {
+    } else if (OF && OF.mode === 'fxmid' && fxFresh && OF.ticks.length >= 40) {
       const w = OF.ticks.slice(-60); let u = 0, d = 0;
       for (let i = 1; i < w.length; i++) { if (w[i].mid > w[i - 1].mid) u++; else if (w[i].mid < w[i - 1].mid) d++; }
       const p = (u + d) ? u / (u + d) * 100 : 50;
@@ -6314,7 +6324,7 @@ function newsItemHTML(item) {
   const age = pubDate ? timeAgo(new Date(pubDate)) : '—';
   const isNew = pubDate && (Date.now() - new Date(pubDate).getTime()) < 30 * 60 * 1000;
   const cm = CAT_META[category] || { label: category||'—', cls:'nc-macro', dot:'#524e4a' };
-  const safeLink = escHtml((link||'#').replace(/'/g, '%27'));
+  const safeLink = escHtml((/^https?:\/\//i.test(link || '') ? link : '#').replace(/'/g, '%27')); // whitelist de esquema: un feed RSS comprometido no puede inyectar javascript:
   return `<div class="news-item ${ic}${isNew?' is-new':''}" data-cat="${escHtml(category||'')}">
     <div class="news-title" onclick="window.open('${safeLink}','_blank')">${escHtml(title)}${isNew?'<span class="news-new">NEW</span>':''}</div>
     <div class="news-source">
