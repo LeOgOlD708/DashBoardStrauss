@@ -5072,18 +5072,30 @@ const Terminal = {
     for (const [m, l] of [[570, '9:30'], [960, '16:00']]) h += '<div style="position:absolute;left:' + this._x(m) + '%;top:0;bottom:0;width:1px;background:rgba(45,212,191,.5)"></div><div class="mono" style="position:absolute;left:calc(' + this._x(m) + '% + 2px);bottom:1px;font-size:7px;color:var(--teal)">' + l + '</div>';
     // pins de eventos próximos 24h (hora habitual del release)
     const evs = this._nextEvents(24 * 3600);
-    for (const ev of evs.slice(0, 4)) h += '<div class="mono" title="' + escHtml(ev.name + ' · ' + ev.hhmm + ' ET (hora habitual)') + '" style="position:absolute;left:' + this._x(ev.mEt) + '%;top:0;font-size:9px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">▼</div>';
+    for (const ev of evs.slice(0, 4)) h += '<div class="mono" title="' + escHtml(ev.name + ' · ' + ev.hhmm + ' ET (' + (ev.oficial ? 'hora OFICIAL' : 'hora habitual') + ')' + (ev.fcst ? ' · fcst ' + ev.fcst : '') + (ev.prev ? ' · prev ' + ev.prev : '')) + '" style="position:absolute;left:' + this._x(ev.mEt) + '%;top:0;font-size:9px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">▼</div>';
     h += '<div id="term-now" style="position:absolute;top:0;bottom:0;width:2px;background:var(--red)"></div></div>';
     el.innerHTML = h;
   },
   _calLoad() {
     fetch('/api/fred-calendar').then(r => r.json()).then(j => {
-      this._cal = (j.events || []).map(ev => {
-        // F1: hora habitual determinística (F9 traerá la hora oficial FF/BLS)
-        const n = ev.name || '';
-        const mins = /FOMC/i.test(n) ? 14 * 60 : /ISM|UMich|Michigan|JOLTS|Home|Confianza|Confidence|Housing/i.test(n) ? 10 * 60 : 8.5 * 60;
-        return { ...ev, epoch: this.epochET(ev.date, mins), mEt: mins, hhmm: String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0') };
-      });
+      if (Array.isArray(j.ff) && j.ff.length) {
+        // F9: hora OFICIAL ForexFactory + forecast/previous. Eventos simultáneos del
+        // mismo país (CPI m/m + y/y + core ×2 a las 8:30) se AGRUPAN en uno.
+        const grp = {};
+        for (const ev of j.ff) {
+          const k = ev.t + '|' + ev.country;
+          if (!grp[k]) { const p = this.etParts(ev.t); grp[k] = { name: (ev.country !== 'USD' ? ev.country + ' · ' : '') + ev.name, impact: ev.impact, epoch: ev.t, mEt: p.m, hhmm: String(Math.floor(p.m / 60)).padStart(2, '0') + ':' + String(p.m % 60).padStart(2, '0'), fcst: ev.forecast, prev: ev.previous, extra: 0, oficial: true }; }
+          else { grp[k].extra++; if (ev.impact === 'high') grp[k].impact = 'high'; if (!grp[k].fcst && ev.forecast) { grp[k].fcst = ev.forecast; grp[k].prev = ev.previous; } }
+        }
+        this._cal = Object.values(grp).map(e => { if (e.extra) e.name += ' +' + e.extra; return e; }).sort((a, b) => a.epoch - b.epoch);
+      } else {
+        // degradación honesta: hora habitual heurística (F1) si FF cayó
+        this._cal = (j.events || []).map(ev => {
+          const n = ev.name || '';
+          const mins = /FOMC/i.test(n) ? 14 * 60 : /ISM|UMich|Michigan|JOLTS|Home|Confianza|Confidence|Housing/i.test(n) ? 10 * 60 : 8.5 * 60;
+          return { ...ev, epoch: this.epochET(ev.date, mins), mEt: mins, hhmm: String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0'), oficial: false };
+        });
+      }
       this._calT = Date.now(); this._sessbar();
     }).catch(() => {});
   },
@@ -5098,7 +5110,7 @@ const Terminal = {
     let s = Math.floor(hi.epoch - Date.now() / 1000);
     const d = Math.floor(s / 86400); s -= d * 86400; const h = Math.floor(s / 3600); s -= h * 3600; const m = Math.floor(s / 60); s -= m * 60;
     const urgent = hi.epoch - Date.now() / 1000 < 3600 && hi.impact === 'high';
-    cd.innerHTML = '⏱ <b style="color:' + (urgent ? 'var(--red)' : hi.impact === 'high' ? 'var(--amber)' : 'var(--text2)') + '">' + escHtml(hi.name) + '</b> en ' + (d ? d + 'd ' : '') + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + ' <span style="color:var(--text3)">(' + hi.hhmm + ' ET habitual)</span>';
+    cd.innerHTML = '⏱ <b style="color:' + (urgent ? 'var(--red)' : hi.impact === 'high' ? 'var(--amber)' : 'var(--text2)') + '">' + escHtml(hi.name) + '</b> en ' + (d ? d + 'd ' : '') + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + ' <span style="color:var(--text3)">(' + hi.hhmm + ' ET ' + (hi.oficial ? 'OFICIAL' : 'habitual') + (hi.fcst ? ' · fcst ' + escHtml(hi.fcst) : '') + (hi.prev ? ' · prev ' + escHtml(hi.prev) : '') + ')</span>';
     // freshness del feed
     const fr = document.getElementById('term-fresh');
     if (fr && this.feed.lastOk) {

@@ -268,6 +268,38 @@ module.exports = async (req, res) => {
   // Ordenar por fecha ascendente
   results.sort((a, b) => a.date.localeCompare(b.date));
 
+  // ── F9 (Terminal): ForexFactory JSON — hora OFICIAL + forecast/previous ──────
+  // Verificado 2026-07-13: date ISO con offset (-04:00), impact High/Medium/Low/Holiday,
+  // forecast/previous como strings. Clave ADITIVA `ff` — si FF cae, el resto del
+  // endpoint no se entera (la Terminal degrada a la hora habitual heurística).
+  // Filtro: USD high+med (lo que mueve índices) · EUR/GBP solo high (los pares de Angel).
+  let ff = [];
+  try {
+    const ffUrls = [
+      'https://nfs.faireconomy.media/ff_calendar_thisweek.json',
+      'https://nfs.faireconomy.media/ff_calendar_nextweek.json',
+    ];
+    const ffRaw = (await Promise.all(ffUrls.map(u =>
+      fetchWithTimeout(u).then(r => (r.ok ? r.json() : [])).catch(() => [])
+    ))).flat();
+    const IMP = { High: 'high', Medium: 'med' }; // Low/Holiday fuera (ruido para intradía)
+    const nowSec = Math.floor(Date.now() / 1000);
+    ff = ffRaw
+      .filter(e => e && e.date && e.title)
+      .map(e => ({
+        t: Math.floor(Date.parse(e.date) / 1000),
+        name: e.title,
+        country: e.country || '',
+        impact: IMP[e.impact] || null,
+        forecast: e.forecast || null,
+        previous: e.previous || null,
+      }))
+      .filter(e => e.t > nowSec - 86400 && e.impact
+        && (e.country === 'USD' || ((e.country === 'EUR' || e.country === 'GBP') && e.impact === 'high')))
+      .sort((a, b) => a.t - b.t)
+      .slice(0, 120);
+  } catch (e) { console.warn('[FRED-Cal] FF caído (F9 degrada a hora habitual):', e.message); }
+
   const fromFred = results.filter(r => r.source === 'fred').length;
   console.log(`[FRED-Cal] ${RELEASES.length} releases FRED en ${Date.now() - tStart}ms · ${fromFred} de FRED · ${staticAdded} de static · ${results.length} totales · errores=${errors.length}`);
   if (errors.length) console.log('[FRED-Cal] errores:', errors.join(' · '));
@@ -280,8 +312,9 @@ module.exports = async (req, res) => {
   res.setHeader('Cache-Control', cacheControl);
   return res.status(200).json({
     events: results,
+    ff, // F9: calendario con hora oficial (vacío si FF cayó — el cliente degrada solo)
     today: todayStr,
-    sources: { fred: fromFred, static: staticAdded },
+    sources: { fred: fromFred, static: staticAdded, ff: ff.length },
     static_updated: STATIC_EVENTS_UPDATED,
     errors: errors.length ? errors : undefined
   });
