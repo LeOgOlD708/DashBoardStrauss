@@ -5195,10 +5195,10 @@ const Terminal = {
       + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>'
       // T2: toggles de overlays — qué capas del motor viven SOBRE el chart
       + '<span style="display:inline-flex;gap:3px;margin-left:10px;padding-left:10px;border-left:1px solid var(--border2)">'
-      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
+      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
       + '</span>';
   },
-  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this.feedStart(); },
+  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this.feedStart(); },
   setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
   _ckEsc: null,
   toggleCockpit(force) {
@@ -5210,7 +5210,7 @@ const Terminal = {
     if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
     setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
-  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5564,6 +5564,82 @@ const Terminal = {
   // toggles de overlays del chart (T2) — default todo ON, persistido en cfg
   ov(k) { const o = this.cfg().ov || {}; return o[k] !== false; },
   setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = c.ov[k] === false; this.saveCfg(); this._renderBtns(); this.render(); },
+
+  // ══ V1: SESSION VOLUME PROFILE — el volumen por PRECIO de la sesión, en vivo ══
+  // Distribuye el volumen de cada barra uniformemente entre los bins que cubre su rango
+  // h-l (aprox estándar client-side). Value Area = expansión 70% desde el POC.
+  // Forex Deriv: sin volumen → sin perfil (honesto, no se inventa con ticks escasos).
+  _svpData: null,
+  _svp(bars, c) {
+    const src = c.rth.length ? c.rth : bars.filter(b => b.et.d === c.today);
+    const vs = src.filter(b => b.v > 0);
+    if (vs.length < 8) return null;
+    const lo = Math.min(...vs.map(b => b.l)), hi = Math.max(...vs.map(b => b.h));
+    if (!(hi > lo)) return null;
+    const nB = 40, step = (hi - lo) / nB, bins = new Array(nB).fill(0);
+    for (const b of vs) {
+      const b0 = Math.max(0, Math.min(nB - 1, Math.floor((b.l - lo) / step)));
+      const b1 = Math.max(0, Math.min(nB - 1, Math.floor((b.h - lo) / step)));
+      const share = b.v / (b1 - b0 + 1);
+      for (let i = b0; i <= b1; i++) bins[i] += share;
+    }
+    let pocI = 0; bins.forEach((v, i) => { if (v > bins[pocI]) pocI = i; });
+    const tot = bins.reduce((a, x) => a + x, 0);
+    let cum = bins[pocI], iL = pocI, iH = pocI;
+    while (cum < tot * 0.7 && (iL > 0 || iH < nB - 1)) {
+      const dn = iL > 0 ? bins[iL - 1] : -1, up = iH < nB - 1 ? bins[iH + 1] : -1;
+      if (up >= dn) { iH++; cum += bins[iH]; } else { iL--; cum += bins[iL]; }
+    }
+    return { lo, hi, step, bins, max: bins[pocI], vaLoI: iL, vaHiI: iH, poc: lo + (pocI + 0.5) * step, vah: lo + (iH + 1) * step, val: lo + iL * step, rthBased: c.rth.length > 0 };
+  },
+  // ══ V1: RÉGIMEN DEL DÍA — migración del POC + expansión σ + Γ → tendencia vs balance ══
+  // El interruptor de la reversión a la media: en día TENDENCIA los fades pierden su edge.
+  _regTrail: [],
+  _regSample(c, svp) {
+    const now = Date.now() / 1000, last = this._regTrail[this._regTrail.length - 1];
+    if (last && now - last.t < 60) return;
+    this._regTrail.push({ t: now, poc: svp ? svp.poc : null, s1: c.s1 || null });
+    if (this._regTrail.length > 480) this._regTrail.shift();
+  },
+  _regime(c, svp) {
+    if (!svp) return null;
+    const now = Date.now() / 1000;
+    const back = this._regTrail.filter(s => now - s.t >= 1800 && s.poc != null);
+    if (!back.length) return null; // necesita ~30 min de historia propia
+    const ref = back[back.length - 1];
+    const unit = c.s1 || (c.adr ? c.adr / 4 : null);
+    if (!unit) return null;
+    const mig = (svp.poc - ref.poc) / unit;                 // migración del POC en unidades σ
+    const sExp = ref.s1 && c.s1 ? c.s1 / ref.s1 : 1;        // expansión de la banda
+    const gNeg = this._walls?.prim?.gexTotalBn != null && this._walls.prim.gexTotalBn < 0;
+    let score = 0;
+    if (Math.abs(mig) >= 0.8) score += 2; else if (Math.abs(mig) >= 0.4) score += 1;
+    if (sExp >= 1.2) score += 1;
+    if (gNeg) score += 1;
+    const trend = score >= 2;
+    return {
+      trend, lbl: trend ? '⚡ DÍA TENDENCIA ' + (mig >= 0 ? '↗' : '↘') : '♻ DÍA BALANCE',
+      tip: 'POC migró ' + (mig >= 0 ? '+' : '') + mig.toFixed(1) + 'σ en ~30min · banda σ ×' + sExp.toFixed(2) + (gNeg ? ' · Γ− amplifica' : '') + ' — ' + (trend ? 'los fades a VWAP/±2σ PIERDEN su edge: opera con la dirección, no contra ella' : 'rotación VAH↔VAL: los extremos ±2σ tienden a revertir a VWAP (research ~63%, valídalo con tu registro)'),
+    };
+  },
+  // ══ V1: RVOL por SLOT HORARIO — volumen actual vs el MISMO slot 30m de días previos ══
+  // (el volumen intradía es U-shaped: comparar vs promedio del día entero engaña)
+  _rvol(c) {
+    const b30 = this.feed.bars30; if (!b30 || b30.length < 30) return null;
+    const withV = b30.filter(b => b.v > 0); if (withV.length < 30) return null; // forex: sin volumen
+    const todays = withV.filter(b => b.et.d === c.today);
+    if (!todays.length) return null;
+    const cur = todays[todays.length - 1], slot = cur.et.m - (cur.et.m % 30);
+    const prevs = withV.filter(b => b.et.d !== c.today && (b.et.m - (b.et.m % 30)) === slot);
+    if (prevs.length < 2) return null;
+    const avg = prevs.reduce((a, b) => a + b.v, 0) / prevs.length;
+    if (!(avg > 0)) return null;
+    // barra en curso: prorratear al avance del slot
+    const nowM = this.etParts(Date.now() / 1000).m;
+    const live = cur.et.m === slot && nowM >= slot && nowM < slot + 30;
+    const est = live ? cur.v * (30 / Math.max(3, nowM - slot + 1)) : cur.v;
+    return { r: est / avg, n: prevs.length, live };
+  },
   async feedPoll() {
     const I = this.instr();
     // T3: revivir la cinta si su WS murió (Finnhub free = 1 conexión por key; OKX corta
@@ -5982,6 +6058,8 @@ const Terminal = {
       const pos = W.gexTotalBn >= 0;
       parts.push([pos ? 'Γ+ pegajoso' : 'Γ− reactivo', pos ? 'var(--teal)' : 'var(--amber)', 'GEX neto de ' + this._walls.primEtf + ' ' + W.gexTotalBn + 'bn: ' + (pos ? 'dealers ESTABILIZAN — rangos, mean-reversion, los muros frenan' : 'dealers AMPLIFICAN — el precio patina, breakouts corren más, stops más amplios') + ' (régimen, no predicción — pierde poder en alta vol)']);
     }
+    // 2.2) V1: RÉGIMEN DEL DÍA — el interruptor de la reversión a la media
+    if (c) { const RG = this._regime(c, this._svpData); if (RG) parts.push([RG.lbl, RG.trend ? 'var(--amber)' : 'var(--teal)', RG.tip]); }
     // 2.5) T4: LA CINTA VOTA — presión agresora sostenida entra al veredicto (umbral alto:
     // solo habla cuando hay sesgo claro; con flujo parejo se calla)
     const OF = this._of;
@@ -6019,6 +6097,9 @@ const Terminal = {
   // ── render: header + ladder + chart ──
   render() {
     const I = this.instr(), c = this.compute();
+    // V1: el perfil y su trail de régimen se computan ANTES del veredicto (lo consumen)
+    this._svpData = c ? this._svp(this.feed.bars, c) : null;
+    if (c && this._svpData) this._regSample(c, this._svpData);
     this._verdict(c);
     if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; return; }
     const f = v => v == null ? '—' : (+v).toFixed(I.dec);
@@ -6030,6 +6111,8 @@ const Terminal = {
       + (c.adrPct != null ? ' · ADR' + (I.fx ? '' : ' RTH') + ' consumido <b style="color:' + (c.adrPct > 80 ? 'var(--amber)' : 'var(--text2)') + '">' + c.adrPct.toFixed(0) + '%</b><span style="color:var(--text3)" title="Rango de hoy vs rango promedio de los últimos 5 días — >80% = no persigas la ruptura">'
       + (c.adrPct > 80 ? ' ⚠ día estirado' : '') + '</span>' : '')
       + (c.ibLive ? ' · <span style="color:var(--purple)">IB en construcción hasta 10:30 ET</span>' : '')
+      // V1: RVOL vs el mismo slot 30m de días previos (patrón U intradía)
+      + (() => { const rv = this._rvol(c); return rv ? ' · RVOL <b style="color:' + (rv.r >= 2 ? 'var(--amber)' : rv.r < 0.6 ? 'var(--text3)' : 'var(--text2)') + '" title="Volumen del slot 30m actual' + (rv.live ? ' (en curso, prorrateado)' : '') + ' vs el promedio del MISMO slot horario de ' + rv.n + ' días previos — el volumen intradía es U-shaped: compararlo vs el día entero engaña. ≥2× = convicción real detrás del movimiento; <0.6× = movimiento sin participación (sospechoso)">' + rv.r.toFixed(1) + '×' + (rv.r >= 2 ? ' ⚡' : rv.r < 0.6 ? ' 💤' : '') + '</b>' : ''; })()
       + (I.fx ? ' · <span style="color:var(--text3)" title="El spot forex no reporta volumen — VWAP no computable; OR/IB son convención de futuros US">spot: sin VWAP/IB</span>' : '')
       // T2: chip semáforo institucional del ticker espejo (modo degradado, hover = pills)
       + (this._zones && this._zones.sig && this.ov('sema') ? (() => {
@@ -6038,7 +6121,14 @@ const Terminal = {
       })() : '');
     // ladder de niveles
     const lv = [];
-    const add = (lbl, v, col, tip, w) => { if (v != null) lv.push({ lbl, v, col, tip, w }); }; // w = fuerza 🧱 (% GEX) para grosor en el chart
+    const add = (lbl, v, col, tip, w, k) => { if (v != null) lv.push({ lbl, v, col, tip, w, k }); }; // w = fuerza 🧱 (% GEX) · k = capa explícita para el toggle
+    // V1: POC/VAH/VAL del perfil de la sesión entran a la escalera y al chart (capa 'perfil')
+    if (this._svpData) {
+      const S = this._svpData, sesLbl = S.rthBased ? ' (RTH)' : ' (sesión)';
+      add('▤ POC', S.poc, 'var(--gold)', 'Point of Control' + sesLbl + ' — el precio con MÁS volumen negociado hoy: imán en consolidación; si migra direccional, el día es tendencia', undefined, 'perfil');
+      add('▤ VAH', S.vah, 'var(--gold)', 'Value Area High — techo del rango donde se negoció el 70% del volumen' + sesLbl + ': rechazo aquí = rotación de vuelta al POC/VAL', undefined, 'perfil');
+      add('▤ VAL', S.val, 'var(--gold)', 'Value Area Low — piso del área de valor 70%' + sesLbl, undefined, 'perfil');
+    }
     add('PDH', c.pdh, 'var(--gold)', 'High del día previo (' + (c.prevD || '') + ') — imán/barrido clásico');
     add('PDL', c.pdl, 'var(--gold)', 'Low del día previo');
     add('PDC', c.pdc, 'var(--text2)', 'Cierre previo — referencia del gap');
@@ -6117,6 +6207,19 @@ const Terminal = {
         g.fillText((z.cat === 'ENTRADA' ? '◆' : '◇') + ' ' + z.side.toUpperCase() + ' ×' + z.score.toFixed(1) + (z.degradada ? ' (gastada ' + z.touches + ' toques)' : ''), ml + 4, Math.max(mt + 6, Math.min((zy1 + zy2) / 2, mt + ih - 6)));
       }
     }
+    // ── V1: PERFIL DE VOLUMEN de la sesión — histograma lateral derecho, bajo las velas ──
+    if (this._svpData && this.ov('perfil')) {
+      const S = this._svpData, maxW = iw * 0.16;
+      for (let i = 0; i < S.bins.length; i++) {
+        if (!S.bins[i]) continue;
+        const py1 = Y(S.lo + (i + 1) * S.step), py2 = Y(S.lo + i * S.step);
+        if (py2 < mt || py1 > mt + ih) continue;
+        const w = S.bins[i] / S.max * maxW;
+        const inVA = i >= S.vaLoI && i <= S.vaHiI;
+        g.fillStyle = inVA ? 'rgba(201,168,76,.17)' : 'rgba(201,168,76,.07)';
+        g.fillRect(ml + iw - w, Math.max(mt, py1), w, Math.max(1, Math.min(mt + ih, py2) - Math.max(mt, py1)));
+      }
+    }
     // banda VWAP ±1σ/±2σ
     if (this.ov('vwap') && this._vwapPts && c.vwap != null && c.s1) {
       const off = bars.length - this._vwapPts.length;
@@ -6165,7 +6268,7 @@ const Terminal = {
     // niveles horizontales + etiquetas margen derecho — gateados por toggle (T2):
     // muros = 🧲🛡⚖👻/EM · vwap = líneas ámbar · niveles = el resto (PDH/ON/IB/OR)
     g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
-    const kindOf = L => /^(🧲|🛡|⚖|👻|EM)/.test(L.lbl) ? 'muros' : L.col === 'var(--amber)' ? 'vwap' : 'niveles';
+    const kindOf = L => L.k ? L.k : /^(🧲|🛡|⚖|👻|EM)/.test(L.lbl) ? 'muros' : L.col === 'var(--amber)' ? 'vwap' : 'niveles';
     const seen = [];
     for (const L of lv) {
       if (L.v < pMin || L.v > pMax || !this.ov(kindOf(L))) continue;
