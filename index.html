@@ -5068,7 +5068,7 @@ const Terminal = {
     this.renderRisk();
     this.showGate(); // F5: checklist-gate diario — solo aparece si el plan de HOY no existe
     this._timers.push(setInterval(() => this._clock(), 1000));
-    this._timers.push(setInterval(() => { if (!document.hidden) this.feedPoll(); }, 60000));
+    this._timers.push(setInterval(() => { if (!document.hidden) { this.feedPoll(); this._ofRender(); } }, 60000)); // _ofRender: despega la cinta si quedó congelada por document.hidden
     // F7+F8: flujo cada 10 min (cadencia = s-maxage del branch live) · coherencia cada 2 min
     this._flowLoad(); this._cohLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._flowLoad(); }, 600e3));
@@ -5357,7 +5357,12 @@ const Terminal = {
   _ofDayReset(T) { const d = etDate(); if (T.day !== d) { T.day = d; T.cvd = 0; T.buys = 0; T.sells = 0; T.n = 0; T.bigs = 0; T.trades = []; } },
   _ofStart(I, gen) {
     this._ofKill();
-    this._of = { mode: null, etf: null, trades: [], cvd: 0, buys: 0, sells: 0, n: 0, bigs: 0, day: etDate(), ticks: [], spread: null, lastPx: null, lastDir: 0 };
+    // CVD "de sesión" DE VERDAD: mismo instrumento + mismo día ET ⇒ los acumuladores
+    // sobreviven a setTf y a reconexiones — solo un switch de instrumento o el rollover
+    // diario arrancan de cero.
+    const prev = this._of;
+    if (prev && prev.tk === I.tk && prev.day === etDate()) prev.mode = null; // la rama re-asigna el modo
+    else this._of = { tk: I.tk, mode: null, etf: null, trades: [], cvd: 0, buys: 0, sells: 0, n: 0, bigs: 0, day: etDate(), ticks: [], spread: null, lastPx: null, lastDir: 0 };
     if (I.src === 'okx' && I.okx) return this._ofOkx(I, gen);
     if (I.src === 'deriv') { this._of.mode = 'fxmid'; this._ofRender(); return; } // los ticks llegan por el propio WS de _derivStart
     if (I.tk === 'NQ=F' || I.tk === 'ES=F') return this._ofFinnhub(I, gen);
@@ -5390,7 +5395,9 @@ const Terminal = {
   async _ofFinnhub(I, gen) {
     const etf = I.tk === 'NQ=F' ? 'QQQ' : 'SPY';
     if (this._fhk === undefined) { // la key vive en el env de Vercel — el endpoint solo la sirve
-      try { const j = await fetch('/api/capital?src=fhk').then(r => r.json()); this._fhk = j && j.k ? j.k : null; } catch (e) { this._fhk = null; }
+      // null = el server confirmó que NO hay key (no reintentar) · undefined = fallo
+      // transitorio de red (reintenta al próximo _ofStart — no mentir con "nokey")
+      try { const j = await fetch('/api/capital?src=fhk').then(r => r.json()); this._fhk = j && j.k ? j.k : (j && j.error ? null : undefined); } catch (e) { this._fhk = undefined; }
     }
     if (gen !== this._gen) return;
     if (!this._fhk) { this._of.mode = 'nokey'; this._ofRender(); return; }
@@ -5426,7 +5433,7 @@ const Terminal = {
   _ofRender() {
     const el = document.getElementById('term-oflow'); if (!el || !this._of) return;
     const T = this._of, I = this.instr();
-    const fU = u => u >= 1e6 ? (u / 1e6).toFixed(2) + 'M' : (u / 1e3).toFixed(0) + 'k';
+    const fU = u => u >= 1e6 ? (u / 1e6).toFixed(2) + 'M' : u >= 1e3 ? (u / 1e3).toFixed(0) + 'k' : u.toFixed(0);
     const hdr = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">ORDER FLOW — ' + (T.mode === 'real' ? '⚡ REAL (OKX, lado agresor)' : T.mode === 'tick' ? '⚡ ' + (T.etf || '') + ' tick-rule (aprox)' : T.mode === 'fxmid' ? 'presión por mid' : '—') + '</div>';
     if (T.mode === 'fxmid') {
       const win = T.ticks.slice(-60);
@@ -5518,6 +5525,9 @@ const Terminal = {
   setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = c.ov[k] === false; this.saveCfg(); this._renderBtns(); this.render(); },
   async feedPoll() {
     const I = this.instr();
+    // T3: revivir la cinta si su WS murió (Finnhub free = 1 conexión por key; OKX corta
+    // idle ~30s) — el feed de velas no la cubre y el badge EN VIVO es del feed, no de ella
+    if (this._of && (this._of.mode === 'real' || this._of.mode === 'tick') && (!this._ofWs || this._ofWs.readyState > 1)) this._ofStart(I, this._gen);
     // T2: refresco de zonas por TTL 30 min — feedStart solo corre al cambiar instrumento/tf,
     // sin esto las zonas y el chip 🚦 quedarían congelados toda la sesión
     if (this._zones && Date.now() - this._zones.ts > 1800e3) {
