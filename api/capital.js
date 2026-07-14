@@ -855,6 +855,13 @@ module.exports = async (req, res) => {
       res.setHeader('Cache-Control', 's-maxage=21600, stale-while-revalidate=43200'); // 6h — publica viernes
       return res.status(200).json(out);
     }
+    if (src === 'fhk') {
+      // T3 · key Finnhub para el tape QQQ/SPY de la Terminal — vive SOLO en el env de
+      // Vercel (jamás en git), rotable desde el dashboard de Vercel sin tocar código
+      const k = process.env.FINNHUB_KEY || '';
+      res.setHeader('Cache-Control', 'max-age=0, no-cache');
+      return res.status(200).json(k ? { k } : { error: 'FINNHUB_KEY no configurada en Vercel' });
+    }
     if (src === 'screener') {
       // MOTOR v2 P2: máximos 52w (pool separado). Scraping frágil → 200 con {error} sin cache
       try {

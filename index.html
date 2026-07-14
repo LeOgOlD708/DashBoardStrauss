@@ -2886,6 +2886,7 @@ html.auth-ok #auth-gate{display:none}
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div style="flex:2.2;min-width:420px"><canvas id="term-chart" style="width:100%;height:430px"></canvas></div>
       <div style="flex:1;min-width:230px" id="term-levels"></div>
+      <div style="flex:.9;min-width:200px" id="term-oflow" class="mono"></div>
     </div>
   </div>
   <!-- ④ FLUJO slow-HIRO (F7) + ⑤ COHERENCIA (F8) -->
@@ -5077,6 +5078,7 @@ const Terminal = {
     this._timers.forEach(clearInterval); this._timers = [];
     this._gen++; // invalida bootstraps en vuelo: su catch/render no debe tocar una tab muerta
     this._wsKill(); // FW: el stream (Deriv/OKX) no debe sobrevivir al tab
+    this._ofKill(); // T3: la cinta tampoco
     this.toggleCockpit(false); // T1: salir del cockpit al abandonar el tab
     document.getElementById('term-gate')?.remove(); // el gate es fixed — no debe sobrevivir al tab
   },
@@ -5183,7 +5185,7 @@ const Terminal = {
       + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
       + '</span>';
   },
-  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this.feedStart(); },
+  setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this.feedStart(); },
   setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
   _ckEsc: null,
   toggleCockpit(force) {
@@ -5195,7 +5197,7 @@ const Terminal = {
     if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
     setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
-  setInstr(tk) { this._gen++; this._wsKill(); this._zones = null; this._walls = null; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5222,6 +5224,7 @@ const Terminal = {
         this.render();
         // T2: zonas del motor en paralelo (cache 30 min) — repinta al llegar
         this._loadZones(I, gen).then(() => { if (gen === this._gen) this.render(); });
+        this._ofStart(I, gen); // T3: la cinta arranca con el feed
       }
     } catch (e) { if (gen === this._gen) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; } }
     this._busy = false;
@@ -5305,6 +5308,7 @@ const Terminal = {
       ws.onopen = () => {
         ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: 1800, count: 260, end: 'latest', adjust_start_time: 1, req_id: 30 }));
         ws.send(JSON.stringify({ ticks_history: sym, style: 'candles', granularity: gran, count: nBars, end: 'latest', adjust_start_time: 1, subscribe: 1, req_id: 5 }));
+        ws.send(JSON.stringify({ ticks: sym, subscribe: 1, req_id: 7 })); // T3: stream de ticks (bid/ask/quote ~1/s) para la presión por mid
       };
       ws.onmessage = ev => {
         if (gen !== undefined && gen !== this._gen) return; // fix #1: socket de otra generación
@@ -5326,6 +5330,13 @@ const Terminal = {
           this.feed.lastOk = Date.now() / 1000; this._wsLastTick = Date.now();
           // repintar con moderación (los updates llegan ~1/s; el mapa entero no necesita 60fps)
           if (Date.now() - this._lastPaint > 5000 && !document.hidden) { this._lastPaint = Date.now(); this.render(); }
+        } else if (m.tick && this._of && this._of.mode === 'fxmid') {
+          // T3: presión por mid — cada tick trae quote (y bid/ask en forex)
+          const T = this._of;
+          T.ticks.push({ t: +m.tick.epoch, mid: +m.tick.quote });
+          if (T.ticks.length > 240) T.ticks.shift();
+          if (m.tick.bid != null && m.tick.ask != null) T.spread = +m.tick.ask - +m.tick.bid;
+          this._ofPaintMaybe();
         }
       };
       ws.onclose = () => { if (!settled) { settled = true; clearTimeout(to); rej(new Error('Deriv WS cerrado')); } if (this._ws === ws) this._wsLastTick = 0; }; // fix #2: no tocar el estado del socket nuevo
@@ -5335,6 +5346,115 @@ const Terminal = {
   // onclose se conserva: al cerrar, la promesa en vuelo del bootstrap se asienta YA
   // (rej rápido) en vez de colgar hasta su timeout de 12s bloqueando _busy.
   _wsKill() { if (this._ws) { const w = this._ws; try { w.onmessage = null; w.onerror = null; w.close(); } catch (e) {} this._ws = null; } this._wsLastTick = 0; },
+
+  // ══ T3: ORDER FLOW — la cinta, con honestidad por mercado ══
+  // crypto = REAL (canal trades OKX: lado AGRESOR publicado) · NQ/ES = tape del ETF espejo
+  // vía Finnhub WS con tick-rule (uptick≈compra — aprox declarada, equities gratis no
+  // publican lado) · forex/XAU = presión por dirección de ticks del mid + spread vivo
+  // (el spot NO tiene cinta pública — nadie la tiene, se declara).
+  _ofWs: null, _of: null, _ofPaint: 0, _fhk: undefined,
+  _ofKill() { if (this._ofWs) { const w = this._ofWs; try { w.onmessage = null; w.onclose = null; w.onerror = null; w.close(); } catch (e) {} this._ofWs = null; } },
+  _ofDayReset(T) { const d = etDate(); if (T.day !== d) { T.day = d; T.cvd = 0; T.buys = 0; T.sells = 0; T.n = 0; T.bigs = 0; T.trades = []; } },
+  _ofStart(I, gen) {
+    this._ofKill();
+    this._of = { mode: null, etf: null, trades: [], cvd: 0, buys: 0, sells: 0, n: 0, bigs: 0, day: etDate(), ticks: [], spread: null, lastPx: null, lastDir: 0 };
+    if (I.src === 'okx' && I.okx) return this._ofOkx(I, gen);
+    if (I.src === 'deriv') { this._of.mode = 'fxmid'; this._ofRender(); return; } // los ticks llegan por el propio WS de _derivStart
+    if (I.tk === 'NQ=F' || I.tk === 'ES=F') return this._ofFinnhub(I, gen);
+    this._of.mode = 'none'; this._ofRender();
+  },
+  _ofOkx(I, gen) {
+    try {
+      const ws = new WebSocket('wss://ws.okx.com:8443/ws/v5/public');
+      this._ofWs = ws; this._of.mode = 'real';
+      ws.onopen = () => ws.send(JSON.stringify({ op: 'subscribe', args: [{ channel: 'trades', instId: I.okx }] }));
+      ws.onmessage = ev => {
+        if (gen !== this._gen) return;
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (!m.data || !Array.isArray(m.data)) return;
+        const T = this._of; this._ofDayReset(T);
+        for (const r of m.data) {
+          const px = +r.px, usd = px * (+r.sz), buy = r.side === 'buy';
+          if (!(usd > 0)) continue;
+          T.cvd += buy ? usd : -usd; T.n++; if (buy) T.buys += usd; else T.sells += usd;
+          if (usd >= 100000) T.bigs++;
+          T.trades.push({ t: Math.floor(+r.ts / 1000), px, usd, buy, big: usd >= 100000 });
+        }
+        if (T.trades.length > 60) T.trades.splice(0, T.trades.length - 60);
+        this._ofPaintMaybe();
+      };
+      ws.onerror = () => {}; ws.onclose = () => {};
+      this._ofRender();
+    } catch (e) { this._of.mode = 'none'; this._ofRender(); }
+  },
+  async _ofFinnhub(I, gen) {
+    const etf = I.tk === 'NQ=F' ? 'QQQ' : 'SPY';
+    if (this._fhk === undefined) { // la key vive en el env de Vercel — el endpoint solo la sirve
+      try { const j = await fetch('/api/capital?src=fhk').then(r => r.json()); this._fhk = j && j.k ? j.k : null; } catch (e) { this._fhk = null; }
+    }
+    if (gen !== this._gen) return;
+    if (!this._fhk) { this._of.mode = 'nokey'; this._ofRender(); return; }
+    try {
+      const ws = new WebSocket('wss://ws.finnhub.io?token=' + this._fhk);
+      this._ofWs = ws; this._of.mode = 'tick'; this._of.etf = etf;
+      ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', symbol: etf }));
+      ws.onmessage = ev => {
+        if (gen !== this._gen) return;
+        let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
+        if (m.type !== 'trade' || !m.data) return;
+        const T = this._of; this._ofDayReset(T);
+        for (const r of m.data) {
+          const px = +r.p, usd = px * (+r.v);
+          if (!(usd > 0)) continue;
+          // tick-rule (Lee-Ready simplificado): uptick=compra, downtick=venta, plano hereda
+          let dir = T.lastPx != null ? (px > T.lastPx ? 1 : px < T.lastPx ? -1 : T.lastDir) : 0;
+          T.lastPx = px; T.lastDir = dir;
+          if (!dir) continue;
+          const buy = dir > 0;
+          T.cvd += buy ? usd : -usd; T.n++; if (buy) T.buys += usd; else T.sells += usd;
+          if (usd >= 250000) T.bigs++;
+          T.trades.push({ t: Math.floor(r.t / 1000), px, usd, buy, big: usd >= 250000 });
+        }
+        if (T.trades.length > 60) T.trades.splice(0, T.trades.length - 60);
+        this._ofPaintMaybe();
+      };
+      ws.onerror = () => {}; ws.onclose = () => {};
+      this._ofRender();
+    } catch (e) { this._of.mode = 'none'; this._ofRender(); }
+  },
+  _ofPaintMaybe() { if (Date.now() - this._ofPaint > 900 && !document.hidden) { this._ofPaint = Date.now(); this._ofRender(); } },
+  _ofRender() {
+    const el = document.getElementById('term-oflow'); if (!el || !this._of) return;
+    const T = this._of, I = this.instr();
+    const fU = u => u >= 1e6 ? (u / 1e6).toFixed(2) + 'M' : (u / 1e3).toFixed(0) + 'k';
+    const hdr = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">ORDER FLOW — ' + (T.mode === 'real' ? '⚡ REAL (OKX, lado agresor)' : T.mode === 'tick' ? '⚡ ' + (T.etf || '') + ' tick-rule (aprox)' : T.mode === 'fxmid' ? 'presión por mid' : '—') + '</div>';
+    if (T.mode === 'fxmid') {
+      const win = T.ticks.slice(-60);
+      if (win.length < 12) { el.innerHTML = hdr + '<span style="color:var(--text3);font-size:9.5px">acumulando ticks (' + win.length + ')… el spot no tiene cinta pública: esto medirá dirección del mid, no volumen</span>'; return; }
+      let up = 0, dn = 0;
+      for (let i = 1; i < win.length; i++) { if (win[i].mid > win[i - 1].mid) up++; else if (win[i].mid < win[i - 1].mid) dn++; }
+      const tot = up + dn || 1, pct = up / tot * 100;
+      el.innerHTML = hdr
+        + '<div style="font-size:10px;margin-bottom:3px">presión últ. ' + win.length + ' ticks (~1/s)</div>'
+        + '<div style="display:flex;height:12px;border-radius:5px;overflow:hidden;background:var(--surface2);margin-bottom:3px" title="% de ticks del mid al alza vs a la baja — NO es volumen: el forex spot no publica cinta">'
+        + '<div style="width:' + pct.toFixed(0) + '%;background:rgba(52,211,153,.75)"></div><div style="flex:1;background:rgba(248,113,113,.6)"></div></div>'
+        + '<div style="font-size:10px"><b style="color:var(--green)">' + pct.toFixed(0) + '%↑</b> · <b style="color:var(--red)">' + (100 - pct).toFixed(0) + '%↓</b>'
+        + (T.spread != null ? ' · spread vivo <b style="color:var(--text)">' + (T.spread / (I.pipsz || 1e-4)).toFixed(1) + '</b> ' + (I.pipsz === 1 ? 'pts' : 'pips') : '') + '</div>'
+        + '<div style="font-size:8.5px;color:var(--text3);margin-top:4px">dirección de ticks del mid Deriv — el spot no tiene cinta (nadie la tiene gratis ni pagando)</div>';
+      return;
+    }
+    if (T.mode === 'nokey') { el.innerHTML = hdr + '<span style="color:var(--amber);font-size:9.5px">FINNHUB_KEY no está en el env de Vercel — el tape de ' + escHtml(T.etf || I.lbl) + ' se enciende al ponerla (Settings → Environment Variables, sin tocar código)</span>'; return; }
+    if (T.mode !== 'real' && T.mode !== 'tick') { el.innerHTML = hdr + '<span style="color:var(--text3);font-size:9.5px">sin cinta para este instrumento</span>'; return; }
+    if (!T.n) { el.innerHTML = hdr + '<span style="color:var(--text3);font-size:9.5px">esperando trades' + (T.mode === 'tick' ? ' (Finnhub emite en horario de mercado US)' : '') + '…</span>'; return; }
+    const buyPct = (T.buys + T.sells) > 0 ? T.buys / (T.buys + T.sells) * 100 : 50;
+    const rows = T.trades.slice(-14).reverse().map(tr =>
+      '<tr style="' + (tr.big ? 'background:rgba(201,168,76,.10)' : '') + '"><td style="padding:1px 4px;color:var(--text3);font-size:8.5px">' + new Date(tr.t * 1000).toLocaleTimeString('es-MX', { hour12: false }) + '</td><td style="text-align:right;font-size:9px;color:var(--text2)">' + tr.px.toFixed(I.dec) + '</td><td style="text-align:right;font-size:9px;color:' + (tr.buy ? 'var(--green)' : 'var(--red)') + '"><b>' + (tr.buy ? '▲' : '▼') + ' $' + fU(tr.usd) + '</b></td></tr>').join('');
+    el.innerHTML = hdr
+      + '<div style="font-size:10px;margin-bottom:2px" title="Cumulative Volume Delta: dólares agresores comprando menos vendiendo, acumulado de la sesión ET — la presión NETA real detrás del precio">CVD sesión <b style="color:' + (T.cvd >= 0 ? 'var(--green)' : 'var(--red)') + ';font-size:13px">' + (T.cvd >= 0 ? '+$' : '−$') + fU(Math.abs(T.cvd)) + '</b>' + (T.mode === 'tick' ? ' <span style="color:var(--text3)" title="Equities gratis no publican lado agresor — tick-rule: uptick≈compra, downtick≈venta">~</span>' : '') + '</div>'
+      + '<div style="display:flex;height:9px;border-radius:4px;overflow:hidden;background:var(--surface2);margin-bottom:2px" title="proporción de dólares agresores comprando (verde) vs vendiendo (rojo) — sesión"><div style="width:' + buyPct.toFixed(0) + '%;background:rgba(52,211,153,.7)"></div><div style="flex:1;background:rgba(248,113,113,.55)"></div></div>'
+      + '<div style="font-size:8.5px;color:var(--text3);margin-bottom:4px">' + T.n + ' trades hoy · ' + T.bigs + ' bloques ≥$' + (T.mode === 'real' ? '100k' : '250k') + ' <span style="background:rgba(201,168,76,.10);padding:0 3px">resaltados</span></div>'
+      + '<table style="width:100%;border-collapse:collapse">' + rows + '</table>';
+  },
   // ── F3: muros gamma del ETF espejo convertidos al futuro + blind spots del índice hermano ──
   // NQ ← cadena QQQ (primaria) + SPY (blind spots) · ES ← SPY + QQQ. Conversión por ratio de
   // precios spot (custom-conv estilo GEXBOT, aprox declarada: el basis del futuro mete ±pts).
@@ -5462,7 +5582,7 @@ const Terminal = {
     const I = this.instr(), etf = this.FLOWETF[I.tk];
     const fb = document.getElementById('term-flow-fresh');
     if (!etf) {
-      el.innerHTML = '<span style="color:var(--text3)">' + (I.src === 'okx' ? 'El flujo de opciones de ' + I.lbl.split(' ')[0] + ' (Deribit) se integra en T3 del cockpit.' : 'El flujo de opciones no aplica a spot (sin cadena listada). Este panel vive en NQ/ES vía su ETF espejo (QQQ/SPY).') + '</span>';
+      el.innerHTML = '<span style="color:var(--text3)">' + (I.src === 'okx' ? 'La CINTA real de ' + I.lbl.split(' ')[0] + ' ya vive en el panel ORDER FLOW ↗ — el flujo de opciones Deribit (prima del día) llega en una fase posterior.' : 'El flujo de opciones no aplica a spot (sin cadena listada). Este panel vive en NQ/ES vía su ETF espejo (QQQ/SPY).') + '</span>';
       if (fb) fb.textContent = '';
       return;
     }
