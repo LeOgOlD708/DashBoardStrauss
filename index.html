@@ -2935,7 +2935,10 @@ html.auth-ok #auth-gate{display:none}
   <div class="card mono" style="margin-bottom:14px"><div id="term-gauges" style="font-size:10.5px;color:var(--text3)">cargando termómetros…</div></div>
   <!-- ⑦ RIESGO Y DISCIPLINA (F5) — 100% localStorage, cero red -->
   <div class="sh"><div class="sh-tag">Disciplina</div><div class="sh-title">Riesgo y Disciplina — lo que salva la cuenta</div><button class="glossary-btn" onclick="openGlossary('terminal-riesgo')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
-  <div class="card" style="margin-bottom:14px"><div id="term-risk"></div></div>
+  <div class="card" style="margin-bottom:14px"><div id="term-risk"></div>
+    <!-- V6.5: MONTE CARLO — vive FUERA de term-risk (el repintado por tick no debe pisar el formulario) -->
+    <div id="term-mc" class="mono" style="border-top:1px solid var(--border2);margin-top:10px;padding-top:8px"></div>
+  </div>
 
   <div id="term-more" class="mono" style="font-size:10px;color:var(--text3);padding:4px 2px 12px">Fase pendiente: sesgo estadístico con calibración propia Databento (F6 — requiere registro gratis). Construidas: FW forex Deriv en vivo · F7 flujo slow-HIRO · F8 coherencia · F9 calendario oficial.</div>
 </div>
@@ -5073,12 +5076,14 @@ const Terminal = {
   // T1 COCKPIT: dos grupos (dropdowns) — src decide el feed: yahoo (delayed) ·
   // deriv (WS vivo, spot sin volumen) · okx (WS vivo CON volumen → VWAP real).
   // crypto va como fx:false a propósito: tiene volumen y sesión RTH computable.
+  // V6.5 alias: el MISMO subyacente con el nombre de cada broker de fondeo (NAS100/US100/USTEC…)
+  // — solo cambia la ETIQUETA; feed, niveles, zonas y todas las funciones son idénticas
   INSTRS: [
-    { tk: 'NQ=F', lbl: 'NQ · Nasdaq 100', grp: 'idx', src: 'yahoo', fx: false, dec: 0 },
-    { tk: 'ES=F', lbl: 'ES · S&P 500', grp: 'idx', src: 'yahoo', fx: false, dec: 1 },
-    { tk: 'BTC-USD', lbl: 'BTC · Bitcoin', grp: 'idx', src: 'okx', okx: 'BTC-USDT', fx: false, dec: 0 },
-    { tk: 'ETH-USD', lbl: 'ETH · Ethereum', grp: 'idx', src: 'okx', okx: 'ETH-USDT', fx: false, dec: 1 },
-    { tk: 'XAUUSD=X', lbl: 'ORO · XAU/USD', grp: 'idx', src: 'deriv', deriv: 'frxXAUUSD', fx: true, dec: 2, pipsz: 1 },
+    { tk: 'NQ=F', lbl: 'NQ · Nasdaq 100', grp: 'idx', src: 'yahoo', fx: false, dec: 0, alias: ['NQ', 'NAS100', 'US100', 'USTEC', 'US100.cash', 'MNQ'] },
+    { tk: 'ES=F', lbl: 'ES · S&P 500', grp: 'idx', src: 'yahoo', fx: false, dec: 1, alias: ['ES', 'US500', 'SPX500', 'US500.cash', 'MES'] },
+    { tk: 'BTC-USD', lbl: 'BTC · Bitcoin', grp: 'idx', src: 'okx', okx: 'BTC-USDT', fx: false, dec: 0, alias: ['BTC', 'BTCUSD', 'BTCUSDT'] },
+    { tk: 'ETH-USD', lbl: 'ETH · Ethereum', grp: 'idx', src: 'okx', okx: 'ETH-USDT', fx: false, dec: 1, alias: ['ETH', 'ETHUSD', 'ETHUSDT'] },
+    { tk: 'XAUUSD=X', lbl: 'ORO · XAU/USD', grp: 'idx', src: 'deriv', deriv: 'frxXAUUSD', fx: true, dec: 2, pipsz: 1, alias: ['ORO', 'XAUUSD', 'GOLD'] },
     { tk: 'EURUSD=X', lbl: 'EUR/USD', grp: 'fx', src: 'deriv', deriv: 'frxEURUSD', fx: true, dec: 5, pipsz: 1e-4 },
     { tk: 'GBPUSD=X', lbl: 'GBP/USD', grp: 'fx', src: 'deriv', deriv: 'frxGBPUSD', fx: true, dec: 5, pipsz: 1e-4 },
     { tk: 'USDJPY=X', lbl: 'USD/JPY', grp: 'fx', src: 'deriv', deriv: 'frxUSDJPY', fx: true, dec: 3, pipsz: 0.01 },
@@ -5090,7 +5095,18 @@ const Terminal = {
   ctype() { return this.cfg().ctype || 'velas' }, // tipo de gráfico: velas · linea · area
   cfg() { if (!this._cfg) { try { this._cfg = JSON.parse(localStorage.getItem('terminal_cfg_v1') || '{}'); } catch (e) { this._cfg = {}; } } return this._cfg; },
   saveCfg() { try { localStorage.setItem('terminal_cfg_v1', JSON.stringify(this._cfg)); } catch (e) {} },
-  instr() { const tk = this.cfg().instr || 'NQ=F'; return this.INSTRS.find(i => i.tk === tk) || this.INSTRS[0]; },
+  instr() {
+    const tk = this.cfg().instr || 'NQ=F';
+    const base = this.INSTRS.find(i => i.tk === tk) || this.INSTRS[0];
+    // V6.5: alias de broker — el usuario elige cómo se llama en SU cuenta de fondeo; la data
+    // y todas las funciones siguen siendo las del mismo subyacente (solo cambia la etiqueta)
+    const al = (this.cfg().aliasMap || {})[base.tk];
+    if (al && base.alias && base.alias.includes(al) && al !== base.alias[0]) {
+      const parts = base.lbl.split(' · ');
+      return { ...base, lbl: al + ' · ' + (parts[1] || parts[0]) };
+    }
+    return base;
+  },
 
   init() {
     this.destroy();
@@ -5101,6 +5117,7 @@ const Terminal = {
     if (!this._cal || Date.now() - this._calT > 6 * 3600e3) this._calLoad();
     this.feedStart();
     this.renderRisk();
+    this._mcUI(); // V6.5: formulario Monte Carlo (estático — no se pisa con los ticks)
     this.showGate(); // F5: checklist-gate diario — solo aparece si el plan de HOY no existe
     this._timers.push(setInterval(() => this._clock(), 1000));
     this._timers.push(setInterval(() => { if (!document.hidden) { this.feedPoll(); this._ofRender(); } }, 60000)); // _ofRender: despega la cinta si quedó congelada por document.hidden
@@ -5223,7 +5240,9 @@ const Terminal = {
   // ── T1: controles cockpit — dropdowns por grupo + tipo de gráfico + temporalidad + ⛶ ──
   _renderBtns() {
     const el = document.getElementById('term-instr-btns'); if (!el) return;
-    const cur = this.instr().tk, tf = this.tf(), ct = this.ctype();
+    const I0 = this.instr(), cur = I0.tk, tf = this.tf(), ct = this.ctype();
+    const base = this.INSTRS.find(i => i.tk === cur) || this.INSTRS[0];
+    const curAlias = (this.cfg().aliasMap || {})[cur] || (base.alias ? base.alias[0] : null);
     const selStyle = 'background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:5px;font-size:10.5px;font-family:\'IBM Plex Mono\',monospace;padding:4px 6px;cursor:pointer';
     const opt = (grp, ph) => '<option value="">' + ph + '</option>' + this.INSTRS.filter(i => i.grp === grp).map(i => '<option value="' + i.tk + '"' + (i.tk === cur ? ' selected' : '') + '>' + i.lbl + (i.src !== 'yahoo' ? ' ⚡' : '') + '</option>').join('');
     const btn = (on, lbl, fn, title) => '<button type="button" onclick="' + fn + '" title="' + (title || '') + '" style="font-size:9.5px;font-family:\'IBM Plex Mono\',monospace;padding:3px 9px;border-radius:4px;cursor:pointer;border:1px solid ' + (on ? 'var(--teal)' : 'var(--border2)') + ';color:' + (on ? 'var(--teal)' : 'var(--text3)') + ';background:' + (on ? 'rgba(45,212,191,.08)' : 'transparent') + '">' + lbl + '</button>';
@@ -5232,14 +5251,18 @@ const Terminal = {
       + '<select onchange="if(this.value)Terminal.setInstr(this.value)" style="' + selStyle + '">' + opt('fx', '💱 FOREX') + '</select>'
       + '<span style="display:inline-flex;gap:3px;margin-left:10px">' + [1, 5, 15].map(m => btn(tf === m, m + 'm', 'Terminal.setTf(' + m + ')', 'temporalidad ' + m + ' minutos')).join('') + '</span>'
       + '<span style="display:inline-flex;gap:3px;margin-left:10px">' + [['velas', '🕯'], ['linea', '📈'], ['area', '⛰']].map(([t, ic]) => btn(ct === t, ic + ' ' + t, 'Terminal.setCtype(\'' + t + '\')', 'tipo de gráfico')).join('') + '</span>'
+      // V6.5: alias del broker — mismo subyacente, tu nombre (NAS100/US100/USTEC…)
+      + (base.alias && base.alias.length > 1 ? '<span class="mono" style="margin-left:10px;font-size:9px;color:var(--text3)" title="El mismo subyacente se llama distinto en cada broker de fondeo (NAS100, US100, USTEC…). Elige el nombre de TU cuenta — data, niveles, zonas y todas las funciones son idénticas: solo cambia la etiqueta">en tu broker: <select onchange="Terminal.setAlias(this.value)" style="' + selStyle + ';font-size:9.5px;padding:2px 4px">' + base.alias.map(a => '<option value="' + a + '"' + (curAlias === a ? ' selected' : '') + '>' + a + '</option>').join('') + '</select></span>' : '')
       + '<button type="button" onclick="Terminal.toggleCockpit()" title="Modo cockpit — pantalla completa (ESC para salir)" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;margin-left:10px;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⛶ COCKPIT</button>'
       // T2: toggles de overlays — qué capas del motor viven SOBRE el chart
       + '<span style="display:inline-flex;gap:3px;margin-left:10px;padding-left:10px;border-left:1px solid var(--border2)">'
-      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['delta', '± delta', 'Delta por vela (dólares agresores, desde que abriste la Terminal) + divergencia CVD ⚠ + absorción 🧲'], ['heatmap', '🔥 heatmap', 'Liquidez PASIVA del libro OKX (60 niveles por lado, ~6s) — dónde descansan las órdenes límite y cuándo las retiran. Solo crypto: nadie publica L2 gratis de equities/forex'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
+      + [['zonas', '◆ zonas', 'Zonas del motor (confluencias diarias con score) como bandas sobre el chart'], ['muros', '🧱 muros', 'Call/put walls y gamma flip — grosor ∝ fuerza del muro'], ['perfil', '▤ perfil', 'Perfil de volumen de la sesión: histograma por precio + POC/VAH/VAL (sin volumen en forex)'], ['niveles', '─ niveles', 'PDH/PDL · ONH/ONL · IB/OR como líneas sobre el chart'], ['vwap', '〜 vwap', 'VWAP y bandas ±1σ/±2σ'], ['delta', '± delta', 'Delta por vela (dólares agresores, desde que abriste la Terminal) + divergencia CVD ⚠ + absorción 🧲'], ['heatmap', '🔥 heatmap', 'Liquidez PASIVA del libro OKX (60 niveles por lado, ~6s) — dónde descansan las órdenes límite y cuándo las retiran. Solo crypto: nadie publica L2 gratis de equities/forex'], ['cono', '🎲 cono MC', 'Cono Monte Carlo: bootstrap de TUS retornos del tf proyectado hasta el fin del día ET (p10-p90 + mediana) — compáralo con el EM± de opciones: si el cono desborda al implícito, la vol realizada le está ganando a la prima'], ['sema', '🚦 semáforo', 'Chip del semáforo institucional del ticker espejo']].map(([k, lbl, tip]) => btn(this.ov(k), lbl, 'Terminal.setOv(\'' + k + '\')', tip)).join('')
       + '</span>';
   },
   setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.feedStart(); },
   setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
+  // V6.5: alias del broker — SOLO etiqueta; nada de feeds/estado se toca
+  setAlias(a) { const c = this.cfg(); c.aliasMap = c.aliasMap || {}; c.aliasMap[this.instr().tk] = a; this.saveCfg(); this._renderBtns(); this.render(); },
   _ckEsc: null,
   toggleCockpit(force) {
     const tab = document.getElementById('tab-term'); if (!tab) return;
@@ -6239,12 +6262,13 @@ const Terminal = {
 
   // ══ F5: RIESGO Y DISCIPLINA — 100% localStorage, cero red, cero contacto con el motor ══
   PROPS: {
-    ftmo2: { lbl: 'FTMO 2-step', dll: b => b * 0.05, max: b => b * 0.10, note: 'pérdida diaria 5% (reset medianoche CET) · máxima 10% estática' },
-    ftmo1: { lbl: 'FTMO 1-step', dll: b => b * 0.03, max: b => b * 0.10, note: 'diaria 3% · máxima 10% trailing EOD' },
-    ts50: { lbl: 'TopStep 50k', dll: () => 1000, max: () => 2000, note: 'DLL $1,000 (reset 5pm CT) · MLL $2,000 TRAILING intraday' },
-    ts100: { lbl: 'TopStep 100k', dll: () => 2000, max: () => 3000, note: 'DLL $2,000 · MLL $3,000 trailing intraday' },
-    ts150: { lbl: 'TopStep 150k', dll: () => 3000, max: () => 4500, note: 'DLL $3,000 · MLL $4,500 trailing intraday' },
-    none: { lbl: 'Personal (sin prop)', dll: b => b * 0.05, max: () => null, note: 'límite diario sugerido 5% — edítalo con el balance' },
+    // tgt (V6.5): objetivo del challenge para el Monte Carlo — FTMO fase 1 = 10%; TopStep targets 2026
+    ftmo2: { lbl: 'FTMO 2-step', dll: b => b * 0.05, max: b => b * 0.10, tgt: b => b * 0.10, mll: 'static', note: 'pérdida diaria 5% (reset medianoche CET) · máxima 10% estática' },
+    ftmo1: { lbl: 'FTMO 1-step', dll: b => b * 0.03, max: b => b * 0.10, tgt: b => b * 0.10, mll: 'eod', note: 'diaria 3% · máxima 10% trailing EOD' },
+    ts50: { lbl: 'TopStep 50k', dll: () => 1000, max: () => 2000, tgt: () => 3000, mll: 'intra', note: 'DLL $1,000 (reset 5pm CT) · MLL $2,000 TRAILING intraday' },
+    ts100: { lbl: 'TopStep 100k', dll: () => 2000, max: () => 3000, tgt: () => 6000, mll: 'intra', note: 'DLL $2,000 · MLL $3,000 trailing intraday' },
+    ts150: { lbl: 'TopStep 150k', dll: () => 3000, max: () => 4500, tgt: () => 9000, mll: 'intra', note: 'DLL $3,000 · MLL $4,500 trailing intraday' },
+    none: { lbl: 'Personal (sin prop)', dll: b => b * 0.05, max: () => null, tgt: null, mll: 'none', note: 'límite diario sugerido 5% — edítalo con el balance' },
   },
   PTVAL: { 'NQ=F': [['NQ', 20], ['MNQ', 2]], 'ES=F': [['ES', 50], ['MES', 5]], 'EURUSD=X': [['lote std (pip $10)', 10]], 'GBPUSD=X': [['lote std (pip $10)', 10]], 'USDJPY=X': [['lote std (pip ~$6.2, aprox)', 6.2]], 'AUDUSD=X': [['lote std (pip $10)', 10]], 'USDCAD=X': [['lote std (pip ~$7.5, aprox)', 7.5]], 'EURJPY=X': [['lote std (pip ~$6.2, aprox)', 6.2]], 'BTC-USD': [['BTC (1:1 $/pt)', 1]], 'ETH-USD': [['ETH (1:1 $/pt)', 1]], 'XAUUSD=X': [['XAU 100oz ($100/pt)', 100]] },
   _dayAll: null,
@@ -6348,6 +6372,86 @@ const Terminal = {
       + (trades.length ? '<table style="width:100%;border-collapse:collapse;font-size:9.5px;margin-top:5px">' + trades.map((t, i) => '<tr style="border-top:1px solid var(--border2)"><td style="padding:2px 4px;color:var(--text3)">' + new Date(t.t * 1000).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + '</td><td>' + t.i + '</td><td style="color:' + (t.r >= 0 ? 'var(--green)' : 'var(--red)') + '"><b>' + (t.r >= 0 ? '+' : '') + t.r + 'R</b></td><td style="color:var(--text3)">' + escHtml(t.n || '') + '</td><td style="text-align:right"><span onclick="Terminal.delTrade(' + i + ')" style="cursor:pointer;color:var(--text3)" title="borrar">✕</span></td></tr>').join('') + '</table>' : '<div style="color:var(--text3);font-size:9.5px;margin-top:5px">sin trades hoy</div>')
       + '<div style="margin-top:6px;color:var(--text3);font-size:9px" title="Expectancy = media de R por trade — LA métrica; positiva y estable con n≥30 es lo único que autoriza subir tamaño">HISTÓRICO: n=' + all.length + ' · win ' + (all.length ? Math.round(wins.length / all.length * 100) + '%' : '—') + ' · expectancy ' + (exp != null ? (exp >= 0 ? '+' : '') + exp.toFixed(2) + 'R' : '—') + (all.length && all.length < 30 ? ' <span style="color:var(--amber)">(n<30: ANÉCDOTA, no estadística)</span>' : '') + '</div>'
       + '</div></div>';
+  },
+  // ══ V6.5: MONTE CARLO — supervivencia de la cuenta (opción A) ══
+  // Simula N secuencias de trading contra las reglas EXACTAS de la prop seleccionada
+  // (DLL diario + MLL estático/trailing + target del challenge). La distribución de R
+  // sale del journal real (bootstrap) cuando hay n≥10; si no, de parámetros manuales.
+  _mcCfg() { const c = this.cfg(); c.mc = c.mc || { src: 'manual', wr: 45, aw: 1.8, al: 1, tpd: 3, days: 90 }; return c.mc; },
+  _mcUI() {
+    const el = document.getElementById('term-mc'); if (!el) return;
+    const m = this._mcCfg();
+    let all = []; Object.values(this._dayAll || {}).forEach(d => all.push(...(d.trades || [])));
+    const inp = (id, v, w, t) => '<input id="' + id + '" value="' + v + '" title="' + escHtml(t || '') + '" style="width:' + w + 'px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">';
+    el.innerHTML = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🎲 MONTE CARLO — ¿sobrevive tu cuenta?</span>'
+      + '<button class="glossary-btn" onclick="openGlossary(\'terminal-montecarlo\')" title="¿Qué es esto?" style="margin:0;flex:none">?</button>'
+      + '<select id="term-mc-src" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
+      + '<option value="manual"' + (m.src === 'manual' ? ' selected' : '') + '>parámetros manuales</option>'
+      + '<option value="journal"' + (m.src === 'journal' ? ' selected' : '') + (all.length < 10 ? ' disabled' : '') + '>journal real (n=' + all.length + (all.length < 10 ? ' — mín 10' : '') + ')</option></select>'
+      + '<span style="font-size:10px;color:var(--text2)">WR ' + inp('term-mc-wr', m.wr, 36, '% de trades ganadores') + '% · win ' + inp('term-mc-aw', m.aw, 34, 'ganancia promedio en R') + 'R · loss ' + inp('term-mc-al', m.al, 30, 'pérdida promedio en R (positivo)') + 'R</span>'
+      + '<span style="font-size:10px;color:var(--text2)">' + inp('term-mc-tpd', m.tpd, 28, 'trades por día') + ' trades/día · ' + inp('term-mc-days', m.days, 34, 'días de trading a simular') + ' días</span>'
+      + '<button type="button" onclick="Terminal.mcRun()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">▶ SIMULAR 5,000</button>'
+      + '</div><div id="term-mc-res" style="margin-top:6px"></div>';
+  },
+  mcRun() {
+    const res = document.getElementById('term-mc-res'); if (!res) return;
+    // leer + persistir params
+    const m = this._mcCfg();
+    const rd = (id, dflt, lo, hi) => { const v = parseFloat(document.getElementById(id)?.value); return isFinite(v) && v >= lo && v <= hi ? v : dflt; };
+    m.src = document.getElementById('term-mc-src')?.value || 'manual';
+    m.wr = rd('term-mc-wr', 45, 1, 99); m.aw = rd('term-mc-aw', 1.8, 0.1, 20); m.al = rd('term-mc-al', 1, 0.1, 20);
+    m.tpd = Math.round(rd('term-mc-tpd', 3, 1, 20)); m.days = Math.round(rd('term-mc-days', 90, 5, 250));
+    this.saveCfg();
+    res.innerHTML = '<span style="color:var(--text3);font-size:10px">simulando 5,000 cuentas…</span>';
+    setTimeout(() => this._mcCompute(), 30); // deja pintar el "simulando…"
+  },
+  _mcCompute() {
+    const res = document.getElementById('term-mc-res'); if (!res) return;
+    const cfg = this.cfg(), m = this._mcCfg();
+    const prop = cfg.prop || 'none', bal = +cfg.balance || 10000, riskPct = +cfg.riskPct || 0.5;
+    const P = this.PROPS[prop], risk$ = bal * riskPct / 100;
+    const dll = P.dll(bal), maxL = P.max(bal), tgt = P.tgt ? P.tgt(bal) : null;
+    // distribución de R: bootstrap del journal o Bernoulli manual
+    let rs = null;
+    if (m.src === 'journal') { let all = []; Object.values(this._dayAll || {}).forEach(d => all.push(...(d.trades || []))); rs = all.map(t => +t.r).filter(r => isFinite(r)); if (rs.length < 10) rs = null; }
+    const sample = rs ? () => rs[(Math.random() * rs.length) | 0] : () => Math.random() * 100 < m.wr ? m.aw : -m.al;
+    const SIMS = 5000, DAYS = m.days, TPD = m.tpd;
+    let pass = 0, bustD = 0, bustM = 0, timeout = 0;
+    const passDays = [], dds = [];
+    for (let s = 0; s < SIMS; s++) {
+      let eq = 0, peak = 0, peakEOD = 0, dd = 0, done = 0;
+      for (let d = 1; d <= DAYS && !done; d++) {
+        let dayPnl = 0;
+        for (let t = 0; t < TPD; t++) {
+          const pnl = sample() * risk$;
+          dayPnl += pnl; eq += pnl;
+          if (eq > peak) peak = eq;
+          if (peak - eq > dd) dd = peak - eq;
+          if (dayPnl <= -dll) { bustD++; done = 1; break; }            // límite diario
+          if (maxL != null && P.mll === 'intra' && eq <= peak - maxL) { bustM++; done = 2; break; } // trailing intradía
+          if (maxL != null && P.mll === 'static' && eq <= -maxL) { bustM++; done = 2; break; }      // estático
+          if (tgt != null && eq >= tgt) { pass++; passDays.push(d); done = 3; break; }              // challenge superado
+        }
+        if (!done && maxL != null && P.mll === 'eod') { if (eq > peakEOD) peakEOD = eq; if (eq <= peakEOD - maxL) { bustM++; done = 2; } } // trailing al cierre
+      }
+      if (!done) timeout++;
+      dds.push(dd);
+    }
+    dds.sort((a, b) => a - b);
+    passDays.sort((a, b) => a - b);
+    const q = (arr, f) => arr.length ? arr[Math.min(arr.length - 1, Math.floor(f * arr.length))] : null;
+    const pct = n => (n / SIMS * 100);
+    const fD = v => v != null ? '$' + Math.round(v).toLocaleString('en-US') + ' (' + (v / risk$).toFixed(1) + 'R)' : '—';
+    const tileMc = (lbl, val, col, sub) => '<div style="flex:1;min-width:150px;border:1px solid var(--border2);border-left:3px solid ' + col + ';border-radius:6px;padding:6px 9px;background:var(--surface)"><div style="font-size:8.5px;color:var(--text3);letter-spacing:.06em">' + lbl + '</div><div style="font-size:16px;color:' + col + '"><b>' + val + '</b></div><div style="font-size:8.5px;color:var(--text3)">' + sub + '</div></div>';
+    const srcLbl = rs ? 'bootstrap del journal REAL (n=' + rs.length + (rs.length < 30 ? ' — ANÉCDOTA, mínimo serio 30' : '') + ')' : 'Bernoulli manual WR ' + m.wr + '% · +' + m.aw + 'R/−' + m.al + 'R';
+    res.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+      + (tgt != null ? tileMc('✅ PASA EL CHALLENGE', pct(pass).toFixed(1) + '%', 'var(--green)', pass ? 'mediana ' + q(passDays, .5) + ' días (p90: ' + q(passDays, .9) + ')' : 'ninguna simulación llegó al target') : tileMc('✅ SOBREVIVE', pct(SIMS - bustD - bustM).toFixed(1) + '%', 'var(--green)', DAYS + ' días sin tocar límites'))
+      + tileMc('💀 QUIEBRA', pct(bustD + bustM).toFixed(1) + '%', 'var(--red)', 'diario ' + pct(bustD).toFixed(1) + '% · máx/trailing ' + pct(bustM).toFixed(1) + '%')
+      + (tgt != null ? tileMc('⏳ NI PASA NI QUIEBRA', pct(timeout).toFixed(1) + '%', 'var(--amber)', 'en ' + DAYS + ' días — sigue vivo pero sin target') : '')
+      + tileMc('📉 DRAWDOWN MÁX', fD(q(dds, .5)), 'var(--amber)', 'p90: ' + fD(q(dds, .9)) + ' · p99: ' + fD(q(dds, .99)))
+      + '</div>'
+      + '<div style="font-size:8.5px;color:var(--text3);margin-top:4px">5,000 cuentas · ' + escHtml(P.lbl) + ' con balance $' + bal.toLocaleString('en-US') + ' · 1R = $' + risk$.toFixed(0) + ' (riesgo ' + riskPct + '%) · fuente: ' + escHtml(srcLbl) + ' · DLL $' + Math.round(dll).toLocaleString('en-US') + (maxL != null ? ' · MLL $' + Math.round(maxL).toLocaleString('en-US') + ' (' + P.mll + ')' : '') + (tgt != null ? ' · target $' + Math.round(tgt).toLocaleString('en-US') : '') + ' — modelo simplificado: sin comisiones/slippage/correlación entre trades; FTMO simula la FASE 1</div>';
   },
   // ── checklist pre-sesión: modal-GATE diario — la terminal abre cuando el plan existe ──
   showGate(force) {
@@ -6661,6 +6765,30 @@ const Terminal = {
     } catch (e) {}
     el.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap">' + tile('😱→🤑 MIEDO / CODICIA', fgB) + tile('⚡ FUERZA DEL DÍA — ' + escHtml(I.lbl), stB) + tile('🧲 GAMMA (GEX)', gxB) + tile('🌍 RIESGO GLOBAL', rkB) + '</div>';
   },
+  // V6.5: cono MC — bootstrap de retornos log del MISMO tf (400 paths); cache por vela cerrada.
+  // Horizonte: lo que queda del día ET, cap [6, 25% del buffer] barras.
+  _mcC: null,
+  _mcCone(c) {
+    const bars = this.feed.bars, tf = this.tf(), I = this.instr();
+    if (!c || bars.length < 60) return null;
+    const lastT = bars[bars.length - 1].t, key = I.tk + '|' + tf + '|' + (bars.length > 1 ? bars[bars.length - 2].t : 0);
+    const minsLeft = Math.max(30, 1440 - this.etParts(Date.now() / 1000).m); // hasta el rollover ET (min 30m)
+    const futN = Math.max(6, Math.min(Math.floor(bars.length * 0.25), Math.round(Math.min(minsLeft, 8 * 60) / tf)));
+    if (this._mcC && this._mcC.key === key && this._mcC.futN === futN) { this._mcC.last = c.last; return this._mcC; }
+    const closed = bars.slice(0, -1), rets = [];
+    for (let i = Math.max(1, closed.length - 240); i < closed.length; i++) { const a = closed[i - 1].c, b = closed[i].c; if (a > 0 && b > 0) rets.push(Math.log(b / a)); }
+    if (rets.length < 40) return null;
+    const SIMS = 400, logs = new Float64Array(SIMS).fill(Math.log(c.last));
+    const bands = [];
+    for (let s = 0; s < futN; s++) {
+      for (let p = 0; p < SIMS; p++) logs[p] += rets[(Math.random() * rets.length) | 0];
+      const so = [...logs].sort((a, b) => a - b);
+      const q = f => Math.exp(so[Math.min(SIMS - 1, Math.floor(f * SIMS))]);
+      bands.push({ p10: q(.10), p25: q(.25), p50: q(.50), p75: q(.75), p90: q(.90) });
+    }
+    this._mcC = { key, futN, bands, last: c.last };
+    return this._mcC;
+  },
   _draw(c, lv) {
     const I = this.instr(), cv = document.getElementById('term-chart'); if (!cv) return;
     const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight || 430;
@@ -6671,11 +6799,14 @@ const Terminal = {
     // V6.2: sin modo móvil (pedido Angel) — geometría única, la de desktop
     const lblFont = '9.5px "IBM Plex Mono",monospace';
     const ml = 8, mr = 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
+    // V6.5: cono Monte Carlo — reserva espacio a la DERECHA para el futuro (solo con toggle ON)
+    const cone = this.ov('cono') ? this._mcCone(c) : null;
+    const nBars = bars.length + (cone ? cone.futN : 0);
     let pMin = Math.min(...bars.map(b => b.l)), pMax = Math.max(...bars.map(b => b.h));
     const pad = (pMax - pMin) * 0.14 || 1; pMin -= pad; pMax += pad;
     // niveles dentro del eje entran al rango visible
     for (const L of lv) { if (L.v > pMax && L.v < pMax + pad * 2) pMax = L.v + pad * 0.2; if (L.v < pMin && L.v > pMin - pad * 2) pMin = L.v - pad * 0.2; }
-    const X = i => ml + (i + 0.5) / bars.length * iw, Y = v => mt + (1 - (v - pMin) / (pMax - pMin)) * ih;
+    const X = i => ml + (i + 0.5) / nBars * iw, Y = v => mt + (1 - (v - pMin) / (pMax - pMin)) * ih;
     // V6.1: marcas horarias con anticolisión EN PX (en móvil "02:0004:0006:00" se encimaba) —
     // una sola lista alimenta las verticales del grid Y las etiquetas del eje
     const xTicks = [];
@@ -6751,7 +6882,7 @@ const Terminal = {
     }
     // ── V3b: HEATMAP DE LIQUIDEZ — columnas de calor del libro (solo crypto, bajo las velas) ──
     if (this._hm && this._hm.snaps.length && this.ov('heatmap') && I.src === 'okx' && this._hm.inst === I.okx) {
-      const HS = this._hm.snaps, tfs2 = this.tf() * 60, bw2 = iw / bars.length;
+      const HS = this._hm.snaps, tfs2 = this.tf() * 60, bw2 = iw / nBars;
       // escala robusta p95: un iceberg no apaga el resto del mapa
       const all2 = []; for (const s of HS) for (const r of s.rows) all2.push(r[1]);
       all2.sort((a, b) => a - b);
@@ -6784,6 +6915,25 @@ const Terminal = {
       g.strokeStyle = 'var(--amber)'; g.strokeStyle = 'rgba(251,191,36,.85)'; g.lineWidth = 1.4; g.beginPath();
       this._vwapPts.forEach((p, i) => { const x = X(off + i); i ? g.lineTo(x, Y(p.vw)) : g.moveTo(x, Y(p.vw)); }); g.stroke(); g.lineWidth = 1;
     }
+    // ── V6.5: CONO MONTE CARLO — bootstrap de los retornos propios proyectado al futuro ──
+    // El abanico p10-p90 vs el EM± de opciones: si el cono realizado desborda al implícito,
+    // la vol está ganando a la prima. Contexto, no predicción.
+    if (cone) {
+      const x0 = X(bars.length - 1), y0 = Y(c.last);
+      const fan = (loK, hiK, alpha) => {
+        g.fillStyle = 'rgba(45,212,191,' + alpha + ')'; g.beginPath(); g.moveTo(x0, y0);
+        cone.bands.forEach((b, i) => g.lineTo(X(bars.length + i), Y(b[hiK])));
+        for (let i = cone.bands.length - 1; i >= 0; i--) g.lineTo(X(bars.length + i), Y(cone.bands[i][loK]));
+        g.closePath(); g.fill();
+      };
+      fan('p10', 'p90', .055); fan('p25', 'p75', .085);
+      g.strokeStyle = 'rgba(45,212,191,.5)'; g.setLineDash([3, 3]); g.beginPath(); g.moveTo(x0, y0);
+      cone.bands.forEach((b, i) => g.lineTo(X(bars.length + i), Y(b.p50))); g.stroke(); g.setLineDash([]);
+      const lastB = cone.bands[cone.bands.length - 1];
+      g.font = '8px "IBM Plex Mono",monospace'; g.fillStyle = 'rgba(45,212,191,.75)'; g.textBaseline = 'middle';
+      if (lastB.p90 >= pMin && lastB.p90 <= pMax) g.fillText('MC p90', X(nBars - 1) - 34, Y(lastB.p90));
+      if (lastB.p10 >= pMin && lastB.p10 <= pMax) g.fillText('MC p10', X(nBars - 1) - 34, Y(lastB.p10));
+    }
     // ── T1 chart engine v2: velas · línea · área (el "o" de Yahoo se aproxima
     //    con el cierre previo — Deriv/OKX traen open real) ──
     const ct = this.ctype();
@@ -6800,7 +6950,7 @@ const Terminal = {
       g.beginPath(); bars.forEach((b, i) => { const x = X(i), y = Y(b.c); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
       g.shadowBlur = 0; g.lineWidth = 1;
     } else {
-      const bw = Math.max(1.5, iw / bars.length * 0.66);
+      const bw = Math.max(1.5, iw / nBars * 0.66);
       for (let i = 0; i < bars.length; i++) {
         const b = bars[i], o = b.o != null ? b.o : (i ? bars[i - 1].c : b.c), up = b.c >= o;
         const col = up ? '52,211,153' : '248,113,113';
@@ -6823,7 +6973,7 @@ const Terminal = {
       if (DA && DA.cov.length) {
         const maxD = Math.max(...DA.cov.map(x => Math.abs(x.delta))) || 1;
         const base = mt + ih - 18, amp = 15; // V5: la tira respira y se ve
-        const dw = Math.max(2.5, iw / bars.length * 0.55);
+        const dw = Math.max(2.5, iw / nBars * 0.55);
         for (const x of DA.cov) {
           const h2 = Math.max(1.5, Math.abs(x.delta) / maxD * amp);
           g.fillStyle = x.delta >= 0 ? 'rgba(52,211,153,.7)' : 'rgba(248,113,113,.7)';
@@ -16162,6 +16312,18 @@ const INDICATORS_GLOSSARY = {
       { c: 'red', t: 'DIVERGENTE → alto riesgo de reversión; no perseguir' }
     ],
     note: 'Fase F8 del blueprint Terminal v2. Solo barras cerradas alineadas (regla del blueprint) — al abrir la sesión el panel tarda ~35 min en armar sus 7 barras comunes y lo dice.'
+  },
+  'terminal-montecarlo': {
+    name: 'Terminal · Monte Carlo (supervivencia + cono)', category: 'Terminal · Intradía',
+    source: { label: '100% local: journal en R propio (bootstrap) o parámetros manuales + reglas exactas de la prop + retornos del propio chart', url: 'https://dash-board-strauss.vercel.app/', freq: 'On-demand (botón SIMULAR) · cono: recomputa al cerrar cada vela' },
+    formula: 'SUPERVIVENCIA: 5,000 cuentas simuladas trade a trade — R aleatorio del journal real (bootstrap, n≥10) o Bernoulli (WR%, +winR/−lossR) × 1R=$balance×riesgo% — contra las reglas EXACTAS de la prop: DLL diario, MLL estático (FTMO 2-step) / trailing EOD (1-step) / trailing intradía (TopStep), y target del challenge (FTMO fase 1 = 10% · TopStep $3k/6k/9k). CONO: bootstrap de los retornos log de las últimas ~240 velas del MISMO tf → 400 caminos hasta el fin del día ET → bandas p10/p25/p50/p75/p90.',
+    interpret: 'La pregunta que responde: ¿con TU win-rate y TU sizing, cuál es la probabilidad de quemar la cuenta antes de pasar? Si "QUIEBRA" domina, el problema es el sizing (baja el riesgo%) o la expectancy (no operes ese plan). El drawdown p90 te dice cuánto dolor es NORMAL con tu sistema — abandonar en un DD esperado es tirar un sistema bueno. CONO vs EM±: si el p90 del cono desborda el EM de opciones, tu vol realizada le gana a la implícita (los movimientos "imposibles" son más posibles de lo que la prima descuenta).',
+    thresholds: [
+      { c: 'green', t: 'PASA >60% con DD p90 tolerable → el plan aguanta la prop matemáticamente' },
+      { c: 'amber', t: 'NI-NI dominante → expectancy positiva pero lenta: más días o más riesgo (con cuidado)' },
+      { c: 'red', t: 'QUIEBRA >30% → NO es mala suerte, es matemática: baja el riesgo% antes de operar' }
+    ],
+    note: 'V6.5 (idea Angel). Modelo simplificado declarado: sin comisiones/slippage/correlación entre trades; con n<30 en el journal el bootstrap es ANÉCDOTA. El cono es contexto, no predicción — bootstrap i.i.d. subestima autocorrelación y colas.'
   },
   'terminal-entradas': {
     name: 'Terminal · Posibles Entradas', category: 'Terminal · Intradía',
