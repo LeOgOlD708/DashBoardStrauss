@@ -2873,14 +2873,8 @@ html.auth-ok #auth-gate{display:none}
     #tab-term.term-ck{position:fixed;inset:0;z-index:9999;overflow:auto;background:var(--bg);padding:10px 16px;margin:0;display:block!important}
     .term-ck-root{overflow:hidden}
     #tab-term.term-ck #term-chart{height:calc(100vh - 480px)!important;min-height:380px}
-    /* V5 móvil: el chart manda — más alto en pantalla chica (Angel: "no se ve nada") */
-    @media (max-width:640px){
-      #tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}
-      #tab-term #term-chart{height:56vh!important;min-height:360px!important}
-      /* V6.1: el min-width 420px desbordaba el viewport — cortaba las etiquetas del margen derecho.
-         flex 1 1 100%: el chart toma SU fila (sin esto flexbox lo encogía a ~67px junto a un hermano) */
-      #term-chart-wrap{min-width:0!important;flex:1 1 100%!important;width:100%}
-    }
+    /* V6.2: SIN modo móvil (pedido Angel "quita el modo móvil, ni se ve bien así") — el teléfono
+       renderiza idéntico a desktop; el layout ancho se navega con scroll horizontal */
     /* T4: marquee de noticias — corre de verdad, pausa al hover */
     #term-news{overflow:hidden;white-space:nowrap;border:1px solid var(--border2);border-radius:6px;padding:5px 0;margin-bottom:14px;background:var(--surface)}
     #term-news .tm-in{display:inline-block;padding-left:100%;animation:term-marq var(--tm-dur,90s) linear infinite;will-change:transform}
@@ -5128,6 +5122,7 @@ const Terminal = {
     this._wsKill(); // FW: el stream (Deriv/OKX) no debe sobrevivir al tab
     this._ofKill(); // T3: la cinta tampoco
     this.toggleCockpit(false); // T1: salir del cockpit al abandonar el tab
+    clearTimeout(this._ckT); // V6.1 (review agente): su render de 60ms no debe correr sobre el tab muerto
     if (this._rszFn) { window.removeEventListener('resize', this._rszFn); this._rszFn = null; } // V6.1
     document.getElementById('term-gate')?.remove(); // el gate es fixed — no debe sobrevivir al tab
   },
@@ -5244,9 +5239,14 @@ const Terminal = {
     document.documentElement.classList.toggle('term-ck-root', on);
     if (on && !this._ckEsc) { this._ckEsc = e => { if (e.key === 'Escape') this.toggleCockpit(false); }; document.addEventListener('keydown', this._ckEsc); }
     if (!on && this._ckEsc) { document.removeEventListener('keydown', this._ckEsc); this._ckEsc = null; }
-    setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
+    // V6.1 (review agente): timeout rastreado — destroy() llama toggleCockpit(false) y este
+    // render de 60ms sobrevivía al clearInterval, repoblando DOM/canvas de un tab ya muerto
+    clearTimeout(this._ckT);
+    this._ckT = setTimeout(() => this.render(), 60); // el canvas re-mide su alto nuevo
   },
-  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this._pin0 = null; this._pin0T = 0; this._setups = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  // V6.1 (review agente): _of = null — sin esto el veredicto/panel votaban con la CINTA del
+  // instrumento ANTERIOR hasta que _ofStart recreaba la cinta (render corre antes en feedStart)
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._of = null; this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this._pin0 = null; this._pin0T = 0; this._setups = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5350,7 +5350,7 @@ const Terminal = {
           clearTimeout(to); res();
           if (Date.now() - this._lastPaint > 5000 && !document.hidden) { this._lastPaint = Date.now(); this.render(); }
         };
-        ws.onclose = () => { if (this._ws === ws) this._wsLastTick = 0; res(); };
+        ws.onclose = () => { clearTimeout(to); if (this._ws === ws) this._wsLastTick = 0; res(); }; // V6.1: timeout limpiado
         ws.onerror = () => {};
       } catch (e) { res(); } // sin WS seguimos vivos del bootstrap + poll 60s
     });
@@ -5622,6 +5622,7 @@ const Terminal = {
     this._hmT = Date.now();
     try {
       const j = await fetch('https://www.okx.com/api/v5/market/books?instId=' + I.okx + '&sz=60').then(r => r.json());
+      if (this.instr().okx !== I.okx) return; // V6.1 (review agente): switch BTC↔ETH con fetch en vuelo — snapshot al inst equivocado
       if (j.code !== '0' || !j.data || !j.data[0]) return;
       const d = j.data[0], t = Math.floor(+d.ts / 1000);
       const rows = [];
@@ -6533,12 +6534,13 @@ const Terminal = {
   _draw(c, lv) {
     const I = this.instr(), cv = document.getElementById('term-chart'); if (!cv) return;
     const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight || 430;
+    if (!W) return; // V6.1 (review agente): render sin layout (tab oculto/transición cockpit) — no borrar el canvas con width 0
     cv.width = W * dpr; cv.height = H * dpr;
     const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
     const bars = this.feed.bars; if (!bars.length) return;
-    // V6.1 móvil: en pantallas angostas el margen 100px + font 9.5 cortaba las etiquetas
-    const narrow = W < 560, lblFont = narrow ? '8.5px "IBM Plex Mono",monospace' : '9.5px "IBM Plex Mono",monospace';
-    const ml = 8, mr = narrow ? 78 : 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
+    // V6.2: sin modo móvil (pedido Angel) — geometría única, la de desktop
+    const lblFont = '9.5px "IBM Plex Mono",monospace';
+    const ml = 8, mr = 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
     let pMin = Math.min(...bars.map(b => b.l)), pMax = Math.max(...bars.map(b => b.h));
     const pad = (pMax - pMin) * 0.14 || 1; pMin -= pad; pMax += pad;
     // niveles dentro del eje entran al rango visible
@@ -6742,10 +6744,8 @@ const Terminal = {
       g.strokeStyle = col + (wall ? '99' : '66'); g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
       g.shadowBlur = 0; g.lineWidth = 1;
-      let ly = y; while (seen.some(s => Math.abs(s - ly) < (narrow ? 9 : 10))) ly += (narrow ? 9 : 10); seen.push(ly);
-      // V6.1 móvil: etiqueta corta (sin ETF ni 🧱%) — la versión completa vive en la escalera
-      const lblTxt = (narrow ? L.lbl.replace(/ (QQQ|SPY)$/, '') : L.lbl).replace(/VWAP (RTH|sesión)/, 'VWAP');
-      g.fillStyle = col; g.fillText(lblTxt + ' ' + (+L.v).toFixed(I.dec) + (wall && !narrow ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
+      let ly = y; while (seen.some(s => Math.abs(s - ly) < 10)) ly += 10; seen.push(ly);
+      g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
     }
     // spot
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
