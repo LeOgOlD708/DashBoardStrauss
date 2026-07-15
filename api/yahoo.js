@@ -144,6 +144,11 @@ async function fetchPriceOnly(ticker) {
   // (~6 días hábiles atrás), no el de ayer. Derivar del penúltimo cierre real.
   const closes = (result.indicators?.quote?.[0]?.close || []).filter(c => c != null && !isNaN(c) && c > 0);
   const prevClose = closes.length >= 2 ? closes[closes.length - 2] : (meta.previousClose ?? price);
+  // FIX V6.4 (cazado por Angel en Salud de Fuentes): rnd vivía SOLO en fetchTicker — desde el
+  // fix de precisión forex (07-13) TODA llamada priceOnly lanzaba "rnd is not defined" y el
+  // loop de precios de 60s del dashboard llevaba 2 días muerto en silencio (catch silencioso)
+  const dp = Math.abs(price) < 10 ? 5 : 2;
+  const rnd = v => parseFloat((+v).toFixed(dp));
   return {
     price:  rnd(price),
     chg1d:  parseFloat(((price / prevClose - 1) * 100).toFixed(2)),
