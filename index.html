@@ -2904,6 +2904,9 @@ html.auth-ok #auth-gate{display:none}
       <div style="flex:.9;min-width:200px" id="term-oflow" class="mono"></div>
     </div>
   </div>
+  <!-- V6.3: POSIBLES ENTRADAS — las zonas del motor con la confluencia EN VIVO, en grande -->
+  <div class="sh"><div class="sh-tag">Terminal</div><div class="sh-title">Posibles Entradas — zonas del motor + confluencia en vivo</div><button class="glossary-btn" onclick="openGlossary('terminal-entradas')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card mono" style="margin-bottom:14px"><div id="term-entries" style="font-size:10.5px;color:var(--text3)">cargando zonas…</div></div>
   <!-- T4→V6: MARQUEE + PANEL DE NOTICIAS SIEMPRE ACTIVO — grados ALTO/MED/BAJO + sector afectado -->
   <div id="term-news" class="mono" style="font-size:10.5px;display:none;cursor:pointer" title="Click baja al panel de noticias"></div>
   <div class="card mono" id="term-news-card" style="font-size:10.5px;margin-bottom:14px">
@@ -2927,6 +2930,9 @@ html.auth-ok #auth-gate{display:none}
       <div id="term-coh" class="mono" style="font-size:10.5px;color:var(--text3)">cargando coherencia…</div>
     </div>
   </div>
+  <!-- ⑥b V6.3: LECTURA DEL DÍA — termómetros accionables (miedo/codicia · fuerza · GEX · riesgo) -->
+  <div class="sh"><div class="sh-tag">Terminal</div><div class="sh-title">Lectura del Día — termómetros</div><button class="glossary-btn" onclick="openGlossary('terminal-lectura-dia')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card mono" style="margin-bottom:14px"><div id="term-gauges" style="font-size:10.5px;color:var(--text3)">cargando termómetros…</div></div>
   <!-- ⑦ RIESGO Y DISCIPLINA (F5) — 100% localStorage, cero red -->
   <div class="sh"><div class="sh-tag">Disciplina</div><div class="sh-title">Riesgo y Disciplina — lo que salva la cuenta</div><button class="glossary-btn" onclick="openGlossary('terminal-riesgo')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px"><div id="term-risk"></div></div>
@@ -5106,6 +5112,9 @@ const Terminal = {
     // de inmediato lo que ya haya en memoria (re-entrar al tab no espera al fetch)
     this._newsT = 0; this._newsRender(); this._newsLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._newsLoad(); }, 300e3));
+    // V6.3: Fear & Greed (CNN + alternative.me) para la Lectura del Día — cada 30 min
+    this._fngT = 0; this._fngLoad();
+    this._timers.push(setInterval(() => { if (!document.hidden) this._fngLoad(); }, 1800e3));
     // V3b: heatmap de liquidez — el poll se auto-gatea (solo crypto + toggle + visible)
     this._hmPoll();
     this._timers.push(setInterval(() => this._hmPoll(), 6000));
@@ -5274,6 +5283,7 @@ const Terminal = {
         // T2: zonas del motor en paralelo (cache 30 min) — repinta al llegar
         this._loadZones(I, gen).then(() => { if (gen === this._gen) this.render(); });
         this._ofStart(I, gen); // T3: la cinta arranca con el feed
+        this._cgexLoad(I, gen); // V6.3: GEX crypto para la Lectura del Día (gate 30 min interno)
       }
     } catch (e) { if (gen === this._gen) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; } }
     this._busy = false;
@@ -5294,7 +5304,9 @@ const Terminal = {
     // el server responde "Datos insuficientes" → chart EN BLANCO "¿mercado cerrado?" con el Globex
     // abierto. Fallback range=3d/5m (2d existe pero Yahoo devuelve 0 timestamps — verificado) con
     // las últimas ~25h — mismo look que el buffer OKX.
-    if (tfMin !== 1 && b.length < 5) {
+    // V6.3: umbral 5→60 barras de 5m (~5h) — con 6 barras del día raquítico el gate pasaba y el
+    // 15m quedaba en 2 velas ("las temporalidades se bugearon", cazado en prod)
+    if (tfMin !== 1 && b.length < 60) {
       const d2 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=3d&hl=1&ts=1').then(r => r.json()).catch(() => null);
       if (gen !== undefined && gen !== this._gen) return;
       const b2 = this._norm(d2?.[I.tk]);
@@ -5458,8 +5470,12 @@ const Terminal = {
       this._ofRender();
     } catch (e) { this._of.mode = 'none'; this._ofRender(); }
   },
+  _fhDeadUntil: 0,
   async _ofFinnhub(I, gen) {
     const etf = I.tk === 'NQ=F' ? 'QQQ' : 'SPY';
+    // V6.3: backoff — free tier = 1 conexión; un 429 en el handshake reintentaba cada revive
+    // de 60s y spameaba la consola (y al rate-limiter) sin fin
+    if (Date.now() < this._fhDeadUntil) { this._of.mode = 'tick'; this._of.etf = etf; this._ofRender(); return; }
     if (this._fhk === undefined) { // la key vive en el env de Vercel — el endpoint solo la sirve
       // null = el server confirmó que NO hay key (no reintentar) · undefined = fallo
       // transitorio de red (reintenta al próximo _ofStart — no mentir con "nokey")
@@ -5470,7 +5486,9 @@ const Terminal = {
     try {
       const ws = new WebSocket('wss://ws.finnhub.io?token=' + this._fhk);
       this._ofWs = ws; this._of.mode = 'tick'; this._of.etf = etf;
-      ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', symbol: etf }));
+      let opened = false;
+      ws.onopen = () => { opened = true; this._fhDeadUntil = 0; ws.send(JSON.stringify({ type: 'subscribe', symbol: etf })); };
+      ws.onclose = () => { if (!opened) this._fhDeadUntil = Date.now() + 300e3; }; // handshake rechazado (429) → 5 min de pausa
       ws.onmessage = ev => {
         if (gen !== this._gen) return;
         let m; try { m = JSON.parse(ev.data); } catch (e) { return; }
@@ -5493,7 +5511,7 @@ const Terminal = {
         if (T.trades.length > 60) T.trades.splice(0, T.trades.length - 60);
         this._ofPaintMaybe();
       };
-      ws.onerror = () => {}; ws.onclose = () => {};
+      ws.onerror = () => {}; // onclose ya asignado arriba (V6.3 backoff) — no pisarlo
       this._ofRender();
     } catch (e) { this._of.mode = 'none'; this._ofRender(); }
   },
@@ -5892,7 +5910,8 @@ const Terminal = {
     // medir el edge condicional a balance, no una mezcla de regímenes
     if (!RG || RG.trend) return;
     const OF = this._of;
-    if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0) {
+    // V6.3 (review 2ª pasada): + gate de frescura OF.day — sin él, la cinta de AYER podía vetar post-rollover
+    if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && (OF.buys + OF.sells) > 0 && OF.day === etDate()) {
       const bp = OF.buys / (OF.buys + OF.sells) * 100;
       if ((side === 'short' && bp >= 58) || (side === 'long' && bp <= 42)) return; // la cinta empuja en contra
     }
@@ -5967,6 +5986,7 @@ const Terminal = {
       this._loadWalls(I, wg).then(() => { if (wg === this._gen && !document.hidden) this.render(); });
     }
     this._loadPin(I, this._gen); // V4: gate 30 min interno — refresca el pin del día
+    this._cgexLoad(I, this._gen); // V6.3: refresco del GEX crypto (gate 30 min interno)
     // FW/T1: socket conectado (aunque el mercado calle — finde) → el stream manda, sin
     // bucle de reconexión; el badge declara el silencio. Solo reconectar si murió.
     const liveSrc = I.src === 'deriv' || I.src === 'okx';
@@ -5978,9 +5998,16 @@ const Terminal = {
       let nb = this._norm(d1?.[I.tk]);
       if (tfMin === 1) nb = nb.slice(-960);
       if (tfMin === 15) nb = this._agg(nb, 15);
-      if (nb.length) { this.feed.bars = nb; this.feed.lastOk = Date.now() / 1000; this.render(); }
-      // V6.1: si el buffer sigue casi vacío (madrugada ET — range=1d "insuficiente"),
-      // el bootstrap trae el fallback 2d; a lo sumo 1 vez por tick de 60s
+      // V6.3: MERGE cuando el poll trae menos contexto que el buffer (madrugada: range=1d
+      // devuelve el día raquítico y PISABA las ~300 barras del fallback 3d → el chart se
+      // colapsaba a 2 velas al minuto del bootstrap). Mismas anclas t ⇒ merge exacto.
+      if (nb.length >= this.feed.bars.length) { this.feed.bars = nb; this.feed.lastOk = Date.now() / 1000; this.render(); }
+      else if (nb.length) {
+        const map = new Map(this.feed.bars.map(x => [x.t, x]));
+        for (const x of nb) map.set(x.t, x);
+        this.feed.bars = [...map.values()].sort((a, b2) => a.t - b2.t).slice(-600);
+        this.feed.lastOk = Date.now() / 1000; this.render();
+      }
       if (this.feed.bars.length < 5) { this.feedStart(); return; }
     } catch (e) { /* backoff natural: el próximo tick reintenta */ }
   },
@@ -6057,7 +6084,7 @@ const Terminal = {
     let ewTxt = '';
     const rets = []; const db = this.feed.bars;
     // fix review #3: exigir que AMBAS barras sean del mismo día (sin el gap overnight en la serie)
-    for (let i = 1; i < db.length; i++) if (db[i].et.d === db[db.length - 1].et.d && db[i - 1].et.d === db[i].et.d && db[i - 1].c > 0) rets.push(Math.log(db[i].c / db[i - 1].c));
+    for (let i = 1; i < db.length; i++) if (db[i].et.d === db[db.length - 1].et.d && db[i - 1].et.d === db[i].et.d && db[i - 1].c > 0 && db[i].c > 0) rets.push(Math.log(db[i].c / db[i - 1].c));
     if (rets.length > 12) {
       let v = rets[0] * rets[0];
       for (let i = 1; i < rets.length; i++) v = 0.94 * v + 0.06 * rets[i] * rets[i];
@@ -6068,7 +6095,7 @@ const Terminal = {
         ewTxt = '<div style="margin-top:2px;color:var(--text3)">rango restante esperado ±' + (I.dec ? rng.toFixed(I.dec) : Math.round(rng)) + ' hasta 16:00 <span style="font-size:8.5px">(σ EWMA λ.94 — aprox; GARCH real llega con F6)</span></div>';
       }
     }
-    el.innerHTML = '<div style="font-size:13px;color:var(--text)"><b style="color:' + (d.np >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (d.np >= 0 ? '+' : '−') + '$' + Math.abs(d.np).toFixed(0) + 'M</b> prima neta hoy (' + etf + ') ' + dir + '</div>'
+    el.innerHTML = '<div style="font-size:13px;color:var(--text)"><b style="color:' + (d.np >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (d.np >= 0 ? '+' : '−') + '$' + Math.abs(d.np ?? 0).toFixed(0) + 'M</b> prima neta hoy (' + etf + ') ' + dir + '</div>'
       + '<div style="margin-top:3px;color:var(--text3)">DEX ' + (d.dex != null ? (d.dex >= 0 ? '+' : '') + d.dex.toFixed(1) + 'bn' : '—') + (d.gexV != null ? ' · GEX hoy ' + d.gexV.toFixed(2) + 'bn' : '') + (d.flipV != null ? ' · flip hoy ' + d.flipV : '') + '</div>'
       + '<canvas id="term-flow-chart" style="width:100%;height:74px;margin-top:6px"></canvas>'
       + zTxt + ewTxt;
@@ -6284,7 +6311,7 @@ const Terminal = {
     const atr = this._atr(), fx = I.fx, pipsz = I.pipsz || 1e-4, unit = fx && pipsz !== 1 ? 'pips' : 'pts';
     const atrU = atr != null ? (fx ? atr / pipsz : atr) : null;
     const stopDef = atrU != null ? Math.max(fx ? 5 : 10, Math.round(atrU * 1.5)) : (fx ? 15 : 40);
-    const stopIn = parseFloat(document.getElementById('term-stop')?.value) || stopDef;
+    const _si = parseFloat(document.getElementById('term-stop')?.value); const stopIn = _si > 0 ? _si : stopDef; // V6.3: un stop negativo daba tamaño negativo
     const sizing = (this.PTVAL[I.tk] || []).map(([veh, pv]) => { const q = risk$ / (stopIn * pv); return veh + ': <b style="color:var(--teal)">' + (q >= 1 ? Math.floor(q) : q.toFixed(2)) + '</b>'; }).join(' · ');
     // stats del journal (todos los días guardados)
     let all = []; Object.values(this._dayAll || {}).forEach(d => all.push(...(d.trades || [])));
@@ -6430,11 +6457,11 @@ const Terminal = {
     if (c && !I.fx) this._fadeCheck(c); // V2: la señal y su resolución auditada
     this._da = c ? this._deltaAnalysis(c) : null; // V3a: una sola pasada por render (chart + veredicto)
     this._verdict(c);
-    if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; return; }
+    if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; this._entriesRender(null); this._gaugesRender(null); return; }
     const f = v => v == null ? '—' : (+v).toFixed(I.dec);
     const chg = c.pdc ? (c.last / c.pdc - 1) * 100 : null;
     document.getElementById('term-head').innerHTML =
-      '<b style="color:var(--text)">' + I.lbl + '</b> <b style="font-size:15px;color:' + (chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + f(c.last) + '</b>'
+      '<b style="color:var(--text)">' + I.lbl + '</b> <b style="font-size:15px;color:' + (chg == null ? 'var(--text)' : chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + f(c.last) + '</b>'
       + (chg != null ? ' <span style="color:' + (chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% vs cierre previo</span>' : '')
       + ' · <span style="color:var(--text3)">sesión ' + escHtml(c.today) + ' ET · barra ' + Math.floor((Date.now() / 1000 - c.lastT) / 60) + 'm</span>'
       + (c.adrPct != null ? ' · ADR' + (I.fx ? '' : ' RTH') + ' consumido <b style="color:' + (c.adrPct > 80 ? 'var(--amber)' : 'var(--text2)') + '">' + c.adrPct.toFixed(0) + '%</b><span style="color:var(--text3)" title="Rango de hoy vs rango promedio de los últimos 5 días — >80% = no persigas la ruptura">'
@@ -6506,30 +6533,126 @@ const Terminal = {
     let rows = lv.map(L => '<tr title="' + escHtml(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
     const spotRow = '<tr><td colspan="3" class="mono" style="padding:3px 8px;font-size:10px;color:var(--red);background:rgba(248,113,113,.06)">📍 ' + f(c.last) + ' — precio</td></tr>';
     rows.splice(spotIdx < 0 ? rows.length : spotIdx, 0, spotRow);
-    // V4→V6.1: panel SETUPS AHORA — cards con estrellas fraccionales y el porqué VISIBLE en chips
-    const suCard = su => {
-      const long = su.z.side === 'soporte', cc = long ? '52,211,153' : '248,113,113';
-      const pct = Math.max(0, Math.min(100, su.stars / 5 * 100));
-      const chips = su.why.map(w => '<span style="font-size:8px;color:var(--text2);border:1px solid var(--border2);border-radius:3px;padding:0 4px;background:var(--surface2)">' + escHtml(w.length > 34 ? w.slice(0, 33) + '…' : w) + '</span>').join('')
-        + (su.deg ? '<span style="font-size:8px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:3px;padding:0 4px">⚠ gastada ' + su.z.touches + ' toques</span>' : '');
-      return '<div title="' + escHtml(su.why.join(' · ')) + '" style="border:1px solid rgba(' + cc + ',.3);border-left:3px solid rgba(' + cc + ',.85);border-radius:6px;padding:5px 7px;margin-top:6px;background:rgba(' + cc + ',.05)">'
-        + '<div style="display:flex;align-items:baseline;gap:6px"><b style="font-size:10.5px;color:rgba(' + cc + ',.95)">' + (long ? '▲ LONG · soporte' : '▼ SHORT · resistencia') + '</b>'
-        + '<span style="margin-left:auto;font-size:9.5px;color:var(--text3)">a ' + (su.dist >= 0 ? '+' : '') + su.dist.toFixed(2) + '%</span></div>'
-        + '<div style="display:flex;align-items:center;gap:6px;margin-top:2px">'
-        + '<span style="position:relative;display:inline-block;font-size:14px;line-height:1;color:var(--border2)">★★★★★<span style="position:absolute;left:0;top:0;width:' + pct.toFixed(0) + '%;overflow:hidden;white-space:nowrap;color:#d4a94b;text-shadow:0 0 5px rgba(212,169,75,.55)">★★★★★</span></span>'
-        + '<b style="font-size:9.5px;color:var(--gold)">' + su.stars.toFixed(1) + '/5</b>'
-        + '<span style="font-size:9px;color:var(--text3)">' + f(su.mid) + '</span></div>'
-        + '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:4px">' + chips + '</div></div>';
-    };
-    const zonesReady = this._zones && this._zones.zones.length;
-    const suHtml = this._setups.length
-      ? '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin:10px 0 0">🎯 SETUPS AHORA — confluencia en vivo</div>'
-      + this._setups.map(suCard).join('')
-      + '<div style="font-size:8px;color:var(--text3);margin-top:3px">★ = motor + cinta + régimen + RVOL + sesión — confluencia observacional, no recomendación</div>'
-      : (zonesReady ? '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin:10px 0 0">🎯 SETUPS AHORA</div><div style="font-size:9px;color:var(--text3);margin-top:3px;padding:5px 7px;border:1px dashed var(--border2);border-radius:6px">sin zona ENTRADA a ≤1.5% del precio — el panel despierta cuando el precio se acerque a una</div>' : '');
-    document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>' + suHtml;
+    // V6.3: los setups migraron a la sección POSIBLES ENTRADAS (cards grandes bajo el mapa)
+    document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>';
     this._draw(c, lv);
     this.renderRisk(); // F5: el sizing usa el ATR de las barras recién llegadas
+    this._entriesRender(c); // V6.3: posibles entradas
+    this._gaugesRender(c);  // V6.3: lectura del día
+  },
+  // ══ V6.3: POSIBLES ENTRADAS — TODAS las zonas ENTRADA del motor, ordenadas por cercanía,
+  // con la confluencia EN VIVO (★) en las que están a tiro (≤1.5%) ══
+  _entriesRender(c) {
+    const el = document.getElementById('term-entries'); if (!el) return;
+    const I = this.instr(), Z = this._zones;
+    if (I.fx) { el.innerHTML = '<span style="color:var(--text3)">forex/oro no tiene motor de zonas (el spot no lista cadena de opciones ni volumen) — opera los imanes del mapa: PDH/PDL, ONH/ONL y VWAP±σ.</span>'; return; }
+    if (!Z || !Z.zones.length) { el.innerHTML = '<span style="color:var(--text3)">cargando zonas del motor (espejo ' + escHtml(this.ZMAP[I.tk] || I.tk) + ', cache 30 min)…</span>'; return; }
+    if (!c) { el.innerHTML = '<span style="color:var(--text3)">esperando barras…</span>'; return; }
+    const zr = Z.ratio || 1, f = v => (+v).toFixed(I.dec);
+    const zs = Z.zones.filter(z => z.cat === 'ENTRADA').map(z => ({ z, mid: z.mid * zr, dist: (z.mid * zr / c.last - 1) * 100 })).sort((a, b) => Math.abs(a.dist) - Math.abs(b.dist)).slice(0, 6);
+    if (!zs.length) { el.innerHTML = '<span style="color:var(--text3)">el motor no ve zonas categoría ENTRADA en ' + escHtml(Z.ztk) + ' ahora mismo — las IMÁN/DÉBIL siguen dibujadas en el chart</span>'; return; }
+    const cards = zs.map(({ z, mid, dist }) => {
+      const su = (this._setups || []).find(x => x.z === z);
+      const long = z.side === 'soporte', cc = long ? '52,211,153' : '248,113,113';
+      const enZona = c.last >= z.lo * zr && c.last <= z.hi * zr;
+      const prox = Math.max(0, 100 - Math.min(Math.abs(dist), 5) / 5 * 100);
+      const starsHtml = su
+        ? '<span style="position:relative;display:inline-block;font-size:16px;line-height:1;color:var(--border2)">★★★★★<span style="position:absolute;left:0;top:0;width:' + (su.stars / 5 * 100).toFixed(0) + '%;overflow:hidden;white-space:nowrap;color:#d4a94b;text-shadow:0 0 6px rgba(212,169,75,.6)">★★★★★</span></span> <b style="font-size:10px;color:var(--gold)">' + su.stars.toFixed(1) + '/5</b>'
+        : '<span style="font-size:9px;color:var(--text3)">★ despierta a ≤1.5% — aún a ' + Math.abs(dist).toFixed(1) + '%</span>';
+      const chips = (z.labels || []).slice(0, 4).map(l => '<span style="font-size:8px;color:var(--text2);border:1px solid var(--border2);border-radius:3px;padding:0 4px;background:var(--surface2)">' + escHtml(String(l)) + '</span>').join('')
+        + (su ? su.why.slice(1).map(w => '<span style="font-size:8px;color:var(--teal);border:1px solid rgba(45,212,191,.3);border-radius:3px;padding:0 4px">' + escHtml(w.length > 32 ? w.slice(0, 31) + '…' : w) + '</span>').join('') : '')
+        + (z.degradada ? '<span style="font-size:8px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:3px;padding:0 4px">⚠ gastada · ' + z.touches + ' toques</span>' : '');
+      return '<div style="flex:1 1 280px;min-width:250px;border:1px solid rgba(' + cc + ',' + (enZona ? '.7' : '.28') + ');border-left:4px solid rgba(' + cc + ',.9);border-radius:8px;padding:8px 10px;background:rgba(' + cc + ',' + (enZona ? '.07' : '.03') + ')' + (enZona ? ';box-shadow:0 0 12px rgba(' + cc + ',.25)' : '') + '">'
+        + '<div style="display:flex;align-items:baseline;gap:8px"><b style="font-size:12px;color:rgba(' + cc + ',.95)">' + (long ? '▲ LONG' : '▼ SHORT') + '</b><span style="font-size:9.5px;color:var(--text2)">' + (long ? 'soporte' : 'resistencia') + ' · motor ×' + z.score.toFixed(1) + '</span>'
+        + '<b style="margin-left:auto;font-size:10.5px;color:' + (enZona ? 'rgba(' + cc + ',.95)' : 'var(--text3)') + '">' + (enZona ? '▶ EN ZONA' : 'a ' + (dist >= 0 ? '+' : '') + dist.toFixed(2) + '%') + '</b></div>'
+        + '<div style="font-size:13.5px;color:var(--text);margin:3px 0 1px"><b>' + f(z.lo * zr) + ' – ' + f(z.hi * zr) + '</b></div>'
+        + '<div style="margin:3px 0">' + starsHtml + '</div>'
+        + '<div style="position:relative;height:5px;border-radius:3px;background:var(--surface2);margin:5px 0" title="cercanía del precio a la zona — 100% = dentro"><span style="position:absolute;left:0;top:0;height:100%;width:' + prox.toFixed(0) + '%;border-radius:3px;background:rgba(' + cc + ',.55)"></span></div>'
+        + '<div style="display:flex;gap:3px;flex-wrap:wrap">' + chips + '</div></div>';
+    }).join('');
+    el.innerHTML = '<div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px"><span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🎯 ZONAS "ENTRADA" DEL MOTOR — ' + escHtml(Z.ztk) + (Z.ztk !== I.tk ? ' → ' + escHtml(I.lbl) + ' (ratio congelado)' : '') + ' · por cercanía · ★ = confluencia EN VIVO (motor+cinta+régimen+RVOL+sesión)</span><span style="margin-left:auto;font-size:8.5px;color:var(--text3)">observacional, no recomendación</span></div>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + cards + '</div>';
+  },
+  // ══ V6.3: LECTURA DEL DÍA — termómetros: miedo/codicia (CNN+alternative.me) · fuerza del
+  // día (compuesto local) · GEX estructura+HOY · riesgo global VIX/DXY ══
+  _fng: null, _fngT: 0, _fngEq: null, _cgex: null, _cgexT: 0,
+  async _fngLoad() {
+    if (Date.now() - this._fngT < 1800e3) return; // 30 min — alternative.me es diario, CNN cachea 30m
+    this._fngT = Date.now();
+    try { const j = await fetch('https://api.alternative.me/fng/?limit=1').then(r => r.json()); const d = j && j.data && j.data[0]; if (d && +d.value > 0) this._fng = { v: +d.value, txt: d.value_classification || '' }; } catch (e) {}
+    try { const j = await fetch('/api/capital?src=fng').then(r => r.json()); if (j && !j.error && j.score != null) this._fngEq = j; } catch (e) {}
+    this._gaugesRender(this.compute());
+  },
+  async _cgexLoad(I, gen) {
+    if (I.src !== 'okx') return;
+    if (this._cgex && this._cgex.tk === I.tk && Date.now() - this._cgexT < 1800e3) return;
+    this._cgexT = Date.now();
+    try {
+      const d = await instOptFetch(I.tk);
+      if (gen !== this._gen) return;
+      if (d && !d.error) { this._cgex = { tk: I.tk, gex: d.gexTotalBn ?? null, flip: d.gammaFlip ?? null }; this._gaugesRender(this.compute()); }
+    } catch (e) {}
+  },
+  _dayStrength(c) {
+    if (!c) return null;
+    const parts = []; let score = 0, max = 0;
+    const rv = this._rvol(c);
+    if (rv) { const s = Math.min(30, rv.r * 15); score += s; max += 30; parts.push('RVOL ' + rv.r.toFixed(1) + '× → ' + s.toFixed(0) + '/30'); }
+    const RG = this._regime(c, this._svpData);
+    if (RG) { const s = RG.trend ? 25 : 8; score += s; max += 25; parts.push((RG.trend ? 'día tendencia' : 'día balance') + ' → ' + s + '/25'); }
+    if (c.adrPct != null) { const s = Math.min(20, c.adrPct / 100 * 20); score += s; max += 20; parts.push('ADR ' + c.adrPct.toFixed(0) + '% → ' + s.toFixed(0) + '/20'); }
+    if (c.vwap != null && c.s1 > 0) { const z = Math.abs((c.last - c.vwap) / c.s1); const s = Math.min(15, z / 2.5 * 15); score += s; max += 15; parts.push('|z| ' + z.toFixed(1) + 'σ → ' + s.toFixed(0) + '/15'); }
+    const OF = this._of;
+    if (OF && (OF.mode === 'real' || OF.mode === 'tick') && OF.n >= 30 && OF.buys + OF.sells > 0 && OF.day === etDate()) { const bp = OF.buys / (OF.buys + OF.sells) * 100; const s = Math.abs(bp - 50) / 50 * 10; score += s; max += 10; parts.push('cinta ' + bp.toFixed(0) + '% → ' + s.toFixed(0) + '/10'); }
+    if (max < 45) return { pct: null, parts };
+    return { pct: score / max * 100, parts, partial: max < 100 };
+  },
+  _gaugesRender(c) {
+    const el = document.getElementById('term-gauges'); if (!el) return;
+    const I = this.instr();
+    const bar = (pct, grad, tip) => '<div title="' + escHtml(tip || '') + '" style="position:relative;height:9px;border-radius:5px;background:linear-gradient(90deg,' + grad + ');margin:6px 0 3px;opacity:' + (pct == null ? '.25' : '1') + '">' + (pct == null ? '' : '<span style="position:absolute;left:' + Math.max(1, Math.min(99, pct)).toFixed(0) + '%;top:-3px;transform:translateX(-50%);width:3px;height:15px;background:var(--text);border-radius:2px;box-shadow:0 0 4px rgba(0,0,0,.8)"></span>') + '</div>';
+    const tile = (title, body) => '<div style="flex:1 1 215px;min-width:200px;border:1px solid var(--border2);border-radius:8px;padding:8px 10px;background:var(--surface)"><div style="font-size:8.5px;color:var(--text3);letter-spacing:.07em;margin-bottom:3px">' + title + '</div>' + body + '</div>';
+    const fgGrad = '#f87171,#fbbf24 45%,#34d399';
+    const fgi = (lbl, d) => d ? '<div style="display:flex;align-items:baseline;gap:6px"><b style="font-size:16px;color:' + (d.v <= 25 ? 'var(--red)' : d.v >= 75 ? 'var(--green)' : 'var(--amber)') + '">' + d.v + '</b><span style="font-size:9px;color:var(--text2)">' + escHtml(d.txt) + '</span><span style="margin-left:auto;font-size:8px;color:var(--text3)">' + lbl + '</span></div>' + bar(d.v, fgGrad, lbl + ' — 0 = miedo extremo (zona contrarian de compra) · 100 = codicia extrema (distribución)') : '<div style="font-size:9px;color:var(--text3);padding:2px 0">' + lbl + ': sin datos ahora</div>';
+    const fgB = fgi('EQUITIES · CNN', this._fngEq ? { v: this._fngEq.score, txt: this._fngEq.rating } : null) + '<div style="height:5px"></div>' + fgi('CRIPTO · alt.me', this._fng);
+    const st = this._dayStrength(c);
+    const stLbl = st && st.pct != null ? (st.pct < 35 ? ['DÉBIL 💤', 'var(--text3)'] : st.pct < 65 ? ['NORMAL', 'var(--text2)'] : ['FUERTE ⚡', 'var(--amber)']) : null;
+    const stB = st && st.pct != null
+      ? '<div style="display:flex;align-items:baseline;gap:6px"><b style="font-size:16px;color:' + stLbl[1] + '">' + st.pct.toFixed(0) + '</b><span style="font-size:10px;color:' + stLbl[1] + '">' + stLbl[0] + '</span>' + (st.partial ? '<span style="font-size:8px;color:var(--text3)">(parcial)</span>' : '') + '</div>'
+        + bar(st.pct, '#7d6f63,#a99e93 40%,#fbbf24 75%,#f87171', 'Desglose: ' + st.parts.join(' · '))
+        + '<div style="font-size:8px;color:var(--text3)">' + escHtml(st.parts.slice(0, 3).join(' · ')) + '</div>'
+      : '<div style="font-size:9px;color:var(--text3);padding:2px 0">acumulando componentes — RVOL y régimen necesitan ~30 min de sesión propia</div>';
+    let gxB;
+    if (I.fx) gxB = '<div style="font-size:9px;color:var(--text3);padding:2px 0">el spot forex/oro no lista cadena de opciones — sin GEX (se declara, no se inventa)</div>';
+    else if (I.src === 'okx') {
+      const G = this._cgex && this._cgex.tk === I.tk ? this._cgex : null;
+      gxB = G && G.gex != null
+        ? '<div style="display:flex;align-items:baseline;gap:6px"><b style="font-size:16px;color:' + (G.gex >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (G.gex >= 0 ? 'Γ+' : 'Γ−') + ' ' + Math.abs(G.gex).toFixed(2) + 'bn</b><span style="font-size:8.5px;color:var(--text3)">Deribit ≤45d</span></div><div style="font-size:9px;color:var(--text2);margin-top:3px">' + (G.gex >= 0 ? 'dealers estabilizan — los muros frenan, rangos' : 'dealers amplifican — el precio patina, stops amplios') + (G.flip != null ? ' · flip ' + G.flip : '') + '</div>'
+        : '<div style="font-size:9px;color:var(--text3);padding:2px 0">cargando cadena Deribit…</div>';
+    } else {
+      const W = this._walls && this._walls.prim, F = this._flowData;
+      gxB = W && W.gexTotalBn != null
+        ? '<div style="display:flex;align-items:baseline;gap:6px"><b style="font-size:16px;color:' + (W.gexTotalBn >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (W.gexTotalBn >= 0 ? 'Γ+' : 'Γ−') + ' ' + Math.abs(W.gexTotalBn).toFixed(2) + 'bn</b><span style="font-size:8.5px;color:var(--text3)">estructura ' + escHtml(this._walls.primEtf || '') + '</span></div>'
+          + (F && F.gexV != null ? '<div style="font-size:10px;color:var(--text2);margin-top:3px">HOY (Γ×vol): <b style="color:' + (F.gexV >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (F.gexV >= 0 ? '+' : '−') + Math.abs(F.gexV).toFixed(2) + 'bn</b>' + (F.flipV != null ? ' · flip del día ' + F.flipV : '') + '</div>' : '')
+          + '<div style="font-size:8.5px;color:var(--text3);margin-top:2px">' + (W.gexTotalBn >= 0 ? 'régimen pegajoso: los fades a VWAP tienen viento a favor' : 'régimen reactivo: breakouts corren más — no te cases con el rango') + '</div>'
+        : '<div style="font-size:9px;color:var(--text3);padding:2px 0">cargando cadena…</div>';
+    }
+    let rkB = '<div style="font-size:9px;color:var(--text3);padding:2px 0">esperando precios del dashboard…</div>';
+    try {
+      const P = window.state && state.data && state.data.prices;
+      const vix = P && P['^VIX'], dxy = P && P['DX-Y.NYB'];
+      if (vix && vix.price > 0) {
+        const vc = vix.chg1d, dc = dxy && dxy.chg1d;
+        const off = (vc != null && vc > 3) || (dc != null && dc > 0.35 && vc != null && vc > 0);
+        const on = !off && vc != null && vc < 0 && (dc == null || dc <= 0.15);
+        const lbl = off ? ['RISK-OFF', 'var(--red)'] : on ? ['RISK-ON', 'var(--green)'] : ['MIXTO', 'var(--amber)'];
+        rkB = '<div><b style="font-size:14px;color:' + lbl[1] + '">' + lbl[0] + '</b></div>'
+          + '<div style="font-size:10px;color:var(--text2);margin-top:3px">VIX <b>' + vix.price.toFixed(1) + '</b> <span style="color:' + (vc >= 0 ? 'var(--red)' : 'var(--green)') + '">' + (vc >= 0 ? '+' : '') + (vc ?? 0).toFixed(1) + '%</span>'
+          + (dxy && dxy.price > 0 ? ' · DXY <b>' + dxy.price.toFixed(1) + '</b> <span style="color:' + (dc >= 0 ? 'var(--amber)' : 'var(--teal)') + '">' + (dc >= 0 ? '+' : '') + (dc ?? 0).toFixed(2) + '%</span>' : '') + '</div>'
+          + '<div style="font-size:8.5px;color:var(--text3);margin-top:2px">VIX cayendo + DXY quieto = apetito de riesgo · VIX↑ con DXY↑ = movimiento incoherente, no persigas</div>';
+      }
+    } catch (e) {}
+    el.innerHTML = '<div style="display:flex;gap:8px;flex-wrap:wrap">' + tile('😱→🤑 MIEDO / CODICIA', fgB) + tile('⚡ FUERZA DEL DÍA — ' + escHtml(I.lbl), stB) + tile('🧲 GAMMA (GEX)', gxB) + tile('🌍 RIESGO GLOBAL', rkB) + '</div>';
   },
   _draw(c, lv) {
     const I = this.instr(), cv = document.getElementById('term-chart'); if (!cv) return;
@@ -16032,6 +16155,30 @@ const INDICATORS_GLOSSARY = {
       { c: 'red', t: 'DIVERGENTE → alto riesgo de reversión; no perseguir' }
     ],
     note: 'Fase F8 del blueprint Terminal v2. Solo barras cerradas alineadas (regla del blueprint) — al abrir la sesión el panel tarda ~35 min en armar sus 7 barras comunes y lo dice.'
+  },
+  'terminal-entradas': {
+    name: 'Terminal · Posibles Entradas', category: 'Terminal · Intradía',
+    source: { label: 'Motor de zonas Tab 09 (espejo QQQ→NQ / SPY→ES / crypto directo) + confluencia en vivo local', url: 'https://dash-board-strauss.vercel.app/', freq: 'Zonas: cache 30 min · confluencia ★: late con cada render' },
+    formula: 'Zonas categoría ENTRADA del motor swing (fusión de confluencias, score por diversidad de fuentes, degradación por toques reales), convertidas al instrumento por ratio CONGELADO al cargar, ordenadas por cercanía al precio. ★ (0-5, fraccional) = score del motor (hasta 2★) + cinta a favor (1★) + régimen correcto (1★) + RVOL ≥1.3× (0.5★) + fuera de lunch (0.5★) — SOLO computable a ≤1.5% del precio (la cinta y el régimen son de AHORA, no valen para una zona lejana).',
+    interpret: 'Es el puente entre el swing y el intradía: el motor dice DÓNDE hay confluencia estructural; las estrellas dicen si ESTE momento acompaña. Barra de cercanía llena = el precio llegó. EN ZONA con 3★+ = candidato A+ para tu plan del gate; zona gastada (⚠ toques) = el imán perdió fuerza. LONG en soporte / SHORT en resistencia es la dirección de la reversión — en día TENDENCIA el fade pierde edge (el régimen lo penaliza solo).',
+    thresholds: [
+      { c: 'green', t: 'EN ZONA + ★≥3 + cinta a favor → confluencia máxima del sistema' },
+      { c: 'amber', t: 'Zona a <0.5% con ★<2 → el nivel llegó pero el momento no acompaña' },
+      { c: 'red', t: 'Zona GASTADA (⚠) o día TENDENCIA en contra → el fade pierde su edge' }
+    ],
+    note: 'V6.3. Observacional, no recomendación: la ejecución y el riesgo viven en tu plan del checklist-gate. Forex/oro no tiene motor de zonas (sin cadena ni volumen listado) — se declara.'
+  },
+  'terminal-lectura-dia': {
+    name: 'Terminal · Lectura del Día (termómetros)', category: 'Terminal · Intradía',
+    source: { label: 'CNN Fear&Greed (equities) · alternative.me (cripto) · cadena CBOE/Deribit · VIX/DXY del dashboard · componentes locales', url: 'https://www.cnn.com/markets/fear-and-greed', freq: 'F&G cada 30 min · GEX con la cadena (1h/30m) · fuerza y riesgo en vivo' },
+    formula: 'MIEDO/CODICIA: índice CNN 0-100 (7 componentes: momentum, breadth, put/call, VIX, safe haven…) + el de alternative.me para cripto. FUERZA DEL DÍA: compuesto local 0-100 = RVOL (30) + régimen tendencia/balance (25) + ADR consumido (20) + |z|σ vs VWAP (15) + dominancia de cinta (10) — se declara "parcial" si faltan componentes. GEX: Γ estructura (OI, ±45d) y Γ×volumen de HOY con su flip. RIESGO GLOBAL: VIX nivel+Δ y DXY Δ → RISK-ON / MIXTO / RISK-OFF.',
+    interpret: 'Cuatro preguntas antes de operar: ¿el sentimiento está en extremo (contrarian)? ¿el día tiene gasolina o es un chop débil? ¿los dealers estabilizan (Γ+, fades funcionan) o amplifican (Γ−, breakouts corren)? ¿el mundo está de tu lado (risk-on para longs de índice)? FUERTE⚡ + Γ− = día de momentum: no hagas fades. DÉBIL💤 + Γ+ = día de rango: no persigas rupturas.',
+    thresholds: [
+      { c: 'green', t: 'F&G <25 con día FUERTE al alza → miedo comprándose (contrarian confirmado)' },
+      { c: 'amber', t: 'Termómetros en conflicto (fuerte pero risk-off) → reduce tamaño' },
+      { c: 'red', t: 'F&G >75 + Γ− + RISK-OFF → el aire está caro: proteger, no perseguir' }
+    ],
+    note: 'V6.3, de la investigación de terminales (wiki: comparacion-terminales-intradia-2026-07). CNN puede bloquear el fetch (best-effort declarado); cripto siempre responde. La fuerza del día es compuesto propio observacional — n pequeño, no calibrado aún.'
   },
   'terminal-noticias': {
     name: 'Terminal · Noticias en vivo (grado + sector)', category: 'Terminal · Intradía',

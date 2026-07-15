@@ -862,6 +862,26 @@ module.exports = async (req, res) => {
       res.setHeader('Cache-Control', 'max-age=0, no-cache');
       return res.status(200).json(k ? { k } : { error: 'FINNHUB_KEY no configurada en Vercel' });
     }
+    if (src === 'fng') {
+      // V6.3 · Fear & Greed de EQUITIES (CNN dataviz) para la Lectura del Día de la Terminal.
+      // Best-effort: CNN a veces bloquea IPs de datacenter → 200 con {error}, el tile degrada
+      // al F&G cripto (alternative.me) que carga el cliente directo.
+      try {
+        const r = await fetch('https://production.dataviz.cnn.io/index/fearandgreed/graphdata', {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36', 'Accept': 'application/json' },
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!r.ok) throw new Error('CNN ' + r.status);
+        const j = await r.json();
+        const fg = j && j.fear_and_greed;
+        if (!fg || fg.score == null) throw new Error('shape');
+        res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600');
+        return res.status(200).json({ score: Math.round(fg.score), rating: fg.rating || '', prev: fg.previous_close != null ? Math.round(fg.previous_close) : null });
+      } catch (e) {
+        res.setHeader('Cache-Control', 'max-age=0, no-cache');
+        return res.status(200).json({ error: e.message });
+      }
+    }
     if (src === 'screener') {
       // MOTOR v2 P2: máximos 52w (pool separado). Scraping frágil → 200 con {error} sin cache
       try {
