@@ -6397,6 +6397,11 @@ const Terminal = {
     gotobi: { lbl: 'GOTOBI — long al fix Tokio 9:55 JST (días ×5)', fx: true },
   },
   _btRs: null, _btLast: null,
+  // V7.2: 🏆 la más rentable CONOCIDA por ticker — se actualiza sola con cada backtest;
+  // semilla = matriz verificada del 2026-07-15 (correr ⚡ PROBAR TODAS la refresca)
+  BT_SEED: { 'NQ=F': { strat: 'fade2', exp: 0.33, pf: 1.67, n: 16, d: '2026-07-15' }, 'BTC-USD': { strat: 'fade', exp: 0.32, pf: 1.47, n: 58, d: '2026-07-15' }, 'USDJPY=X': { strat: 'fxFade', exp: 0.42, pf: 1.64, n: 60, d: '2026-07-15' } },
+  _btBest() { let s = {}; try { s = JSON.parse(localStorage.getItem('term_bt_best_v1') || '{}'); } catch (e) {} return { ...this.BT_SEED, ...s }; },
+  _btBestSave(tk, rec) { try { const s = JSON.parse(localStorage.getItem('term_bt_best_v1') || '{}'); s[tk] = rec; localStorage.setItem('term_bt_best_v1', JSON.stringify(s)); } catch (e) {} },
   _btUI() {
     const el = document.getElementById('term-bt'); if (!el) return;
     const I = this.instr();
@@ -6404,12 +6409,42 @@ const Terminal = {
     const list = Object.entries(this.BT_STRATS).filter(([k, s]) => I.fx ? s.fx : !s.fx);
     let sel = this.cfg().btStrat;
     if (!list.some(([k]) => k === sel)) sel = list[0][0];
+    const best = this._btBest()[I.tk];
     el.innerHTML = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
       + '<span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🧪 ESTRATEGIA sobre ' + escHtml(I.lbl) + ' — 60 días · 5m · reglas con evidencia (glosario ?)</span>'
-      + '<select id="term-bt-strat" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
-      + list.map(([k, s]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + s.lbl + '</option>').join('') + '</select>'
+      + '<select id="term-bt-strat" title="' + (best ? escHtml('🏆 = la más rentable conocida en este ticker: ' + (this.BT_STRATS[best.strat] ? this.BT_STRATS[best.strat].lbl : best.strat) + ' (+' + best.exp + 'R/trade · PF ' + best.pf + ' · n=' + best.n + ' · backtest ' + best.d + ')') : '') + '" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
+      + list.map(([k, s]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + (best && best.strat === k ? '🏆 ' : '') + s.lbl + (best && best.strat === k ? ' (+' + best.exp + 'R)' : '') + '</option>').join('') + '</select>'
       + '<button type="button" onclick="Terminal.btRun()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.08)">▶ CORRER BACKTEST</button>'
+      + '<button type="button" onclick="Terminal.btRunAll()" title="Corre TODAS las estrategias del instrumento con la misma data (1 fetch) y corona a la más rentable" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">⚡ PROBAR TODAS</button>'
       + '</div><div id="term-bt-live" style="margin-top:5px"></div><div id="term-bt-res" style="margin-top:6px"></div>';
+  },
+  // V7.2: matriz del instrumento en un click — 1 fetch, N motores, corona a la 🏆
+  async btRunAll() {
+    const res = document.getElementById('term-bt-res'); if (!res) return;
+    const I = this.instr();
+    const list = Object.entries(this.BT_STRATS).filter(([k, s]) => I.fx ? s.fx : !s.fx);
+    res.innerHTML = '<span style="color:var(--text3);font-size:10px">descargando 60 días y corriendo las ' + list.length + ' estrategias…</span>';
+    try {
+      const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=60d&hl=1&ts=1').then(r => r.json());
+      const bars = this._norm(j?.[I.tk]);
+      if (bars.length < 500) { res.innerHTML = '<span style="color:var(--amber);font-size:10px">data insuficiente (' + bars.length + ' barras) — reintenta</span>'; return; }
+      const nDays = new Set(bars.map(b => b.et.d)).size;
+      const rows = list.map(([k, s]) => {
+        let tr = []; try { tr = this._btEngine(bars, k, I); } catch (e) {}
+        const rs = tr.map(t => t.r), wins = rs.filter(r => r > 0), losses = rs.filter(r => r <= 0);
+        const exp = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null;
+        const pf = wins.length && Math.abs(losses.reduce((a, b) => a + b, 0)) > 0 ? wins.reduce((a, b) => a + b, 0) / Math.abs(losses.reduce((a, b) => a + b, 0)) : (wins.length ? Infinity : 0);
+        return { k, lbl: s.lbl, n: rs.length, wr: rs.length ? wins.length / rs.length * 100 : null, exp, pf, tot: rs.reduce((a, b) => a + b, 0) };
+      }).sort((a, b) => (b.exp ?? -9) - (a.exp ?? -9));
+      const win = rows.find(r => r.n >= 10 && r.exp > 0);
+      let resEl = res;
+      if (win) { this._btBestSave(I.tk, { strat: win.k, exp: +win.exp.toFixed(2), pf: isFinite(win.pf) ? +win.pf.toFixed(2) : 99, n: win.n, d: etDate() }); this._btUI(); resEl = document.getElementById('term-bt-res'); } // _btUI recrea el div — la referencia vieja moriría
+      resEl.innerHTML = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:3px">🏁 MATRIZ ' + escHtml(I.lbl) + ' — ' + nDays + ' días · ordenada por expectancy · 🏆 requiere n≥10 y expectancy positiva</div>'
+        + '<table style="width:100%;border-collapse:collapse;font-size:10px"><thead><tr style="color:var(--text3);font-size:8px"><th style="text-align:left">ESTRATEGIA</th><th style="text-align:right">N</th><th style="text-align:right">WR</th><th style="text-align:right">EXP/TRADE</th><th style="text-align:right">PF</th><th style="text-align:right">TOTAL</th></tr></thead><tbody>'
+        + rows.map((r, i) => '<tr style="border-top:1px solid var(--border2)' + (win && r.k === win.k ? ';background:rgba(201,168,76,.07)' : '') + '"><td style="padding:3px 4px;color:var(--text2)">' + (win && r.k === win.k ? '🏆 ' : '') + escHtml(r.lbl) + '</td><td style="text-align:right;color:var(--text3)">' + r.n + '</td><td style="text-align:right;color:var(--text2)">' + (r.wr != null ? r.wr.toFixed(0) + '%' : '—') + '</td><td style="text-align:right;color:' + (r.exp > 0.05 ? 'var(--green)' : r.exp < -0.05 ? 'var(--red)' : 'var(--amber)') + '"><b>' + (r.exp != null ? (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R' : '—') + '</b></td><td style="text-align:right;color:var(--text2)">' + (r.pf != null && isFinite(r.pf) ? r.pf.toFixed(2) : '—') + '</td><td style="text-align:right;color:' + (r.tot >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (r.tot >= 0 ? '+' : '') + r.tot.toFixed(1) + 'R</td></tr>').join('')
+        + '</tbody></table>'
+        + '<div style="font-size:8px;color:var(--text3);margin-top:3px">mismo motor conservador (ambos-toca=stop, sin comisiones) · n<10 no corona · una sola ventana de 60d: la validación seria es out-of-sample con más historia</div>';
+    } catch (e) { res.innerHTML = '<span style="color:var(--red);font-size:10px">error: ' + escHtml(String(e.message)) + '</span>'; }
   },
   // V6.9: SEÑAL EN VIVO — el MISMO motor causal del backtest corriendo sobre las barras de HOY
   _btLive(c) {
@@ -6636,6 +6671,9 @@ const Terminal = {
     const pf = Math.abs(losses.reduce((a, b) => a + b, 0)) > 0 ? wins.reduce((a, b) => a + b, 0) / Math.abs(losses.reduce((a, b) => a + b, 0)) : Infinity;
     let eq = 0, peak = 0, dd = 0; const curve = rs.map(r => { eq += r; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq); return eq; });
     this._btRs = rs; this._btLast = { strat, tk: I.tk, n: rs.length };
+    // V7.2: si este run individual supera al 🏆 conocido del ticker, lo corona (el dropdown se actualiza al próximo repintado)
+    const bb = this._btBest()[I.tk];
+    if (rs.length >= 10 && exp > 0 && (!bb || exp > bb.exp)) this._btBestSave(I.tk, { strat, exp: +exp.toFixed(2), pf: isFinite(pf) ? +pf.toFixed(2) : 99, n: rs.length, d: etDate() });
     const tile = (l, v, c2, s) => '<div style="flex:1;min-width:118px;border:1px solid var(--border2);border-left:3px solid ' + c2 + ';border-radius:6px;padding:5px 8px;background:var(--surface)"><div style="font-size:8px;color:var(--text3);letter-spacing:.06em">' + l + '</div><div style="font-size:14px;color:' + c2 + '"><b>' + v + '</b></div><div style="font-size:8px;color:var(--text3)">' + s + '</div></div>';
     res.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">'
       + tile('SEÑALES', trades.length, 'var(--text2)', nDays + ' días · ' + (trades.length / nDays).toFixed(1) + '/día')
