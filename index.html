@@ -11851,11 +11851,54 @@ const InstPanel = {
       + ' · ⚖ Flip ' + fK(d.gammaFlip) + drift(d.gammaFlip, prev?.fl, 'Gamma flip') + ' · 📌 Max pain ' + fK(d.maxPain) + ' <span style="color:var(--text3)">(' + (d.nearestExp || '—') + ')</span>'
       + ' <span style="color:var(--text3)">· CBOE ' + escHtml(String(d.updated || '')) + '</span>'
       + (thin ? '<div class="mono" style="font-size:9.5px;color:var(--amber);margin-top:4px">⚠ Cadena de opciones DELGADA (' + nStk + ' strikes en la ventana · OI total ' + oiTot.toLocaleString('en-US') + ' contratos): muros, flip, max pain y fuerza del muro son POCO FIABLES en este activo — pesa más el perfil de volumen, dark pools y ownership de la radiografía.</div>' : '')
-      + '<div id="inst-futconv" class="mono" style="font-size:10px;color:var(--text2)"></div>';
+      + '<div id="inst-futconv" class="mono" style="font-size:10px;color:var(--text2)"></div>'
+      + '<div id="inst-wmem" class="mono" style="font-size:10px;margin-top:3px"></div>';
     this._lastD = d;
     this._chartRender(d);
     this._flow(d);
     this._futConv(d);
+    this._wallsMem(d); // V6.7: memoria de muros — migración + percentiles PROPIOS
+  },
+  // ══ V6.7 · PAQUETE INSTITUCIONAL (a+b): MURO QUE MIGRA + PERCENTILES PROPIOS ══
+  // La serie inst_walls_v1 (1 lectura/día, ventana ≤45d) llevaba días creciendo sin lector.
+  // Un muro que migra día tras día = el mercado REPRICEANDO (los dealers re-acomodan la pared);
+  // el percentil dice dónde está HOY vs TU propia historia — nadie retail guarda esta serie.
+  _wallsMem(d) {
+    const el = document.getElementById('inst-wmem'); if (!el) return;
+    try {
+      const arr = (JSON.parse(localStorage.getItem('inst_walls_v1') || '{}')[d.tk]) || [];
+      if (arr.length < 3) { el.innerHTML = '<span style="font-size:9px;color:var(--text3)">📈 memoria de muros: acumulando (' + arr.length + '/3 días) — se llena sola con cada visita en ventana ≤45d</span>'; return; }
+      const streak = key => { let n = 0, dir = 0; for (let i = arr.length - 1; i > 0; i--) { const a = arr[i][key], b = arr[i - 1][key]; if (a == null || b == null || a === b) break; const d2 = a > b ? 1 : -1; if (!dir) dir = d2; else if (d2 !== dir) break; n++; } return { n, dir }; };
+      const cw = streak('cw'), pw = streak('pw');
+      const pctl = key => { const vals = arr.map(x => x[key]).filter(v => v != null); const cur = arr[arr.length - 1][key]; if (cur == null || vals.length < 5) return null; return Math.round(vals.filter(v => v <= cur).length / vals.length * 100); };
+      const gp = pctl('gex'), pp = pctl('pc');
+      const mig = (lbl, s, col) => s.n >= 2 ? '<b style="color:' + col + '">' + lbl + ' ' + (s.dir > 0 ? '↑' : '↓') + (s.n + 1) + 'd MIGRANDO</b>' : '<span style="color:var(--text3)">' + lbl + ' estable</span>';
+      const seq = key => arr.slice(-4).map(x => x[key] ?? '—').join('→');
+      el.innerHTML = '<span title="Serie PROPIA inst_walls_v1 (' + arr.length + ' días, 1 lectura/día en ventana ≤45d). Muro migrando = mercado repriceando: CW subiendo con el precio = techo que CEDE (tendencia); percentiles = HOY vs TU historia. n<10 = lectura joven.">'
+        + '📈 <span style="color:var(--text3);letter-spacing:.05em;font-size:8.5px">MEMORIA ' + arr.length + 'd</span> · ' + mig('CW', cw, 'var(--green)') + ' <span style="color:var(--text3);font-size:9px">(' + seq('cw') + ')</span>'
+        + ' · ' + mig('PW', pw, 'var(--red)') + ' <span style="color:var(--text3);font-size:9px">(' + seq('pw') + ')</span>'
+        + (gp != null ? ' · Γ hoy <b style="color:var(--gold)">p' + gp + '</b> de tu serie' : '')
+        + (pp != null ? ' · P/C <b style="color:var(--text2)">p' + pp + '</b>' : '')
+        + '</span>';
+    } catch (e) { el.innerHTML = ''; }
+  },
+  // V6.7 (c): ΔOI DENTRO de una zona — cruza inst_oi_v1 (2 últimas lecturas de días distintos)
+  // con la banda [lo,hi]: el posicionamiento construyéndose EN la zona es confluencia nueva.
+  _zOiDelta(tk, z) {
+    try {
+      const arr = (JSON.parse(localStorage.getItem('inst_oi_v1') || '{}')[tk]) || [];
+      if (arr.length < 2) return null;
+      const cur = arr[arr.length - 1], prev = arr[arr.length - 2];
+      if (!cur.s || !prev.s || cur.d === prev.d) return null;
+      let delta = 0, hit = 0;
+      for (const k in cur.s) {
+        const kk = +k; if (!(kk >= z.lo && kk <= z.hi)) continue;
+        const c2 = (cur.s[k][0] || 0) + (cur.s[k][1] || 0);
+        const p2 = prev.s[k] ? (prev.s[k][0] || 0) + (prev.s[k][1] || 0) : 0;
+        delta += c2 - p2; hit++;
+      }
+      return hit && Math.abs(delta) >= 200 ? { delta, d1: prev.d.slice(5), d2: cur.d.slice(5) } : null;
+    } catch (e) { return null; }
   },
   // ── ISRA/GEXBOT (2026-07-11): conversión de niveles al FUTURO (custom conv por ratio spot) ──
   // QQQ→NQ=F · SPY→ES=F — los niveles de opciones del ETF aplicados al contrato que se opera
@@ -13063,7 +13106,10 @@ const InstDeep = {
             + '<div style="flex:1;min-width:150px"><div style="font-size:14px;font-weight:700;color:var(--text)">' + rango + ' <span style="font-size:10px;font-weight:600;color:' + m2.col + '">' + m2.icon + ' ' + z.cat + ' · ' + z.side.toUpperCase() + '</span></div>'
             + '<div style="font-size:10.5px;color:var(--text2);margin-top:2px">' + z.labels.join(' + ') + '</div></div>'
             + '<div style="flex:none;text-align:right"><div style="font-size:12px;color:' + m2.col + '" title="score ' + z.score + '">' + stars + '</div>'
-            + '<div style="font-size:9.5px;color:' + (z.degradada ? 'var(--amber)' : z.touches <= 1 ? 'var(--green)' : 'var(--text3)') + ';margin-top:2px">' + z.touches + ' test' + (z.touches === 1 ? '' : 's') + (z.degradada ? ' ⚠ degradada' : z.touches <= 1 ? ' ✦ fresca' : '') + '</div></div>'
+            + '<div style="font-size:9.5px;color:' + (z.degradada ? 'var(--amber)' : z.touches <= 1 ? 'var(--green)' : 'var(--text3)') + ';margin-top:2px">' + z.touches + ' test' + (z.touches === 1 ? '' : 's') + (z.degradada ? ' ⚠ degradada' : z.touches <= 1 ? ' ✦ fresca' : '') + '</div>'
+            // V6.7 (c): ΔOI dentro de la banda — posicionamiento construyéndose EN la zona
+            + (() => { const oc = this._zOiDelta(tk, z); return oc ? '<div style="font-size:9px;color:' + (oc.delta > 0 ? 'var(--teal)' : 'var(--text3)') + ';margin-top:2px" title="ΔOI de los strikes DENTRO de la zona (' + oc.d1 + '→' + oc.d2 + '): el posicionamiento de opciones se ' + (oc.delta > 0 ? 'CONSTRUYE aquí — confluencia nueva' : 'deshace aquí') + '">OI ' + (oc.delta > 0 ? '+' : '') + oc.delta.toLocaleString('en-US') + '</div>' : ''; })()
+            + '</div>'
             + '</div>';
         };
         const spotCard = '<div style="display:flex;align-items:center;gap:10px;margin:8px 0;padding:6px 13px;border-radius:7px;background:rgba(240,236,228,.05);border:1px dashed rgba(240,236,228,.45)">'
