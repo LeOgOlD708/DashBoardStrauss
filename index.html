@@ -6382,21 +6382,32 @@ const Terminal = {
   // de la barra; target/stop CONGELADOS; si una barra toca ambos, cuenta STOP (conservador);
   // sin salida al cierre del día se liquida a EOD. El régimen usa migración del VWAP en 30 min
   // (proxy causal del POC — declarado). Resultados en R → alimentan el Monte Carlo.
+  // V7 (investigación agente 2026-07-15): 8 estrategias con evidencia citada en el glosario.
+  // fx:true = price-only (forex sin volumen). eodMom = Gao/Han/Li/Zhou JFE 2018 (Sharpe 1.08);
+  // gapFade = overnight drift NY Fed SR917; asianBk = clásico JPY; fade2 = fade + horario.
   BT_STRATS: {
-    fade: { lbl: 'FADE 2σ → VWAP (solo día balance)' },
+    fade: { lbl: 'FADE 2σ → VWAP (día balance)' },
+    fade2: { lbl: 'FADE 2σ v2 + horario 10:30-15:00' },
+    eodMom: { lbl: 'Momentum fin de sesión (Gao/JFE)' },
+    gapFade: { lbl: 'Fade del gap overnight → PDC' },
     ib: { lbl: 'Ruptura del IB — regla 82 (1R)' },
     vwapPull: { lbl: 'Pullback a VWAP en día tendencia' },
+    asianBk: { lbl: 'Breakout del rango asiático', fx: true },
+    fxFade: { lbl: 'Reversión σ rolling 24h', fx: true },
+    gotobi: { lbl: 'GOTOBI — long al fix Tokio 9:55 JST (días ×5)', fx: true },
   },
   _btRs: null, _btLast: null,
   _btUI() {
     const el = document.getElementById('term-bt'); if (!el) return;
     const I = this.instr();
-    if (I.fx) { el.innerHTML = '<span style="color:var(--text3)">backtest v1: índices y crypto (las 3 estrategias usan VWAP/IB — el spot forex no tiene volumen ni RTH). Cambia a NQ/ES/BTC/ETH.</span>'; return; }
-    const sel = this.cfg().btStrat || 'fade';
+    // V7: forex tiene sus estrategias PRICE-ONLY (J1/J3 de la investigación) — ya no se bloquea
+    const list = Object.entries(this.BT_STRATS).filter(([k, s]) => I.fx ? s.fx : !s.fx);
+    let sel = this.cfg().btStrat;
+    if (!list.some(([k]) => k === sel)) sel = list[0][0];
     el.innerHTML = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
-      + '<span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🧪 ESTRATEGIA sobre ' + escHtml(I.lbl) + ' — 60 días · 5m · reglas del sistema</span>'
+      + '<span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🧪 ESTRATEGIA sobre ' + escHtml(I.lbl) + ' — 60 días · 5m · reglas con evidencia (glosario ?)</span>'
       + '<select id="term-bt-strat" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
-      + Object.entries(this.BT_STRATS).map(([k, s]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + s.lbl + '</option>').join('') + '</select>'
+      + list.map(([k, s]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + s.lbl + '</option>').join('') + '</select>'
       + '<button type="button" onclick="Terminal.btRun()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.08)">▶ CORRER BACKTEST</button>'
       + '</div><div id="term-bt-live" style="margin-top:5px"></div><div id="term-bt-res" style="margin-top:6px"></div>';
   },
@@ -6437,12 +6448,48 @@ const Terminal = {
     } catch (e) { res.innerHTML = '<span style="color:var(--red);font-size:10px">error: ' + escHtml(String(e.message)) + '</span>'; }
   },
   _btEngine(bars, strat, I) {
+    if (strat === 'asianBk' || strat === 'fxFade') return this._btEngineFx(bars, strat, I);
     const days = {}; for (const b of bars) (days[b.et.d] = days[b.et.d] || []).push(b);
     const crypto = I.src === 'okx';
     const trades = [];
+    let prevC = null; // cierre RTH del día previo (gapFade)
     for (const d of Object.keys(days).sort()) {
       // sesión: RTH para futuros · día ET completo para crypto (24/7, VWAP de sesión)
       const ses = crypto ? days[d] : days[d].filter(b => b.et.m >= 570 && b.et.m < 960);
+      // ventana "US" para eodMom/gapFade (en crypto la sesión activa ≈ RTH ET — Shen 2022)
+      const rb = crypto ? days[d].filter(b => b.et.m >= 570 && b.et.m < 960) : ses;
+      if (strat === 'eodMom' || strat === 'gapFade') {
+        const pc0 = prevC; if (rb.length) prevC = rb[rb.length - 1].c;
+        if (rb.length < 40) continue;
+        if (strat === 'eodMom') {
+          // Gao/JFE: la 1ª ½h predice la última — señal con closes (Yahoo no trae open real)
+          const sig = (rb[5].c - rb[0].c) / rb[0].c;
+          if (Math.abs(sig) < 0.0015) continue; // filtro días muertos
+          const eIdx = rb.findIndex(b => b.et.m >= 930); if (eIdx < 12) continue;
+          const entry = rb[eIdx].c, side = sig > 0 ? 'long' : 'short';
+          const cls = rb.slice(0, eIdx).map(b => b.c), mn = cls.reduce((a, b) => a + b, 0) / cls.length;
+          const sd = Math.sqrt(cls.reduce((a, b) => a + (b - mn) * (b - mn), 0) / cls.length) || entry * 0.001;
+          const risk = sd; let r = null;
+          for (let k = eIdx + 1; k < rb.length; k++) { const b = rb[k]; if (side === 'long' ? b.l <= entry - risk : b.h >= entry + risk) { r = -1; break; } }
+          if (r == null) { const fin = rb[rb.length - 1].c; r = (side === 'long' ? fin - entry : entry - fin) / risk; }
+          trades.push({ d, side, entry, tgt: rb[rb.length - 1].c, stp: side === 'long' ? entry - risk : entry + risk, res: r === -1 ? -1 : 0, r });
+        } else if (!crypto && pc0 != null) {
+          // NY Fed SR917: fade del gap overnight hacia el PDC — solo gaps 0.3-1.5%
+          const c0 = rb[0].c, gap = (c0 - pc0) / pc0, ga = Math.abs(c0 - pc0);
+          if (Math.abs(gap) < 0.003 || Math.abs(gap) > 0.015) continue;
+          const side = gap > 0 ? 'short' : 'long', entry = c0, tgt = pc0, stp = side === 'short' ? entry + ga : entry - ga, risk = ga;
+          let r = null;
+          for (let k = 1; k < rb.length; k++) {
+            const b = rb[k];
+            if (side === 'short' ? b.h >= stp : b.l <= stp) { r = -1; break; }
+            if (side === 'short' ? b.l <= tgt : b.h >= tgt) { r = 1; break; }
+          }
+          if (r == null) { const fin = rb[rb.length - 1].c; r = (side === 'short' ? entry - fin : fin - entry) / risk; }
+          trades.push({ d, side, entry, tgt, stp, res: r === 1 ? 1 : r === -1 ? -1 : 0, r });
+        }
+        continue;
+      }
+      if (ses.length) prevC = ses[ses.length - 1].c;
       if (ses.length < 30) continue;
       // walk causal: VWAP/σ acumulados + trail de VWAP para el régimen (migración 30min)
       let cw = 0, cpv = 0, cp2v = 0; const vwT = [];
@@ -6470,7 +6517,8 @@ const Terminal = {
         const migOk = vwT.length > 6 && vwT[vwT.length - 7] != null; // migración VWAP 30min en σ
         const mig = migOk ? Math.abs(vwap - vwT[vwT.length - 7]) / sg : null;
         if (Math.abs(z) < 1) { arm.up = true; arm.dn = true; }
-        if (strat === 'fade' && mig != null && mig < 0.35) { // balance: el VWAP no migra
+        const fadeOk = strat === 'fade' || (strat === 'fade2' && b.et.m >= 630 && b.et.m < 900); // v2: sin apertura ruidosa ni drift de cierre
+        if ((strat === 'fade' || strat === 'fade2') && fadeOk && mig != null && mig < 0.35) { // balance: el VWAP no migra
           if (z >= 2 && z < 3 && arm.up) { arm.up = false; const stp = vwap + 3 * sg, risk = stp - b.c; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'short', entry: b.c, tgt: vwap, stp, risk, rr: (b.c - vwap) / risk, res: null }) - 1]); }
           if (z <= -2 && z > -3 && arm.dn) { arm.dn = false; const stp = vwap - 3 * sg, risk = b.c - stp; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'long', entry: b.c, tgt: vwap, stp, risk, rr: (vwap - b.c) / risk, res: null }) - 1]); }
         }
@@ -6484,6 +6532,95 @@ const Terminal = {
           if (trendDir === 1 && z <= 0.15 && z > -0.6) { pullN++; const stp = vwap - sg, risk = b.c - stp; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'long', entry: b.c, tgt: vwap + 2 * sg, stp, risk, rr: (vwap + 2 * sg - b.c) / risk, res: null }) - 1]); }
           else if (trendDir === -1 && z >= -0.15 && z < 0.6) { pullN++; const stp = vwap + sg, risk = stp - b.c; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'short', entry: b.c, tgt: vwap - 2 * sg, stp, risk, rr: (b.c - (vwap - 2 * sg)) / risk, res: null }) - 1]); }
         }
+      }
+    }
+    return trades.filter(t => t.r != null && isFinite(t.r));
+  },
+  // ══ V7: motor FOREX price-only (walk global — el rango asiático cruza la medianoche ET) ══
+  // J1 asianBk: rango Tokio 19:00→03:00 ET, breakout 03:00-06:00 (Londres), stop mitad del
+  // rango, target 1×rango, liquidación 11:00 ET. FILTRO de calidad (la evidencia: ~30% de los
+  // días dan ~80% del profit): solo si el rango está COMPRIMIDO vs la media de 10 días.
+  // J3 fxFade: SMA30±σ30 rolling, solo consolidación (media plana), evitando opens.
+  _btEngineFx(bars, strat, I) {
+    const trades = [], open = [];
+    // GOTOBI (NBER w22820 + arXiv 2301.13204): días del mes ×5 (calendario JAPONÉS, JST=UTC+9
+    // sin DST) los importadores compran USD hacia el fix de Tokio 9:55 JST → USDJPY sube.
+    // LONG en la mañana Tokio (08:00-09:00 JST), salida POR TIEMPO al fix, stop 1×ATR14.
+    if (strat === 'gotobi') {
+      const jst = t => { const dt = new Date((t + 32400) * 1000); return { dom: dt.getUTCDate(), hm: dt.getUTCHours() * 60 + dt.getUTCMinutes(), key: dt.toISOString().slice(0, 10) }; };
+      let cur = null; // trade del día gotobi en curso
+      for (let i = 14; i < bars.length; i++) {
+        const b = bars[i], j = jst(b.t);
+        if (cur) {
+          if (b.l <= cur.stp) { cur.res = -1; cur.r = -1; trades.push(cur); cur = null; }
+          else if (j.hm >= 595 || j.key !== cur.key) { cur.res = 0; cur.r = (b.c - cur.entry) / cur.risk; trades.push(cur); cur = null; } // 9:55 JST: salida por tiempo
+          continue;
+        }
+        if (j.dom % 5 !== 0) continue;
+        if (j.hm < 480 || j.hm >= 540) continue; // ventana de entrada 08:00-09:00 JST
+        const atr = bars.slice(i - 14, i).reduce((a, x) => a + (x.h - x.l), 0) / 14;
+        if (!(atr > 0)) continue;
+        cur = { d: b.et.d, key: j.key, side: 'long', entry: b.c, tgt: b.c + atr, stp: b.c - atr, risk: atr, rr: 1, res: null };
+      }
+      if (cur) { cur.res = 0; cur.r = 0; trades.push(cur); }
+      return trades.filter(t => t.r != null && isFinite(t.r));
+    }
+    const resolve = (b, last) => {
+      for (const t of open) {
+        if (t.res != null) continue;
+        if (t.side === 'long' ? b.l <= t.stp : b.h >= t.stp) { t.res = -1; t.r = -1; }
+        else if (t.side === 'long' ? b.h >= t.tgt : b.l <= t.tgt) { t.res = 1; t.r = t.rr; }
+        else if (last || (t.ttl != null && --t.ttl <= 0)) { const pnl = t.side === 'long' ? b.c - t.entry : t.entry - b.c; t.res = 0; t.r = pnl / t.risk; }
+      }
+    };
+    if (strat === 'asianBk') {
+      let hi = null, lo = null, nRange = 0, armed = false, traded = false;
+      const widths = []; // filtro de compresión: media de los últimos 10 rangos
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i], m = b.et.m;
+        resolve(b, false);
+        if (m >= 1140) { if (!armed) { hi = null; lo = null; nRange = 0; armed = true; traded = false; } hi = hi == null ? b.h : Math.max(hi, b.h); lo = lo == null ? b.l : Math.min(lo, b.l); nRange++; }
+        else if (m < 180 && armed) { hi = hi == null ? b.h : Math.max(hi, b.h); lo = lo == null ? b.l : Math.min(lo, b.l); nRange++; }
+        else if (m >= 180 && m < 360 && armed && !traded && hi != null && nRange >= 40) {
+          const w = hi - lo;
+          if (w > 0) {
+            const avgW = widths.length >= 5 ? widths.reduce((a, x) => a + x, 0) / widths.length : null;
+            const comprimido = avgW == null || w < avgW; // sin historia aún: opera (se declara)
+            if (comprimido) {
+              const mid = (hi + lo) / 2;
+              if (b.c > hi) { traded = true; const risk = b.c - mid; if (risk > 0) trades.push(open[open.push({ d: b.et.d, side: 'long', entry: b.c, tgt: b.c + w, stp: mid, risk, rr: w / risk, res: null, ttl: 96 }) - 1]); }
+              else if (b.c < lo) { traded = true; const risk = mid - b.c; if (risk > 0) trades.push(open[open.push({ d: b.et.d, side: 'short', entry: b.c, tgt: b.c - w, stp: mid, risk, rr: w / risk, res: null, ttl: 96 }) - 1]); }
+            }
+          }
+        }
+        else if (m >= 660 && armed) { // 11:00 ET: liquidar y archivar el ancho del rango
+          if (hi != null && lo != null && hi > lo) { widths.push(hi - lo); if (widths.length > 10) widths.shift(); }
+          for (const t of open) if (t.res == null) { const pnl = t.side === 'long' ? b.c - t.entry : t.entry - b.c; t.res = 0; t.r = pnl / t.risk; }
+          armed = false;
+        }
+        if (i === bars.length - 1) resolve(b, true);
+      }
+    } else { // fxFade (J3)
+      const W = 30; let sum = 0, sum2 = 0; const q = [];
+      const arm = { up: true, dn: true };
+      for (let i = 0; i < bars.length; i++) {
+        const b = bars[i], m = b.et.m;
+        resolve(b, i === bars.length - 1);
+        q.push(b.c); sum += b.c; sum2 += b.c * b.c;
+        if (q.length > W) { const o = q.shift(); sum -= o; sum2 -= o * o; }
+        if (q.length < W) continue;
+        const mean = sum / W, sg = Math.sqrt(Math.max(0, sum2 / W - mean * mean));
+        if (!(sg > 0)) continue;
+        const z = (b.c - mean) / sg;
+        if (Math.abs(z) < 1) { arm.up = true; arm.dn = true; }
+        // consolidación: media plana (vs 30 min atrás) · fuera de opens Londres/NY
+        if (i < W + 6) continue;
+        const mPrev = bars.slice(i - 6 - W + 1, i - 6 + 1).reduce((a, x) => a + x.c, 0) / W;
+        const flat = Math.abs(mean - mPrev) < 0.3 * sg;
+        const badHour = (m >= 180 && m < 360) || (m >= 510 && m < 690); // opens: 03-06 y 08:30-11:30 ET
+        if (!flat || badHour) continue;
+        if (z >= 2 && z < 3 && arm.up) { arm.up = false; const stp = mean + 3 * sg, risk = stp - b.c; if (risk > 0.3 * sg) trades.push(open[open.push({ d: b.et.d, side: 'short', entry: b.c, tgt: mean, stp, risk, rr: (b.c - mean) / risk, res: null, ttl: 96 }) - 1]); }
+        if (z <= -2 && z > -3 && arm.dn) { arm.dn = false; const stp = mean - 3 * sg, risk = b.c - stp; if (risk > 0.3 * sg) trades.push(open[open.push({ d: b.et.d, side: 'long', entry: b.c, tgt: mean, stp, risk, rr: (mean - b.c) / risk, res: null, ttl: 96 }) - 1]); }
       }
     }
     return trades.filter(t => t.r != null && isFinite(t.r));
