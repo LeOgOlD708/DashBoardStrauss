@@ -74,7 +74,7 @@ async function fetchTicker(ticker, range = '1y', interval = '1d', wantHL = false
   // 60d/5m (~4700 barras) para volume profile intradía — F-I2 (2026-07-10)
   // Terminal F0 (2026-07-13): 1d/5d/7d intradía necesitan la sesión completa (Globex ≈ 276
   // barras 5m; 7d/1m ≈ 8,700) — el cap 252 truncaba el arranque del día. Sin callers previos.
-  const cap = range === '60d' ? 5000 : range === '7d' ? 9500 : (range === '1d' || range === '2d' || range === '5d') ? 600 : range === '3y' ? 756 : 252;
+  const cap = range === '60d' ? 5000 : range === '7d' ? 9500 : (range === '1d' || range === '3d' || range === '5d') ? 600 : range === '3y' ? 756 : 252;
   const histFull = rows.slice(-cap);
 
   // ── Volumen — para Opportunity Scanner (Tab 02) ──
@@ -177,8 +177,9 @@ module.exports = async (req, res) => {
 
   // interval automático según range · 10y mensual (2026-07-08): para el heatmap de estacionalidad
   // · 60d/5m (2026-07-10 F-I2): volume profile intradía (Yahoo permite 5m hasta 60 días)
-  // '2d' (V6.1): fallback del Terminal tras la medianoche ET — el range=1d recién nacido da "Datos insuficientes"
-  const intervalMap = { '1d': '5m', '2d': '5m', '5d': '30m', '7d': '1m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo', '60d': '5m' };
+  // '3d' (V6.1): fallback del Terminal tras la medianoche ET — el range=1d recién nacido da
+  // "Datos insuficientes" (¡y range=2d Yahoo lo acepta pero devuelve 0 timestamps — verificado!)
+  const intervalMap = { '1d': '5m', '3d': '5m', '5d': '30m', '7d': '1m', '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '3y': '1d', '10y': '1mo', '60d': '5m' };
   const interval = intervalMap[range] || '1d';
 
   const wantHL = req.query.hl === '1'; // Perf M1: his/los solo cuando el caller los usa (mapa)
@@ -191,7 +192,7 @@ module.exports = async (req, res) => {
   );
 
   // Cache: 1min para intraday, 5min para 5d, 24h para 10y mensual, 15min para el resto
-  const cacheTime = range === '1d' || range === '2d' || range === '7d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : range === '3y' ? 21600 : 900;
+  const cacheTime = range === '1d' || range === '3d' || range === '7d' ? 60 : range === '5d' ? 300 : range === '10y' ? 86400 : range === '3y' ? 21600 : 900;
   res.setHeader('Cache-Control', `s-maxage=${cacheTime}, stale-while-revalidate=60`);
   return res.status(200).json(results);
 };

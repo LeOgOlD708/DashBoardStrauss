@@ -5291,9 +5291,10 @@ const Terminal = {
     let b = this._norm(d1?.[I.tk]);
     // V6.1 FIX (cazado en prod 00:15 ET): tras la medianoche ET el range=1d nace con <2 barras →
     // el server responde "Datos insuficientes" → chart EN BLANCO "¿mercado cerrado?" con el Globex
-    // abierto. Fallback range=2d (5m) con las últimas ~25h — mismo look que el buffer OKX.
+    // abierto. Fallback range=3d/5m (2d existe pero Yahoo devuelve 0 timestamps — verificado) con
+    // las últimas ~25h — mismo look que el buffer OKX.
     if (tfMin !== 1 && b.length < 5) {
-      const d2 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=2d&hl=1&ts=1').then(r => r.json()).catch(() => null);
+      const d2 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=3d&hl=1&ts=1').then(r => r.json()).catch(() => null);
       if (gen !== undefined && gen !== this._gen) return;
       const b2 = this._norm(d2?.[I.tk]);
       if (b2.length > b.length) b = b2.slice(-300);
@@ -6593,7 +6594,12 @@ const Terminal = {
         g.font = 'bold 10px "IBM Plex Mono",monospace';
         g.fillStyle = 'rgba(' + zcol + ',.95)';
         g.fillText((enZona ? '▶ EN ZONA · ' : '') + (z.cat === 'ENTRADA' ? '◆' : '◇') + ' ' + z.side.toUpperCase() + ' ×' + z.score.toFixed(1) + (z.degradada ? ' (gastada)' : ''), ml + 4, Math.max(mt + 7, Math.min((zy1 + zy2) / 2, mt + ih - 7)));
-        if (su) { g.fillStyle = '#d4a94b'; g.fillText('★'.repeat(Math.round(su.stars)) + '☆'.repeat(5 - Math.round(su.stars)), ml + 4, Math.max(mt + 18, Math.min((zy1 + zy2) / 2 + 12, mt + ih - 7))); }
+        if (su) { // V6.1: las estrellas de la zona brillan y traen el score
+          g.font = 'bold 12px "IBM Plex Mono",monospace'; g.fillStyle = '#d4a94b';
+          g.shadowColor = 'rgba(212,169,75,.75)'; g.shadowBlur = 6;
+          g.fillText('★'.repeat(Math.round(su.stars)) + '☆'.repeat(5 - Math.round(su.stars)) + ' ' + su.stars.toFixed(1), ml + 4, Math.max(mt + 19, Math.min((zy1 + zy2) / 2 + 13, mt + ih - 7)));
+          g.shadowBlur = 0;
+        }
         g.font = '8.5px "IBM Plex Mono",monospace';
       }
     }
