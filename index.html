@@ -6448,7 +6448,7 @@ const Terminal = {
     } catch (e) { res.innerHTML = '<span style="color:var(--red);font-size:10px">error: ' + escHtml(String(e.message)) + '</span>'; }
   },
   _btEngine(bars, strat, I) {
-    if (strat === 'asianBk' || strat === 'fxFade') return this._btEngineFx(bars, strat, I);
+    if (strat === 'asianBk' || strat === 'fxFade' || strat === 'gotobi') return this._btEngineFx(bars, strat, I);
     const days = {}; for (const b of bars) (days[b.et.d] = days[b.et.d] || []).push(b);
     const crypto = I.src === 'okx';
     const trades = [];
