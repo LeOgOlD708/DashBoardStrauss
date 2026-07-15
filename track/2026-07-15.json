@@ -1,0 +1,585 @@
+{
+ "date": "2026-07-15",
+ "ts": 1784092461165,
+ "v": 3,
+ "motor": "v2",
+ "lideres": [
+  {
+   "sector": "XLE",
+   "score": 81,
+   "price": 56.95,
+   "stocks": [
+    {
+     "tk": "XOM",
+     "price": 145.09,
+     "rs": 59,
+     "mom": 77,
+     "tpl": 6,
+     "ud": 0.8058961429325782
+    },
+    {
+     "tk": "CVX",
+     "price": 181.76,
+     "rs": 50,
+     "mom": 70,
+     "tpl": 5,
+     "ud": 0.8716492004971274
+    },
+    {
+     "tk": "COP",
+     "price": 111.87,
+     "rs": 44,
+     "mom": 69,
+     "tpl": 6,
+     "ud": 0.5838932395969257
+    },
+    {
+     "tk": "MPC",
+     "price": 303.4,
+     "rs": 92,
+     "mom": 87,
+     "tpl": 8,
+     "ud": 1.1323668636955142
+    },
+    {
+     "tk": "PSX",
+     "price": 201.45,
+     "rs": 89,
+     "mom": 79,
+     "tpl": 8,
+     "ud": 1.2436750027354626
+    },
+    {
+     "tk": "VLO",
+     "price": 301.43,
+     "rs": 93,
+     "mom": 89,
+     "tpl": 8,
+     "ud": 0.9917713033389197
+    },
+    {
+     "tk": "SLB",
+     "price": 47.54,
+     "rs": 60,
+     "mom": 83,
+     "tpl": 5,
+     "ud": 0.6852008696577162
+    },
+    {
+     "tk": "EOG",
+     "price": 138.01,
+     "rs": 67,
+     "mom": 71,
+     "tpl": 7,
+     "ud": 0.8593094333062011
+    },
+    {
+     "tk": "WMB",
+     "price": 75.98,
+     "rs": 64,
+     "mom": 72,
+     "tpl": 7,
+     "ud": 1.0630400739622263
+    },
+    {
+     "tk": "KMI",
+     "price": 32.54,
+     "rs": 48,
+     "mom": 65,
+     "tpl": 6,
+     "ud": 0.8321200999281657
+    }
+   ],
+   "picks": [
+    "MPC",
+    "PSX"
+   ]
+  },
+  {
+   "sector": "XLK",
+   "score": 63,
+   "price": 183.62,
+   "stocks": [
+    {
+     "tk": "NVDA",
+     "price": 211.8,
+     "rs": 52,
+     "mom": 47,
+     "tpl": 5,
+     "ud": 0.8197626988308752
+    },
+    {
+     "tk": "AAPL",
+     "price": 314.86,
+     "rs": 81,
+     "mom": 77,
+     "tpl": 8,
+     "ud": 1.5639083353939907
+    },
+    {
+     "tk": "MSFT",
+     "price": 384.93,
+     "rs": 7,
+     "mom": 3,
+     "tpl": 0,
+     "ud": 1.0379673741869766
+    },
+    {
+     "tk": "AVGO",
+     "price": 389.11,
+     "rs": 64,
+     "mom": 50,
+     "tpl": 6,
+     "ud": 0.8150783217805138
+    },
+    {
+     "tk": "AMD",
+     "price": 548.13,
+     "rs": 97,
+     "mom": 97,
+     "tpl": 8,
+     "ud": 1.349106987204489
+    },
+    {
+     "tk": "MU",
+     "price": 983.12,
+     "rs": 98,
+     "mom": 98,
+     "tpl": 8,
+     "ud": 1.2798916033258658
+    },
+    {
+     "tk": "INTC",
+     "price": 107.76,
+     "rs": 98,
+     "mom": 98,
+     "tpl": 6,
+     "ud": 0.921648330520828
+    },
+    {
+     "tk": "CSCO",
+     "price": 117.09,
+     "rs": 94,
+     "mom": 95,
+     "tpl": 8,
+     "ud": 1.356315005787205
+    },
+    {
+     "tk": "AMAT",
+     "price": 595.7,
+     "rs": 97,
+     "mom": 92,
+     "tpl": 8,
+     "ud": 1.657575415444642
+    },
+    {
+     "tk": "LRCX",
+     "price": 346.1,
+     "rs": 96,
+     "mom": 96,
+     "tpl": 7,
+     "ud": 1.3502440361517567
+    }
+   ],
+   "picks": [
+    "AAPL",
+    "AMD",
+    "MU",
+    "CSCO",
+    "AMAT",
+    "LRCX"
+   ]
+  }
+ ],
+ "inst": {
+  "qqqSpot": 722.09,
+  "qqqPC": 1.25,
+  "qqqGexBn": -1.07,
+  "flip": null,
+  "callWall": 730,
+  "putWall": 700,
+  "netPremM": -3.34,
+  "gexVolBn": 1.26,
+  "flipVol": 730,
+  "dexBn": 2.14,
+  "emWpct": 1.68,
+  "cotNqPctil": 17,
+  "cotEsPctil": 77
+ },
+ "zonas": [
+  {
+   "tk": "RVMD",
+   "lo": 170,
+   "hi": 170.55,
+   "score": 3.5,
+   "tests": 0,
+   "spot": 184.97,
+   "comp": "Put wall+VAH 60d"
+  },
+  {
+   "tk": "AMAT",
+   "lo": 431.38,
+   "hi": 433.65,
+   "score": 3,
+   "tests": 1,
+   "spot": 575.39,
+   "comp": "VAL 60d+AVWAP 1-ene"
+  },
+  {
+   "tk": "DNTH",
+   "lo": 95,
+   "hi": 95,
+   "score": 2.5,
+   "tests": 1,
+   "spot": 101.28,
+   "comp": "Put wall"
+  }
+ ],
+ "hero": "3.0/8",
+ "postura": "DEFENSIVO SELECTIVO",
+ "quad": {
+  "q": "Q3 · STAGFLATION",
+  "conf": 27.1
+ },
+ "nfci": 69.7,
+ "gli": "57/100",
+ "spy": 751.83,
+ "sectores": [
+  {
+   "tk": "XLK",
+   "score": 63,
+   "price": 183.62
+  },
+  {
+   "tk": "XLF",
+   "score": 45,
+   "price": 56.18
+  },
+  {
+   "tk": "XLE",
+   "score": 81,
+   "price": 56.95
+  },
+  {
+   "tk": "XLV",
+   "score": 56,
+   "price": 158.29
+  },
+  {
+   "tk": "XLP",
+   "score": 48,
+   "price": 83.42
+  },
+  {
+   "tk": "XLY",
+   "score": 22,
+   "price": 115.9
+  },
+  {
+   "tk": "XLI",
+   "score": 53,
+   "price": 180.45
+  },
+  {
+   "tk": "XLB",
+   "score": 39,
+   "price": 50.64
+  },
+  {
+   "tk": "XLRE",
+   "score": 53,
+   "price": 44.48
+  },
+  {
+   "tk": "XLU",
+   "score": 38,
+   "price": 45.69
+  },
+  {
+   "tk": "XLC",
+   "score": 41,
+   "price": 111.45
+  }
+ ],
+ "candidatas": [
+  {
+   "tk": "RVMD",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 184.97,
+   "rs": 97,
+   "mom": 97,
+   "tpl": 8,
+   "pp": false,
+   "score": 70,
+   "zonaScore": 3.5,
+   "enZona": false,
+   "sema": "2/0",
+   "netPrem": 0.34
+  },
+  {
+   "tk": "AMAT",
+   "via": "⚡élite",
+   "viaKind": "elite",
+   "price": 595.7,
+   "rs": 97,
+   "mom": 92,
+   "tpl": 8,
+   "pp": false,
+   "score": 69,
+   "zonaScore": 3,
+   "enZona": false,
+   "sema": "2/0",
+   "netPrem": 17.56
+  },
+  {
+   "tk": "DNTH",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 101.28,
+   "rs": 98,
+   "mom": 97,
+   "tpl": 8,
+   "pp": false,
+   "score": 64,
+   "zonaScore": 2.5,
+   "enZona": false,
+   "sema": "1/0",
+   "netPrem": 0.02
+  },
+  {
+   "tk": "ERAS",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 19.5,
+   "rs": 98,
+   "mom": 98,
+   "tpl": 8,
+   "pp": true,
+   "score": 62,
+   "zonaScore": 2.5,
+   "enZona": false,
+   "sema": "1/0",
+   "netPrem": 0.11
+  },
+  {
+   "tk": "SNDK",
+   "via": "⚡élite",
+   "viaKind": "elite",
+   "price": 1757.82,
+   "rs": 99,
+   "mom": 99,
+   "tpl": 8,
+   "pp": false,
+   "score": 61,
+   "zonaScore": 2.5,
+   "enZona": false,
+   "sema": "2/0",
+   "netPrem": 121.4
+  },
+  {
+   "tk": "MU",
+   "via": "⚡élite",
+   "viaKind": "elite",
+   "price": 983.12,
+   "rs": 98,
+   "mom": 98,
+   "tpl": 8,
+   "pp": false,
+   "score": 61,
+   "zonaScore": 2.5,
+   "enZona": false,
+   "sema": "2/0",
+   "netPrem": 336.33
+  },
+  {
+   "tk": "TWST",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 92.53,
+   "rs": 97,
+   "mom": 86,
+   "tpl": 8,
+   "pp": false,
+   "score": 61,
+   "zonaScore": 2.5,
+   "enZona": false,
+   "sema": "1/0",
+   "netPrem": 0.02
+  },
+  {
+   "tk": "APGE",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 133.96,
+   "rs": 97,
+   "mom": 78,
+   "tpl": 8,
+   "pp": false,
+   "score": 60,
+   "zonaScore": 2,
+   "enZona": false,
+   "sema": "1/0",
+   "netPrem": 0.22
+  },
+  {
+   "tk": "ORKA",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 87.47,
+   "rs": 98,
+   "mom": 97,
+   "tpl": 8,
+   "pp": false,
+   "score": 59,
+   "zonaScore": 3,
+   "enZona": false,
+   "sema": "1/0",
+   "netPrem": 0.11
+  },
+  {
+   "tk": "SYRE",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 98.95,
+   "rs": 98,
+   "mom": 98,
+   "tpl": 8,
+   "pp": true,
+   "score": 58,
+   "zonaScore": 2,
+   "enZona": false,
+   "sema": "0/0",
+   "netPrem": 0.07
+  },
+  {
+   "tk": "AMD",
+   "via": "⚡élite",
+   "viaKind": "elite",
+   "price": 548.13,
+   "rs": 97,
+   "mom": 97,
+   "tpl": 8,
+   "pp": false,
+   "score": 58,
+   "zonaScore": null,
+   "enZona": null,
+   "sema": null,
+   "netPrem": null
+  },
+  {
+   "tk": "CRWD",
+   "via": "IGV",
+   "viaKind": "flujo",
+   "price": 210.73,
+   "rs": 95,
+   "mom": 73,
+   "tpl": 7,
+   "pp": true,
+   "score": 52,
+   "zonaScore": null,
+   "enZona": null,
+   "sema": null,
+   "netPrem": null
+  },
+  {
+   "tk": "MS",
+   "via": "XLF",
+   "viaKind": "flujo",
+   "price": 227.67,
+   "rs": 85,
+   "mom": 76,
+   "tpl": 8,
+   "pp": false,
+   "score": 52,
+   "zonaScore": null,
+   "enZona": null,
+   "sema": null,
+   "netPrem": null
+  },
+  {
+   "tk": "FTNT",
+   "via": "IGV",
+   "viaKind": "flujo",
+   "price": 166.83,
+   "rs": 95,
+   "mom": 82,
+   "tpl": 8,
+   "pp": false,
+   "score": 51,
+   "zonaScore": null,
+   "enZona": null,
+   "sema": null,
+   "netPrem": null
+  },
+  {
+   "tk": "MIRM",
+   "via": "XBI",
+   "viaKind": "flujo",
+   "price": 120.89,
+   "rs": 93,
+   "mom": 81,
+   "tpl": 8,
+   "pp": false,
+   "score": 51,
+   "zonaScore": null,
+   "enZona": null,
+   "sema": null,
+   "netPrem": null
+  }
+ ],
+ "pools": {
+  "s52": [
+   {
+    "tk": "OKTA",
+    "price": 154.62,
+    "rs": 96,
+    "score": 52
+   },
+   {
+    "tk": "EXPD",
+    "price": 178.22,
+    "rs": 83,
+    "score": 49
+   },
+   {
+    "tk": "DINO",
+    "price": 83.11,
+    "rs": 93,
+    "score": 48
+   },
+   {
+    "tk": "CNC",
+    "price": 68.72,
+    "rs": 95,
+    "score": 47
+   },
+   {
+    "tk": "NET",
+    "price": 281.75,
+    "rs": 91,
+    "score": 47
+   }
+  ],
+  "crypto": [
+   {
+    "tk": "HYPE32196-USD",
+    "price": 66.63,
+    "rs": 99,
+    "score": 32
+   },
+   {
+    "tk": "BTC-USD",
+    "price": 64569.27,
+    "rs": 86,
+    "score": 30
+   },
+   {
+    "tk": "LINK-USD",
+    "price": 8.315,
+    "rs": 79,
+    "score": 22
+   }
+  ]
+ }
+}
