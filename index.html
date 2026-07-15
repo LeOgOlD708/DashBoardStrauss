@@ -2902,9 +2902,17 @@ html.auth-ok #auth-gate{display:none}
       <div style="flex:.9;min-width:200px" id="term-oflow" class="mono"></div>
     </div>
   </div>
-  <!-- T4: MARQUEE DE NOTICIAS — el mercado hablando en la franja (click = panel V4) -->
-  <div id="term-news" class="mono" style="font-size:10.5px;display:none;cursor:pointer" title="Click para abrir/cerrar el panel de noticias"></div>
-  <div id="term-news-panel" class="card mono" style="display:none;font-size:10.5px;margin-bottom:14px"></div>
+  <!-- T4→V6: MARQUEE + PANEL DE NOTICIAS SIEMPRE ACTIVO — grados ALTO/MED/BAJO + sector afectado -->
+  <div id="term-news" class="mono" style="font-size:10.5px;display:none;cursor:pointer" title="Click baja al panel de noticias"></div>
+  <div class="card mono" id="term-news-card" style="font-size:10.5px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <span style="font-size:9px;color:var(--text3);letter-spacing:.06em">📰 NOTICIAS EN VIVO — grado de impacto · sector afectado · auto-refresh 5 min</span>
+      <button class="glossary-btn" onclick="openGlossary('terminal-noticias')" title="¿Qué es esto?" style="margin:0;flex:none">?</button>
+      <span id="term-news-upd" style="margin-left:auto;font-size:8.5px;color:var(--text3)"></span>
+    </div>
+    <div id="term-news-fil" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div>
+    <div id="term-news-list" style="max-height:310px;overflow-y:auto"><span style="color:var(--text3)">cargando noticias…</span></div>
+  </div>
   <!-- ④ FLUJO slow-HIRO (F7) + ⑤ COHERENCIA (F8) -->
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
     <div class="card" style="flex:1.4;min-width:340px;margin-bottom:0">
@@ -5089,15 +5097,16 @@ const Terminal = {
     this._flowLoad(); this._cohLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._flowLoad(); }, 600e3));
     this._timers.push(setInterval(() => { if (!document.hidden) this._cohLoad(); }, 120e3));
-    // T4: marquee de noticias cada 5 min (el gate de cadencia vive en _newsLoad)
-    this._newsT = 0; this._newsLoad();
+    // T4→V6: noticias cada 5 min (el gate de cadencia vive en _newsLoad); el panel pinta
+    // de inmediato lo que ya haya en memoria (re-entrar al tab no espera al fetch)
+    this._newsT = 0; this._newsRender(); this._newsLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._newsLoad(); }, 300e3));
     // V3b: heatmap de liquidez — el poll se auto-gatea (solo crypto + toggle + visible)
     this._hmPoll();
     this._timers.push(setInterval(() => this._hmPoll(), 6000));
-    // V4: click en el marquee (fuera de los links) abre el panel de noticias
+    // V6: click en el marquee (fuera de los links) baja al panel — que ahora vive siempre visible
     const nEl = document.getElementById('term-news');
-    if (nEl && !nEl._v4click) { nEl._v4click = true; nEl.addEventListener('click', e => { if (e.target.closest('a')) return; this.newsPanel(); }); }
+    if (nEl && !nEl._v4click) { nEl._v4click = true; nEl.addEventListener('click', e => { if (e.target.closest('a')) return; document.getElementById('term-news-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
@@ -5464,25 +5473,52 @@ const Terminal = {
     } catch (e) { this._of.mode = 'none'; this._ofRender(); }
   },
   _ofPaintMaybe() { if (Date.now() - this._ofPaint > 900 && !document.hidden) { this._ofPaint = Date.now(); this._ofRender(); } },
-  // ══ V4: PANEL DE NOTICIAS (estilo tab 07) + CALENDARIO SEMANAL — click en marquee/countdown ══
-  _newsItems: null,
-  newsPanel() {
-    const p = document.getElementById('term-news-panel'); if (!p) return;
-    if (p.style.display !== 'none') { p.style.display = 'none'; return; }
+  // ══ V6: PANEL DE NOTICIAS SIEMPRE ACTIVO — grado ALTO/MED/BAJO + sector afectado + filtros ══
+  _newsItems: null, _newsFil: 'all', _newsUpd: 0,
+  NEWSSEC: {
+    'tecnologia': ['TECH', '#2dd4bf'], 'semiconductores': ['SEMIS', '#a78bfa'], 'energia': ['ENERGÍA', '#fb923c'],
+    'financiero': ['BANCOS', '#d4a94b'], 'salud': ['SALUD', '#34d399'], 'consumo': ['CONSUMO', '#f472b6'],
+    'industriales': ['INDUSTRIA', '#94a3b8'], 'autos': ['AUTOS', '#60a5fa'], 'inmobiliario': ['REITS', '#c084fc'],
+    'cripto': ['CRIPTO', '#fbbf24'], 'divisas': ['FX', '#38bdf8'], 'metales': ['METALES', '#eab308'], 'indices/macro': ['MACRO', '#f87171'],
+  },
+  setNewsFil(f) { this._newsFil = f; this._newsRender(); },
+  _newsRender() {
+    const list = document.getElementById('term-news-list'); if (!list) return;
     const items = this._newsItems || [];
-    if (!items.length) { p.style.display = 'block'; p.innerHTML = '<span style="color:var(--text3)">sin noticias cargadas aún…</span>'; return; }
-    p.innerHTML = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:6px">📰 NOTICIAS DE IMPACTO — click en el titular abre la fuente · el detalle completo vive en 07 · Noticias</div>'
-      + items.map(n => {
-        const pd = new Date(n.pubDate || ''); const ok = n.pubDate && !isNaN(pd);
-        const isNew = ok && (Date.now() - pd.getTime()) < 30 * 60000;
-        const lk = /^https?:\/\//i.test(n.link || '') ? n.link : '#';
-        return '<div style="padding:4px 0;border-top:1px solid var(--border2);display:flex;gap:8px;align-items:baseline">'
-          + '<span style="flex:none;font-size:8.5px;font-weight:600;color:' + (n.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">' + (n.impact === 'high' ? 'ALTO' : 'MED') + '</span>'
-          + '<span style="flex:none;color:var(--text3);font-size:9px">' + (ok ? pd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '') + '</span>'
-          + '<a href="' + escHtml(lk) + '" target="_blank" rel="noopener" style="color:var(--text2);text-decoration:none">' + escHtml((n.title || '').slice(0, 140)) + (isNew ? ' <b style="color:var(--teal);font-size:8px">NEW</b>' : '') + '</a>'
-          + '<span style="margin-left:auto;flex:none;color:var(--text3);font-size:8.5px">' + escHtml(n.source || '') + '</span></div>';
+    if (!items.length) { list.innerHTML = '<span style="color:var(--text3)">sin noticias cargadas aún… (refresh automático cada 5 min)</span>'; return; }
+    const IMP = { high: ['ALTO', 'var(--red)', 'rgba(248,113,113,.12)'], med: ['MED', 'var(--amber)', 'rgba(251,191,36,.10)'], low: ['BAJO', 'var(--text3)', 'rgba(125,111,99,.12)'] };
+    // filtros con conteo — el usuario elige el grado que quiere ver
+    const cnt = { all: items.length, high: 0, med: 0, low: 0 };
+    for (const n of items) if (cnt[n.impact] != null) cnt[n.impact]++;
+    const fil = document.getElementById('term-news-fil');
+    if (fil) fil.innerHTML = [['all', 'TODAS'], ['high', 'ALTO'], ['med', 'MED'], ['low', 'BAJO']].map(([k, lbl]) => {
+      const on = this._newsFil === k, col = k === 'high' ? 'var(--red)' : k === 'med' ? 'var(--amber)' : 'var(--text2)';
+      return '<button onclick="Terminal.setNewsFil(\'' + k + '\')" style="font-size:8.5px;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;background:' + (on ? 'var(--surface2)' : 'transparent') + ';color:' + (on ? col : 'var(--text3)') + ';border:1px solid ' + (on ? 'var(--border)' : 'var(--border2)') + '">' + lbl + ' ' + cnt[k] + '</button>';
+    }).join('');
+    const sel = items.filter(n => this._newsFil === 'all' || n.impact === this._newsFil);
+    if (!sel.length) { list.innerHTML = '<span style="color:var(--text3)">sin noticias de este grado ahora mismo</span>'; return; }
+    const now = Date.now();
+    list.innerHTML = sel.map(n => {
+      const pd = new Date(n.pubDate || ''); const ok = n.pubDate && !isNaN(pd);
+      const ageM = ok ? Math.max(0, Math.round((now - pd.getTime()) / 60000)) : null;
+      const rel = ageM == null ? '' : ageM < 60 ? 'hace ' + ageM + 'm' : ageM < 1440 ? 'hace ' + Math.round(ageM / 60) + 'h' : 'hace ' + Math.round(ageM / 1440) + 'd';
+      const isNew = ageM != null && ageM < 30;
+      const [ilbl, icol, ibg] = IMP[n.impact] || IMP.low;
+      const lk = /^https?:\/\//i.test(n.link || '') ? n.link : '#'; // whitelist: RSS externo no inyecta javascript:
+      const secs = (Array.isArray(n.sectors) ? n.sectors : []).map(s => {
+        const [slbl, scol] = this.NEWSSEC[s] || [s.toUpperCase(), '#94a3b8'];
+        return '<span style="flex:none;font-size:7.5px;font-weight:600;color:' + scol + ';border:1px solid ' + scol + '44;border-radius:3px;padding:0 4px;letter-spacing:.04em">' + escHtml(slbl) + '</span>';
       }).join('');
-    p.style.display = 'block';
+      return '<div style="padding:4px 0;border-top:1px solid var(--border2);display:flex;gap:7px;align-items:baseline;flex-wrap:wrap">'
+        + '<span style="flex:none;font-size:8px;font-weight:700;color:' + icol + ';background:' + ibg + ';border-radius:3px;padding:1px 5px;letter-spacing:.05em">' + ilbl + '</span>'
+        + '<span style="flex:none;color:var(--text3);font-size:8.5px;min-width:52px">' + (ok ? pd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '') + (rel ? ' · ' + rel : '') + '</span>'
+        + (isNew ? '<b style="flex:none;color:var(--teal);font-size:8px">● NEW</b>' : '')
+        + secs
+        + '<a href="' + escHtml(lk) + '" target="_blank" rel="noopener" style="color:var(--text2);text-decoration:none;flex:1 1 60%">' + escHtml((n.title || '').slice(0, 150)) + '</a>'
+        + '<span style="margin-left:auto;flex:none;color:var(--text3);font-size:8px">' + escHtml(n.source || '') + '</span></div>';
+    }).join('');
+    const upd = document.getElementById('term-news-upd');
+    if (upd && this._newsUpd) upd.textContent = 'actualizado ' + new Date(this._newsUpd).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
   },
   calPanel() {
     const p = document.getElementById('term-cal-panel'); if (!p) return;
@@ -5616,7 +5652,7 @@ const Terminal = {
     }
     return out;
   },
-  // ── T4: MARQUEE DE NOTICIAS — el feed news.js existente, corriendo en la franja ──
+  // ── T4→V6: NOTICIAS — un solo fetch alimenta el marquee (ALTO/MED) y el panel (todos los grados) ──
   _newsT: 0,
   async _newsLoad() {
     if (Date.now() - this._newsT < 290e3) return; // cadencia 5 min (gate < interval: sin ciclos saltados)
@@ -5625,7 +5661,10 @@ const Terminal = {
     try {
       const items = await fetch('/api/news').then(r => r.json());
       if (!Array.isArray(items) || !items.length) return;
-      const sel = items.filter(n => n.impact === 'high' || n.impact === 'medium').slice(0, 14);
+      this._newsItems = items; this._newsUpd = Date.now();
+      this._newsRender(); // V6: el panel vive siempre — se repinta en cada ciclo
+      // fix V6: el server manda 'med', no 'medium' — el marquee llevaba desde T4 mostrando solo ALTO
+      const sel = items.filter(n => n.impact === 'high' || n.impact === 'med').slice(0, 14);
       if (!sel.length) return;
       const seg = sel.map(n => {
         const pd = new Date(n.pubDate || '');
@@ -5634,7 +5673,6 @@ const Terminal = {
         const lk = /^https?:\/\//i.test(n.link || '') ? n.link : '#'; // whitelist: RSS externo no inyecta javascript:
         return dot + ' <span style="color:var(--text3)">' + hh + '</span> <a href="' + escHtml(lk) + '" target="_blank" rel="noopener" title="' + escHtml((n.source || '') + ' · impacto ' + (n.impact || '')) + '" style="color:var(--text2)">' + escHtml((n.title || '').slice(0, 110)) + '</a>';
       }).join(' <span style="color:var(--border2)">│</span> ');
-      this._newsItems = sel; // V4: el panel expandido reusa la misma selección
       if (this._newsHtml === seg) return; // mismo contenido → no reiniciar la animación a mitad de scroll
       this._newsHtml = seg;
       el.style.display = 'block';
@@ -6448,12 +6486,28 @@ const Terminal = {
     cv.width = W * dpr; cv.height = H * dpr;
     const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
     const bars = this.feed.bars; if (!bars.length) return;
-    const ml = 8, mr = 92, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
+    const ml = 8, mr = 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb; // V6: mr 92→100 (etiquetas a 9.5px)
     let pMin = Math.min(...bars.map(b => b.l)), pMax = Math.max(...bars.map(b => b.h));
     const pad = (pMax - pMin) * 0.14 || 1; pMin -= pad; pMax += pad;
     // niveles dentro del eje entran al rango visible
     for (const L of lv) { if (L.v > pMax && L.v < pMax + pad * 2) pMax = L.v + pad * 0.2; if (L.v < pMin && L.v > pMin - pad * 2) pMin = L.v - pad * 0.2; }
     const X = i => ml + (i + 0.5) / bars.length * iw, Y = v => mt + (1 - (v - pMin) / (pMax - pMin)) * ih;
+    // ── V6 claridad: rejilla + ESCALA DE PRECIO (el chart no tenía eje Y — se leía adivinando)
+    //    todo por debajo de zonas/velas; paso "bonito" 1/2/2.5/5×10^k para ~5 líneas ──
+    {
+      const raw = (pMax - pMin) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+      let gstep = 10 * mag; for (const m of [1, 2, 2.5, 5, 10]) if (m * mag >= raw) { gstep = m * mag; break; }
+      const v0 = Math.ceil(pMin / gstep) * gstep;
+      g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'bottom';
+      for (let k = 0; v0 + k * gstep <= pMax; k++) { // índice, no acumulación — forex con paso 5e-4 no deriva
+        const gy = Y(v0 + k * gstep);
+        g.strokeStyle = 'rgba(125,111,99,.14)'; g.beginPath(); g.moveTo(ml, gy); g.lineTo(ml + iw, gy); g.stroke();
+        g.fillStyle = 'rgba(125,111,99,.85)'; g.fillText((v0 + k * gstep).toFixed(I.dec), ml + 2, gy - 1);
+      }
+      let lastV = -99; // verticales en las MISMAS marcas horarias del eje x (cada ~2h ET)
+      g.strokeStyle = 'rgba(125,111,99,.09)';
+      for (let i = 0; i < bars.length; i++) { const m = bars[i].et.m; if (m % 120 === 0 && i - lastV > 12) { g.beginPath(); g.moveTo(X(i), mt); g.lineTo(X(i), mt + ih); g.stroke(); lastV = i; } }
+    }
     // sombreado IB + apertura RTH
     const rthI = bars.findIndex(b => b.et.d === c.today && b.et.m >= 570 && b.et.m < 960);
     if (rthI >= 0) {
@@ -6554,14 +6608,14 @@ const Terminal = {
       g.beginPath(); bars.forEach((b, i) => { const x = X(i), y = Y(b.c); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
       g.shadowBlur = 0; g.lineWidth = 1;
     } else {
-      const bw = Math.max(1.5, iw / bars.length * 0.62);
+      const bw = Math.max(1.5, iw / bars.length * 0.66);
       for (let i = 0; i < bars.length; i++) {
         const b = bars[i], o = b.o != null ? b.o : (i ? bars[i - 1].c : b.c), up = b.c >= o;
         const col = up ? '52,211,153' : '248,113,113';
-        g.strokeStyle = 'rgba(' + col + ',.75)';
+        g.strokeStyle = 'rgba(' + col + ',.9)'; // V6: mechas y cuerpos sólidos — la vela manda sobre las capas
         g.beginPath(); g.moveTo(X(i), Y(b.h)); g.lineTo(X(i), Y(b.l)); g.stroke();
         const y1 = Y(Math.max(o, b.c)), y2 = Y(Math.min(o, b.c));
-        g.fillStyle = 'rgba(' + col + ',' + (up ? '.55' : '.62') + ')';
+        g.fillStyle = 'rgba(' + col + ',' + (up ? '.85' : '.9') + ')';
         g.fillRect(X(i) - bw / 2, y1, bw, Math.max(1, y2 - y1));
       }
       // la vela VIVA late: borde con glow en la última
@@ -6615,7 +6669,7 @@ const Terminal = {
     }
     // niveles horizontales + etiquetas margen derecho — gateados por toggle (T2):
     // muros = 🧲🛡⚖👻/EM · vwap = líneas ámbar · niveles = el resto (PDH/ON/IB/OR)
-    g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+    g.font = '9.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle'; // V6: 8.5→9.5 (legibilidad)
     const kindOf = L => L.k ? L.k : /^(🧲|🛡|⚖|👻|EM)/.test(L.lbl) ? 'muros' : L.col === 'var(--amber)' ? 'vwap' : 'niveles';
     const seen = [];
     for (const L of lv) {
@@ -6628,7 +6682,7 @@ const Terminal = {
       g.strokeStyle = col + (wall ? '99' : '66'); g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
       g.shadowBlur = 0; g.lineWidth = 1;
-      let ly = y; while (seen.some(s => Math.abs(s - ly) < 9)) ly += 9; seen.push(ly);
+      let ly = y; while (seen.some(s => Math.abs(s - ly) < 10)) ly += 10; seen.push(ly);
       g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
     }
     // spot
@@ -15917,6 +15971,18 @@ const INDICATORS_GLOSSARY = {
       { c: 'red', t: 'DIVERGENTE → alto riesgo de reversión; no perseguir' }
     ],
     note: 'Fase F8 del blueprint Terminal v2. Solo barras cerradas alineadas (regla del blueprint) — al abrir la sesión el panel tarda ~35 min en armar sus 7 barras comunes y lo dice.'
+  },
+  'terminal-noticias': {
+    name: 'Terminal · Noticias en vivo (grado + sector)', category: 'Terminal · Intradía',
+    source: { label: 'RSS: MarketWatch · CNBC · CoinDesk · CoinTelegraph · FXStreet (vía /api/news)', url: 'https://www.marketwatch.com/rss', freq: 'Auto-refresh cada 5 min con la pestaña activa; el server cachea 10 min' },
+    formula: 'Grado de impacto por keywords sobre título+descripción: ALTO (Fed/FOMC, rate hike/cut, guerra, crisis sistémica…) · MED (CPI, NFP, treasury, petróleo, tariff…) · BAJO (resto del filtro macro). Sector afectado por diccionario de keywords (hasta 2 por titular): tecnología, semis, energía, financiero, salud, consumo, industriales, autos, inmobiliario, cripto, divisas, metales, índices/macro.',
+    interpret: 'Es el contexto narrativo de la sesión, clasificado para que se lea en 5 segundos: el grado dice cuánto puede mover el mercado y el chip de sector dice DÓNDE pega. NEW = publicada hace <30 min (cuidado con operar contra un titular fresco). La clasificación es por keywords, no por LLM — rápida y determinista, pero puede sub o sobre-clasificar un titular ambiguo.',
+    thresholds: [
+      { c: 'green', t: 'BAJO/MED de tu sector → contexto, sigue tu plan' },
+      { c: 'amber', t: 'ALTO reciente en macro/índices → volatilidad posible, revisa el calendario' },
+      { c: 'red', t: 'ALTO con NEW → el mercado aún está digiriendo el titular; no es momento de entrar' }
+    ],
+    note: 'V6 de la Terminal: el panel vive SIEMPRE visible (antes era click en el marquee). El detalle editorial completo sigue en 07 · Noticias.'
   },
   'catalysts-llm': {
     name: 'Catalysts Sectoriales (LLM)',

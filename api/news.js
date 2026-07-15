@@ -25,6 +25,33 @@ const CATEGORY_OVERRIDES = {
   crypto:      ['bitcoin','btc','ethereum','eth','crypto','blockchain','defi','nft','altcoin','solana','digital asset','stablecoin','coinbase','binance'],
 };
 
+// Sectores afectados (etiquetas en español para el panel de la Terminal) — keyword match
+// sobre title+desc en minúsculas. Un titular puede tocar hasta 2 sectores.
+const SECTOR_MAP = {
+  'tecnologia':      ['apple','microsoft','google','alphabet','meta ','amazon','tech stock','software','cloud','artificial intelligence',' ai ','openai','anthropic','big tech','saas'],
+  'semiconductores': ['nvidia','amd','intel','semiconductor','chip','tsmc','asml','micron','qualcomm','broadcom','foundry'],
+  'energia':         ['oil','crude','wti','brent','opec','natural gas','exxon','chevron','pipeline','refinery','petroleum','energy price'],
+  'financiero':      ['bank','jpmorgan','goldman','citigroup','wells fargo','morgan stanley','lending','insurance','credit card','brokerage','private credit'],
+  'salud':           ['pharma','drug','fda','biotech','healthcare','pfizer','moderna','merck','eli lilly','novo nordisk','medicare','vaccine'],
+  'consumo':         ['retail','consumer','walmart','target','costco','starbucks','nike','mcdonald','amazon prime','e-commerce','holiday sales'],
+  'industriales':    ['boeing','airline','manufacturing','factory','industrial','caterpillar','defense','lockheed','shipping','freight','tariff'],
+  'autos':           ['tesla','ford','general motors','rivian','electric vehicle',' ev ','automaker','car sales'],
+  'inmobiliario':    ['housing','real estate','mortgage','reit','home sales','homebuilder','commercial property'],
+  'cripto':          ['bitcoin','btc','ethereum','eth','crypto','blockchain','defi','altcoin','solana','stablecoin','coinbase','binance','digital asset'],
+  'divisas':         ['dollar index','dxy','eurusd','eur/usd','gbpusd','usd/jpy','yen','yuan','renminbi','currency','forex','exchange rate','peso','emerging market'],
+  'metales':         ['gold','silver','copper','platinum','mining','precious metal'],
+  'indices/macro':   ['federal reserve','fed ','fomc','powell','cpi','inflation','treasury','yield','gdp','jobs report','nfp','payrolls','recession','s&p','nasdaq','dow jones','futures','vix','rate hike','rate cut'],
+};
+
+function getSectors(text) {
+  const hits = [];
+  for (const [sec, keywords] of Object.entries(SECTOR_MAP)) {
+    if (keywords.some(k => text.includes(k))) hits.push(sec);
+    if (hits.length >= 2) break;
+  }
+  return hits;
+}
+
 const HIGH_IMPACT = ['federal reserve','rate hike','rate cut','iran','hormuz','repo crisis',
   'default','emergency','systemic','fed pivot','quantitative','bank failure','fomc',
   'liquidity crisis','credit event','systemic risk','war','military strike'];
@@ -136,6 +163,7 @@ module.exports = async (req, res) => {
             pubDate,
             impact:   getImpact(text),
             category: getCategory(text, feedCat),
+            sectors:  getSectors(text), // clave aditiva — tab 07 la ignora, la Terminal la pinta
             source:   getSource(feedUrl),
           });
         }
@@ -154,10 +182,10 @@ module.exports = async (req, res) => {
     return true;
   });
 
-  // Sort: high impact first, then by source diversity
+  // Sort: high impact first; dentro del mismo grado, lo más reciente arriba
   const order = { high: 0, med: 1, low: 2 };
-  unique.sort((a, b) => order[a.impact] - order[b.impact]);
+  unique.sort((a, b) => (order[a.impact] - order[b.impact]) || (new Date(b.pubDate || 0) - new Date(a.pubDate || 0)));
 
   res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=180');
-  return res.status(200).json(unique.slice(0, 40));
+  return res.status(200).json(unique.slice(0, 48));
 };
