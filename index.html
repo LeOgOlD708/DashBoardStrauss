@@ -6548,7 +6548,7 @@ const Terminal = {
     // LONG en la mañana Tokio (08:00-09:00 JST), salida POR TIEMPO al fix, stop 1×ATR14.
     if (strat === 'gotobi') {
       const jst = t => { const dt = new Date((t + 32400) * 1000); return { dom: dt.getUTCDate(), hm: dt.getUTCHours() * 60 + dt.getUTCMinutes(), key: dt.toISOString().slice(0, 10) }; };
-      let cur = null; // trade del día gotobi en curso
+      let cur = null; const done = new Set(); // V7.1: 1 trade por día JST — un stop NO re-entra
       for (let i = 14; i < bars.length; i++) {
         const b = bars[i], j = jst(b.t);
         if (cur) {
@@ -6556,10 +6556,11 @@ const Terminal = {
           else if (j.hm >= 595 || j.key !== cur.key) { cur.res = 0; cur.r = (b.c - cur.entry) / cur.risk; trades.push(cur); cur = null; } // 9:55 JST: salida por tiempo
           continue;
         }
-        if (j.dom % 5 !== 0) continue;
+        if (j.dom % 5 !== 0 || done.has(j.key)) continue;
         if (j.hm < 480 || j.hm >= 540) continue; // ventana de entrada 08:00-09:00 JST
         const atr = bars.slice(i - 14, i).reduce((a, x) => a + (x.h - x.l), 0) / 14;
         if (!(atr > 0)) continue;
+        done.add(j.key);
         cur = { d: b.et.d, key: j.key, side: 'long', entry: b.c, tgt: b.c + atr, stp: b.c - atr, risk: atr, rr: 1, res: null };
       }
       if (cur) { cur.res = 0; cur.r = 0; trades.push(cur); }
