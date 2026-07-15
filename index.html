@@ -6588,8 +6588,11 @@ const Terminal = {
     if (this._cgex && this._cgex.tk === I.tk && Date.now() - this._cgexT < 1800e3) return;
     this._cgexT = Date.now();
     try {
-      const d = await instOptFetch(I.tk);
+      // instOptFetch devuelve DESCRIPTOR {url, crypto} — el fetch va aparte (gotcha V6.3)
+      const j = await fetch(instOptFetch(I.tk).url).then(r => r.json());
       if (gen !== this._gen) return;
+      const key = I.tk.replace(/-USD$/, '');
+      const d = (j && (j.spot > 0 || j.gexTotalBn != null)) ? j : (j && (j[key] || j[I.tk])) || null; // single puede venir PLANO o keyed
       if (d && !d.error) { this._cgex = { tk: I.tk, gex: d.gexTotalBn ?? null, flip: d.gammaFlip ?? null }; this._gaugesRender(this.compute()); }
     } catch (e) {}
   },
@@ -6637,10 +6640,14 @@ const Terminal = {
           + '<div style="font-size:8.5px;color:var(--text3);margin-top:2px">' + (W.gexTotalBn >= 0 ? 'régimen pegajoso: los fades a VWAP tienen viento a favor' : 'régimen reactivo: breakouts corren más — no te cases con el rango') + '</div>'
         : '<div style="font-size:9px;color:var(--text3);padding:2px 0">cargando cadena…</div>';
     }
-    let rkB = '<div style="font-size:9px;color:var(--text3);padding:2px 0">esperando precios del dashboard…</div>';
+    let rkB = '<div style="font-size:9px;color:var(--text3);padding:2px 0">esperando precios (VIX/DXY)…</div>';
     try {
       const P = window.state && state.data && state.data.prices;
-      const vix = P && P['^VIX'], dxy = P && P['DX-Y.NYB'];
+      let vix = P && P['^VIX'], dxy = P && P['DX-Y.NYB'];
+      // V6.3: fallback a las series 5m de la coherencia (cargan ANTES que los precios del dashboard)
+      const der = tk => { const s = this._cohData && this._cohData[tk]; if (!s || s.length < 2) return null; const a = s[0].c, b2 = s[s.length - 1].c; return a > 0 ? { price: b2, chg1d: (b2 / a - 1) * 100 } : null; };
+      if (!vix || !(vix.price > 0)) vix = der('^VIX');
+      if (!dxy || !(dxy.price > 0)) dxy = der('DX-Y.NYB');
       if (vix && vix.price > 0) {
         const vc = vix.chg1d, dc = dxy && dxy.chg1d;
         const off = (vc != null && vc > 3) || (dc != null && dc > 0.35 && vc != null && vc > 0);
