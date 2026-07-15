@@ -6398,7 +6398,30 @@ const Terminal = {
       + '<select id="term-bt-strat" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
       + Object.entries(this.BT_STRATS).map(([k, s]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + s.lbl + '</option>').join('') + '</select>'
       + '<button type="button" onclick="Terminal.btRun()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.08)">▶ CORRER BACKTEST</button>'
-      + '</div><div id="term-bt-res" style="margin-top:6px"></div>';
+      + '</div><div id="term-bt-live" style="margin-top:5px"></div><div id="term-bt-res" style="margin-top:6px"></div>';
+  },
+  // V6.9: SEÑAL EN VIVO — el MISMO motor causal del backtest corriendo sobre las barras de HOY
+  _btLive(c) {
+    const el = document.getElementById('term-bt-live'); if (!el) return;
+    const I = this.instr();
+    if (!c || I.fx) { el.innerHTML = ''; return; }
+    const strat = this.cfg().btStrat || 'fade';
+    const dayBars = this.feed.bars.filter(b => b.et.d === c.today);
+    if (dayBars.length < 15) { el.innerHTML = '<span style="font-size:9px;color:var(--text3)">🔴 SEÑALES HOY (' + escHtml(this.BT_STRATS[strat].lbl) + '): esperando barras de la sesión (' + dayBars.length + '/15)</span>'; return; }
+    let trades = [];
+    try { trades = this._btEngine(dayBars, strat, I); } catch (e) {}
+    const f = v => (+v).toFixed(I.dec);
+    const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    if (!trades.length) { el.innerHTML = '<span style="font-size:9px;color:var(--text3)">🔴 SEÑALES HOY (' + escHtml(this.BT_STRATS[strat].lbl) + '): sin señal aún en la sesión — el panel dispara solo cuando las condiciones se cumplen</span>'; return; }
+    el.innerHTML = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:2px">🔴 SEÑALES HOY — ' + escHtml(this.BT_STRATS[strat].lbl) + ' (mismo motor del backtest, en vivo)</div>'
+      + trades.slice(-4).map(t => {
+        const st = t.res === 1 ? ['✓ target', 'var(--green)'] : t.res === -1 ? ['✗ stop', 'var(--red)'] : ['⏳ flotante ' + (t.r >= 0 ? '+' : '') + t.r.toFixed(2) + 'R', 'var(--amber)'];
+        return '<div style="display:flex;gap:8px;align-items:baseline;font-size:10px;padding:2px 0;border-top:1px solid var(--border2)">'
+          + '<b style="color:' + (t.side === 'long' ? 'var(--green)' : 'var(--red)') + '">' + (t.side === 'long' ? '▲ LONG' : '▼ SHORT') + '</b>'
+          + '<span style="color:var(--text2)">entrada ' + f(t.entry) + '</span>'
+          + '<span style="color:var(--text3);font-size:9px">tgt ' + f(t.tgt) + ' · stop ' + f(t.stp) + '</span>'
+          + '<b style="margin-left:auto;color:' + st[1] + '">' + st[0] + '</b></div>';
+      }).join('');
   },
   async btRun() {
     const res = document.getElementById('term-bt-res'); if (!res) return;
@@ -6486,7 +6509,12 @@ const Terminal = {
       + '<div style="margin-top:6px"><canvas id="term-bt-cv" style="width:100%;height:70px"></canvas></div>'
       + '<div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">'
       + '<button type="button" onclick="Terminal._mcUI();document.getElementById(\'term-mc-src\').value=\'backtest\';Terminal.mcRun();document.getElementById(\'term-mc\').scrollIntoView({behavior:\'smooth\'})" style="font-size:9.5px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">🎲 usar esta distribución en Monte Carlo</button>'
-      + '<span style="font-size:8.5px;color:var(--text3)">honesto: 60 días · entrada al close de la señal · barra que toca target y stop cuenta STOP · sin comisiones/slippage (resta ~0.05-0.1R mental) · n=' + trades.length + (trades.length < 100 ? ' — MUESTRA CORTA, no es el gate M6 (n≥100)' : '') + '</span></div>';
+      + '<span style="font-size:8.5px;color:var(--text3)">honesto: 60 días · entrada al close de la señal · barra que toca target y stop cuenta STOP · sin comisiones/slippage (resta ~0.05-0.1R mental) · n=' + trades.length + (trades.length < 100 ? ' — MUESTRA CORTA, no es el gate M6 (n≥100)' : '') + '</span></div>'
+      // V6.9: apartado de SEÑALES — el detalle trade a trade del backtest
+      + '<details style="margin-top:5px"><summary style="cursor:pointer;font-size:9.5px;color:var(--teal)">📋 ver las ' + trades.length + ' señales del backtest</summary>'
+      + '<div style="max-height:220px;overflow-y:auto;margin-top:4px"><table style="width:100%;border-collapse:collapse;font-size:9.5px"><thead><tr style="color:var(--text3);font-size:8px;letter-spacing:.05em"><th style="text-align:left">DÍA</th><th style="text-align:left">LADO</th><th style="text-align:right">ENTRADA</th><th style="text-align:right">TARGET</th><th style="text-align:right">STOP</th><th style="text-align:right">R</th></tr></thead><tbody>'
+      + trades.map(t => { const fx2 = v => (+v).toFixed(I.dec); return '<tr style="border-top:1px solid var(--border2)"><td style="color:var(--text3)">' + t.d.slice(5) + '</td><td style="color:' + (t.side === 'long' ? 'var(--green)' : 'var(--red)') + '">' + (t.side === 'long' ? '▲L' : '▼S') + '</td><td style="text-align:right;color:var(--text2)">' + fx2(t.entry) + '</td><td style="text-align:right;color:var(--text3)">' + fx2(t.tgt) + '</td><td style="text-align:right;color:var(--text3)">' + fx2(t.stp) + '</td><td style="text-align:right;color:' + (t.r > 0 ? 'var(--green)' : t.r < 0 ? 'var(--red)' : 'var(--text3)') + '"><b>' + (t.r >= 0 ? '+' : '') + t.r.toFixed(2) + '</b></td></tr>'; }).join('')
+      + '</tbody></table></div></details>';
     // curva de equity
     const cv = document.getElementById('term-bt-cv');
     if (cv) {
@@ -6781,6 +6809,7 @@ const Terminal = {
     this.renderRisk(); // F5: el sizing usa el ATR de las barras recién llegadas
     this._entriesRender(c); // V6.3: posibles entradas
     this._gaugesRender(c);  // V6.3: lectura del día
+    this._btLive(c);        // V6.9: señales EN VIVO de la estrategia activa
   },
   // ══ V6.3: POSIBLES ENTRADAS — TODAS las zonas ENTRADA del motor, ordenadas por cercanía,
   // con la confluencia EN VIVO (★) en las que están a tiro (≤1.5%) ══
@@ -6952,14 +6981,16 @@ const Terminal = {
     // ── V6 claridad: rejilla + ESCALA DE PRECIO (el chart no tenía eje Y — se leía adivinando)
     //    todo por debajo de zonas/velas; paso "bonito" 1/2/2.5/5×10^k para ~5 líneas ──
     {
-      const raw = (pMax - pMin) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+      // V6.9 (Angel "no viene la parte de precios"): /8 en vez de /5 — BTC con rango 3k
+      // solo tenía 3 líneas de 1000; ahora ~7-9 con paso bonito
+      const raw = (pMax - pMin) / 8, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
       let gstep = 10 * mag; for (const m of [1, 2, 2.5, 5, 10]) if (m * mag >= raw) { gstep = m * mag; break; }
       const v0 = Math.ceil(pMin / gstep) * gstep;
       g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'bottom';
       for (let k = 0; v0 + k * gstep <= pMax; k++) { // índice, no acumulación — forex con paso 5e-4 no deriva
         const gy = Y(v0 + k * gstep);
         g.strokeStyle = 'rgba(125,111,99,.14)'; g.beginPath(); g.moveTo(ml, gy); g.lineTo(ml + iw, gy); g.stroke();
-        g.fillStyle = 'rgba(125,111,99,.85)'; g.fillText((v0 + k * gstep).toFixed(I.dec), ml + 2, gy - 1);
+        g.fillStyle = 'rgba(125,111,99,.9)'; g.fillText((v0 + k * gstep).toFixed(I.dec), ml + 2, gy - 1);
       }
       g.strokeStyle = 'rgba(125,111,99,.09)'; // verticales en las MISMAS marcas del eje x
       for (const tk2 of xTicks) { g.beginPath(); g.moveTo(tk2.x, mt); g.lineTo(tk2.x, mt + ih); g.stroke(); }
@@ -7171,9 +7202,15 @@ const Terminal = {
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
     labs.push({ y: Y(c.last), col: '#f87171', txt: '📍' + (+c.last).toFixed(I.dec), bold: true });
     labs.sort((a, b) => a.y - b.y);
-    let pv = mt - 6; for (const L of labs) { L.ly = Math.max(L.y, pv + 10); pv = L.ly; }          // abre hacia abajo
-    let nx = mt + ih + 8; for (let i = labs.length - 1; i >= 0; i--) { labs[i].ly = Math.min(labs[i].ly, nx - 10); nx = labs[i].ly; } // recoge del fondo
+    // V6.9: separación 11px + LEADER LINE fina conectando etiqueta↔nivel cuando se desplazó
+    // (Angel "aún se ve amontonado" — el cluster ahora se lee como lista conectada, no pila)
+    let pv = mt - 7; for (const L of labs) { L.ly = Math.max(L.y, pv + 11); pv = L.ly; }          // abre hacia abajo
+    let nx = mt + ih + 9; for (let i = labs.length - 1; i >= 0; i--) { labs[i].ly = Math.min(labs[i].ly, nx - 11); nx = labs[i].ly; } // recoge del fondo
     for (const L of labs) {
+      if (Math.abs(L.ly - L.y) > 3) { // guía nivel→etiqueta
+        g.strokeStyle = L.col + '55'; g.lineWidth = 0.8;
+        g.beginPath(); g.moveTo(ml + iw, L.y); g.lineTo(ml + iw + 2.5, L.ly); g.stroke(); g.lineWidth = 1;
+      }
       if (L.bold) g.font = 'bold ' + lblFont;
       g.fillStyle = L.col; g.fillText(L.txt, ml + iw + 3, L.ly);
       if (L.bold) g.font = lblFont;
