@@ -2877,6 +2877,8 @@ html.auth-ok #auth-gate{display:none}
     @media (max-width:640px){
       #tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}
       #tab-term #term-chart{height:56vh!important;min-height:360px!important}
+      /* V6.1: el min-width 420px desbordaba el viewport — cortaba las etiquetas del margen derecho */
+      #term-chart-wrap{min-width:0!important;width:100%}
     }
     /* T4: marquee de noticias — corre de verdad, pausa al hover */
     #term-news{overflow:hidden;white-space:nowrap;border:1px solid var(--border2);border-radius:6px;padding:5px 0;margin-bottom:14px;background:var(--surface)}
@@ -2886,6 +2888,11 @@ html.auth-ok #auth-gate{display:none}
     #term-news a:hover{text-decoration:underline}
     @keyframes term-marq{0%{transform:translateX(0)}100%{transform:translateX(-100%)}}
     @media (prefers-reduced-motion:reduce){#term-news .tm-in{animation:none;padding-left:0;white-space:normal}}
+    /* V6.1: panel de noticias — pulso del NEW / punto en-vivo + hover de fila */
+    @keyframes tn-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+    .tn-pulse{animation:tn-pulse 1.8s ease-in-out infinite}
+    #term-news-list .tn-row:hover{background:rgba(255,255,255,.03)}
+    @media (prefers-reduced-motion:reduce){.tn-pulse{animation:none}}
   </style>
   <!-- ② MAPA DE NIVELES -->
   <div class="sh" style="margin-top:12px"><div class="sh-tag">Terminal</div><div class="sh-title">Mapa de Niveles del Día — los imanes de la sesión</div><button class="glossary-btn" onclick="openGlossary('terminal-mapa-niveles')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
@@ -2897,7 +2904,7 @@ html.auth-ok #auth-gate{display:none}
     </div>
     <div id="term-head" class="mono" style="font-size:11.5px;color:var(--text);margin-bottom:6px">Selecciona instrumento…</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div style="flex:2.2;min-width:420px"><canvas id="term-chart" style="width:100%;height:430px"></canvas></div>
+      <div style="flex:2.2;min-width:420px" id="term-chart-wrap"><canvas id="term-chart" style="width:100%;height:430px"></canvas></div>
       <div style="flex:1;min-width:230px" id="term-levels"></div>
       <div style="flex:.9;min-width:200px" id="term-oflow" class="mono"></div>
     </div>
@@ -2906,6 +2913,7 @@ html.auth-ok #auth-gate{display:none}
   <div id="term-news" class="mono" style="font-size:10.5px;display:none;cursor:pointer" title="Click baja al panel de noticias"></div>
   <div class="card mono" id="term-news-card" style="font-size:10.5px;margin-bottom:14px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+      <span class="tn-pulse" style="flex:none;width:7px;height:7px;border-radius:50%;background:var(--teal);box-shadow:0 0 6px var(--teal)"></span>
       <span style="font-size:9px;color:var(--text3);letter-spacing:.06em">📰 NOTICIAS EN VIVO — grado de impacto · sector afectado · auto-refresh 5 min</span>
       <button class="glossary-btn" onclick="openGlossary('terminal-noticias')" title="¿Qué es esto?" style="margin:0;flex:none">?</button>
       <span id="term-news-upd" style="margin-left:auto;font-size:8.5px;color:var(--text3)"></span>
@@ -5085,6 +5093,8 @@ const Terminal = {
 
   init() {
     this.destroy();
+    // V6.1: saneo one-time — señales FADE nacidas a |z|≥3 (pre-fix) contaminaban el win-rate
+    try { const fa = this._fade(), cl = fa.filter(s => Math.abs(s.z || 0) < 3); if (cl.length !== fa.length) this._fadeSave(cl); } catch (e) {}
     this._renderBtns();
     this._sessbar();
     if (!this._cal || Date.now() - this._calT > 6 * 3600e3) this._calLoad();
@@ -5107,6 +5117,9 @@ const Terminal = {
     // V6: click en el marquee (fuera de los links) baja al panel — que ahora vive siempre visible
     const nEl = document.getElementById('term-news');
     if (nEl && !nEl._v4click) { nEl._v4click = true; nEl.addEventListener('click', e => { if (e.target.closest('a')) return; document.getElementById('term-news-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); }
+    // V6.1: rotar el teléfono / redimensionar dejaba el canvas con la geometría vieja hasta el próximo tick
+    this._rszFn = () => { clearTimeout(this._rszT); this._rszT = setTimeout(() => { if (!document.hidden) this.render(); }, 250); };
+    window.addEventListener('resize', this._rszFn);
   },
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
@@ -5114,6 +5127,7 @@ const Terminal = {
     this._wsKill(); // FW: el stream (Deriv/OKX) no debe sobrevivir al tab
     this._ofKill(); // T3: la cinta tampoco
     this.toggleCockpit(false); // T1: salir del cockpit al abandonar el tab
+    if (this._rszFn) { window.removeEventListener('resize', this._rszFn); this._rszFn = null; } // V6.1
     document.getElementById('term-gate')?.remove(); // el gate es fixed — no debe sobrevivir al tab
   },
 
@@ -5275,6 +5289,15 @@ const Terminal = {
     if (gen !== undefined && gen !== this._gen) return; // fix #1: respuesta tardía de otro instrumento
     this.feed.bars30 = this._norm(d5?.[I.tk]);
     let b = this._norm(d1?.[I.tk]);
+    // V6.1 FIX (cazado en prod 00:15 ET): tras la medianoche ET el range=1d nace con <2 barras →
+    // el server responde "Datos insuficientes" → chart EN BLANCO "¿mercado cerrado?" con el Globex
+    // abierto. Fallback range=2d (5m) con las últimas ~25h — mismo look que el buffer OKX.
+    if (tfMin !== 1 && b.length < 5) {
+      const d2 = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=2d&hl=1&ts=1').then(r => r.json()).catch(() => null);
+      if (gen !== undefined && gen !== this._gen) return;
+      const b2 = this._norm(d2?.[I.tk]);
+      if (b2.length > b.length) b = b2.slice(-300);
+    }
     if (tfMin === 1) b = b.slice(-960); // Globex completo 18:00→9:30 (~930 barras 1m) — ONH/ONL enteros
     if (tfMin === 15) b = this._agg(b, 15);
     this.feed.bars = b;
@@ -5491,9 +5514,9 @@ const Terminal = {
     const cnt = { all: items.length, high: 0, med: 0, low: 0 };
     for (const n of items) if (cnt[n.impact] != null) cnt[n.impact]++;
     const fil = document.getElementById('term-news-fil');
-    if (fil) fil.innerHTML = [['all', 'TODAS'], ['high', 'ALTO'], ['med', 'MED'], ['low', 'BAJO']].map(([k, lbl]) => {
-      const on = this._newsFil === k, col = k === 'high' ? 'var(--red)' : k === 'med' ? 'var(--amber)' : 'var(--text2)';
-      return '<button onclick="Terminal.setNewsFil(\'' + k + '\')" style="font-size:8.5px;padding:2px 8px;border-radius:4px;cursor:pointer;font-family:inherit;background:' + (on ? 'var(--surface2)' : 'transparent') + ';color:' + (on ? col : 'var(--text3)') + ';border:1px solid ' + (on ? 'var(--border)' : 'var(--border2)') + '">' + lbl + ' ' + cnt[k] + '</button>';
+    if (fil) fil.innerHTML = [['all', 'TODAS', 'var(--text2)', '255,255,255'], ['high', 'ALTO', 'var(--red)', '248,113,113'], ['med', 'MED', 'var(--amber)', '251,191,36'], ['low', 'BAJO', 'var(--text3)', '125,111,99']].map(([k, lbl, col, rgb]) => {
+      const on = this._newsFil === k;
+      return '<button onclick="Terminal.setNewsFil(\'' + k + '\')" style="font-size:8.5px;font-weight:' + (on ? '700' : '400') + ';padding:2px 9px;border-radius:10px;cursor:pointer;font-family:inherit;background:' + (on ? 'rgba(' + rgb + ',.12)' : 'transparent') + ';color:' + (on ? col : 'var(--text3)') + ';border:1px solid ' + (on ? 'rgba(' + rgb + ',.45)' : 'var(--border2)') + '">' + lbl + ' <span style="opacity:.75">' + cnt[k] + '</span></button>';
     }).join('');
     const sel = items.filter(n => this._newsFil === 'all' || n.impact === this._newsFil);
     if (!sel.length) { list.innerHTML = '<span style="color:var(--text3)">sin noticias de este grado ahora mismo</span>'; return; }
@@ -5504,15 +5527,16 @@ const Terminal = {
       const rel = ageM == null ? '' : ageM < 60 ? 'hace ' + ageM + 'm' : ageM < 1440 ? 'hace ' + Math.round(ageM / 60) + 'h' : 'hace ' + Math.round(ageM / 1440) + 'd';
       const isNew = ageM != null && ageM < 30;
       const [ilbl, icol, ibg] = IMP[n.impact] || IMP.low;
+      const bcol = n.impact === 'high' ? 'rgba(248,113,113,.75)' : n.impact === 'med' ? 'rgba(251,191,36,.55)' : 'var(--border2)';
       const lk = /^https?:\/\//i.test(n.link || '') ? n.link : '#'; // whitelist: RSS externo no inyecta javascript:
       const secs = (Array.isArray(n.sectors) ? n.sectors : []).map(s => {
         const [slbl, scol] = this.NEWSSEC[s] || [s.toUpperCase(), '#94a3b8'];
-        return '<span style="flex:none;font-size:7.5px;font-weight:600;color:' + scol + ';border:1px solid ' + scol + '44;border-radius:3px;padding:0 4px;letter-spacing:.04em">' + escHtml(slbl) + '</span>';
+        return '<span style="flex:none;font-size:7.5px;font-weight:600;color:' + scol + ';background:' + scol + '14;border:1px solid ' + scol + '44;border-radius:3px;padding:0 4px;letter-spacing:.04em">' + escHtml(slbl) + '</span>';
       }).join('');
-      return '<div style="padding:4px 0;border-top:1px solid var(--border2);display:flex;gap:7px;align-items:baseline;flex-wrap:wrap">'
+      return '<div class="tn-row" style="padding:4px 6px 4px 8px;border-top:1px solid var(--border2);border-left:3px solid ' + bcol + ';display:flex;gap:7px;align-items:baseline;flex-wrap:wrap;background:' + (n.impact === 'high' ? 'rgba(248,113,113,.035)' : 'transparent') + '">'
         + '<span style="flex:none;font-size:8px;font-weight:700;color:' + icol + ';background:' + ibg + ';border-radius:3px;padding:1px 5px;letter-spacing:.05em">' + ilbl + '</span>'
         + '<span style="flex:none;color:var(--text3);font-size:8.5px;min-width:52px">' + (ok ? pd.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '') + (rel ? ' · ' + rel : '') + '</span>'
-        + (isNew ? '<b style="flex:none;color:var(--teal);font-size:8px">● NEW</b>' : '')
+        + (isNew ? '<b class="tn-pulse" style="flex:none;color:var(--teal);font-size:8px">● NEW</b>' : '')
         + secs
         + '<a href="' + escHtml(lk) + '" target="_blank" rel="noopener" style="color:var(--text2);text-decoration:none;flex:1 1 60%">' + escHtml((n.title || '').slice(0, 150)) + '</a>'
         + '<span style="margin-left:auto;flex:none;color:var(--text3);font-size:8px">' + escHtml(n.source || '') + '</span></div>';
@@ -5852,7 +5876,10 @@ const Terminal = {
     const I = this.instr(), z = (c.last - c.vwap) / c.s1;
     if (Math.abs(z) < 1) { this._fadeArm.up = true; this._fadeArm.dn = true; } // re-armado por excursión
     this._fadeResolve(c);
-    const side = z >= 2 ? 'short' : z <= -2 ? 'long' : null;
+    // V6.1 FIX: banda 2σ≤|z|<3σ — a |z|≥3 el stop congelado (3σ) queda del lado equivocado de la
+    // entrada y la señal nace ya perdida (cazado en prod: short a z=+6.7 con res ✗ instantáneo,
+    // basura en el win-rate). Más allá de 3σ NO hay señal; si vuelve a la banda, dispara ahí.
+    const side = z >= 2 && z < 3 ? 'short' : z <= -2 && z > -3 ? 'long' : null;
     if (!side) return;
     const armKey = side === 'short' ? 'up' : 'dn';
     if (!this._fadeArm[armKey]) return;
@@ -5949,6 +5976,9 @@ const Terminal = {
       if (tfMin === 1) nb = nb.slice(-960);
       if (tfMin === 15) nb = this._agg(nb, 15);
       if (nb.length) { this.feed.bars = nb; this.feed.lastOk = Date.now() / 1000; this.render(); }
+      // V6.1: si el buffer sigue casi vacío (madrugada ET — range=1d "insuficiente"),
+      // el bootstrap trae el fallback 2d; a lo sumo 1 vez por tick de 60s
+      if (this.feed.bars.length < 5) { this.feedStart(); return; }
     } catch (e) { /* backoff natural: el próximo tick reintenta */ }
   },
 
@@ -6161,7 +6191,10 @@ const Terminal = {
     const adrDays = days.filter(d => d < today);
     const adrs = adrDays.map(d => { const a = b30.filter(b => b.et.d === d && (I.fx || (b.et.m >= 570 && b.et.m < 960))); return a.length ? hi(a) - lo(a) : null; }).filter(x => x > 0);
     const adr = adrs.length ? adrs.reduce((a, b) => a + b, 0) / adrs.length : null;
-    const dayRange = (rth.length ? hi(rth) - lo(rth) : hi(bars) - lo(bars));
+    // V6.1 FIX: sin RTH el rango era el del BUFFER ENTERO (~25h de barras → "ADR 353%" tras
+    // el rollover de medianoche ET) — el rango de hoy son las barras DE HOY
+    const todayBars = bars.filter(b => b.et.d === today);
+    const dayRange = rth.length ? hi(rth) - lo(rth) : (todayBars.length ? hi(todayBars) - lo(todayBars) : null);
     const ib = rth.filter(b => b.et.m < 630), or15 = rth.filter(b => b.et.m < 585);
     const nowM = this.etParts(Date.now() / 1000).m;
     return {
@@ -6170,7 +6203,7 @@ const Terminal = {
       onh: hi(on), onl: lo(on),
       ibh: hi(ib), ibl: lo(ib), ibLive: rth.length > 0 && nowM < 630,
       orh: hi(or15), orl: lo(or15),
-      vwap, s1, vwapLbl, adr, dayRange, adrPct: adr ? dayRange / adr * 100 : null,
+      vwap, s1, vwapLbl, adr, dayRange, adrPct: adr && dayRange != null ? dayRange / adr * 100 : null,
     };
   },
 
@@ -6470,12 +6503,27 @@ const Terminal = {
     let rows = lv.map(L => '<tr title="' + escHtml(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
     const spotRow = '<tr><td colspan="3" class="mono" style="padding:3px 8px;font-size:10px;color:var(--red);background:rgba(248,113,113,.06)">📍 ' + f(c.last) + ' — precio</td></tr>';
     rows.splice(spotIdx < 0 ? rows.length : spotIdx, 0, spotRow);
-    // V4: panel SETUPS AHORA — la confluencia en vivo, con el porqué en el hover
+    // V4→V6.1: panel SETUPS AHORA — cards con estrellas fraccionales y el porqué VISIBLE en chips
+    const suCard = su => {
+      const long = su.z.side === 'soporte', cc = long ? '52,211,153' : '248,113,113';
+      const pct = Math.max(0, Math.min(100, su.stars / 5 * 100));
+      const chips = su.why.map(w => '<span style="font-size:8px;color:var(--text2);border:1px solid var(--border2);border-radius:3px;padding:0 4px;background:var(--surface2)">' + escHtml(w.length > 34 ? w.slice(0, 33) + '…' : w) + '</span>').join('')
+        + (su.deg ? '<span style="font-size:8px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:3px;padding:0 4px">⚠ gastada ' + su.z.touches + ' toques</span>' : '');
+      return '<div title="' + escHtml(su.why.join(' · ')) + '" style="border:1px solid rgba(' + cc + ',.3);border-left:3px solid rgba(' + cc + ',.85);border-radius:6px;padding:5px 7px;margin-top:6px;background:rgba(' + cc + ',.05)">'
+        + '<div style="display:flex;align-items:baseline;gap:6px"><b style="font-size:10.5px;color:rgba(' + cc + ',.95)">' + (long ? '▲ LONG · soporte' : '▼ SHORT · resistencia') + '</b>'
+        + '<span style="margin-left:auto;font-size:9.5px;color:var(--text3)">a ' + (su.dist >= 0 ? '+' : '') + su.dist.toFixed(2) + '%</span></div>'
+        + '<div style="display:flex;align-items:center;gap:6px;margin-top:2px">'
+        + '<span style="position:relative;display:inline-block;font-size:14px;line-height:1;color:var(--border2)">★★★★★<span style="position:absolute;left:0;top:0;width:' + pct.toFixed(0) + '%;overflow:hidden;white-space:nowrap;color:#d4a94b;text-shadow:0 0 5px rgba(212,169,75,.55)">★★★★★</span></span>'
+        + '<b style="font-size:9.5px;color:var(--gold)">' + su.stars.toFixed(1) + '/5</b>'
+        + '<span style="font-size:9px;color:var(--text3)">' + f(su.mid) + '</span></div>'
+        + '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:4px">' + chips + '</div></div>';
+    };
+    const zonesReady = this._zones && this._zones.zones.length;
     const suHtml = this._setups.length
-      ? '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin:10px 0 3px">SETUPS AHORA — confluencia en vivo</div><table style="width:100%;border-collapse:collapse">'
-      + this._setups.map(su => '<tr title="' + escHtml(su.why.join(' · ') + (su.deg ? ' · zona GASTADA (' + su.z.touches + ' toques)' : '')) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 6px;font-size:10px;color:' + (su.z.side === 'soporte' ? 'var(--green)' : 'var(--red)') + '">' + (su.z.side === 'soporte' ? '▲ LONG en soporte' : '▼ SHORT en resistencia') + (su.deg ? ' ⚠' : '') + '</td><td class="mono" style="text-align:right;font-size:10px;color:var(--gold)">' + '★'.repeat(Math.round(su.stars)) + '<span style="color:var(--border2)">' + '★'.repeat(5 - Math.round(su.stars)) + '</span></td><td class="mono" style="text-align:right;font-size:9px;color:var(--text3)">' + (su.dist >= 0 ? '+' : '') + su.dist.toFixed(2) + '%</td></tr>').join('')
-      + '</table><div style="font-size:8px;color:var(--text3);margin-top:2px">★ = motor + cinta + régimen + RVOL + sesión — confluencia observacional, no recomendación</div>'
-      : '';
+      ? '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin:10px 0 0">🎯 SETUPS AHORA — confluencia en vivo</div>'
+      + this._setups.map(suCard).join('')
+      + '<div style="font-size:8px;color:var(--text3);margin-top:3px">★ = motor + cinta + régimen + RVOL + sesión — confluencia observacional, no recomendación</div>'
+      : (zonesReady ? '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin:10px 0 0">🎯 SETUPS AHORA</div><div style="font-size:9px;color:var(--text3);margin-top:3px;padding:5px 7px;border:1px dashed var(--border2);border-radius:6px">sin zona ENTRADA a ≤1.5% del precio — el panel despierta cuando el precio se acerque a una</div>' : '');
     document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>' + suHtml;
     this._draw(c, lv);
     this.renderRisk(); // F5: el sizing usa el ATR de las barras recién llegadas
@@ -6486,12 +6534,18 @@ const Terminal = {
     cv.width = W * dpr; cv.height = H * dpr;
     const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
     const bars = this.feed.bars; if (!bars.length) return;
-    const ml = 8, mr = 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb; // V6: mr 92→100 (etiquetas a 9.5px)
+    // V6.1 móvil: en pantallas angostas el margen 100px + font 9.5 cortaba las etiquetas
+    const narrow = W < 560, lblFont = narrow ? '8.5px "IBM Plex Mono",monospace' : '9.5px "IBM Plex Mono",monospace';
+    const ml = 8, mr = narrow ? 78 : 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
     let pMin = Math.min(...bars.map(b => b.l)), pMax = Math.max(...bars.map(b => b.h));
     const pad = (pMax - pMin) * 0.14 || 1; pMin -= pad; pMax += pad;
     // niveles dentro del eje entran al rango visible
     for (const L of lv) { if (L.v > pMax && L.v < pMax + pad * 2) pMax = L.v + pad * 0.2; if (L.v < pMin && L.v > pMin - pad * 2) pMin = L.v - pad * 0.2; }
     const X = i => ml + (i + 0.5) / bars.length * iw, Y = v => mt + (1 - (v - pMin) / (pMax - pMin)) * ih;
+    // V6.1: marcas horarias con anticolisión EN PX (en móvil "02:0004:0006:00" se encimaba) —
+    // una sola lista alimenta las verticales del grid Y las etiquetas del eje
+    const xTicks = [];
+    { let lastTX = -1e9; for (let i = 0; i < bars.length; i++) { const m = bars[i].et.m; if (m % 120 !== 0) continue; const x = X(i); if (x - lastTX < 48) continue; xTicks.push({ x, lbl: String(Math.floor(m / 60)).padStart(2, '0') + ':00' }); lastTX = x; } }
     // ── V6 claridad: rejilla + ESCALA DE PRECIO (el chart no tenía eje Y — se leía adivinando)
     //    todo por debajo de zonas/velas; paso "bonito" 1/2/2.5/5×10^k para ~5 líneas ──
     {
@@ -6504,9 +6558,8 @@ const Terminal = {
         g.strokeStyle = 'rgba(125,111,99,.14)'; g.beginPath(); g.moveTo(ml, gy); g.lineTo(ml + iw, gy); g.stroke();
         g.fillStyle = 'rgba(125,111,99,.85)'; g.fillText((v0 + k * gstep).toFixed(I.dec), ml + 2, gy - 1);
       }
-      let lastV = -99; // verticales en las MISMAS marcas horarias del eje x (cada ~2h ET)
-      g.strokeStyle = 'rgba(125,111,99,.09)';
-      for (let i = 0; i < bars.length; i++) { const m = bars[i].et.m; if (m % 120 === 0 && i - lastV > 12) { g.beginPath(); g.moveTo(X(i), mt); g.lineTo(X(i), mt + ih); g.stroke(); lastV = i; } }
+      g.strokeStyle = 'rgba(125,111,99,.09)'; // verticales en las MISMAS marcas del eje x
+      for (const tk2 of xTicks) { g.beginPath(); g.moveTo(tk2.x, mt); g.lineTo(tk2.x, mt + ih); g.stroke(); }
     }
     // sombreado IB + apertura RTH
     const rthI = bars.findIndex(b => b.et.d === c.today && b.et.m >= 570 && b.et.m < 960);
@@ -6669,7 +6722,7 @@ const Terminal = {
     }
     // niveles horizontales + etiquetas margen derecho — gateados por toggle (T2):
     // muros = 🧲🛡⚖👻/EM · vwap = líneas ámbar · niveles = el resto (PDH/ON/IB/OR)
-    g.font = '9.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle'; // V6: 8.5→9.5 (legibilidad)
+    g.font = lblFont; g.textBaseline = 'middle'; // V6: 9.5px desktop · 8.5px móvil (V6.1: antes se cortaban)
     const kindOf = L => L.k ? L.k : /^(🧲|🛡|⚖|👻|EM)/.test(L.lbl) ? 'muros' : L.col === 'var(--amber)' ? 'vwap' : 'niveles';
     const seen = [];
     for (const L of lv) {
@@ -6682,16 +6735,17 @@ const Terminal = {
       g.strokeStyle = col + (wall ? '99' : '66'); g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
       g.shadowBlur = 0; g.lineWidth = 1;
-      let ly = y; while (seen.some(s => Math.abs(s - ly) < 10)) ly += 10; seen.push(ly);
-      g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
+      let ly = y; while (seen.some(s => Math.abs(s - ly) < (narrow ? 9 : 10))) ly += (narrow ? 9 : 10); seen.push(ly);
+      // V6.1 móvil: etiqueta corta (sin ETF ni 🧱%) — la versión completa vive en la escalera
+      const lblTxt = (narrow ? L.lbl.replace(/ (QQQ|SPY)$/, '') : L.lbl).replace(/VWAP (RTH|sesión)/, 'VWAP');
+      g.fillStyle = col; g.fillText(lblTxt + ' ' + (+L.v).toFixed(I.dec) + (wall && !narrow ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
     }
     // spot
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
     g.fillStyle = '#f87171'; g.fillText('📍' + (+c.last).toFixed(I.dec), ml + iw + 3, Math.min(Math.max(Y(c.last), mt + 5), mt + ih - 5));
-    // eje x: horas ET cada ~2h
-    g.fillStyle = '#7d6f63'; g.textBaseline = 'top';
-    let lastLbl = -1;
-    for (let i = 0; i < bars.length; i++) { const m = bars[i].et.m; if (m % 120 === 0 && i - lastLbl > 12) { g.fillText(String(Math.floor(m / 60)).padStart(2, '0') + ':00', X(i) - 12, mt + ih + 4); lastLbl = i; } }
+    // eje x: horas ET — mismas marcas anticolisión del grid (V6.1)
+    g.fillStyle = '#7d6f63'; g.textBaseline = 'top'; g.font = '8.5px "IBM Plex Mono",monospace';
+    for (const tk2 of xTicks) g.fillText(tk2.lbl, tk2.x - 12, mt + ih + 4);
   },
 };
 window.Terminal = Terminal;
