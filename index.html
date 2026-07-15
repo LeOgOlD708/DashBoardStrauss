@@ -6633,12 +6633,17 @@ const Terminal = {
     // V4: setups con estrellas — computados aquí (los consumen la escalera y el chart)
     this._setups = this._setupStars(c);
     lv.sort((a, b) => b.v - a.v);
-    const spotIdx = lv.findIndex(L => L.v <= c.last);
-    let rows = lv.map(L => '<tr title="' + escHtml(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
+    // V6.6: la escalera oculta outliers a >10% (p.ej. un gamma flip en un strike extremo:
+    // matemática legítima de la cadena, ruido como "nivel del día") — declarado abajo
+    const lvShow = lv.filter(L => Math.abs(L.v / c.last - 1) <= 0.10);
+    const lvHid = lv.length - lvShow.length;
+    const spotIdx = lvShow.findIndex(L => L.v <= c.last);
+    let rows = lvShow.map(L => '<tr title="' + escHtml(L.tip) + '" style="border-top:1px solid var(--border2)"><td class="mono" style="padding:3px 8px;font-size:10px;color:' + L.col + '">' + L.lbl + '</td><td class="mono" style="text-align:right;font-size:10.5px;color:var(--text)">' + f(L.v) + '</td><td class="mono" style="text-align:right;font-size:9px;color:' + ((L.v / c.last - 1) >= 0 ? 'var(--green)' : 'var(--red)') + '">' + ((L.v / c.last - 1) * 100 >= 0 ? '+' : '') + ((L.v / c.last - 1) * 100).toFixed(2) + '%</td></tr>');
     const spotRow = '<tr><td colspan="3" class="mono" style="padding:3px 8px;font-size:10px;color:var(--red);background:rgba(248,113,113,.06)">📍 ' + f(c.last) + ' — precio</td></tr>';
     rows.splice(spotIdx < 0 ? rows.length : spotIdx, 0, spotRow);
     // V6.3: los setups migraron a la sección POSIBLES ENTRADAS (cards grandes bajo el mapa)
-    document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>';
+    document.getElementById('term-levels').innerHTML = '<div class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">NIVELES DEL DÍA — ' + (I.fx ? 'día ET' : 'RTH + overnight') + '</div><table style="width:100%;border-collapse:collapse">' + rows.join('') + '</table>'
+      + (lvHid > 0 ? '<div class="mono" style="font-size:8px;color:var(--text3);margin-top:2px">' + lvHid + ' nivel' + (lvHid > 1 ? 'es' : '') + ' a &gt;10% oculto' + (lvHid > 1 ? 's' : '') + ' (outlier de cadena — hover del chart no los pierde)</div>' : '');
     this._draw(c, lv);
     this.renderRisk(); // F5: el sizing usa el ATR de las barras recién llegadas
     this._entriesRender(c); // V6.3: posibles entradas
@@ -7011,9 +7016,12 @@ const Terminal = {
     }
     // niveles horizontales + etiquetas margen derecho — gateados por toggle (T2):
     // muros = 🧲🛡⚖👻/EM · vwap = líneas ámbar · niveles = el resto (PDH/ON/IB/OR)
-    g.font = lblFont; g.textBaseline = 'middle'; // V6: 9.5px desktop · 8.5px móvil (V6.1: antes se cortaban)
+    g.font = lblFont; g.textBaseline = 'middle';
     const kindOf = L => L.k ? L.k : /^(🧲|🛡|⚖|👻|EM)/.test(L.lbl) ? 'muros' : L.col === 'var(--amber)' ? 'vwap' : 'niveles';
-    const seen = [];
+    // V6.6 (captura Angel "se ve todo ensimado"): layout de etiquetas en DOS pasadas — las líneas
+    // se dibujan ya; los textos se recolectan (spot 📍 INCLUIDO — antes iba por fuera y se encimaba),
+    // se ordenan por precio y se separan ≥10px arriba→abajo y abajo→arriba: sin cruces ni pisadas.
+    const labs = [];
     for (const L of lv) {
       if (L.v < pMin || L.v > pMax || !this.ov(kindOf(L))) continue;
       const y = Y(L.v), col = { 'var(--gold)': '#d4a94b', 'var(--teal)': '#2dd4bf', 'var(--purple)': '#a78bfa', 'var(--amber)': '#fbbf24', 'var(--text2)': '#a99e93', 'var(--text3)': '#7d6f63', 'var(--green)': '#34d399', 'var(--red)': '#f87171' }[L.col] || '#7d6f63';
@@ -7024,12 +7032,19 @@ const Terminal = {
       g.strokeStyle = col + (wall ? '99' : '66'); g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
       g.shadowBlur = 0; g.lineWidth = 1;
-      let ly = y; while (seen.some(s => Math.abs(s - ly) < 10)) ly += 10; seen.push(ly);
-      g.fillStyle = col; g.fillText(L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), ml + iw + 3, ly);
+      labs.push({ y, col, txt: L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), bold: false });
     }
-    // spot
+    // spot: línea + etiqueta DENTRO del sistema de layout
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
-    g.fillStyle = '#f87171'; g.fillText('📍' + (+c.last).toFixed(I.dec), ml + iw + 3, Math.min(Math.max(Y(c.last), mt + 5), mt + ih - 5));
+    labs.push({ y: Y(c.last), col: '#f87171', txt: '📍' + (+c.last).toFixed(I.dec), bold: true });
+    labs.sort((a, b) => a.y - b.y);
+    let pv = mt - 6; for (const L of labs) { L.ly = Math.max(L.y, pv + 10); pv = L.ly; }          // abre hacia abajo
+    let nx = mt + ih + 8; for (let i = labs.length - 1; i >= 0; i--) { labs[i].ly = Math.min(labs[i].ly, nx - 10); nx = labs[i].ly; } // recoge del fondo
+    for (const L of labs) {
+      if (L.bold) g.font = 'bold ' + lblFont;
+      g.fillStyle = L.col; g.fillText(L.txt, ml + iw + 3, L.ly);
+      if (L.bold) g.font = lblFont;
+    }
     // eje x: horas ET — mismas marcas anticolisión del grid (V6.1)
     g.fillStyle = '#7d6f63'; g.textBaseline = 'top'; g.font = '8.5px "IBM Plex Mono",monospace';
     for (const tk2 of xTicks) g.fillText(tk2.lbl, tk2.x - 12, mt + ih + 4);
