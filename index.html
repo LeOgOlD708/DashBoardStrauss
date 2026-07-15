@@ -2919,6 +2919,14 @@ html.auth-ok #auth-gate{display:none}
     <div id="term-news-fil" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px"></div>
     <div id="term-news-list" style="max-height:310px;overflow-y:auto"><span style="color:var(--text3)">cargando noticias…</span></div>
   </div>
+  <!-- V7.4: CALENDARIO ECONÓMICO SIEMPRE VISIBLE (pedido Angel, estilo TV) -->
+  <div class="card mono" style="margin-bottom:14px;font-size:10.5px">
+    <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px">
+      <span style="font-size:9px;color:var(--text3);letter-spacing:.06em">📅 CALENDARIO ECONÓMICO — eventos de volatilidad · hora ET</span>
+      <span id="term-calc-src" style="margin-left:auto;font-size:8px;color:var(--text3)"></span>
+    </div>
+    <div id="term-calc" style="max-height:250px;overflow-y:auto;font-size:10px;color:var(--text3)">cargando calendario…</div>
+  </div>
   <!-- ④ FLUJO slow-HIRO (F7) + ⑤ COHERENCIA (F8) -->
   <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px">
     <div class="card" style="flex:1.4;min-width:340px;margin-bottom:0">
@@ -5136,6 +5144,9 @@ const Terminal = {
     // V6.3: Fear & Greed (CNN + alternative.me) para la Lectura del Día — cada 30 min
     this._fngT = 0; this._fngLoad();
     this._timers.push(setInterval(() => { if (!document.hidden) this._fngLoad(); }, 1800e3));
+    // V7.4: card del calendario siempre visible — 1er pintado a los 3s (espera a _calLoad), luego 60s
+    this._timers.push(setTimeout(() => this._calCardRender(), 3000));
+    this._timers.push(setInterval(() => { if (!document.hidden) this._calCardRender(); }, 60000));
     // V3b: heatmap de liquidez — el poll se auto-gatea (solo crypto + toggle + visible)
     this._hmPoll();
     this._timers.push(setInterval(() => this._hmPoll(), 6000));
@@ -5265,8 +5276,37 @@ const Terminal = {
   },
   setTf(m) { this.cfg().tf = m; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this._gen++; this._wsKill(); this._ofKill(); this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this.feedStart(); },
   setCtype(t) { this.cfg().ctype = t; this.saveCfg(); this._renderBtns(); this.render(); },
-  // V6.5: alias del broker — SOLO etiqueta; nada de feeds/estado se toca
-  setAlias(a) { const c = this.cfg(); c.aliasMap = c.aliasMap || {}; c.aliasMap[this.instr().tk] = a; this.saveCfg(); this._renderBtns(); this.render(); },
+  // V7.4 (pedido Angel "haz que todos los tickers sean funcionables"): los alias tipo CASH
+  // (US100/NAS100/USTEC = CFD sobre el índice) ya no son solo etiqueta — TODOS los precios
+  // mostrados se ajustan por el basis futuro−cash calculado EN VIVO (^NDX/^GSPC Yahoo, cada
+  // 5 min, declarado con chip). MNQ/NQ/MES/ES = futuro sin ajuste. La DATA interna sigue
+  // siendo la del futuro (velas/VWAP/zonas) — el ajuste es de PRESENTACIÓN, congelado y honesto.
+  ALIAS_CASH: { 'NAS100': '^NDX', 'US100': '^NDX', 'USTEC': '^NDX', 'US100.cash': '^NDX', 'US500': '^GSPC', 'SPX500': '^GSPC', 'US500.cash': '^GSPC' },
+  _adjOff: 0, _adjT: 0, _adjFor: null,
+  async _adjLoad(gen) {
+    const I0 = this.INSTRS.find(i => i.tk === (this.cfg().instr || 'NQ=F')) || this.INSTRS[0];
+    const alias = (this.cfg().aliasMap || {})[I0.tk];
+    const cashTk = alias && this.ALIAS_CASH[alias];
+    if (!cashTk) { if (this._adjOff) { this._adjOff = 0; this._adjFor = null; this.render(); } return; }
+    if (this._adjFor === alias && Date.now() - this._adjT < 300e3) return;
+    this._adjT = Date.now(); this._adjFor = alias;
+    try {
+      const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(cashTk) + '&priceOnly=true').then(r => r.json());
+      if (gen !== undefined && gen !== this._gen) return;
+      const cash = j?.[cashTk]?.price, fut = this.feed.bars.length ? this.feed.bars[this.feed.bars.length - 1].c : null;
+      if (cash > 0 && fut > 0) { this._adjOff = fut - cash; this.render(); }
+    } catch (e) {}
+  },
+  dsp(v) { return v - (this._adjOff || 0); }, // transform de PRESENTACIÓN (basis del alias cash)
+  setAlias(a) { const c = this.cfg(); c.aliasMap = c.aliasMap || {}; c.aliasMap[this.instr().tk] = a; this.saveCfg(); this._adjOff = 0; this._adjT = 0; this._adjFor = null; this._renderBtns(); this.render(); this._adjLoad(this._gen); },
+  // V7.4: el switch dejaba la escalera/chart con los PRECIOS DEL INSTRUMENTO ANTERIOR hasta
+  // que llegaba el feed nuevo (cazado por Angel: "no cambia la lista de precios")
+  _clearPanels() {
+    const lv = document.getElementById('term-levels'); if (lv) lv.innerHTML = '<span class="mono" style="font-size:9.5px;color:var(--text3)">cargando niveles…</span>';
+    const en = document.getElementById('term-entries'); if (en) en.innerHTML = '<span style="color:var(--text3)">cargando zonas…</span>';
+    const cv = document.getElementById('term-chart');
+    if (cv && cv.clientWidth) { const g = cv.getContext('2d'); g.clearRect(0, 0, cv.width, cv.height); }
+  },
   _ckEsc: null,
   toggleCockpit(force) {
     const tab = document.getElementById('tab-term'); if (!tab) return;
@@ -5282,7 +5322,7 @@ const Terminal = {
   },
   // V6.1 (review agente): _of = null — sin esto el veredicto/panel votaban con la CINTA del
   // instrumento ANTERIOR hasta que _ofStart recreaba la cinta (render corre antes en feedStart)
-  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._of = null; this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this._pin0 = null; this._pin0T = 0; this._setups = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this._btUI(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._of = null; this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this._pin0 = null; this._pin0T = 0; this._setups = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this._btUI(); this._clearPanels(); this._adjOff = 0; this._adjT = 0; this._adjFor = null; this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -5311,6 +5351,7 @@ const Terminal = {
         this._loadZones(I, gen).then(() => { if (gen === this._gen) this.render(); });
         this._ofStart(I, gen); // T3: la cinta arranca con el feed
         this._cgexLoad(I, gen); // V6.3: GEX crypto para la Lectura del Día (gate 30 min interno)
+        this._adjLoad(gen); // V7.4: basis del alias cash (gate 5 min interno)
       }
     } catch (e) { if (gen === this._gen) { this.feed.err = String(e); document.getElementById('term-head').innerHTML = '<span style="color:var(--amber)">⚠ feed caído: ' + escHtml(String(e).slice(0, 80)) + '</span>'; } }
     this._busy = false;
@@ -5590,6 +5631,34 @@ const Terminal = {
     }).join('');
     const upd = document.getElementById('term-news-upd');
     if (upd && this._newsUpd) upd.textContent = 'actualizado ' + new Date(this._newsUpd).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  },
+  // V7.4: card SIEMPRE visible del calendario (estilo TV, pedido Angel) — el próximo evento
+  // resaltado "⏳ PRÓXIMO en Xh Ym"; agrupado por día; fcst/prev cuando FF los publica
+  _calCardRender() {
+    const el = document.getElementById('term-calc'); if (!el) return;
+    const evs = this._nextEvents(5 * 86400);
+    if (!evs.length) { el.innerHTML = '<span style="color:var(--text3)">sin eventos próximos (o el calendario aún carga — reintenta en 1 min)</span>'; return; }
+    const src = document.getElementById('term-calc-src');
+    if (src) src.textContent = evs[0].oficial ? 'hora OFICIAL (ForexFactory)' : 'hora habitual (heurística — FF caído)';
+    const DN = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    const now = Date.now() / 1000;
+    const nextEv = evs.find(ev => ev.epoch > now);
+    let lastD = '';
+    el.innerHTML = evs.slice(0, 24).map(ev => {
+      const pt = this.etParts(ev.epoch), isNext = ev === nextEv, past = ev.epoch <= now;
+      const dayHdr = pt.d !== lastD ? '<div style="margin-top:7px;color:var(--gold);font-size:10px;font-weight:700;letter-spacing:.04em;border-bottom:1px solid var(--border2);padding-bottom:2px">' + DN[new Date(pt.d + 'T12:00:00Z').getUTCDay()] + ' ' + pt.d.slice(5).replace('-', '/') + '</div>' : '';
+      lastD = pt.d;
+      const mins = Math.round((ev.epoch - now) / 60);
+      const eta = isNext ? (mins >= 60 ? Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm' : mins + 'm') : null;
+      return dayHdr + '<div style="display:flex;gap:8px;align-items:baseline;padding:3px 6px;border-radius:5px;flex-wrap:wrap'
+        + (isNext ? ';background:rgba(45,212,191,.07);border:1px solid rgba(45,212,191,.35)' : '') + (past ? ';opacity:.45' : '') + '">'
+        + '<b style="flex:none;min-width:38px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--amber)') + '">' + ev.hhmm + '</b>'
+        + '<span style="flex:none;font-size:8px;color:' + (ev.impact === 'high' ? 'var(--red)' : 'var(--text3)') + ';border:1px solid currentColor;border-radius:3px;padding:0 4px">' + (ev.impact === 'high' ? 'ALTO' : 'MED') + '</span>'
+        + '<span style="color:var(--text)">' + escHtml(ev.name) + '</span>'
+        + (isNext ? '<b style="color:var(--teal);font-size:9px">⏳ PRÓXIMO en ' + eta + '</b>' : past ? '<span style="font-size:8.5px;color:var(--text3)">publicado</span>' : '')
+        + (ev.fcst ? '<span style="margin-left:auto;flex:none;font-size:9px;color:var(--text2)">previsión <b>' + escHtml(String(ev.fcst)) + '</b>' + (ev.prev ? ' · anterior ' + escHtml(String(ev.prev)) : '') + '</span>' : '')
+        + '</div>';
+    }).join('');
   },
   calPanel() {
     const p = document.getElementById('term-cal-panel'); if (!p) return;
@@ -6225,8 +6294,11 @@ const Terminal = {
     const onFrom = I.src === 'okx' ? this.epochET(today, 570) - 63000 : 0;
     const on = I.fx ? [] : bars.filter(b => !(b.et.d === today && b.et.m >= 570 && b.et.m < 960) && b.t < this.epochET(today, 570) && b.t >= onFrom);
     const hi = a => a.length ? Math.max(...a.map(b => b.h)) : null, lo = a => a.length ? Math.min(...a.map(b => b.l)) : null;
-    // VWAP: RTH si abrió; si no, sesión completa (Globex) — etiquetado. Forex: sin volumen → null.
-    const vwapSrc = rth.length ? rth : bars, vwapLbl = rth.length ? 'VWAP RTH' : 'VWAP sesión';
+    // VWAP: RTH si abrió; si no, el DÍA ET en curso — V7.4 FIX (Angel "se descompuso el perfil,
+    // las áreas amarillas"): con el fallback 3d el buffer trae ~25h y el VWAP "sesión" acumulaba
+    // TODO → banda ±2σ gigante pintando media pantalla. Forex: sin volumen → null.
+    const tBars = bars.filter(b => b.et.d === today);
+    const vwapSrc = rth.length ? rth : (tBars.length >= 6 ? tBars : bars.slice(-Math.min(bars.length, 90))), vwapLbl = rth.length ? 'VWAP RTH' : 'VWAP sesión';
     let vwap = null, s1 = null;
     if (!I.fx && vwapSrc.some(b => b.v > 0)) {
       let cw = 0, cpv = 0; const pts = [];
@@ -6456,7 +6528,7 @@ const Terminal = {
     if (dayBars.length < 15) { el.innerHTML = '<span style="font-size:9px;color:var(--text3)">🔴 SEÑALES HOY (' + escHtml(this.BT_STRATS[strat].lbl) + '): esperando barras de la sesión (' + dayBars.length + '/15)</span>'; return; }
     let trades = [];
     try { trades = this._btEngine(dayBars, strat, I); } catch (e) {}
-    const f = v => (+v).toFixed(I.dec);
+    const f = v => this.dsp(+v).toFixed(I.dec); // V7.4: unidades del alias
     const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
     if (!trades.length) { el.innerHTML = '<span style="font-size:9px;color:var(--text3)">🔴 SEÑALES HOY (' + escHtml(this.BT_STRATS[strat].lbl) + '): sin señal aún en la sesión — el panel dispara solo cuando las condiciones se cumplen</span>'; return; }
     el.innerHTML = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:2px">🔴 SEÑALES HOY — ' + escHtml(this.BT_STRATS[strat].lbl) + ' (mismo motor del backtest, en vivo)</div>'
@@ -6899,11 +6971,13 @@ const Terminal = {
     this._da = c ? this._deltaAnalysis(c) : null; // V3a: una sola pasada por render (chart + veredicto)
     this._verdict(c);
     if (!c) { document.getElementById('term-head').innerHTML = '<span style="color:var(--text3)">Sin barras de la sesión (¿mercado cerrado?) — reintento en 60s.</span>'; this._entriesRender(null); this._gaugesRender(null); return; }
-    const f = v => v == null ? '—' : (+v).toFixed(I.dec);
+    const f = v => v == null ? '—' : this.dsp(+v).toFixed(I.dec); // V7.4: precios en unidades del alias (basis cash si aplica)
     const chg = c.pdc ? (c.last / c.pdc - 1) * 100 : null;
+    const adjChip = this._adjOff ? ' <span style="font-size:9px;color:var(--text3);border:1px solid var(--border2);border-radius:4px;padding:0 5px" title="Alias tipo CASH: todos los precios mostrados están ajustados por el basis futuro−índice calculado en vivo (' + (this._adjOff >= 0 ? '−' : '+') + Math.abs(this._adjOff).toFixed(I.dec) + ' pts, refresh 5 min). Las velas/estructura son del futuro — el ajuste es de presentación">≈cash ' + (this._adjOff >= 0 ? '−' : '+') + Math.abs(this._adjOff).toFixed(0) + 'pts</span>' : '';
     document.getElementById('term-head').innerHTML =
       '<b style="color:var(--text)">' + I.lbl + '</b> <b style="font-size:15px;color:' + (chg == null ? 'var(--text)' : chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + f(c.last) + '</b>'
       + (chg != null ? ' <span style="color:' + (chg >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (chg >= 0 ? '+' : '') + chg.toFixed(2) + '% vs cierre previo</span>' : '')
+      + adjChip
       + ' · <span style="color:var(--text3)">sesión ' + escHtml(c.today) + ' ET · barra ' + Math.floor((Date.now() / 1000 - c.lastT) / 60) + 'm</span>'
       + (c.adrPct != null ? ' · ADR' + (I.fx ? '' : ' RTH') + ' consumido <b style="color:' + (c.adrPct > 80 ? 'var(--amber)' : 'var(--text2)') + '">' + c.adrPct.toFixed(0) + '%</b><span style="color:var(--text3)" title="Rango de hoy vs rango promedio de los últimos 5 días — >80% = no persigas la ruptura">'
       + (c.adrPct > 80 ? ' ⚠ día estirado' : '') + '</span>' : '')
@@ -6995,7 +7069,7 @@ const Terminal = {
     if (I.fx) { el.innerHTML = '<span style="color:var(--text3)">forex/oro no tiene motor de zonas (el spot no lista cadena de opciones ni volumen) — opera los imanes del mapa: PDH/PDL, ONH/ONL y VWAP±σ.</span>'; return; }
     if (!Z || !Z.zones.length) { el.innerHTML = '<span style="color:var(--text3)">cargando zonas del motor (espejo ' + escHtml(this.ZMAP[I.tk] || I.tk) + ', cache 30 min)…</span>'; return; }
     if (!c) { el.innerHTML = '<span style="color:var(--text3)">esperando barras…</span>'; return; }
-    const zr = Z.ratio || 1, f = v => (+v).toFixed(I.dec);
+    const zr = Z.ratio || 1, f = v => this.dsp(+v).toFixed(I.dec); // V7.4: unidades del alias
     const zs = Z.zones.filter(z => z.cat === 'ENTRADA').map(z => ({ z, mid: z.mid * zr, dist: (z.mid * zr / c.last - 1) * 100 })).sort((a, b) => Math.abs(a.dist) - Math.abs(b.dist)).slice(0, 6);
     if (!zs.length) { el.innerHTML = '<span style="color:var(--text3)">el motor no ve zonas categoría ENTRADA en ' + escHtml(Z.ztk) + ' ahora mismo — las IMÁN/DÉBIL siguen dibujadas en el chart</span>'; return; }
     const cards = zs.map(({ z, mid, dist }) => {
@@ -7018,7 +7092,47 @@ const Terminal = {
         + '<div style="display:flex;gap:3px;flex-wrap:wrap">' + chips + '</div></div>';
     }).join('');
     el.innerHTML = '<div style="display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px"><span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🎯 ZONAS "ENTRADA" DEL MOTOR — ' + escHtml(Z.ztk) + (Z.ztk !== I.tk ? ' → ' + escHtml(I.lbl) + ' (ratio congelado)' : '') + ' · por cercanía · ★ = confluencia EN VIVO (motor+cinta+régimen+RVOL+sesión)</span><span style="margin-left:auto;font-size:8.5px;color:var(--text3)">observacional, no recomendación</span></div>'
-      + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + cards + '</div>';
+      + '<canvas id="term-entries-cv" style="width:100%;height:88px" title="Radar de proximidad: el precio 📍 al centro — cada banda es una zona ENTRADA a su distancia % real. Verde = soporte (LONG) · rojo = resistencia (SHORT) · brillo ∝ score del motor"></canvas>'
+      + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' + cards + '</div>';
+    // V7.4: RADAR DE PROXIMIDAD (pedido Angel "algo visual para saber dónde entrar")
+    try {
+      const cv = document.getElementById('term-entries-cv');
+      if (cv && cv.clientWidth) {
+        const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = 88;
+        cv.width = W * dpr; cv.height = H * dpr;
+        const g = cv.getContext('2d'); g.scale(dpr, dpr);
+        const rng = Math.max(2, ...zs.map(x => Math.abs(x.dist))) * 1.15; // % a cada lado
+        const Xp = pct => W / 2 + (pct / rng) * (W / 2 - 30);
+        const midY = 50;
+        g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
+        // eje con marcas de %
+        g.strokeStyle = 'rgba(125,111,99,.35)'; g.beginPath(); g.moveTo(20, midY); g.lineTo(W - 20, midY); g.stroke();
+        for (const p of [-rng / 1.15, -rng / 2.3, rng / 2.3, rng / 1.15]) { const x = Xp(p); g.fillStyle = 'rgba(125,111,99,.7)'; g.fillText((p > 0 ? '+' : '') + p.toFixed(1) + '%', x - 12, H - 8); g.strokeStyle = 'rgba(125,111,99,.2)'; g.beginPath(); g.moveTo(x, midY - 14); g.lineTo(x, midY + 14); g.stroke(); }
+        // zonas como bandas verticales a su distancia real
+        let flip = false;
+        for (const { z, mid, dist } of zs) {
+          const su = (this._setups || []).find(x => x.z === z);
+          const long = z.side === 'soporte', cc = long ? '52,211,153' : '248,113,113';
+          const x1 = Xp((z.lo * zr / c.last - 1) * 100), x2 = Xp((z.hi * zr / c.last - 1) * 100);
+          const bw2 = Math.max(6, x2 - x1), enZ = c.last >= z.lo * zr && c.last <= z.hi * zr;
+          const a = Math.min(0.25 + z.score * 0.08, 0.6);
+          if (enZ) { g.shadowColor = 'rgba(' + cc + ',.9)'; g.shadowBlur = 10; }
+          g.fillStyle = 'rgba(' + cc + ',' + a + ')';
+          g.fillRect(Math.min(x1, x2), midY - 22, bw2, 44);
+          g.shadowBlur = 0;
+          g.strokeStyle = 'rgba(' + cc + ',.8)'; g.strokeRect(Math.min(x1, x2), midY - 22, bw2, 44);
+          const ly = flip ? midY - 32 : midY + 32; flip = !flip;
+          g.fillStyle = 'rgba(' + cc + ',.95)';
+          g.fillText((long ? '▲' : '▼') + this.dsp(mid).toFixed(I.dec) + (su ? ' ★' + su.stars.toFixed(1) : ''), Math.min(x1, x2) - 4, ly);
+        }
+        // precio actual al centro
+        g.strokeStyle = '#f0ece4'; g.lineWidth = 2; g.shadowColor = 'rgba(240,236,228,.7)'; g.shadowBlur = 6;
+        g.beginPath(); g.moveTo(Xp(0), midY - 26); g.lineTo(Xp(0), midY + 26); g.stroke();
+        g.shadowBlur = 0; g.lineWidth = 1;
+        g.fillStyle = '#f0ece4'; g.font = 'bold 9.5px "IBM Plex Mono",monospace';
+        g.fillText('📍 ' + this.dsp(c.last).toFixed(I.dec), Xp(0) + 5, 12);
+      }
+    } catch (e) { /* el radar jamás mata la sección */ }
   },
   // ══ V6.3: LECTURA DEL DÍA — termómetros: miedo/codicia (CNN+alternative.me) · fuerza del
   // día (compuesto local) · GEX estructura+HOY · riesgo global VIX/DXY ══
@@ -7166,7 +7280,7 @@ const Terminal = {
       for (let k = 0; v0 + k * gstep <= pMax; k++) { // índice, no acumulación — forex con paso 5e-4 no deriva
         const gy = Y(v0 + k * gstep);
         g.strokeStyle = 'rgba(125,111,99,.14)'; g.beginPath(); g.moveTo(ml, gy); g.lineTo(ml + iw, gy); g.stroke();
-        g.fillStyle = 'rgba(125,111,99,.9)'; g.fillText((v0 + k * gstep).toFixed(I.dec), ml + 2, gy - 1);
+        g.fillStyle = 'rgba(125,111,99,.9)'; g.fillText(this.dsp(v0 + k * gstep).toFixed(I.dec), ml + 2, gy - 1); // V7.4: eje en unidades del alias
       }
       g.strokeStyle = 'rgba(125,111,99,.09)'; // verticales en las MISMAS marcas del eje x
       for (const tk2 of xTicks) { g.beginPath(); g.moveTo(tk2.x, mt); g.lineTo(tk2.x, mt + ih); g.stroke(); }
@@ -7372,11 +7486,11 @@ const Terminal = {
       g.strokeStyle = col + (wall ? '99' : '66'); g.setLineDash(L.col === 'var(--amber)' ? [] : [4, 4]);
       g.beginPath(); g.moveTo(ml, y); g.lineTo(ml + iw, y); g.stroke(); g.setLineDash([]);
       g.shadowBlur = 0; g.lineWidth = 1;
-      labs.push({ y, col, txt: L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + (+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), bold: false });
+      labs.push({ y, col, txt: L.lbl.replace(/VWAP (RTH|sesión)/, 'VWAP') + ' ' + this.dsp(+L.v).toFixed(I.dec) + (wall ? ' 🧱' + L.w.toFixed(0) + '%' : ''), bold: false });
     }
     // spot: línea + etiqueta DENTRO del sistema de layout
     g.strokeStyle = 'rgba(248,113,113,.9)'; g.setLineDash([1, 2]); g.beginPath(); g.moveTo(ml, Y(c.last)); g.lineTo(ml + iw, Y(c.last)); g.stroke(); g.setLineDash([]);
-    labs.push({ y: Y(c.last), col: '#f87171', txt: '📍' + (+c.last).toFixed(I.dec), bold: true });
+    labs.push({ y: Y(c.last), col: '#f87171', txt: '📍' + this.dsp(+c.last).toFixed(I.dec), bold: true });
     labs.sort((a, b) => a.y - b.y);
     // V6.9: separación 11px + LEADER LINE fina conectando etiqueta↔nivel cuando se desplazó
     // (Angel "aún se ve amontonado" — el cluster ahora se lee como lista conectada, no pila)
