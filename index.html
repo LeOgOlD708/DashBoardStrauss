@@ -2933,6 +2933,9 @@ html.auth-ok #auth-gate{display:none}
   <!-- ⑥b V6.3: LECTURA DEL DÍA — termómetros accionables (miedo/codicia · fuerza · GEX · riesgo) -->
   <div class="sh"><div class="sh-tag">Terminal</div><div class="sh-title">Lectura del Día — termómetros</div><button class="glossary-btn" onclick="openGlossary('terminal-lectura-dia')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card mono" style="margin-bottom:14px"><div id="term-gauges" style="font-size:10.5px;color:var(--text3)">cargando termómetros…</div></div>
+  <!-- ⑥c V6.8: BACKTEST — auditoría automática de estrategias sobre 60 días de 5m -->
+  <div class="sh"><div class="sh-tag">Terminal</div><div class="sh-title">Backtest — ¿la estrategia es rentable en el tiempo?</div><button class="glossary-btn" onclick="openGlossary('terminal-backtest')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
+  <div class="card mono" style="margin-bottom:14px"><div id="term-bt" style="font-size:10.5px;color:var(--text3)">cargando backtester…</div></div>
   <!-- ⑦ RIESGO Y DISCIPLINA (F5) — 100% localStorage, cero red -->
   <div class="sh"><div class="sh-tag">Disciplina</div><div class="sh-title">Riesgo y Disciplina — lo que salva la cuenta</div><button class="glossary-btn" onclick="openGlossary('terminal-riesgo')" title="¿Qué es esto?" style="margin:0 8px;flex:none">?</button><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px"><div id="term-risk"></div>
@@ -5118,6 +5121,7 @@ const Terminal = {
     this.feedStart();
     this.renderRisk();
     this._mcUI(); // V6.5: formulario Monte Carlo (estático — no se pisa con los ticks)
+    this._btUI(); // V6.8: backtester (estático, por instrumento)
     this.showGate(); // F5: checklist-gate diario — solo aparece si el plan de HOY no existe
     this._timers.push(setInterval(() => this._clock(), 1000));
     this._timers.push(setInterval(() => { if (!document.hidden) { this.feedPoll(); this._ofRender(); } }, 60000)); // _ofRender: despega la cinta si quedó congelada por document.hidden
@@ -5278,7 +5282,7 @@ const Terminal = {
   },
   // V6.1 (review agente): _of = null — sin esto el veredicto/panel votaban con la CINTA del
   // instrumento ANTERIOR hasta que _ofStart recreaba la cinta (render corre antes en feedStart)
-  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._of = null; this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this._pin0 = null; this._pin0T = 0; this._setups = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
+  setInstr(tk) { this._gen++; this._wsKill(); this._ofKill(); this._of = null; this._zones = null; this._walls = null; this._svpData = null; this._regTrail = []; this._fadeArm = { up: true, dn: true }; this._hm = null; this._pin0 = null; this._pin0T = 0; this._setups = []; this.cfg().instr = tk; this.saveCfg(); this._renderBtns(); this._btUI(); this.feed = { bars: [], bars30: [], lastOk: 0, err: null }; this.feedStart(); this._flowLoad(); this._cohRender(); },
   _norm(d) {
     if (!d || d.error || !d.epochs) return [];
     return d.epochs.map((t, i) => ({ t, h: d.his?.[i], l: d.los?.[i], c: d.hist?.[i], v: d.vols?.[i] || 0 }))
@@ -6373,6 +6377,132 @@ const Terminal = {
       + '<div style="margin-top:6px;color:var(--text3);font-size:9px" title="Expectancy = media de R por trade — LA métrica; positiva y estable con n≥30 es lo único que autoriza subir tamaño">HISTÓRICO: n=' + all.length + ' · win ' + (all.length ? Math.round(wins.length / all.length * 100) + '%' : '—') + ' · expectancy ' + (exp != null ? (exp >= 0 ? '+' : '') + exp.toFixed(2) + 'R' : '—') + (all.length && all.length < 30 ? ' <span style="color:var(--amber)">(n<30: ANÉCDOTA, no estadística)</span>' : '') + '</div>'
       + '</div></div>';
   },
+  // ══ V6.8: BACKTESTER — auditoría automática de las estrategias del sistema ══
+  // 60 días de 5m (Yahoo range=60d, ~4,700 barras). Reglas CAUSALES: señal y entrada al CLOSE
+  // de la barra; target/stop CONGELADOS; si una barra toca ambos, cuenta STOP (conservador);
+  // sin salida al cierre del día se liquida a EOD. El régimen usa migración del VWAP en 30 min
+  // (proxy causal del POC — declarado). Resultados en R → alimentan el Monte Carlo.
+  BT_STRATS: {
+    fade: { lbl: 'FADE 2σ → VWAP (solo día balance)' },
+    ib: { lbl: 'Ruptura del IB — regla 82 (1R)' },
+    vwapPull: { lbl: 'Pullback a VWAP en día tendencia' },
+  },
+  _btRs: null, _btLast: null,
+  _btUI() {
+    const el = document.getElementById('term-bt'); if (!el) return;
+    const I = this.instr();
+    if (I.fx) { el.innerHTML = '<span style="color:var(--text3)">backtest v1: índices y crypto (las 3 estrategias usan VWAP/IB — el spot forex no tiene volumen ni RTH). Cambia a NQ/ES/BTC/ETH.</span>'; return; }
+    const sel = this.cfg().btStrat || 'fade';
+    el.innerHTML = '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+      + '<span style="font-size:9px;color:var(--text3);letter-spacing:.06em">🧪 ESTRATEGIA sobre ' + escHtml(I.lbl) + ' — 60 días · 5m · reglas del sistema</span>'
+      + '<select id="term-bt-strat" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
+      + Object.entries(this.BT_STRATS).map(([k, s]) => '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + s.lbl + '</option>').join('') + '</select>'
+      + '<button type="button" onclick="Terminal.btRun()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--teal);color:var(--teal);background:rgba(45,212,191,.08)">▶ CORRER BACKTEST</button>'
+      + '</div><div id="term-bt-res" style="margin-top:6px"></div>';
+  },
+  async btRun() {
+    const res = document.getElementById('term-bt-res'); if (!res) return;
+    const I = this.instr(), strat = document.getElementById('term-bt-strat')?.value || 'fade';
+    this.cfg().btStrat = strat; this.saveCfg();
+    res.innerHTML = '<span style="color:var(--text3);font-size:10px">descargando 60 días de 5m y corriendo ' + escHtml(this.BT_STRATS[strat].lbl) + '…</span>';
+    try {
+      const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.tk) + '&range=60d&hl=1&ts=1').then(r => r.json());
+      const bars = this._norm(j?.[I.tk]);
+      if (bars.length < 500) { res.innerHTML = '<span style="color:var(--amber);font-size:10px">data insuficiente (' + bars.length + ' barras) — Yahoo 60d no respondió completo, reintenta</span>'; return; }
+      const trades = this._btEngine(bars, strat, I);
+      this._btRender(trades, strat, I, bars);
+    } catch (e) { res.innerHTML = '<span style="color:var(--red);font-size:10px">error: ' + escHtml(String(e.message)) + '</span>'; }
+  },
+  _btEngine(bars, strat, I) {
+    const days = {}; for (const b of bars) (days[b.et.d] = days[b.et.d] || []).push(b);
+    const crypto = I.src === 'okx';
+    const trades = [];
+    for (const d of Object.keys(days).sort()) {
+      // sesión: RTH para futuros · día ET completo para crypto (24/7, VWAP de sesión)
+      const ses = crypto ? days[d] : days[d].filter(b => b.et.m >= 570 && b.et.m < 960);
+      if (ses.length < 30) continue;
+      // walk causal: VWAP/σ acumulados + trail de VWAP para el régimen (migración 30min)
+      let cw = 0, cpv = 0, cp2v = 0; const vwT = [];
+      let ibh = null, ibl = null;
+      const arm = { up: true, dn: true }; let ibDone = false, pullN = 0, trendDir = 0;
+      const open = [];
+      for (let i = 0; i < ses.length; i++) {
+        const b = ses[i], tp = (b.h + b.l + b.c) / 3;
+        if (b.v > 0) { cw += b.v; cpv += tp * b.v; cp2v += tp * tp * b.v; }
+        const vwap = cw > 0 ? cpv / cw : null;
+        const sg = cw > 0 && vwap != null ? Math.sqrt(Math.max(0, cp2v / cw - vwap * vwap)) : null;
+        vwT.push(vwap);
+        // resolver abiertos con ESTA barra (stop manda si toca ambos)
+        for (const t of open) {
+          if (t.res != null) continue;
+          const hitT = t.side === 'long' ? b.h >= t.tgt : b.l <= t.tgt;
+          const hitS = t.side === 'long' ? b.l <= t.stp : b.h >= t.stp;
+          if (hitS) { t.res = -1; t.r = -1; }
+          else if (hitT) { t.res = 1; t.r = t.rr; }
+          else if (i === ses.length - 1) { const pnl = t.side === 'long' ? b.c - t.entry : t.entry - b.c; t.res = 0; t.r = pnl / t.risk; }
+        }
+        if (i === 11 && !crypto) { ibh = Math.max(...ses.slice(0, 12).map(x => x.h)); ibl = Math.min(...ses.slice(0, 12).map(x => x.l)); }
+        if (i < 12 || vwap == null || !sg || sg <= 0) continue;
+        const z = (b.c - vwap) / sg;
+        const migOk = vwT.length > 6 && vwT[vwT.length - 7] != null; // migración VWAP 30min en σ
+        const mig = migOk ? Math.abs(vwap - vwT[vwT.length - 7]) / sg : null;
+        if (Math.abs(z) < 1) { arm.up = true; arm.dn = true; }
+        if (strat === 'fade' && mig != null && mig < 0.35) { // balance: el VWAP no migra
+          if (z >= 2 && z < 3 && arm.up) { arm.up = false; const stp = vwap + 3 * sg, risk = stp - b.c; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'short', entry: b.c, tgt: vwap, stp, risk, rr: (b.c - vwap) / risk, res: null }) - 1]); }
+          if (z <= -2 && z > -3 && arm.dn) { arm.dn = false; const stp = vwap - 3 * sg, risk = b.c - stp; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'long', entry: b.c, tgt: vwap, stp, risk, rr: (vwap - b.c) / risk, res: null }) - 1]); }
+        }
+        if (strat === 'ib' && !crypto && !ibDone && ibh != null && i >= 12) {
+          const mid = (ibh + ibl) / 2;
+          if (b.c > ibh) { ibDone = true; const risk = b.c - mid; if (risk > 0) trades.push(open[open.push({ d, side: 'long', entry: b.c, tgt: b.c + risk, stp: mid, risk, rr: 1, res: null }) - 1]); }
+          else if (b.c < ibl) { ibDone = true; const risk = mid - b.c; if (risk > 0) trades.push(open[open.push({ d, side: 'short', entry: b.c, tgt: b.c - risk, stp: mid, risk, rr: 1, res: null }) - 1]); }
+        }
+        if (strat === 'vwapPull' && mig != null && pullN < 2) {
+          if (!trendDir && mig >= 0.5) trendDir = vwap > vwT[vwT.length - 7] ? 1 : -1; // tendencia confirmada
+          if (trendDir === 1 && z <= 0.15 && z > -0.6) { pullN++; const stp = vwap - sg, risk = b.c - stp; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'long', entry: b.c, tgt: vwap + 2 * sg, stp, risk, rr: (vwap + 2 * sg - b.c) / risk, res: null }) - 1]); }
+          else if (trendDir === -1 && z >= -0.15 && z < 0.6) { pullN++; const stp = vwap + sg, risk = stp - b.c; if (risk > 0.3 * sg) trades.push(open[open.push({ d, side: 'short', entry: b.c, tgt: vwap - 2 * sg, stp, risk, rr: (b.c - (vwap - 2 * sg)) / risk, res: null }) - 1]); }
+        }
+      }
+    }
+    return trades.filter(t => t.r != null && isFinite(t.r));
+  },
+  _btRender(trades, strat, I, bars) {
+    const res = document.getElementById('term-bt-res'); if (!res) return;
+    const nDays = new Set(bars.map(b => b.et.d)).size;
+    if (trades.length < 5) { res.innerHTML = '<span style="color:var(--amber);font-size:10px">solo ' + trades.length + ' señales en ' + nDays + ' días — esta estrategia casi no dispara en ' + escHtml(I.lbl) + ' (eso TAMBIÉN es un resultado: no hay muestra para confiar)</span>'; this._btRs = null; this._mcUI(); return; }
+    const rs = trades.map(t => t.r);
+    const wins = rs.filter(r => r > 0), losses = rs.filter(r => r <= 0);
+    const wr = wins.length / rs.length * 100, exp = rs.reduce((a, b) => a + b, 0) / rs.length;
+    const pf = Math.abs(losses.reduce((a, b) => a + b, 0)) > 0 ? wins.reduce((a, b) => a + b, 0) / Math.abs(losses.reduce((a, b) => a + b, 0)) : Infinity;
+    let eq = 0, peak = 0, dd = 0; const curve = rs.map(r => { eq += r; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq); return eq; });
+    this._btRs = rs; this._btLast = { strat, tk: I.tk, n: rs.length };
+    const tile = (l, v, c2, s) => '<div style="flex:1;min-width:118px;border:1px solid var(--border2);border-left:3px solid ' + c2 + ';border-radius:6px;padding:5px 8px;background:var(--surface)"><div style="font-size:8px;color:var(--text3);letter-spacing:.06em">' + l + '</div><div style="font-size:14px;color:' + c2 + '"><b>' + v + '</b></div><div style="font-size:8px;color:var(--text3)">' + s + '</div></div>';
+    res.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+      + tile('SEÑALES', trades.length, 'var(--text2)', nDays + ' días · ' + (trades.length / nDays).toFixed(1) + '/día')
+      + tile('WIN RATE', wr.toFixed(0) + '%', wr >= 50 ? 'var(--green)' : 'var(--amber)', wins.length + '✓ / ' + losses.length + '✗')
+      + tile('EXPECTANCY', (exp >= 0 ? '+' : '') + exp.toFixed(2) + 'R', exp > 0.05 ? 'var(--green)' : exp < -0.05 ? 'var(--red)' : 'var(--amber)', 'por trade · total ' + (eq >= 0 ? '+' : '') + eq.toFixed(1) + 'R')
+      + tile('PROFIT FACTOR', isFinite(pf) ? pf.toFixed(2) : '∞', pf >= 1.3 ? 'var(--green)' : pf >= 1 ? 'var(--amber)' : 'var(--red)', '≥1.3 = decente')
+      + tile('MAX DRAWDOWN', dd.toFixed(1) + 'R', 'var(--amber)', 'en la curva de 60d')
+      + '</div>'
+      + '<div style="margin-top:6px"><canvas id="term-bt-cv" style="width:100%;height:70px"></canvas></div>'
+      + '<div style="display:flex;gap:8px;align-items:center;margin-top:4px;flex-wrap:wrap">'
+      + '<button type="button" onclick="Terminal._mcUI();document.getElementById(\'term-mc-src\').value=\'backtest\';Terminal.mcRun();document.getElementById(\'term-mc\').scrollIntoView({behavior:\'smooth\'})" style="font-size:9.5px;font-family:\'IBM Plex Mono\',monospace;padding:3px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">🎲 usar esta distribución en Monte Carlo</button>'
+      + '<span style="font-size:8.5px;color:var(--text3)">honesto: 60 días · entrada al close de la señal · barra que toca target y stop cuenta STOP · sin comisiones/slippage (resta ~0.05-0.1R mental) · n=' + trades.length + (trades.length < 100 ? ' — MUESTRA CORTA, no es el gate M6 (n≥100)' : '') + '</span></div>';
+    // curva de equity
+    const cv = document.getElementById('term-bt-cv');
+    if (cv) {
+      const dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 600, H = 70;
+      cv.width = W * dpr; cv.height = H * dpr;
+      const g = cv.getContext('2d'); g.scale(dpr, dpr);
+      const mn = Math.min(0, ...curve), mx = Math.max(1e-9, ...curve);
+      const Xc = i => i / (curve.length - 1 || 1) * (W - 40), Yc = v => 6 + (1 - (v - mn) / (mx - mn || 1)) * (H - 16);
+      g.strokeStyle = 'rgba(125,111,99,.4)'; g.beginPath(); g.moveTo(0, Yc(0)); g.lineTo(W - 40, Yc(0)); g.stroke();
+      g.strokeStyle = eq >= 0 ? 'rgba(52,211,153,.9)' : 'rgba(248,113,113,.9)'; g.lineWidth = 1.5; g.beginPath();
+      curve.forEach((v, i) => i ? g.lineTo(Xc(i), Yc(v)) : g.moveTo(Xc(i), Yc(v))); g.stroke();
+      g.font = '9px "IBM Plex Mono",monospace'; g.fillStyle = '#a99e93'; g.textBaseline = 'middle';
+      g.fillText((eq >= 0 ? '+' : '') + eq.toFixed(1) + 'R', W - 36, Yc(curve[curve.length - 1]));
+    }
+    this._mcUI(); // refresca el select del MC con la opción backtest
+  },
   // ══ V6.5: MONTE CARLO — supervivencia de la cuenta (opción A) ══
   // Simula N secuencias de trading contra las reglas EXACTAS de la prop seleccionada
   // (DLL diario + MLL estático/trailing + target del challenge). La distribución de R
@@ -6388,7 +6518,9 @@ const Terminal = {
       + '<button class="glossary-btn" onclick="openGlossary(\'terminal-montecarlo\')" title="¿Qué es esto?" style="margin:0;flex:none">?</button>'
       + '<select id="term-mc-src" style="background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:4px;font-size:10px;padding:2px">'
       + '<option value="manual"' + (m.src === 'manual' ? ' selected' : '') + '>parámetros manuales</option>'
-      + '<option value="journal"' + (m.src === 'journal' ? ' selected' : '') + (all.length < 10 ? ' disabled' : '') + '>journal real (n=' + all.length + (all.length < 10 ? ' — mín 10' : '') + ')</option></select>'
+      + '<option value="journal"' + (m.src === 'journal' ? ' selected' : '') + (all.length < 10 ? ' disabled' : '') + '>journal real (n=' + all.length + (all.length < 10 ? ' — mín 10' : '') + ')</option>'
+      + (this._btRs && this._btRs.length >= 10 ? '<option value="backtest"' + (m.src === 'backtest' ? ' selected' : '') + '>backtest ' + (this._btLast ? this._btLast.strat + ' ' + this._btLast.tk : '') + ' (n=' + this._btRs.length + ')</option>' : '')
+      + '</select>'
       + '<span style="font-size:10px;color:var(--text2)">WR ' + inp('term-mc-wr', m.wr, 36, '% de trades ganadores') + '% · win ' + inp('term-mc-aw', m.aw, 34, 'ganancia promedio en R') + 'R · loss ' + inp('term-mc-al', m.al, 30, 'pérdida promedio en R (positivo)') + 'R</span>'
       + '<span style="font-size:10px;color:var(--text2)">' + inp('term-mc-tpd', m.tpd, 28, 'trades por día') + ' trades/día · ' + inp('term-mc-days', m.days, 34, 'días de trading a simular') + ' días</span>'
       + '<button type="button" onclick="Terminal.mcRun()" style="font-size:10px;font-family:\'IBM Plex Mono\',monospace;padding:3px 12px;border-radius:4px;cursor:pointer;border:1px solid var(--gold);color:var(--gold);background:rgba(201,168,76,.08)">▶ SIMULAR 5,000</button>'
@@ -6415,6 +6547,7 @@ const Terminal = {
     // distribución de R: bootstrap del journal o Bernoulli manual
     let rs = null;
     if (m.src === 'journal') { let all = []; Object.values(this._dayAll || {}).forEach(d => all.push(...(d.trades || []))); rs = all.map(t => +t.r).filter(r => isFinite(r)); if (rs.length < 10) rs = null; }
+    if (m.src === 'backtest' && this._btRs && this._btRs.length >= 10) rs = this._btRs; // V6.8: la distribución del backtest alimenta la simulación
     const sample = rs ? () => rs[(Math.random() * rs.length) | 0] : () => Math.random() * 100 < m.wr ? m.aw : -m.al;
     const SIMS = 5000, DAYS = m.days, TPD = m.tpd;
     let pass = 0, bustD = 0, bustM = 0, timeout = 0;
@@ -6444,7 +6577,7 @@ const Terminal = {
     const pct = n => (n / SIMS * 100);
     const fD = v => v != null ? '$' + Math.round(v).toLocaleString('en-US') + ' (' + (v / risk$).toFixed(1) + 'R)' : '—';
     const tileMc = (lbl, val, col, sub) => '<div style="flex:1;min-width:150px;border:1px solid var(--border2);border-left:3px solid ' + col + ';border-radius:6px;padding:6px 9px;background:var(--surface)"><div style="font-size:8.5px;color:var(--text3);letter-spacing:.06em">' + lbl + '</div><div style="font-size:16px;color:' + col + '"><b>' + val + '</b></div><div style="font-size:8.5px;color:var(--text3)">' + sub + '</div></div>';
-    const srcLbl = rs ? 'bootstrap del journal REAL (n=' + rs.length + (rs.length < 30 ? ' — ANÉCDOTA, mínimo serio 30' : '') + ')' : 'Bernoulli manual WR ' + m.wr + '% · +' + m.aw + 'R/−' + m.al + 'R';
+    const srcLbl = rs ? 'bootstrap ' + (m.src === 'backtest' ? 'del BACKTEST' : 'del journal REAL') + ' (n=' + rs.length + (rs.length < 30 ? ' — ANÉCDOTA, mínimo serio 30' : '') + ')' : 'Bernoulli manual WR ' + m.wr + '% · +' + m.aw + 'R/−' + m.al + 'R';
     res.innerHTML = '<div style="display:flex;gap:6px;flex-wrap:wrap">'
       + (tgt != null ? tileMc('✅ PASA EL CHALLENGE', pct(pass).toFixed(1) + '%', 'var(--green)', pass ? 'mediana ' + q(passDays, .5) + ' días (p90: ' + q(passDays, .9) + ')' : 'ninguna simulación llegó al target') : tileMc('✅ SOBREVIVE', pct(SIMS - bustD - bustM).toFixed(1) + '%', 'var(--green)', DAYS + ' días sin tocar límites'))
       + tileMc('💀 QUIEBRA', pct(bustD + bustM).toFixed(1) + '%', 'var(--red)', 'diario ' + pct(bustD).toFixed(1) + '% · máx/trailing ' + pct(bustM).toFixed(1) + '%')
@@ -16373,6 +16506,18 @@ const INDICATORS_GLOSSARY = {
       { c: 'red', t: 'DIVERGENTE → alto riesgo de reversión; no perseguir' }
     ],
     note: 'Fase F8 del blueprint Terminal v2. Solo barras cerradas alineadas (regla del blueprint) — al abrir la sesión el panel tarda ~35 min en armar sus 7 barras comunes y lo dice.'
+  },
+  'terminal-backtest': {
+    name: 'Terminal · Backtest de estrategias', category: 'Terminal · Intradía',
+    source: { label: 'Yahoo 60 días de 5m (~4,700 barras) — motor 100% client-side, reglas causales', url: 'https://finance.yahoo.com', freq: 'On-demand (botón CORRER) · por instrumento y estrategia' },
+    formula: 'Tres estrategias del sistema: FADE 2σ→VWAP solo en día balance (migración del VWAP 30min <0.35σ como proxy causal del POC; banda 2≤|z|<3; stop 3σ congelado) · Ruptura del IB regla-82 (primer breakout tras 10:30 ET, stop mitad del IB, target 1R) · Pullback a VWAP en tendencia (migración ≥0.5σ, entrada en el retorno a VWAP, stop 1σ, target 2σ). Entrada al CLOSE de la barra de señal; barra que toca target Y stop cuenta STOP (conservador); sin resolución → liquidación a EOD. Métricas: win-rate, expectancy R, profit factor, max drawdown, curva de equity.',
+    interpret: 'Responde "¿esta regla fue rentable los últimos 60 días en ESTE instrumento?" antes de arriesgar un peso. Expectancy >+0.05R con PF ≥1.3 y n≥100 = interesante; expectancy negativa = la regla NO funciona aquí aunque se sienta bien. El botón 🎲 manda la distribución REAL de R al Monte Carlo: en vez de asumir un win-rate, simulas la supervivencia de la prop con los trades que la estrategia de verdad produjo.',
+    thresholds: [
+      { c: 'green', t: 'Expectancy >+0.05R · PF ≥1.3 · n≥100 → pasa a probarse en demo con el journal' },
+      { c: 'amber', t: 'n<100 = muestra corta (60 días es UNA ventana — no es el gate M6) · positivo marginal = frágil a comisiones' },
+      { c: 'red', t: 'Expectancy ≤0 → descarta o cambia condiciones; NO la operes "porque el backtest casi da"' }
+    ],
+    note: 'V6.8 (pedido Angel "auditar con backtesting automático"). Honesto: sin comisiones/slippage (resta ~0.05-0.1R mental), data delayed OK para histórico, una sola ventana de 60d = riesgo de régimen único. El backtest largo con data Databento 2010+ (F6) sigue siendo el estándar serio.'
   },
   'terminal-montecarlo': {
     name: 'Terminal · Monte Carlo (supervivencia + cono)', category: 'Terminal · Intradía',
