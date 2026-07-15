@@ -2877,8 +2877,9 @@ html.auth-ok #auth-gate{display:none}
     @media (max-width:640px){
       #tab-term.term-ck #term-chart{height:44vh!important;min-height:260px}
       #tab-term #term-chart{height:56vh!important;min-height:360px!important}
-      /* V6.1: el min-width 420px desbordaba el viewport — cortaba las etiquetas del margen derecho */
-      #term-chart-wrap{min-width:0!important;width:100%}
+      /* V6.1: el min-width 420px desbordaba el viewport — cortaba las etiquetas del margen derecho.
+         flex 1 1 100%: el chart toma SU fila (sin esto flexbox lo encogía a ~67px junto a un hermano) */
+      #term-chart-wrap{min-width:0!important;flex:1 1 100%!important;width:100%}
     }
     /* T4: marquee de noticias — corre de verdad, pausa al hover */
     #term-news{overflow:hidden;white-space:nowrap;border:1px solid var(--border2);border-radius:6px;padding:5px 0;margin-bottom:14px;background:var(--surface)}
