@@ -13454,7 +13454,10 @@ const InstDeep = {
             + '<div style="flex:none;text-align:right"><div style="font-size:12px;color:' + m2.col + '" title="score ' + z.score + '">' + stars + '</div>'
             + '<div style="font-size:9.5px;color:' + (z.degradada ? 'var(--amber)' : z.touches <= 1 ? 'var(--green)' : 'var(--text3)') + ';margin-top:2px">' + z.touches + ' test' + (z.touches === 1 ? '' : 's') + (z.degradada ? ' ⚠ degradada' : z.touches <= 1 ? ' ✦ fresca' : '') + '</div>'
             // V6.7 (c): ΔOI dentro de la banda — posicionamiento construyéndose EN la zona
-            + (() => { const oc = this._zOiDelta(tk, z); return oc ? '<div style="font-size:9px;color:' + (oc.delta > 0 ? 'var(--teal)' : 'var(--text3)') + ';margin-top:2px" title="ΔOI de los strikes DENTRO de la zona (' + oc.d1 + '→' + oc.d2 + '): el posicionamiento de opciones se ' + (oc.delta > 0 ? 'CONSTRUYE aquí — confluencia nueva' : 'deshace aquí') + '">OI ' + (oc.delta > 0 ? '+' : '') + oc.delta.toLocaleString('en-US') + '</div>' : ''; })()
+            // V7.3 FIX (cazado por Angel: "desapareció el gráfico"): _zOiDelta vive en InstPanel, no
+            // en InstDeep — this._zOiDelta lanzaba TypeError DENTRO del try de zonas y se tragaba el
+            // MAPA DE ENTRADA + perfil + escalera en silencio. Blindado: el chip jamás mata la sección.
+            + (() => { try { const oc = InstPanel._zOiDelta(tk, z); return oc ? '<div style="font-size:9px;color:' + (oc.delta > 0 ? 'var(--teal)' : 'var(--text3)') + ';margin-top:2px" title="ΔOI de los strikes DENTRO de la zona (' + oc.d1 + '→' + oc.d2 + '): el posicionamiento de opciones se ' + (oc.delta > 0 ? 'CONSTRUYE aquí — confluencia nueva' : 'deshace aquí') + '">OI ' + (oc.delta > 0 ? '+' : '') + oc.delta.toLocaleString('en-US') + '</div>' : ''; } catch (e) { return ''; } })()
             + '</div>'
             + '</div>';
         };
