@@ -7599,8 +7599,12 @@ const LiqTab = {
       + this.INSTRS.map(x => b(x.id, x.id === I.id, "LiqTab.setInstr('" + x.id + "')", 'Perpetuo ' + x.okx)).join('')
       + '<span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-left:8px">VENTANA:</span>'
       + Object.keys(this.WINS).map(w => b(w + ' · ' + this.WINS[w].tf + 'm', w === this.win(), "LiqTab.setWin('" + w + "')", 'Ventana ' + w + ' con velas de ' + this.WINS[w].tf + 'm (la matriz de liquidaciones siempre corre a 5m, la resolución del OI)')).join('')
-      + '<span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-left:8px">LEVERAGE:</span>'
-      + this.TIERS.map(T => b(T.lev + 'X', on[T.lev], 'LiqTab.setTier(' + T.lev + ')', 'Cohorte ' + T.lev + 'x (' + (T.w * 100).toFixed(0) + '% del ΔOI asumido) — liq a ~' + (100 / T.lev).toFixed(1) + '% del entry')).join('')
+      + '<span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-left:8px">POOLS:</span>'
+      + this.TIERS.map(T => {
+        // V4 patrón TD ("25X: 12M"): el botón trae el total VIVO de su cohorte
+        let tot = 0; if (this._act && this._act[T.lev]) for (const v of this._act[T.lev].values()) tot += v;
+        return b(T.lev + 'X' + (tot > 0 ? ': ' + this._fmtUsd(tot) : ''), on[T.lev], 'LiqTab.setTier(' + T.lev + ')', 'Cohorte ' + T.lev + 'x (' + (T.w * 100).toFixed(0) + '% del ΔOI asumido) — liq a ~' + (100 / T.lev).toFixed(1) + '% del entry · total vivo sin purgar de este tier');
+      }).join('')
       + '<span style="margin-left:8px"></span>'
       + b('mapa', this.ov('mapa'), "LiqTab.setOv('mapa')", 'Matriz 2D tiempo×precio: dónde se FORMÓ cada pool (estilo Coinglass)')
       + b('bandas', this.ov('bandas'), "LiqTab.setOv('bandas')", 'Bandas horizontales del remanente VIVO (pools aún no purgados) — estilo Trading Different')
@@ -7674,19 +7678,25 @@ const LiqTab = {
     const tfS = this.tf() * 60, t0 = bars[0].t, tN = bars[bars.length - 1].t + tfS;
     // vela que contiene cada slot 5m (entry) — índice directo por tiempo
     const barAt = ts => { const i = Math.floor((ts - t0) / tfS); return i >= 0 && i < bars.length ? bars[i] : null; };
-    const M = {}, act = {}, evs = [];
-    for (const T of this.TIERS) { M[T.lev] = new Map(); act[T.lev] = new Map(); }
+    const M = {}, act = {}, actT = {}, evs = [];
+    for (const T of this.TIERS) { M[T.lev] = new Map(); act[T.lev] = new Map(); actT[T.lev] = new Map(); }
     for (let i = 1; i < oi.length; i++) {
       const d = oi[i].usd - oi[i - 1].usd, ts = oi[i].t;
       if (!(d > 0) || ts < t0 || ts >= tN) continue;             // solo ΔOI>0 = posiciones nuevas
       const b = barAt(ts); if (!b) continue;
-      const entry = (b.h + b.l) / 2, ci = Math.floor(ts / this.SLOT);
+      const ci = Math.floor(ts / this.SLOT);
+      // V4 (calibración vs TD en vivo): entries DIRECCIONALES estilo victhoreb — en vela
+      // bajista los shorts nuevos entran cerca del high ((h+o)/2) y dominan el ΔOI (70/30);
+      // en alcista los longs cerca del low. Con el mid plano nuestros niveles quedaban
+      // ~$300 arriba de los pools de Trading Different; con esto la zona coincide.
+      const up = b.c >= b.o, wL = up ? 0.7 : 0.3;
+      const eL = (b.l + b.o) / 2, eS = (b.h + b.o) / 2;
       for (const T of this.TIERS) {
-        const usd = d * T.w * 0.5;                               // split long/short 50/50 (L1: sesgo CVD)
-        for (const [dir, p] of [[1, entry * (1 - 1 / T.lev + this.MM)], [-1, entry * (1 + 1 / T.lev - this.MM)]]) {
+        for (const [w, p] of [[wL, eL * (1 - 1 / T.lev + this.MM)], [1 - wL, eS * (1 + 1 / T.lev - this.MM)]]) {
+          const usd = d * T.w * w; if (!(usd > 0)) continue;
           const k = ci + ':' + bi(p);
           M[T.lev].set(k, (M[T.lev].get(k) || 0) + usd);
-          evs.push({ ts, lev: T.lev, bi: bi(p), usd, dir });
+          evs.push({ ts, lev: T.lev, bi: bi(p), usd });
         }
       }
     }
@@ -7695,12 +7705,17 @@ const LiqTab = {
     let ei = 0;
     for (const b of bars) {
       const bEnd = b.t + tfS;
-      while (ei < evs.length && evs[ei].ts < bEnd) { const e = evs[ei++]; act[e.lev].set(e.bi, (act[e.lev].get(e.bi) || 0) + e.usd); }
+      while (ei < evs.length && evs[ei].ts < bEnd) {
+        const e = evs[ei++];
+        act[e.lev].set(e.bi, (act[e.lev].get(e.bi) || 0) + e.usd);
+        if (!actT[e.lev].has(e.bi)) actT[e.lev].set(e.bi, e.ts); // V4: nacimiento del pool (escalera TD)
+      }
       const loB = bi(b.l), hiB = bi(b.h);
-      for (const T of this.TIERS) for (let k = loB; k <= hiB; k++) act[T.lev].delete(k); // consumidos
+      for (const T of this.TIERS) for (let k = loB; k <= hiB; k++) { act[T.lev].delete(k); actT[T.lev].delete(k); } // consumidos
     }
-    this._M = M; this._act = act;
+    this._M = M; this._act = act; this._actT = actT;
     this._rebuildImg();
+    this._renderBtns(); // V4: los botones de tier muestran el total vivo — refrescan con la data
   },
   // offscreen 1px/celda de la matriz 2D (tiers activos sumados) — se estampa escalado con bilineal
   _rebuildImg() {
@@ -7748,7 +7763,8 @@ const LiqTab = {
   // (el colormap de la captura de Trading Different: el rojo marca la concentración máxima)
   _lutJ() {
     if (this._lutJC) return this._lutJC;
-    const stops = [[0, 150, 70], [0, 185, 150], [140, 210, 90], [240, 210, 40], [250, 140, 20], [228, 32, 28]];
+    // V4: paleta calcada de la cuenta TD de Angel — verde → amarillo → ROJO saturados
+    const stops = [[0, 176, 80], [110, 205, 30], [235, 225, 0], [244, 180, 0], [255, 40, 30], [232, 0, 0]];
     const L = new Uint8Array(256 * 3);
     for (let i = 0; i < 256; i++) {
       const f = i / 255 * (stops.length - 1), s = Math.min(stops.length - 2, Math.floor(f)), u = f - s;
@@ -7864,30 +7880,43 @@ const LiqTab = {
       g.restore();
     }
     // ② BANDAS del remanente vivo (pools no purgados) — el look Trading Different
-    const actSum = new Map();
-    if (this._act) { const on = this.tiersOn(); for (const T of this.TIERS) { if (!on[T.lev]) continue; for (const [bIdx, usd] of this._act[T.lev]) actSum.set(bIdx, (actSum.get(bIdx) || 0) + usd); } }
+    const actSum = new Map(), actFrom = new Map();
+    if (this._act) {
+      const on = this.tiersOn();
+      for (const T of this.TIERS) {
+        if (!on[T.lev]) continue;
+        for (const [bIdx, usd] of this._act[T.lev]) {
+          actSum.set(bIdx, (actSum.get(bIdx) || 0) + usd);
+          const f = this._actT && this._actT[T.lev] ? this._actT[T.lev].get(bIdx) : null; // nacimiento
+          if (f != null) actFrom.set(bIdx, Math.min(actFrom.get(bIdx) ?? Infinity, f));
+        }
+      }
+    }
     // review L0 MEDIO-1: el remanente vivo ACUMULA slots — su escala de color necesita su
     // propio p95 (compararlo contra el p95 por-celda de la matriz saturaba todo a máximo)
     const av = [...actSum.values()].sort((a, b) => a - b);
     const actP95 = av.length ? (av[Math.floor(av.length * 0.95)] || 1) : 1;
     if (actSum.size && this.ov('bandas')) {
-      // V2 look TD: cada bin vivo = fila de CELDAS saturadas con el jet (rojo = núcleo),
-      // con costuras de rejilla verticales/horizontales que dan la textura de la captura
+      // V4 look TD calcado de la cuenta de Angel: cada pool NACE donde se formó (borde
+      // izquierdo escalonado), celdas casi sólidas verde→amarillo→rojo, rejilla gruesa
       const L = this._lutJ(), rects = [];
       for (const [bIdx, usd] of actSum) {
         const rel = Math.min(1, usd / actP95); if (rel < 0.04) continue;
         const y1 = Math.max(mt, Y((bIdx + 1) * this._binSz)), y2 = Math.min(mt + ih, Y(bIdx * this._binSz));
         if (y2 <= mt || y1 >= mt + ih || y2 - y1 < 0.8) continue;
-        const li = Math.floor(Math.pow(rel, 0.65) * 255);
-        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',' + (0.32 + rel * 0.55).toFixed(3) + ')';
-        g.fillRect(ml, y1, iw, Math.max(1.5, y2 - y1));
-        rects.push([y1, y2]);
+        const from = actFrom.get(bIdx);
+        let x1 = ml; // escalera: la fila arranca en su formación (clamp al borde si es más vieja que la vista)
+        if (from != null && from > vb[0].t) x1 = Math.min(ml + iw - 2, Math.max(ml, xT(from)));
+        const li = Math.floor(Math.pow(rel, 0.7) * 255);
+        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',' + (0.55 + rel * 0.4).toFixed(3) + ')';
+        g.fillRect(x1, y1, ml + iw - x1, Math.max(1.5, y2 - y1));
+        rects.push([y1, y2, x1]);
       }
-      if (rects.length) { // costuras SOLO dentro de los pools (clip a la unión de filas)
+      if (rects.length) { // rejilla TD: ~90 columnas gruesas, solo dentro de los pools
         g.save(); g.beginPath();
-        for (const [y1, y2] of rects) g.rect(ml, y1, iw, y2 - y1);
-        g.clip(); g.strokeStyle = 'rgba(4,4,4,.75)'; g.lineWidth = 1;
-        const stepX = Math.max(3, iw / nB);
+        for (const [y1, y2, x1] of rects) g.rect(x1, y1, ml + iw - x1, y2 - y1);
+        g.clip(); g.strokeStyle = 'rgba(4,4,4,.85)'; g.lineWidth = 1;
+        const chunk = Math.max(1, Math.round(nB / 90)), stepX = iw / nB * chunk;
         for (let x = ml; x <= ml + iw; x += stepX) { g.beginPath(); g.moveTo(x, mt); g.lineTo(x, mt + ih); g.stroke(); }
         for (const [y1] of rects) { g.beginPath(); g.moveTo(ml, y1); g.lineTo(ml + iw, y1); g.stroke(); }
         g.restore();
@@ -8042,7 +8071,7 @@ const LiqTab = {
       })() : '')
       + (this._sig ? ' · <span style="color:var(--text3);font-size:10px" title="σ muestral (N−1) de los rendimientos por vela de la ventana (n=' + this._sig.n + ') · diaria = σ_vela×√(velas/día) · anualizada = σ_día×√365 (cripto opera 24/7, no 252)">σ día ' + (this._sig.sdDay * 100).toFixed(2) + '% · anual ' + (this._sig.sdAnual * 100).toFixed(0) + '%</span>' : '');
     const st = document.getElementById('liq-status');
-    if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (this._oiSrc || '—') + ', slots 5m) repartido en cohortes 10x·35% / 25x·35% / 50x·20% / 100x·10% · entry = mid del slot · nivel = entry×(1∓1/L+0.4%) · split long/short 50/50 · purga al cruce de la vela. '
+    if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (this._oiSrc || '—') + ', slots 5m) repartido en cohortes 10x·35% / 25x·35% / 50x·20% / 100x·10% · entries DIRECCIONALES (vela bajista: shorts (h+o)/2 dominan 70/30; alcista: longs (l+o)/2) · nivel = entry×(1∓1/L+0.4%) · purga al cruce de la vela · cada pool nace en su formación (escalera). '
       + 'σ: muestral N−1 sobre rendimientos por vela, bandas centradas en el VWAP (equilibrio → reversión a la media); asume normalidad — las colas gruesas reales hacen de ±2σ una guía, no una garantía. '
       + '<b style="color:var(--amber)">ESTIMADO</b> — igual que Coinglass/Hyblock/TD: los exchanges no publican entry ni leverage por posición; esto es un modelo, no un libro. '
       + 'Roadmap: L2 liquidaciones REALES (WS Bybit completo) + score de calibración auditable · L3 forex/oro OANDA · L4 índices (stops+GEX) · L5 ground truth Hyperliquid.';
