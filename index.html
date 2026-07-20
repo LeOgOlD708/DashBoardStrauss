@@ -7787,6 +7787,8 @@ class LqSigma {
   }
   _bg(scope) {
     const pts = this._pts; if (pts.length < 2 || !this._chart) return;
+    // fix visual: con la sesión recién nacida (pocos puntos visibles) la banda era un blob —
+    // si el tramo visible mide <40px no se dibuja (vuelve sola al acumular velas)
     const ctx = scope.context, hpr = scope.horizontalPixelRatio, vpr = scope.verticalPixelRatio;
     const ts = this._chart.timeScale(), S = this._series;
     const P = [];
@@ -7800,7 +7802,7 @@ class LqSigma {
       if (u1 == null || l1 == null || u2 == null || l2 == null) continue;
       P.push({ x: x * hpr, vw: vw * vpr, u1: u1 * vpr, l1: l1 * vpr, u2: u2 * vpr, l2: l2 * vpr });
     }
-    if (P.length < 2) return;
+    if (P.length < 2 || P[P.length - 1].x - P[0].x < 40 * hpr) return;
     for (const [ku, kl, a] of [['u2', 'l2', 0.05], ['u1', 'l1', 0.08]]) {
       const reg = new Path2D();
       reg.moveTo(P[0].x, P[0][ku]);
@@ -7853,7 +7855,12 @@ class LqDepth {
     const v = this._v, ctx = scope.context, W = scope.bitmapSize.width, H = scope.bitmapSize.height;
     const vpr = scope.verticalPixelRatio, hpr = scope.horizontalPixelRatio;
     const RW = W * 0.18;
-    ctx.fillStyle = 'rgba(255,255,255,.02)'; ctx.fillRect(W - RW, 0, RW, H);
+    // fix visual (captura Angel): el panel derecho se CLIPEA y se delimita — al hacer zoom las
+    // barras/curvas se encimaban con las velas como si flotaran sueltas
+    ctx.save(); ctx.beginPath(); ctx.rect(W - RW, 0, RW, H); ctx.clip();
+    ctx.fillStyle = 'rgba(8,8,8,.55)'; ctx.fillRect(W - RW, 0, RW, H);
+    ctx.strokeStyle = 'rgba(125,111,99,.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(W - RW, 0); ctx.lineTo(W - RW, H); ctx.stroke();
     // 1) perfil de pools por lado (paleta del panel derecho de TD)
     const rows = this._rows;
     let mx = 0; for (const r of rows) if (r.usd > mx) mx = r.usd;
@@ -7895,6 +7902,7 @@ class LqDepth {
       };
       curve(cb, 'rgba(52,211,153,.95)'); curve(ca, 'rgba(255,99,132,.95)');
     }
+    ctx.restore(); // cierra el clip del panel
   }
 }
 
@@ -7928,7 +7936,7 @@ class LqPulse {
       const age = (performance.now() - p.t0) / 900, r = 4 + age * 26, a = (1 - age) * 0.8;
       ctx.strokeStyle = p.long ? 'rgba(248,113,113,' + a.toFixed(2) + ')' : 'rgba(52,211,153,' + a.toFixed(2) + ')';
       ctx.lineWidth = 2 * scope.horizontalPixelRatio;
-      ctx.beginPath(); ctx.arc(W - 60 * scope.horizontalPixelRatio, y * vpr, r * vpr, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(W * 0.78, y * vpr, r * vpr, 0, Math.PI * 2); ctx.stroke(); // a la izquierda del panel derecho, no encima
     }
   }
 }
