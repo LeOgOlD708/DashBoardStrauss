@@ -7626,6 +7626,12 @@ const LqHub = {
       // !forceOrder@arr = TODO el mercado (se filtra por símbolo al rutear); best-effort — puede
       // geobloquear por IP del usuario: si muere al abrir, el chip queda stale y no se loopea
       bin: new LqFeed('wss://fstream.binance.com/ws/!forceOrder@arr', { pingMs: 0, onMsg: m => this._routeBin(m) }),
+      // L3: Deriv WS para forex/oro (mismo feed validado en Tab 10 — velas vivas sin cuenta)
+      deriv: new LqFeed('wss://ws.derivws.com/websockets/v3?app_id=1089', {
+        pingMs: 25000, pingPayload: '{"ping":1}',
+        onOpen: () => this.emit('derivOpen', 1),
+        onMsg: m => { if (m.msg_type === 'candles' || m.msg_type === 'ohlc') this.emit('deriv', m); },
+      }),
     };
   },
   killAll() { if (!this.feeds) return; Object.values(this.feeds).forEach(f => f.kill()); this.feeds = null; for (const k in this.subs) this.subs[k].clear(); this.handlers = {}; },
@@ -7663,7 +7669,7 @@ const LqHub = {
   },
   status() {
     if (!this.feeds) return {};
-    return { book: this.feeds.okx.fresh(), candle: this.feeds.biz.fresh(15000), bybit: this.feeds.bybit.fresh(30000), bin: this.feeds.bin.fresh(120000) };
+    return { book: this.feeds.okx.fresh(), candle: this.feeds.biz.fresh(15000), bybit: this.feeds.bybit.fresh(30000), bin: this.feeds.bin.fresh(120000), deriv: this.feeds.deriv.fresh(30000) };
   },
 };
 
@@ -7816,10 +7822,12 @@ class LqSigma {
     }
     ctx.setLineDash([]);
     ctx.font = Math.round(9 * hpr) + 'px "IBM Plex Mono",monospace'; ctx.fillStyle = 'rgba(96,165,250,.9)';
-    const lastP = P[P.length - 1];
-    ctx.fillText('VWAP', P[0].x + 4 * hpr, P[0].vw - 4 * vpr);
-    ctx.fillText('±1σ 68%', P[0].x + 4 * hpr, P[0].u1 - 4 * vpr);
-    ctx.fillText('±2σ 95% · reversión', P[0].x + 4 * hpr, P[0].u2 - 4 * vpr);
+    // V7: etiquetas con el VALOR de σ del TF activo — al cambiar temporalidad se VE cambiar
+    const sRaw = pts[pts.length - 1].s;
+    const fS = sRaw >= 100 ? sRaw.toFixed(0) : sRaw >= 1 ? sRaw.toFixed(1) : sRaw.toPrecision(2);
+    ctx.fillText('VWAP · equilibrio', P[0].x + 4 * hpr, P[0].vw - 4 * vpr);
+    ctx.fillText('±1σ 68% (±' + fS + ')', P[0].x + 4 * hpr, P[0].u1 - 4 * vpr);
+    ctx.fillText('±2σ 95% (±' + (sRaw * 2 >= 100 ? (sRaw * 2).toFixed(0) : sRaw * 2 >= 1 ? (sRaw * 2).toFixed(1) : (sRaw * 2).toPrecision(2)) + ') · reversión', P[0].x + 4 * hpr, P[0].u2 - 4 * vpr);
   }
 }
 
@@ -7849,11 +7857,11 @@ class LqDepth {
     if (mx > 0) for (const r of rows) {
       const y1 = this._series.priceToCoordinate(r.p2), y2 = this._series.priceToCoordinate(r.p1);
       if (y1 == null || y2 == null) continue;
-      const w = r.usd / mx * RW * 0.92;
-      const above = r.mid >= v.last, far = v.last > 0 && Math.abs(r.mid / v.last - 1) > 0.055;
-      ctx.fillStyle = above
-        ? (far ? 'rgba(122,28,28,' + (0.35 + r.rel * 0.45).toFixed(2) + ')' : 'rgba(244,140,20,' + (0.30 + r.rel * 0.5).toFixed(2) + ')')
-        : (far ? 'rgba(170,140,10,' + (0.30 + r.rel * 0.4).toFixed(2) + ')' : 'rgba(235,225,0,' + (0.25 + r.rel * 0.45).toFixed(2) + ')');
+      // pulido (feedback Angel "el perfil se ve raro"): curva pow suaviza anchos, alpha por
+      // intensidad, sin bloques granate abruptos — naranja=asks/amarillo=bids como TD
+      const w = Math.pow(r.usd / mx, 0.7) * RW * 0.85;
+      const above = r.mid >= v.last, a = (0.22 + r.rel * 0.55).toFixed(2);
+      ctx.fillStyle = above ? 'rgba(244,140,20,' + a + ')' : 'rgba(233,214,38,' + a + ')';
       ctx.fillRect(W - w, Math.min(y1, y2) * vpr, w, Math.max(1.5, Math.abs(y2 - y1) * vpr));
     }
     // 2) libro real: barras púrpuras por nivel (liquidez resting, actualiza cada 100ms)
@@ -7977,6 +7985,7 @@ class LiqView {
   // pedido Angel "no se puede ver más atrás": OKX history-candles (desc, 100/llamada, after=ts
   // devuelve lo ANTERIOR a ese ts) — prepend preservando el rango visible, tope ~2800 velas
   async loadOlder() {
+    if (this.instr().cls !== 'cx') return; // Deriv/Yahoo: histórico fijo (300/3d) por ahora
     if (this._older || !this.barsTf || this.barsTf.length < 50 || this.barsTf.length > 2800) return;
     this._older = true;
     const gen = this.gen, I = this.instr(), tf = this.tf();
@@ -8001,9 +8010,10 @@ class LiqView {
     } catch (e) {} finally { this._older = false; }
   }
 
-  // ── suscripciones vivas del símbolo actual ──
+  // ── suscripciones vivas del símbolo actual (solo cripto usa los 4 WS; fx va por Deriv) ──
   subscribe() {
     const I = this.instr(), tf = this.tf();
+    if (I.cls !== 'cx') { this._subs = []; return; }
     this._subs = [
       ['okx', 'books|' + I.okx, { channel: 'books', instId: I.okx }],
       ['okx', 'trades|' + I.okx, { channel: 'trades', instId: I.okx }],
@@ -8013,10 +8023,103 @@ class LiqView {
     ];
     for (const [ex, k, a] of this._subs) LqHub.sub(ex, k, a);
   }
-  unsubscribe() { for (const [ex, k] of this._subs) LqHub.unsub(ex, k); this._subs = []; }
+  unsubscribe() { for (const [ex, k] of this._subs) LqHub.unsub(ex, k); this._subs = []; this._dKill(); }
+  // ── L3 forex: velas Deriv por request+subscribe (el forget usa el id del stream) ──
+  _derivReq() {
+    const I = this.instr(); if (I.cls !== 'fx' || !LqHub.feeds || !LqHub.feeds.deriv) return;
+    this._dKill();
+    LqHub.feeds.deriv.send({ ticks_history: I.deriv, style: 'candles', granularity: this.tfSec(), count: 300, end: 'latest', adjust_start_time: 1, subscribe: 1, passthrough: { slot: this.slot, gen: this.gen } });
+  }
+  _dKill() { if (this._dSub && LqHub.feeds && LqHub.feeds.deriv) LqHub.feeds.deriv.send({ forget: this._dSub }); this._dSub = null; }
+  onDeriv(m) {
+    const I = this.instr(); if (I.cls !== 'fx' || !this.chart) return;
+    if (m.candles) {
+      const pt = (m.echo_req && m.echo_req.passthrough) || {};
+      if (pt.slot !== this.slot || pt.gen !== this.gen) return;
+      this.barsTf = m.candles.map(c => ({ time: +c.epoch, open: +c.open, high: +c.high, low: +c.low, close: +c.close, v: 1 }));
+      this.bars5 = this.barsTf;
+      this.last = this.barsTf[this.barsTf.length - 1].close;
+      this.candles.setData(this.barsTf.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+      const dc = this.dec();
+      this.candles.applyOptions({ priceFormat: { type: 'price', precision: dc, minMove: Math.pow(10, -dc) } });
+      this.chart.timeScale().fitContent();
+      this.err = null;
+      this.buildStops(); this.renderSigma();
+    } else if (m.ohlc) {
+      const sym = (m.echo_req && m.echo_req.ticks_history) || m.ohlc.symbol;
+      if (sym !== I.deriv || !this.barsTf || !this.barsTf.length) return;
+      if (m.subscription && m.subscription.id) this._dSub = m.subscription.id;
+      const o = m.ohlc, t = +o.open_time || Math.floor(+o.epoch / this.tfSec()) * this.tfSec();
+      const b = { time: t, open: +o.open, high: +o.high, low: +o.low, close: +o.close, v: 1 };
+      const arr = this.barsTf, lastB = arr[arr.length - 1];
+      if (b.time === lastB.time) arr[arr.length - 1] = b;
+      else if (b.time > lastB.time) { arr.push(b); if (arr.length > 400) arr.shift(); }
+      else return;
+      this.last = b.close;
+      this.candles.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
+      this.renderSigma(); this._stSoon();
+    }
+  }
+  // ── L3 índices: Yahoo vía serverless (delayed ~1min — declarado; no existe NQ/ES vivo gratis) ──
+  async pollIdx() {
+    const I = this.instr(); if (I.cls !== 'idx' || !this.barsTf || !this.barsTf.length || !this.chart) return;
+    const gen = this.gen;
+    try {
+      const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.yh) + '&range=1d&hl=1&ts=1').then(r => r.json());
+      if (gen !== this.gen) return;
+      let nb = this._yhBars(j && j[I.yh]); if (!nb.length) return;
+      const arr = this.barsTf;
+      for (const b of nb) {
+        const lastB = arr[arr.length - 1];
+        if (b.time < lastB.time) continue;
+        if (b.time === lastB.time) arr[arr.length - 1] = b; else arr.push(b);
+        this.candles.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
+      }
+      this.last = arr[arr.length - 1].close;
+      this.renderSigma(); this._stSoon();
+    } catch (e) {}
+  }
+  _yhBars(d) { // Terminal._norm no trae open — se deriva del close previo (estándar)
+    let b = Terminal._norm(d);
+    const tfMin = this.tfSec() / 60;
+    if (tfMin > 5) b = Terminal._agg(b, tfMin);
+    const out = [];
+    for (let i = 0; i < b.length; i++) out.push({ time: b[i].t, open: b[i].o != null ? b[i].o : (i ? b[i - 1].c : b[i].c), high: b[i].h, low: b[i].l, close: b[i].c, v: b[i].v || 0 });
+    return out;
+  }
+  _stSoon() { clearTimeout(this._stT); this._stT = setTimeout(() => { if (!document.hidden && this.instr().cls !== 'cx') this.buildStops(); }, 4000); }
 
   async load() {
     const gen = ++this.gen, I = this.instr(), tfS = this.tfSec();
+    // ── L3: forex va por Deriv WS (request+subscribe) · índices por Yahoo delayed ──
+    if (I.cls === 'fx') {
+      LiqTab.sentLoad();
+      this._fxPanels();
+      this._derivReq();
+      return;
+    }
+    if (I.cls === 'idx') {
+      try {
+        const j = await fetch('/api/yahoo?tickers=' + encodeURIComponent(I.yh) + '&range=3d&hl=1&ts=1').then(r => r.json());
+        if (gen !== this.gen) return;
+        const b = this._yhBars(j && j[I.yh]);
+        if (!b.length) throw new Error('Yahoo sin barras (¿mercado cerrado el finde?)');
+        this.barsTf = b; this.bars5 = b;
+        this.last = b[b.length - 1].close;
+        this.candles.setData(b.map(x => ({ time: x.time, open: x.open, high: x.high, low: x.low, close: x.close })));
+        const dc = this.dec();
+        this.candles.applyOptions({ priceFormat: { type: 'price', precision: dc, minMove: Math.pow(10, -dc) } });
+        this.chart.timeScale().fitContent();
+        this.err = null;
+        this._fxPanels();
+        this.buildStops(); this.renderSigma();
+      } catch (e) {
+        this.err = e.message || String(e);
+        const h = document.getElementById('liq-v' + this.slot + '-head');
+        if (h && gen === this.gen) h.innerHTML = '<span style="color:var(--red)">⚠ ' + escHtml(this.err) + '</span>';
+      }
+      return;
+    }
     try {
       const [jT, j5, oi] = await Promise.all([
         fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=' + this.tf() + '&limit=300').then(r => r.json()),
@@ -8072,6 +8175,7 @@ class LiqView {
   // el punto vivo SOBREESCRIBE el slot 5m en curso; al cerrar la barra, el histórico lo absorbe
   async pollOI() {
     const gen = this.gen, I = this.instr();
+    if (I.cls !== 'cx') return; // fx/idx no tienen OI accesible — su mapa es de STOPS
     try {
       let usd = 0, ts = 0;
       try {
@@ -8136,6 +8240,87 @@ class LiqView {
     this.paint();
   }
   buildSoon() { clearTimeout(this._bT); this._bT = setTimeout(() => { if (!document.hidden) this.build(); }, 1200); }
+
+  // ── L3 MOTOR DE STOPS (fx/idx — sin OI): pivotes fractales + PDH/PDL + redondos,
+  // barridos si el precio los cruzó después de formarse, con SESGO de sentimiento retail
+  // (la multitud cargada de un lado tiene sus stops del lado perdedor). Etiquetado ◐ STOPS.
+  buildStops() {
+    const I = this.instr(); if (I.cls === 'cx') return;
+    const bars = this.barsTf; if (!bars || bars.length < 40) return;
+    const last = this.last || bars[bars.length - 1].close;
+    this.binSz = lqNice(last * 6e-4);
+    const acc = new Map(), from = new Map();
+    const swept = (p, t) => { for (let j = bars.length - 1; j >= 0; j--) { const b = bars[j]; if (b.time <= t) return false; if (p >= b.low && p <= b.high) return true; } return false; };
+    const add = (p, t, w) => {
+      if (!(p > 0) || swept(p, t)) return;
+      const k = Math.floor(p / this.binSz);
+      acc.set(k, (acc.get(k) || 0) + w);
+      if (!from.has(k) || t < from.get(k)) from.set(k, t);
+    };
+    const n = bars.length, K = 3;
+    for (let i = K; i < n - K; i++) { // pivotes fractales ±3 con peso por recencia
+      let hi = true, lo = true;
+      for (let j = i - K; j <= i + K; j++) { if (j === i) continue; if (bars[j].high >= bars[i].high) hi = false; if (bars[j].low <= bars[i].low) lo = false; }
+      const rec = 0.5 + 0.5 * (i / n);
+      if (hi) add(bars[i].high, bars[i].time, 1.4 * rec);
+      if (lo) add(bars[i].low, bars[i].time, 1.4 * rec);
+    }
+    const today = Terminal.etParts(bars[n - 1].time).d; // PDH/PDL del día ET previo (peso alto)
+    let pdh = null, pdl = null, pd = null;
+    for (let i = n - 1; i >= 0; i--) {
+      const d = Terminal.etParts(bars[i].time).d;
+      if (d === today) continue;
+      if (pd == null) pd = d; else if (d !== pd) break;
+      pdh = pdh == null ? bars[i].high : Math.max(pdh, bars[i].high);
+      pdl = pdl == null ? bars[i].low : Math.min(pdl, bars[i].low);
+    }
+    const t0 = bars[0].time;
+    if (pdh != null) add(pdh, t0, 3);
+    if (pdl != null) add(pdl, t0, 3);
+    const rstep = lqNice(last * 0.004); // números redondos ±3
+    for (let m = 1; m <= 3; m++) { add((Math.ceil(last / rstep) + m - 1) * rstep, t0, 1); add((Math.floor(last / rstep) - m + 1) * rstep, t0, 1); }
+    const st = LiqTab.sentFor(I);
+    const skBl = st ? st.long / 50 : 1, skAb = st ? (100 - st.long) / 50 : 1;
+    const vals = [...acc.values()].sort((a, b) => a - b);
+    const p95 = vals.length ? (vals[Math.floor(vals.length * 0.95)] || 1) : 1;
+    const rows = [];
+    for (const [k, w0] of acc) {
+      const mid = (k + 0.5) * this.binSz;
+      const w = w0 * (mid < last ? skBl : skAb);
+      const rel = Math.min(1, w / (p95 * Math.max(skBl, skAb, 1)));
+      if (rel < 0.06) continue;
+      rows.push({ p1: k * this.binSz, p2: (k + 1) * this.binSz, mid, usd: w, rel, from: from.get(k) });
+    }
+    this.stopRows = rows;
+    this.pools.setRows(LiqTab.ov('bandas') ? rows : []);
+    this.profile.setRows(LiqTab.ov('perfil') ? rows : []);
+    this.heat.setData([]);
+    this.renderHead(null);
+    if (this.slot === 'a') LiqTab.renderPools(this, null);
+  }
+  _fxPanels() { // los paneles cripto no aplican — notas honestas + panel de sentimiento
+    if (this.slot !== 'a') return;
+    const I = this.instr();
+    const tape = document.getElementById('liq-tape'), liqs = document.getElementById('liq-liqs'), cvd = document.getElementById('liq-cvd'), curve = document.getElementById('liq-curve');
+    if (cvd) cvd.innerHTML = '';
+    if (tape) tape.innerHTML = '<span style="color:var(--text3)">' + (I.cls === 'idx' ? 'sin cinta pública gratis para futuros — Yahoo es delayed ~1min' : 'el spot forex no publica cinta de trades — presión solo por precio') + '</span>';
+    if (liqs) liqs.innerHTML = '<span style="color:var(--text3)">no existe feed de liquidaciones en ' + (I.cls === 'idx' ? 'futuros de índices' : 'forex') + ' — este mapa es de STOPS estimados (◐), no de liquidaciones</span>';
+    if (curve) { const g = curve.getContext('2d'); g && g.clearRect(0, 0, curve.width, curve.height); }
+    LiqTab.renderSent(this);
+  }
+  // σ numérica por vela del TF activo (fórmula muestral N−1 de Angel) — cambia CON la temporalidad
+  _sigChip() {
+    const bars = this.barsTf; if (!bars || bars.length < 30) return '';
+    const rs = [];
+    for (let i = 1; i < bars.length; i++) { const p = bars[i - 1].close; if (p > 0) rs.push(bars[i].close / p - 1); }
+    const N = rs.length; if (N < 20) return '';
+    const mu = rs.reduce((a, b) => a + b, 0) / N;
+    const sd = Math.sqrt(rs.reduce((a, r) => a + (r - mu) * (r - mu), 0) / (N - 1));
+    const I = this.instr(), tfMin = this.tfSec() / 60;
+    const perDay = (I.cls === 'idx' ? 390 : 1440) / tfMin, yDays = I.cls === 'idx' ? 252 : 365;
+    const sdDay = sd * Math.sqrt(perDay);
+    return ' · <span style="color:var(--text3);font-size:10px" title="σ muestral (N−1) de los rendimientos por vela del TF activo (n=' + N + ') — cambia con la temporalidad · día = σ_vela×√(velas/día) · anual ×√' + yDays + '">σ ' + this.tf() + ' ' + (sd * 100).toFixed(3) + '% · día ' + (sdDay * 100).toFixed(2) + '% · anual ' + (sdDay * Math.sqrt(yDays) * 100).toFixed(0) + '%</span>';
+  }
 
   // vuelca modelo → primitives + custom series + paneles
   paint() {
@@ -8205,6 +8390,20 @@ class LiqView {
   renderHead(sum) {
     const el = document.getElementById('liq-v' + this.slot + '-head'); if (!el) return;
     const I = this.instr();
+    // ── L3: header de STOPS para fx/idx (sin OI → % relativo por lado + sentimiento retail) ──
+    if (I.cls !== 'cx') {
+      let up = 0, dn = 0;
+      for (const r of (this.stopRows || [])) { if (r.mid >= this.last) up += r.usd; else dn += r.usd; }
+      const tot = up + dn, st = LiqTab.sentFor(I);
+      let h = '<b style="color:var(--text)">' + I.id + '</b> <b style="font-size:15px;color:var(--text)">' + this.last.toFixed(this.dec()) + '</b>'
+        + ' · <span style="color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:4px;padding:0 5px;font-size:9px" title="Mapa de STOPS estimados (pivotes + PDH/PDL + redondos, barridos al cruce, sesgo por sentimiento) — NO liquidaciones: forex/índices no publican OI utilizable ni feed de liquidaciones">◐ STOPS</span>'
+        + (tot > 0 ? ' · <span style="color:var(--text3)">stops:</span> <b style="color:var(--red)" title="peso relativo de stops estimados ARRIBA del precio">↑ ' + Math.round(up / tot * 100) + '%</b> <b style="color:var(--green)">↓ ' + Math.round(dn / tot * 100) + '%</b>' : '')
+        + (st ? ' · <b style="color:' + (st.long >= 65 || st.long <= 35 ? 'var(--amber)' : 'var(--text2)') + '" title="Sentimiento retail agregado (' + escHtml(st.src) + ', refresh 10 min). Multitud cargada de un lado = sus stops están del lado perdedor — combustible de barrido.">retail ' + st.long.toFixed(0) + '% LONG' + (st.long >= 65 ? ' → stops abajo cargados' : st.long <= 35 ? ' → stops arriba cargados' : '') + '</b>' : (I.cls === 'fx' ? ' · <span style="color:var(--text3)">sentimiento cargando…</span>' : ''))
+        + (I.cls === 'idx' ? ' · <span style="color:var(--text3)" title="No existe NQ/ES intradía vivo gratis (investigado): Yahoo delayed ~1min, refresh 60s">Yahoo ~1min</span>' : ' · <span style="color:var(--teal)" title="Velas en vivo por WebSocket de Deriv (sin cuenta)">Deriv WS</span>');
+      if (this.sx) { const z = this.sx.z, az = Math.abs(z); h += ' · <b style="color:' + (az >= 2 ? 'var(--amber)' : az >= 1.5 ? 'var(--text2)' : 'var(--text3)') + '" title="z-score vs VWAP (media de equilibrio)">z ' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ' + (az >= 2 ? ' ESTIRADO → media' : '') + '</b>'; }
+      el.innerHTML = h + this._sigChip();
+      return;
+    }
     let up = 0, dn = 0;
     if (sum) { for (const [b, usd] of sum) { if ((b + 0.5) * this.binSz >= this.last) up += usd; else dn += usd; } this._ud = { up, dn }; }
     else if (this._ud) { up = this._ud.up; dn = this._ud.dn; } // el tick de vela no pisa los totales del modelo
@@ -8217,7 +8416,7 @@ class LiqView {
       const col = az >= 2 ? 'var(--amber)' : az >= 1.5 ? 'var(--text2)' : 'var(--text3)';
       h += ' · <b style="color:' + col + '" title="z = (precio − VWAP)/σ — ±2σ cubre el 95%: más allá, la estadística favorece la reversión a la media (asume normalidad; colas gruesas reales)">z ' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ' + (az >= 2 ? ' ESTIRADO → media' : az >= 1.5 ? ' estirándose' : '') + '</b>';
     }
-    el.innerHTML = h;
+    el.innerHTML = h + this._sigChip(); // V7: σ numérica del TF activo — cambia con la temporalidad
   }
 
   // ── eventos en vivo (ruteados por LqHub, filtrados por instId) ──
@@ -8295,8 +8494,8 @@ class LiqView {
 
   destroy() {
     this.gen++;
-    clearTimeout(this._bT); clearTimeout(this._hT);
-    this.unsubscribe();
+    clearTimeout(this._bT); clearTimeout(this._hT); clearTimeout(this._stT);
+    this.unsubscribe(); // incluye _dKill (forget del stream Deriv)
     if (this.chart) { try { this.chart.remove(); } catch (e) {} this.chart = null; }
   }
 }
@@ -8314,17 +8513,70 @@ const LiqTab = {
   ],
   // dropdown "más ▾": cualquier par USDT con perp en Binance/Bybit y spot en OKX (dec auto)
   MORE: ['ADA', 'LINK', 'AVAX', 'DOT', 'LTC', 'BCH', 'UNI', 'ATOM', 'NEAR', 'APT', 'ARB', 'OP', 'SUI', 'TON', 'TRX', 'PEPE', 'SHIB', 'WIF', 'FIL', 'INJ', 'TIA', 'SEI', 'POL', 'AAVE', 'CRV', 'JUP', 'ONDO', 'ENA', 'WLD', 'ORDI'],
+  // ══ L3: FOREX/ORO (Deriv WS vivo + sentimiento retail FXSSI/SWFX) e ÍNDICES (Yahoo ~1min).
+  // Sin OI/liqs/book en estas clases → mapa de STOPS estimado + sesgo de sentimiento. Honesto: ◐
+  FX: [
+    { id: 'EURUSD', cls: 'fx', deriv: 'frxEURUSD', dec: 5, sw: 'EURUSD' },
+    { id: 'GBPUSD', cls: 'fx', deriv: 'frxGBPUSD', dec: 5, sw: 'GBPUSD' },
+    { id: 'USDJPY', cls: 'fx', deriv: 'frxUSDJPY', dec: 3, sw: 'USDJPY' },
+    { id: 'AUDUSD', cls: 'fx', deriv: 'frxAUDUSD', dec: 5, sw: 'AUDUSD' },
+    { id: 'USDCAD', cls: 'fx', deriv: 'frxUSDCAD', dec: 5, sw: 'USDCAD' },
+    { id: 'EURJPY', cls: 'fx', deriv: 'frxEURJPY', dec: 3, sw: 'EURJPY' },
+    { id: 'XAUUSD', cls: 'fx', deriv: 'frxXAUUSD', dec: 2, sw: 'XAUUSD' },
+    { id: 'XAGUSD', cls: 'fx', deriv: 'frxXAGUSD', dec: 3, sw: 'XAGUSD' },
+  ],
+  IDX: [
+    { id: 'NQ', cls: 'idx', yh: 'NQ=F', dec: 1 },
+    { id: 'ES', cls: 'idx', yh: 'ES=F', dec: 2 },
+  ],
   instrById(id) {
     const base = this.INSTRS.find(i => i.id === id);
-    if (base) return base;
+    if (base) return Object.assign({ cls: 'cx' }, base);
+    const fx = this.FX.find(i => i.id === id); if (fx) return fx;
+    const ix = this.IDX.find(i => i.id === id); if (ix) return ix;
     if (this.MORE.includes(id)) {
       // gotcha cazado en verificación: los meme-perps de Binance/Bybit van con prefijo 1000
       // (PEPEUSDT devuelve [] — el real es 1000PEPEUSDT); k1000 escala el OI vivo (contratos ×1000)
       const k1000 = ['PEPE', 'SHIB'].includes(id);
       const perp = (k1000 ? '1000' : '') + id + 'USDT';
-      return { id, okx: id + '-USDT', bin: perp, by: perp, k1000 };
+      return { id, cls: 'cx', okx: id + '-USDT', bin: perp, by: perp, k1000 };
     }
-    return this.INSTRS[0];
+    return Object.assign({ cls: 'cx' }, this.INSTRS[0]);
+  },
+  // ── sentimiento retail (L3): FXSSI proxy serverless + Dukascopy SWFX JSONP, cache 10 min ──
+  _sent: null, _sentT: 0,
+  sentFor(I) { const s = this._sent; if (!s || !I.sw) return null; return s[I.sw] || null; },
+  async sentLoad(force) {
+    if (!force && Date.now() - this._sentT < 600e3) return;
+    this._sentT = Date.now();
+    const out = {};
+    try {
+      const j = await fetch('/api/fxssi').then(r => r.json());
+      if (j && j.sym) for (const k in j.sym) out[k] = { long: j.sym[k].long, src: 'FXSSI×' + j.sym[k].brokers };
+    } catch (e) {}
+    try {
+      const j = await new Promise((res, rej) => {
+        const cb = 'lqSw' + Math.floor(Math.random() * 1e6), s = document.createElement('script');
+        const to = setTimeout(() => { fin(); rej(new Error('timeout')); }, 8000);
+        function fin() { clearTimeout(to); try { delete window[cb]; } catch (e) {} s.remove(); }
+        window[cb] = d => { fin(); res(d); };
+        s.onerror = () => { fin(); rej(new Error('err')); };
+        s.src = 'https://freeserv.dukascopy.com/2.0/api/?group=quotes&method=realtimeSentimentIndex&enabled=true&key=bsq3l3p5lc8w4s0c&type=swfx&jsonp=' + cb;
+        document.head.appendChild(s);
+      });
+      const arr = Array.isArray(j) ? j : (j && j.list) || [];
+      for (const r of arr) {
+        const k = String(r.title || r.id || '').replace('/', '');
+        if (!k || !(+r.long > 0)) continue;
+        if (out[k]) { out[k].long = +((out[k].long + +r.long) / 2).toFixed(1); out[k].src += '+SWFX'; }
+        else out[k] = { long: +(+r.long).toFixed(1), src: 'SWFX' };
+      }
+    } catch (e) {}
+    if (Object.keys(out).length) {
+      this._sent = out;
+      this.each(v => { if (v.instr().cls === 'fx') v.buildStops(); });
+      const va = this.views.a; if (va && va.instr().cls === 'fx') this.renderSent(va);
+    }
   },
   TFS: [{ k: '1m', s: 60 }, { k: '3m', s: 180 }, { k: '5m', s: 300 }, { k: '15m', s: 900 }, { k: '30m', s: 1800 }, { k: '1H', s: 3600 }],
   TIERS: [{ lev: 10, w: .35 }, { lev: 25, w: .35 }, { lev: 50, w: .20 }, { lev: 100, w: .10 }],
@@ -8350,11 +8602,16 @@ const LiqTab = {
     LqHub.on('trade', m => this.each(v => v.onTrade(m)));
     LqHub.on('book', m => this.each(v => v.onBook(m)));
     LqHub.on('liq', e => this.each(v => v.onLiq(e)));
+    LqHub.on('deriv', m => this.each(v => v.onDeriv(m)));
+    LqHub.on('derivOpen', () => this.each(v => { if (v.instr().cls === 'fx') v._derivReq(); })); // reconexión Deriv re-suscribe
+    this.sentLoad();
     this.applyLayout();
     // OI: poll 10s (lo único sin WS en ningún exchange; 1% del rate limit de Binance)
     this._timers.push(setInterval(() => { if (!document.hidden) this.each(v => v.pollOI()); }, 10000));
     // histórico OI re-sync 5 min (absorbe los puntos vivos; NO toca velas ni zoom)
     this._timers.push(setInterval(() => { if (!document.hidden) this.each(v => v.reloadOI()); }, 300e3));
+    // L3: índices por Yahoo (delayed ~1min, declarado) + refresh de sentimiento retail
+    this._timers.push(setInterval(() => { if (!document.hidden) { this.each(v => v.pollIdx()); this.sentLoad(); } }, 60000));
     this._visFn = () => { if (!document.hidden) { this.each(v => { v.pollOI(); v.build(); }); } };
     document.addEventListener('visibilitychange', this._visFn);
     this._paintLoop();
@@ -8382,7 +8639,7 @@ const LiqTab = {
     this.renderBars();
   },
   setInstr(slot, id) { const v = this.views[slot]; if (!v) return; v.unsubscribe(); v.cfg().instr = id; this.save(); v.mount(); v.subscribe(); v.load(); v.pollOI(); this.renderBars(); },
-  setTf(slot, k) { const v = this.views[slot]; if (!v) return; v.unsubscribe(); v.cfg().tf = k; this.save(); v.mount(); v.subscribe(); v.load(); this.renderBars(); },
+  setTf(slot, k) { const v = this.views[slot]; if (!v) return; if (v.instr().cls === 'idx' && (k === '1m' || k === '3m')) k = '5m'; v.unsubscribe(); v.cfg().tf = k; this.save(); v.mount(); v.subscribe(); v.load(); this.renderBars(); },
 
   renderBars() {
     const chip = (lbl, on, fn, tip) => '<button class="lq-chip' + (on ? ' on' : '') + '" onclick="' + fn + '" title="' + escHtml(tip || '') + '">' + lbl + '</button>';
@@ -8413,8 +8670,15 @@ const LiqTab = {
       const I = v.instr();
       bar.innerHTML = '<span class="lq-lbl">TICKER:</span>'
         + this.INSTRS.map(x => chip(x.id, x.id === I.id, "LiqTab.setInstr('" + slot + "','" + x.id + "')", 'Perp ' + x.bin + ' · velas OKX ' + x.okx)).join('')
-        + '<select class="lq-chip' + (this.MORE.includes(I.id) ? ' on' : '') + '" style="max-width:92px" onchange="if(this.value)LiqTab.setInstr(\'' + slot + '\',this.value)" title="Más tickers (perps con OI en Binance)">'
-        + '<option value="">más ▾</option>' + this.MORE.map(x => '<option value="' + x + '"' + (x === I.id ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
+        + (() => { // L3: dropdown agrupado — TODOS los activos (cripto extra + forex/oro + índices)
+          const opt = id => '<option value="' + id + '"' + (id === I.id ? ' selected' : '') + '>' + id + '</option>';
+          return '<select class="lq-chip' + (!this.INSTRS.some(x => x.id === I.id) ? ' on' : '') + '" style="max-width:112px" onchange="if(this.value)LiqTab.setInstr(\'' + slot + '\',this.value)" title="Todos los activos: cripto (OI+liqs reales) · forex/oro (Deriv vivo + sentimiento, mapa STOPS) · índices (Yahoo ~1min, mapa STOPS)">'
+            + '<option value="">más ▾</option>'
+            + '<optgroup label="Cripto">' + this.MORE.map(opt).join('') + '</optgroup>'
+            + '<optgroup label="Forex / Metales">' + this.FX.map(x => opt(x.id)).join('') + '</optgroup>'
+            + '<optgroup label="Índices (~1min)">' + this.IDX.map(x => opt(x.id)).join('') + '</optgroup>'
+            + '</select>';
+        })()
         + '<span class="lq-lbl" style="margin-left:8px">TF:</span>'
         + this.TFS.map(t => chip(t.k, t.k === v.tf(), "LiqTab.setTf('" + slot + "','" + t.k + "')", 'Velas de ' + t.k + ' (el modelo de pools corre siempre a 5m, la resolución del OI)')).join('');
     }
@@ -8442,14 +8706,19 @@ const LiqTab = {
     const el = document.getElementById('liq-feeds'); if (!el) return;
     const s = LqHub.status();
     const dot = (ok, lbl, tip) => '<span title="' + escHtml(tip) + '" style="margin-left:6px;color:' + (ok ? 'var(--teal)' : 'var(--red)') + '">●' + lbl + '</span>';
-    el.innerHTML = dot(s.book, 'libro', 'OKX books WS (100ms)') + dot(s.candle, 'velas', 'OKX candle WS') + dot(s.bybit, 'liqs', 'Bybit allLiquidation WS (500ms, completo)') + dot(s.bin, 'BN', 'Binance forceOrder (capado 1/s — best-effort, puede geobloquear)') + dot(Date.now() - this._oiOk < 40000, 'OI 10s', 'Open Interest: sin WS en ningún exchange — poll 10s Binance (1% del rate limit)');
+    const anyFx = Object.values(this.views).some(v => v.instr().cls === 'fx');
+    const anyCx = Object.values(this.views).some(v => v.instr().cls === 'cx');
+    el.innerHTML = (anyCx ? dot(s.book, 'libro', 'OKX books WS (100ms)') + dot(s.candle, 'velas', 'OKX candle WS') + dot(s.bybit, 'liqs', 'Bybit allLiquidation WS (500ms, completo)') + dot(s.bin, 'BN', 'Binance forceOrder (capado 1/s — best-effort, puede geobloquear)') + dot(Date.now() - this._oiOk < 40000, 'OI 10s', 'Open Interest: sin WS en ningún exchange — poll 10s Binance (1% del rate limit)') : '')
+      + (anyFx ? dot(s.deriv, 'Deriv', 'Deriv WS forex/oro en vivo (sin cuenta)') : '')
+      + (this._sent ? dot(Date.now() - this._sentT < 1300e3, 'sent', 'Sentimiento retail FXSSI+SWFX (10 min)') : '');
     const bl = document.getElementById('liq-book-live'), tl = document.getElementById('liq-tape-live'), ll = document.getElementById('liq-liqs-live');
     if (bl) bl.className = 'lq-live' + (s.book ? '' : ' stale');
     if (tl) tl.className = 'lq-live' + (s.book ? '' : ' stale');
     if (ll) ll.className = 'lq-live' + (s.bybit ? '' : ' stale');
   },
   renderBook() {
-    const v = this.views.a; if (!v || !v.book.bids.length || !v.book.asks.length) return; // review V5 B2
+    const v = this.views.a; if (!v || v.instr().cls !== 'cx') return; // fx/idx: el panel muestra sentimiento (renderSent)
+    if (!v.book.bids.length || !v.book.asks.length) return; // review V5 B2
     const el = document.getElementById('liq-book'), cv = document.getElementById('liq-curve');
     const dc = v.dec(), N = 9;
     const asks = v.book.asks.slice(0, N).reverse(), bids = v.book.bids.slice(0, N);
@@ -8513,8 +8782,32 @@ const LiqTab = {
       '<div class="lq-row lq-flash"><span style="color:' + (e.long ? 'var(--red)' : 'var(--green)') + '">' + (e.long ? 'LONG rekt' : 'SHORT rekt') + ' @ ' + e.px.toFixed(v.dec()) + '</span><span style="color:var(--amber)">' + lqUsd(e.usd) + ' <span style="color:var(--text3);font-size:8px">' + e.src + '</span></span></div>').join('')
       || '<span style="color:var(--text3)">sin liquidaciones aún (mercado tranquilo)</span>';
   },
+  // sentimiento retail en el panel del libro cuando el activo es fx/idx (L3)
+  renderSent(v) {
+    const el = document.getElementById('liq-book'); if (!el) return;
+    const s = this._sent, I = v.instr();
+    if (!s) { el.innerHTML = '<span style="color:var(--text3)">cargando sentimiento retail (FXSSI multi-broker + Dukascopy SWFX)…</span>'; return; }
+    const mine = I.sw && s[I.sw] ? [[I.sw, s[I.sw]]] : [];
+    const rest = this.FX.filter(x => x.sw !== I.sw).map(x => [x.sw, s[x.sw]]).filter(x => x[1]);
+    el.innerHTML = '<div style="font-size:8.5px;color:var(--text3);margin-bottom:3px">SENTIMIENTO RETAIL — % long agregado · extremo = stops del lado perdedor</div>'
+      + mine.concat(rest).slice(0, 9).map(([k, d]) =>
+        '<div class="lq-row" title="' + escHtml('Fuente: ' + d.src + ' · refresh 10 min') + '"><span style="color:' + (k === I.sw ? 'var(--text)' : 'var(--text3)') + '">' + escHtml(k) + '</span>'
+        + '<span><span style="display:inline-block;width:66px;height:7px;border-radius:3px;background:linear-gradient(90deg,rgba(52,211,153,.85) ' + d.long + '%,rgba(248,113,113,.85) ' + d.long + '%);vertical-align:middle"></span> <b style="color:' + (d.long >= 65 || d.long <= 35 ? 'var(--amber)' : 'var(--text2)') + '">' + d.long.toFixed(0) + '%L</b></span></div>').join('');
+  },
   renderPools(v, sum) {
-    const el = document.getElementById('liq-pools'); if (!el || !sum) return;
+    const el = document.getElementById('liq-pools'); if (!el) return;
+    // ── L3: para fx/idx la lista son STOPS relativos (no hay $ de OI) ──
+    if (!sum && v.stopRows) {
+      const rows = v.stopRows.slice().sort((a, b) => b.usd - a.usd).slice(0, 10).sort((a, b) => b.p2 - a.p2);
+      const mx = Math.max(1, ...rows.map(r => r.usd));
+      el.innerHTML = '<div style="font-size:8.5px;color:var(--text3);margin-bottom:3px">peso relativo 0-100 (no hay $ de OI en esta clase)</div>'
+        + rows.map(r => '<div class="lq-row"><span style="color:' + (r.mid >= v.last ? 'var(--red)' : 'var(--green)') + '">' + r.mid.toFixed(v.dec()) + ' <span style="font-size:8px;color:var(--text3)">' + ((r.mid / v.last - 1) * 100 >= 0 ? '+' : '') + ((r.mid / v.last - 1) * 100).toFixed(2) + '%</span></span><span style="color:var(--amber)">' + Math.round(r.usd / mx * 100) + '</span></div>').join('');
+      const st2 = document.getElementById('liq-status');
+      if (st2) st2.innerHTML = 'MODELO STOPS (forex/índices): pivotes fractales ±3 con peso por recencia + PDH/PDL del día ET previo + números redondos · nivel barrido tras formarse = descartado · sesgo por sentimiento retail (FXSSI ~10 brokers vía proxy + Dukascopy SWFX directo, cache 10 min). <b style="color:var(--amber)">◐ ESTIMADO</b> — forex/índices no publican OI intradía utilizable ni feed de liquidaciones: esto es liquidez de STOPS, no liquidaciones. Chart: <a href="https://www.tradingview.com/" target="_blank" rel="noopener" style="color:var(--text3)">Lightweight Charts © TradingView</a>.';
+      if (Date.now() - (this._barsT || 0) > 5000) { this._barsT = Date.now(); this.renderBars(); this.renderFeeds(); }
+      return;
+    }
+    if (!sum) return;
     const I = v.instr();
     const rows = [...sum.entries()].map(([b, usd]) => ({ p: (b + 0.5) * v.binSz, usd, d: ((b + 0.5) * v.binSz / v.last - 1) * 100 }))
       .sort((a, b) => b.usd - a.usd).slice(0, 10).sort((a, b) => b.p - a.p);
