@@ -8551,7 +8551,7 @@ const LiqTab = {
     this._sentT = Date.now();
     const out = {};
     try {
-      const j = await fetch('/api/fxssi').then(r => r.json());
+      const j = await fetch('/api/capital?src=fxssi').then(r => r.json()); // multiplexado: Vercel Hobby = máx 12 functions
       if (j && j.sym) for (const k in j.sym) out[k] = { long: j.sym[k].long, src: 'FXSSI×' + j.sym[k].brokers };
     } catch (e) {}
     try {

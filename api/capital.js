@@ -882,6 +882,37 @@ module.exports = async (req, res) => {
         return res.status(200).json({ error: e.message });
       }
     }
+    if (src === 'fxssi') {
+      // L3 Tab 11 · sentimiento retail forex/oro AGREGADO multi-broker (fxssi.com/api/current-ratios,
+      // público sin auth, verificado 2026-07-19 — incluye Oanda/Myfxbook/IG/XM con pesos oficiales).
+      // Reemplaza al positionBook de OANDA v20 (cuenta nunca llegó). Sin CORS → este proxy.
+      // Vive AQUÍ y no como función propia: Vercel Hobby corta en 12 functions (deploy afcaadc FALLÓ con la 13ª).
+      try {
+        const r = await fetch('https://fxssi.com/api/current-ratios?rand=' + Math.random() + '&user_id=0', {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RebirthCapital/1.0)' },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (!r.ok) throw new Error('fxssi ' + r.status);
+        const j = await r.json();
+        const w = j.broker_weights || {}, bs = j.brokers || {}, acc = {};
+        for (const bk in bs) {
+          const wt = +w[bk] > 0 ? +w[bk] : 1;
+          for (const sym in bs[bk]) {
+            const v = parseFloat(bs[bk][sym]);
+            if (!(v > 0) || v >= 100) continue;
+            if (!acc[sym]) acc[sym] = { s: 0, k: 0, n: 0 };
+            acc[sym].s += v * wt; acc[sym].k += wt; acc[sym].n++;
+          }
+        }
+        const sym = {};
+        for (const k of Object.keys(acc)) sym[k] = { long: +(acc[k].s / acc[k].k).toFixed(1), brokers: acc[k].n };
+        res.setHeader('Cache-Control', 's-maxage=600, stale-while-revalidate=300'); // la fuente refresca cada 10 min
+        return res.status(200).json({ t: Date.now(), sym });
+      } catch (e) {
+        res.setHeader('Cache-Control', 'max-age=0, no-cache');
+        return res.status(200).json({ error: String(e.message || e).slice(0, 140) });
+      }
+    }
     if (src === 'screener') {
       // MOTOR v2 P2: máximos 52w (pool separado). Scraping frágil → 200 con {error} sin cache
       try {
