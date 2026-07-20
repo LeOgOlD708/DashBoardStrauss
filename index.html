@@ -7821,13 +7821,16 @@ class LqSigma {
       ctx.stroke(d);
     }
     ctx.setLineDash([]);
-    ctx.font = Math.round(9 * hpr) + 'px "IBM Plex Mono",monospace'; ctx.fillStyle = 'rgba(96,165,250,.9)';
-    // V7: etiquetas con el VALOR de σ del TF activo — al cambiar temporalidad se VE cambiar
-    const sRaw = pts[pts.length - 1].s;
-    const fS = sRaw >= 100 ? sRaw.toFixed(0) : sRaw >= 1 ? sRaw.toFixed(1) : sRaw.toPrecision(2);
-    ctx.fillText('VWAP · equilibrio', P[0].x + 4 * hpr, P[0].vw - 4 * vpr);
-    ctx.fillText('±1σ 68% (±' + fS + ')', P[0].x + 4 * hpr, P[0].u1 - 4 * vpr);
-    ctx.fillText('±2σ 95% (±' + (sRaw * 2 >= 100 ? (sRaw * 2).toFixed(0) : sRaw * 2 >= 1 ? (sRaw * 2).toFixed(1) : (sRaw * 2).toPrecision(2)) + ') · reversión', P[0].x + 4 * hpr, P[0].u2 - 4 * vpr);
+    // FIX (captura Angel): tras la reapertura del finde la sesión tiene ~25 velas y la banda
+    // se comprime — etiquetas SOLO si la banda mide ≥90px (el blob con texto encimado era eso)
+    if (P[P.length - 1].x - P[0].x >= 90 * hpr) {
+      ctx.font = Math.round(9 * hpr) + 'px "IBM Plex Mono",monospace'; ctx.fillStyle = 'rgba(96,165,250,.9)';
+      const sRaw = pts[pts.length - 1].s;
+      const fN = x => x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toPrecision(2);
+      ctx.fillText('VWAP · equilibrio', P[0].x + 4 * hpr, P[0].vw - 4 * vpr);
+      ctx.fillText('±1σ 68% (±' + fN(sRaw) + ')', P[0].x + 4 * hpr, P[0].u1 - 4 * vpr);
+      ctx.fillText('±2σ 95% (±' + fN(sRaw * 2) + ') · reversión', P[0].x + 4 * hpr, P[0].u2 - 4 * vpr);
+    }
   }
 }
 
@@ -7955,6 +7958,8 @@ class LiqView {
     // llegaba entre mount() y load() y se mezclaba con barsTf del viejo (header híbrido <1s)
     this.barsTf = null; this.bars5 = []; this.last = 0; this._ud = null;
     this.book = { bids: [], asks: [] }; this.M = null; this.act = null; this.actT = null;
+    this.oi = []; this.oiLiveTs = 0; this.stopRows = null; // sin residuos del instrumento anterior
+    this.tape = []; this.cvd = 0; this.cvdDay = null; this.liqs = []; this.sx = null; // A2: cinta/CVD/liqs no cruzan símbolos
     clearTimeout(this._bT); clearTimeout(this._hT); // B7: timers del símbolo viejo no pintan modelo viejo
     el.innerHTML = '';
     this.chart = createChart(el, {
@@ -8036,16 +8041,21 @@ class LiqView {
     if (m.candles) {
       const pt = (m.echo_req && m.echo_req.passthrough) || {};
       if (pt.slot !== this.slot || pt.gen !== this.gen) return;
+      if (m.subscription && m.subscription.id) this._dSub = m.subscription.id; // A4: el forget necesita el id YA (antes solo llegaba con el 1er ohlc)
+      const first = !this._fxInit; this._fxInit = true;
       this.barsTf = m.candles.map(c => ({ time: +c.epoch, open: +c.open, high: +c.high, low: +c.low, close: +c.close, v: 1 }));
+      if (!this.barsTf.length) { this.err = 'Deriv sin velas para este par'; return; }
       this.bars5 = this.barsTf;
       this.last = this.barsTf[this.barsTf.length - 1].close;
       this.candles.setData(this.barsTf.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
       const dc = this.dec();
       this.candles.applyOptions({ priceFormat: { type: 'price', precision: dc, minMove: Math.pow(10, -dc) } });
-      this.chart.timeScale().fitContent();
+      if (first) this.chart.timeScale().fitContent(); // A7: una reconexión Deriv no resetea el zoom del usuario
       this.err = null;
       this.buildStops(); this.renderSigma();
     } else if (m.ohlc) {
+      const pt2 = (m.echo_req && m.echo_req.passthrough) || {};
+      if (pt2.gen != null && pt2.gen !== this.gen) return; // A4: ohlc de la generación vieja (TF anterior) mezclaba granularidades
       const sym = (m.echo_req && m.echo_req.ticks_history) || m.ohlc.symbol;
       if (sym !== I.deriv || !this.barsTf || !this.barsTf.length) return;
       if (m.subscription && m.subscription.id) this._dSub = m.subscription.id;
@@ -8075,6 +8085,7 @@ class LiqView {
         if (b.time === lastB.time) arr[arr.length - 1] = b; else arr.push(b);
         this.candles.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
       }
+      if (arr.length > 1200) arr.splice(0, arr.length - 1200); // A8: tope de memoria en sesiones largas
       this.last = arr[arr.length - 1].close;
       this.renderSigma(); this._stSoon();
     } catch (e) {}
@@ -8168,6 +8179,7 @@ class LiqView {
     return { rows: j.data.map(r => ({ t: Math.floor(+r[0] / 1000), usd: r[3] != null ? +r[3] : (+r[2] || 0) * ref })).reverse(), src: 'OKX' };
   }
   async reloadOI() { // re-sync del histórico SIN tocar velas ni zoom (el WS mantiene las velas)
+    if (this.instr().cls !== 'cx') return; // fx/idx no tienen OI — evitaba fetch symbol=undefined
     const gen = this.gen;
     try { const oi = await this._loadOI(this.instr()); if (gen !== this.gen) return; this.oi = oi.rows; this.oiSrc = oi.src; this.build(); } catch (e) {}
   }
@@ -8248,7 +8260,11 @@ class LiqView {
     const I = this.instr(); if (I.cls === 'cx') return;
     const bars = this.barsTf; if (!bars || bars.length < 40) return;
     const last = this.last || bars[bars.length - 1].close;
-    this.binSz = lqNice(last * 6e-4);
+    // FIX (captura Angel): bin por RANGO real de las velas, no por precio — en EURUSD el
+    // bin de precio×6e-4 daba 10 pips (⅓ del chart visible) y las bandas eran bloques gigantes
+    let bHi = -Infinity, bLo = Infinity;
+    for (const b of bars) { if (b.high > bHi) bHi = b.high; if (b.low < bLo) bLo = b.low; }
+    this.binSz = lqNice(Math.max(bHi - bLo, last * 1e-4) / 60);
     const acc = new Map(), from = new Map();
     const swept = (p, t) => { for (let j = bars.length - 1; j >= 0; j--) { const b = bars[j]; if (b.time <= t) return false; if (p >= b.low && p <= b.high) return true; } return false; };
     const add = (p, t, w) => {
@@ -8266,19 +8282,21 @@ class LiqView {
       if (lo) add(bars[i].low, bars[i].time, 1.4 * rec);
     }
     const today = Terminal.etParts(bars[n - 1].time).d; // PDH/PDL del día ET previo (peso alto)
-    let pdh = null, pdl = null, pd = null;
+    let pdh = null, pdl = null, pd = null, pdEndT = null;
     for (let i = n - 1; i >= 0; i--) {
       const d = Terminal.etParts(bars[i].time).d;
       if (d === today) continue;
-      if (pd == null) pd = d; else if (d !== pd) break;
+      if (pd == null) { pd = d; pdEndT = bars[i].time; } else if (d !== pd) break;
       pdh = pdh == null ? bars[i].high : Math.max(pdh, bars[i].high);
       pdl = pdl == null ? bars[i].low : Math.min(pdl, bars[i].low);
     }
-    const t0 = bars[0].time;
-    if (pdh != null) add(pdh, t0, 3);
-    if (pdl != null) add(pdl, t0, 3);
-    const rstep = lqNice(last * 0.004); // números redondos ±3
-    for (let m = 1; m <= 3; m++) { add((Math.ceil(last / rstep) + m - 1) * rstep, t0, 1); add((Math.floor(last / rstep) - m + 1) * rstep, t0, 1); }
+    // A9: el barrido del PDH/PDL se evalúa desde el CIERRE del día previo (con t0 el propio
+    // día previo "barría" sus extremos y descartaba niveles válidos)
+    if (pdh != null) add(pdh, pdEndT, 3);
+    if (pdl != null) add(pdl, pdEndT, 3);
+    const tNow = bars[n - 1].time;
+    const rstep = lqNice(last * 0.004); // números redondos ±3 (sin filtro de barrido: son imanes permanentes)
+    for (let m = 1; m <= 3; m++) { add((Math.ceil(last / rstep) + m - 1) * rstep, tNow, 1); add((Math.floor(last / rstep) - m + 1) * rstep, tNow, 1); }
     const st = LiqTab.sentFor(I);
     const skBl = st ? st.long / 50 : 1, skAb = st ? (100 - st.long) / 50 : 1;
     const vals = [...acc.values()].sort((a, b) => a - b);
@@ -8317,7 +8335,7 @@ class LiqView {
     const mu = rs.reduce((a, b) => a + b, 0) / N;
     const sd = Math.sqrt(rs.reduce((a, r) => a + (r - mu) * (r - mu), 0) / (N - 1));
     const I = this.instr(), tfMin = this.tfSec() / 60;
-    const perDay = (I.cls === 'idx' ? 390 : 1440) / tfMin, yDays = I.cls === 'idx' ? 252 : 365;
+    const perDay = (I.cls === 'idx' ? 1380 : 1440) / tfMin, yDays = I.cls === 'idx' ? 252 : 365; // A6: NQ/ES Yahoo = Globex ~23h, no RTH 390min
     const sdDay = sd * Math.sqrt(perDay);
     return ' · <span style="color:var(--text3);font-size:10px" title="σ muestral (N−1) de los rendimientos por vela del TF activo (n=' + N + ') — cambia con la temporalidad · día = σ_vela×√(velas/día) · anual ×√' + yDays + '">σ ' + this.tf() + ' ' + (sd * 100).toFixed(3) + '% · día ' + (sdDay * 100).toFixed(2) + '% · anual ' + (sdDay * Math.sqrt(yDays) * 100).toFixed(0) + '%</span>';
   }
@@ -8548,7 +8566,7 @@ const LiqTab = {
   sentFor(I) { const s = this._sent; if (!s || !I.sw) return null; return s[I.sw] || null; },
   async sentLoad(force) {
     if (!force && Date.now() - this._sentT < 600e3) return;
-    this._sentT = Date.now();
+    // A5: _sentT avanza SOLO en éxito — un hipo de red congelaba el sentimiento 10 min
     const out = {};
     try {
       const j = await fetch('/api/capital?src=fxssi').then(r => r.json()); // multiplexado: Vercel Hobby = máx 12 functions
@@ -8573,6 +8591,7 @@ const LiqTab = {
       }
     } catch (e) {}
     if (Object.keys(out).length) {
+      this._sentT = Date.now();
       this._sent = out;
       this.each(v => { if (v.instr().cls === 'fx') v.buildStops(); });
       const va = this.views.a; if (va && va.instr().cls === 'fx') this.renderSent(va);
@@ -8585,8 +8604,8 @@ const LiqTab = {
   save() { try { localStorage.setItem('liq_cfg_v2', JSON.stringify(this._cfg)); } catch (e) {} },
   tiersOn() { const t = this.cfg().tiers || {}; const on = {}; for (const T of this.TIERS) on[T.lev] = t[T.lev] !== false; return on; },
   ov(k) { const o = this.cfg().ov || {}; return k in o ? o[k] !== false : k !== 'mapa'; },
-  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = !this.ov(k); this.save(); this.renderBars(); this.each(v => { v.renderSigma(); v.paint(); }); },
-  setTier(lev) { const c = this.cfg(); c.tiers = c.tiers || {}; c.tiers[lev] = c.tiers[lev] === false; this.save(); this.renderBars(); this.each(v => v.paint()); },
+  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = !this.ov(k); this.save(); this.renderBars(); this.each(v => { v.renderSigma(); v.instr().cls === 'cx' ? v.paint() : v.buildStops(); }); }, // fx/idx refrescan por su motor
+  setTier(lev) { const c = this.cfg(); c.tiers = c.tiers || {}; c.tiers[lev] = c.tiers[lev] === false; this.save(); this.renderBars(); this.each(v => { if (v.instr().cls === 'cx') v.paint(); }); },
   layout() { return this.cfg().layout === 2 ? 2 : 1; },
   setLayout(n) { this.cfg().layout = n; this.save(); this.applyLayout(); },
   each(fn) { Object.values(this.views).forEach(fn); },
@@ -8712,9 +8731,11 @@ const LiqTab = {
       + (anyFx ? dot(s.deriv, 'Deriv', 'Deriv WS forex/oro en vivo (sin cuenta)') : '')
       + (this._sent ? dot(Date.now() - this._sentT < 1300e3, 'sent', 'Sentimiento retail FXSSI+SWFX (10 min)') : '');
     const bl = document.getElementById('liq-book-live'), tl = document.getElementById('liq-tape-live'), ll = document.getElementById('liq-liqs-live');
-    if (bl) bl.className = 'lq-live' + (s.book ? '' : ' stale');
-    if (tl) tl.className = 'lq-live' + (s.book ? '' : ' stale');
-    if (ll) ll.className = 'lq-live' + (s.bybit ? '' : ' stale');
+    const va = this.views.a, aFx = va && va.instr().cls !== 'cx';
+    // fx/idx: los puntos de vida siguen al feed que SÍ aplica (los rojos confundían — captura Angel)
+    if (bl) bl.className = 'lq-live' + ((aFx ? (this._sent != null) : s.book) ? '' : ' stale');
+    if (tl) tl.className = 'lq-live' + ((aFx ? s.deriv : s.book) ? '' : ' stale');
+    if (ll) ll.className = 'lq-live' + ((aFx ? s.deriv : s.bybit) ? '' : ' stale');
   },
   renderBook() {
     const v = this.views.a; if (!v || v.instr().cls !== 'cx') return; // fx/idx: el panel muestra sentimiento (renderSent)
@@ -8769,7 +8790,7 @@ const LiqTab = {
     }
   },
   renderTape() {
-    const v = this.views.a; if (!v) return;
+    const v = this.views.a; if (!v || v.instr().cls !== 'cx') return; // A3: la cinta stale de cripto pisaba la nota de forex
     const el = document.getElementById('liq-tape'), cvEl = document.getElementById('liq-cvd');
     const I = v.instr();
     if (cvEl) cvEl.innerHTML = 'CVD <b style="color:' + (v.cvd >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (v.cvd >= 0 ? '+' : '−') + lqUsd(Math.abs(v.cvd)) + '</b> <span style="color:var(--text3)">$ agresor acumulado (día ET)</span>';
