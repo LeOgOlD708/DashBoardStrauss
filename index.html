@@ -7562,8 +7562,10 @@ const LiqTab = {
   win() { return this.WINS[this.cfg().win || '24h'] ? (this.cfg().win || '24h') : '24h'; },
   tf() { return this.WINS[this.win()].tf; },
   tiersOn() { const t = this.cfg().tiers || {}; const on = {}; for (const T of this.TIERS) on[T.lev] = t[T.lev] !== false; return on; },
-  ov(k) { const o = this.cfg().ov || {}; return o[k] !== false; },
-  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = c.ov[k] === false; this.saveCfg(); this._renderBtns(); this._render(); },
+  // V2 look TD: 'mapa' (2D difuso estilo Coinglass) apagado por defecto — el protagonista
+  // son las BANDAS de celdas (el look de la captura de Trading Different que pidió Angel)
+  ov(k) { const o = this.cfg().ov || {}; return k in o ? o[k] !== false : k !== 'mapa'; },
+  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = !this.ov(k); this.saveCfg(); this._renderBtns(); this._render(); },
 
   init() {
     this.destroy();
@@ -7741,6 +7743,18 @@ const LiqTab = {
     }
     return this._lutC = L;
   },
+  // LUT "jet TD" para bandas/perfil: verde borde → teal → amarillo → naranja → ROJO núcleo
+  // (el colormap de la captura de Trading Different: el rojo marca la concentración máxima)
+  _lutJ() {
+    if (this._lutJC) return this._lutJC;
+    const stops = [[0, 150, 70], [0, 185, 150], [140, 210, 90], [240, 210, 40], [250, 140, 20], [228, 32, 28]];
+    const L = new Uint8Array(256 * 3);
+    for (let i = 0; i < 256; i++) {
+      const f = i / 255 * (stops.length - 1), s = Math.min(stops.length - 2, Math.floor(f)), u = f - s;
+      for (let c = 0; c < 3; c++) L[i * 3 + c] = Math.round(stops[s][c] * (1 - u) + stops[s + 1][c] * u);
+    }
+    return this._lutJC = L;
+  },
   _nice(x) { const m = Math.pow(10, Math.floor(Math.log10(x || 1))); for (const k of [1, 2, 2.5, 5, 10]) if (k * m >= x) return k * m; return 10 * m; },
   _fmtUsd(v) { return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; },
 
@@ -7798,6 +7812,9 @@ const LiqTab = {
     const pad = (pMax - pMin) * 0.06 || 1; pMin -= pad; pMax += pad;
     const X = i => ml + (i + 0.5) / nB * iw, Y = p => mt + (1 - (p - pMin) / (pMax - pMin)) * ih;
     const xT = ts => ml + (ts - vb[0].t) / (tfS * nB) * iw;
+    // V2 look TD: el plot va sobre NEGRO (la captura de referencia es fondo negro puro —
+    // los pools saturados solo gritan así); el resto del tab conserva la paleta de la casa
+    g.fillStyle = '#040404'; g.fillRect(ml, mt, iw, ih);
     // rejilla precio 1/2/2.5/5×10^k (patrón Terminal V6.9) + horas ET
     {
       const raw = (pMax - pMin) / 8, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
@@ -7839,24 +7856,36 @@ const LiqTab = {
     const av = [...actSum.values()].sort((a, b) => a - b);
     const actP95 = av.length ? (av[Math.floor(av.length * 0.95)] || 1) : 1;
     if (actSum.size && this.ov('bandas')) {
-      const L = this._lut();
+      // V2 look TD: cada bin vivo = fila de CELDAS saturadas con el jet (rojo = núcleo),
+      // con costuras de rejilla verticales/horizontales que dan la textura de la captura
+      const L = this._lutJ(), rects = [];
       for (const [bIdx, usd] of actSum) {
-        const rel = Math.min(1, usd / actP95); if (rel < 0.06) continue;
-        const y1 = Y((bIdx + 1) * this._binSz), y2 = Y(bIdx * this._binSz);
-        if (y2 < mt || y1 > mt + ih) continue;
-        const li = Math.floor(rel * 255);
-        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',' + (0.10 + rel * 0.38).toFixed(3) + ')';
-        g.fillRect(ml, Math.max(mt, y1), iw, Math.max(1.5, Math.min(mt + ih, y2) - Math.max(mt, y1)));
+        const rel = Math.min(1, usd / actP95); if (rel < 0.04) continue;
+        const y1 = Math.max(mt, Y((bIdx + 1) * this._binSz)), y2 = Math.min(mt + ih, Y(bIdx * this._binSz));
+        if (y2 <= mt || y1 >= mt + ih || y2 - y1 < 0.8) continue;
+        const li = Math.floor(Math.pow(rel, 0.65) * 255);
+        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',' + (0.32 + rel * 0.55).toFixed(3) + ')';
+        g.fillRect(ml, y1, iw, Math.max(1.5, y2 - y1));
+        rects.push([y1, y2]);
+      }
+      if (rects.length) { // costuras SOLO dentro de los pools (clip a la unión de filas)
+        g.save(); g.beginPath();
+        for (const [y1, y2] of rects) g.rect(ml, y1, iw, y2 - y1);
+        g.clip(); g.strokeStyle = 'rgba(4,4,4,.75)'; g.lineWidth = 1;
+        const stepX = Math.max(3, iw / nB);
+        for (let x = ml; x <= ml + iw; x += stepX) { g.beginPath(); g.moveTo(x, mt); g.lineTo(x, mt + ih); g.stroke(); }
+        for (const [y1] of rects) { g.beginPath(); g.moveTo(ml, y1); g.lineTo(ml + iw, y1); g.stroke(); }
+        g.restore();
       }
     }
     // ③ PERFIL lateral — liquidez viva por nivel, anclado a la derecha
     if (actSum.size && this.ov('perfil')) {
-      const maxV = Math.max(...actSum.values()), maxW = iw * 0.14, L = this._lut();
+      const maxV = Math.max(...actSum.values()), maxW = iw * 0.15, L = this._lutJ();
       for (const [bIdx, usd] of actSum) {
         const y1 = Y((bIdx + 1) * this._binSz), y2 = Y(bIdx * this._binSz);
         if (y2 < mt || y1 > mt + ih) continue;
-        const w = usd / maxV * maxW, li = Math.floor(Math.min(1, usd / actP95) * 255);
-        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',.65)';
+        const w = usd / maxV * maxW, li = Math.floor(Math.pow(Math.min(1, usd / actP95), 0.65) * 255);
+        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',.8)';
         g.fillRect(ml + iw - w, Math.max(mt, y1), w, Math.max(1.5, Math.min(mt + ih, y2) - Math.max(mt, y1)));
       }
     }
@@ -7878,6 +7907,18 @@ const LiqTab = {
         g.fillStyle = '#f0ece4'; g.font = 'bold 9.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
         g.fillText(last.toFixed(I.dec), ml + iw + 3, ly);
       }
+    }
+    // ④b V2: barra de escala del colormap (como la de TD) — arriba a la derecha del plot
+    {
+      const L = this._lutJ(), bw3 = 110, bh3 = 7, bx = ml + iw - bw3 - 6, by = mt + 6;
+      for (let i = 0; i < bw3; i++) {
+        const li = Math.floor(i / (bw3 - 1) * 255);
+        g.fillStyle = 'rgb(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ')';
+        g.fillRect(bx + i, by, 1.2, bh3);
+      }
+      g.strokeStyle = 'rgba(125,111,99,.5)'; g.strokeRect(bx - 0.5, by - 0.5, bw3 + 1, bh3 + 1);
+      g.font = '7.5px "IBM Plex Mono",monospace'; g.fillStyle = 'rgba(200,190,180,.85)'; g.textBaseline = 'top';
+      g.fillText('poca liq', bx, by + bh3 + 2); g.fillText('MÁXIMA', bx + bw3 - 32, by + bh3 + 2);
     }
     // ⑤ crosshair + tooltip DOM con $ por tier del bin
     const tip = document.getElementById('liq-tip');
