@@ -7960,6 +7960,7 @@ class LiqView {
     this.book = { bids: [], asks: [] }; this.M = null; this.act = null; this.actT = null;
     this.oi = []; this.oiLiveTs = 0; this.stopRows = null; // sin residuos del instrumento anterior
     this.tape = []; this.cvd = 0; this.cvdDay = null; this.liqs = []; this.sx = null; // A2: cinta/CVD/liqs no cruzan símbolos
+    this._nar = null; this.fr = null; this._fxInit = false; // #2/#3: narración/funding del símbolo anterior tampoco
     clearTimeout(this._bT); clearTimeout(this._hT); // B7: timers del símbolo viejo no pintan modelo viejo
     el.innerHTML = '';
     this.chart = createChart(el, {
@@ -8199,6 +8200,11 @@ class LiqView {
         const d = (q.data || [])[0];
         if (d) { usd = (+d.oiCcy || 0) * (this.last || 0); ts = +d.ts; }
       }
+      // #3: funding rate como sesgo del split long/short (gratis, sin key, weight 1)
+      try {
+        const f = await fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=' + I.bin).then(r => r.json());
+        if (gen === this.gen && f && f.lastFundingRate != null) this.fr = +f.lastFundingRate;
+      } catch (e) {}
       if (gen !== this.gen || !(usd > 0)) return;
       if (ts <= this.oiLiveTs) return; // snapshot repetido: no meter escalones falsos
       this.oiLiveTs = ts;
@@ -8225,7 +8231,10 @@ class LiqView {
       if (!(d > 0) || ts < t0 || ts >= tN) continue;
       const b = barAt(ts); if (!b) continue;
       const ci = Math.floor(ts / tfS);
-      const up = b.close >= b.open, wL = up ? 0.7 : 0.3;
+      // #3: el funding inclina el split — funding + = longs pagan = mercado cargado de longs
+      // (más combustible de liqs ABAJO). Tilt máx ±15pp a funding ±0.05%.
+      const tilt = this.fr != null ? Math.max(-0.15, Math.min(0.15, this.fr / 0.0005 * 0.15)) : 0;
+      const up = b.close >= b.open, wL = Math.max(0.1, Math.min(0.9, (up ? 0.7 : 0.3) + tilt));
       const eL = (b.low + b.open) / 2, eS = (b.high + b.open) / 2;
       for (const T of LiqTab.TIERS) {
         for (const [w, p] of [[wL, eL * (1 - 1 / T.lev + LiqTab.MM)], [1 - wL, eS * (1 + 1 / T.lev - LiqTab.MM)]]) {
@@ -8310,6 +8319,7 @@ class LiqView {
       rows.push({ p1: k * this.binSz, p2: (k + 1) * this.binSz, mid, usd: w, rel, from: from.get(k) });
     }
     this.stopRows = rows;
+    this._nar = this._mkNar(rows, false); // #2: resumen narrado (stops)
     this.pools.setRows(LiqTab.ov('bandas') ? rows : []);
     this.profile.setRows(LiqTab.ov('perfil') ? rows : []);
     this.heat.setData([]);
@@ -8325,6 +8335,24 @@ class LiqView {
     if (liqs) liqs.innerHTML = '<span style="color:var(--text3)">no existe feed de liquidaciones en ' + (I.cls === 'idx' ? 'futuros de índices' : 'forex') + ' — este mapa es de STOPS estimados (◐), no de liquidaciones</span>';
     if (curve) { const g = curve.getContext('2d'); g && g.clearRect(0, 0, curve.width, curve.height); }
     LiqTab.renderSent(this);
+  }
+  // #2: RESUMEN NARRADO — el mapa en una frase ("Imán dominante: $48M de shorts a +0.8%")
+  // + alerta ⚠ cuando el precio está a tiro de un cluster fuerte (la cura de "no sé qué veo")
+  _mkNar(rows, isCx) {
+    if (!rows || !rows.length || !(this.last > 0)) return '';
+    let A = null, B = null;
+    for (const r of rows) { if (r.mid >= this.last) { if (!A || r.usd > A.usd) A = r; } else { if (!B || r.usd > B.usd) B = r; } }
+    const f = r => (isCx ? lqUsd(r.usd) + (r.mid >= this.last ? ' de shorts' : ' de longs') : 'stops peso ' + Math.round(r.rel * 100))
+      + ' a ' + ((r.mid / this.last - 1) * 100 >= 0 ? '+' : '') + ((r.mid / this.last - 1) * 100).toFixed(2) + '% (' + r.mid.toFixed(this.dec()) + ')';
+    let h = '🧠 ';
+    if (A && B) h += A.usd >= B.usd ? 'Imán dominante ARRIBA: ' + f(A) + ' · abajo: ' + f(B) : 'Imán dominante ABAJO: ' + f(B) + ' · arriba: ' + f(A);
+    else if (A) h += 'Solo imán arriba: ' + f(A);
+    else if (B) h += 'Solo imán abajo: ' + f(B);
+    else return '';
+    let near = null;
+    for (const r of rows) { if (r.rel < 0.7) continue; const d = Math.abs(r.mid / this.last - 1); if (!near || d < near.d) near = { r, d }; }
+    if (near && near.d < (isCx ? 0.006 : 0.002)) h += ' · <b style="color:var(--amber)">⚠ precio a ' + (near.d * 100).toFixed(2) + '% del cluster' + (isCx ? ' de ' + lqUsd(near.r.usd) : ' fuerte') + '</b>';
+    return h;
   }
   // σ numérica por vela del TF activo (fórmula muestral N−1 de Angel) — cambia CON la temporalidad
   _sigChip() {
@@ -8359,6 +8387,7 @@ class LiqView {
       const rel = Math.min(1, usd / p95); if (rel < 0.04) continue;
       rows.push({ p1: b * this.binSz, p2: (b + 1) * this.binSz, mid: (b + 0.5) * this.binSz, usd, rel, from: from.get(b) != null ? from.get(b) : null });
     }
+    this._nar = this._mkNar(rows, true); // #2: resumen narrado del mapa
     this.pools.setRows(LiqTab.ov('bandas') ? rows : []);
     this.profile.setRows(LiqTab.ov('perfil') ? rows : []);
     // heatmap 2D histórico (toggle 'mapa'): celdas por barra del TF del chart
@@ -8419,7 +8448,7 @@ class LiqView {
         + (st ? ' · <b style="color:' + (st.long >= 65 || st.long <= 35 ? 'var(--amber)' : 'var(--text2)') + '" title="Sentimiento retail agregado (' + escHtml(st.src) + ', refresh 10 min). Multitud cargada de un lado = sus stops están del lado perdedor — combustible de barrido.">retail ' + st.long.toFixed(0) + '% LONG' + (st.long >= 65 ? ' → stops abajo cargados' : st.long <= 35 ? ' → stops arriba cargados' : '') + '</b>' : (I.cls === 'fx' ? ' · <span style="color:var(--text3)">sentimiento cargando…</span>' : ''))
         + (I.cls === 'idx' ? ' · <span style="color:var(--text3)" title="No existe NQ/ES intradía vivo gratis (investigado): Yahoo delayed ~1min, refresh 60s">Yahoo ~1min</span>' : ' · <span style="color:var(--teal)" title="Velas en vivo por WebSocket de Deriv (sin cuenta)">Deriv WS</span>');
       if (this.sx) { const z = this.sx.z, az = Math.abs(z); h += ' · <b style="color:' + (az >= 2 ? 'var(--amber)' : az >= 1.5 ? 'var(--text2)' : 'var(--text3)') + '" title="z-score vs VWAP (media de equilibrio)">z ' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ' + (az >= 2 ? ' ESTIRADO → media' : '') + '</b>'; }
-      el.innerHTML = h + this._sigChip();
+      el.innerHTML = h + this._sigChip() + (this._nar ? '<div style="margin-top:3px;font-size:10.5px;color:var(--text2)">' + this._nar + '</div>' : '');
       return;
     }
     let up = 0, dn = 0;
@@ -8434,7 +8463,9 @@ class LiqView {
       const col = az >= 2 ? 'var(--amber)' : az >= 1.5 ? 'var(--text2)' : 'var(--text3)';
       h += ' · <b style="color:' + col + '" title="z = (precio − VWAP)/σ — ±2σ cubre el 95%: más allá, la estadística favorece la reversión a la media (asume normalidad; colas gruesas reales)">z ' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ' + (az >= 2 ? ' ESTIRADO → media' : az >= 1.5 ? ' estirándose' : '') + '</b>';
     }
-    el.innerHTML = h + this._sigChip(); // V7: σ numérica del TF activo — cambia con la temporalidad
+    // #3: chip de funding — el sesgo del split visible y explicado
+    if (this.fr != null) h += ' · <span style="color:' + (this.fr >= 0 ? 'var(--green)' : 'var(--red)') + ';font-size:10px" title="Funding rate Binance (8h): positivo = los longs pagan = mercado cargado de LONGS → el modelo inclina el split del ΔOI hacia longs (tilt máx ±15pp). Negativo, lo inverso.">fund ' + (this.fr >= 0 ? '+' : '') + (this.fr * 100).toFixed(3) + '%</span>';
+    el.innerHTML = h + this._sigChip() + (this._nar ? '<div style="margin-top:3px;font-size:10.5px;color:var(--text2)">' + this._nar + '</div>' : '');
   }
 
   // ── eventos en vivo (ruteados por LqHub, filtrados por instId) ──
@@ -8679,7 +8710,8 @@ const LiqTab = {
         + '<span style="margin-left:8px"></span><span class="lq-lbl">VISTA:</span>'
         + chip('1 chart', this.layout() === 1, 'LiqTab.setLayout(1)', 'Un solo chart')
         + chip('2 charts', this.layout() === 2, 'LiqTab.setLayout(2)', 'Dos tickers a la vez')
-        + '<span class="mono" title="Modelo estimado desde Open Interest — igual que Coinglass/Hyblock/Trading Different: los exchanges no publican entry ni leverage por posición" style="margin-left:auto;font-size:9px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:4px;padding:1px 6px">● ESTIMADO</span>'
+        + '<span class="lq-chip" style="margin-left:auto;cursor:help" title="CÓMO LEER EL MAPA: bandas ARRIBA del precio = shorts atrapados (si sube, se liquidan → imán/squeeze al alza). Bandas ABAJO = longs (cascada si baja). Color verde→amarillo→ROJO = intensidad. Cada pool nace donde se formó (escalera) y se consume cuando el precio lo cruza. Perfil derecho: naranja=arriba · amarillo=abajo · púrpura=libro real · curvas verde/roja=profundidad acumulada. σ: fuera de ±2σ el precio tiende a volver al VWAP. Es CONFIRMACIÓN, no señal — solo el 60-70% de los hotspots se tocan.">📖 leer</span>'
+        + '<span class="mono" title="Modelo estimado desde Open Interest — igual que Coinglass/Hyblock/Trading Different: los exchanges no publican entry ni leverage por posición" style="font-size:9px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:4px;padding:1px 6px">● ESTIMADO</span>'
         + '<span id="liq-feeds" class="mono" style="font-size:8.5px;color:var(--text3)"></span>';
     }
     for (const slot of ['a', 'b']) {
