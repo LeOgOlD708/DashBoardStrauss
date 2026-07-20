@@ -8536,9 +8536,18 @@ class LiqView {
     const I = this.instr(); if (e.sym !== I.by && e.sym !== I.bin) return;
     this.liqs.unshift(e); if (this.liqs.length > 20) this.liqs.pop();
     this.pulse.fire(e.px, e.long);
+    // #1 CALIBRACIÓN: ¿la liq real cayó dentro de una zona predicha VIVA? Se evalúa ANTES
+    // de la purga (con tolerancia ±1 bin) — integridad: el evento no puede validarse a sí mismo
+    if (this.act && this.binSz > 0) {
+      const b = Math.floor(e.px / this.binSz);
+      let hit = false;
+      for (const T of LiqTab.TIERS) { const m = this.act[T.lev]; if (m.has(b) || m.has(b - 1) || m.has(b + 1)) { hit = true; break; } }
+      LiqTab.calAdd({ t: e.ts || Date.now(), sym: e.sym, px: e.px, usd: Math.round(e.usd), hit });
+      // purga confirmada por flujo real: el bin donde cayó la liq se consume
+      for (const T of LiqTab.TIERS) { this.act[T.lev].delete(b); this.actT[T.lev].delete(b); }
+      this._headSoon();
+    }
     if (this.slot === 'a') LiqTab.renderLiqs(this);
-    // purga confirmada por flujo real: el bin donde cayó la liq se consume
-    if (this.act) { const b = Math.floor(e.px / this.binSz); for (const T of LiqTab.TIERS) { this.act[T.lev].delete(b); this.actT[T.lev].delete(b); } this._headSoon(); }
   }
 
   destroy() {
@@ -8591,6 +8600,23 @@ const LiqTab = {
       return { id, cls: 'cx', okx: id + '-USDT', bin: perp, by: perp, k1000 };
     }
     return Object.assign({ cls: 'cx' }, this.INSTRS[0]);
+  },
+  // ── #1 SCORE DE CALIBRACIÓN AUDITABLE (liq_cal_v1): cada liquidación REAL (WS) se evalúa
+  // contra las zonas predichas VIVAS en ese instante (antes de purgarlas). Registro persistente
+  // con integridad — el mapa deja de ser fe: publica su propio hit-rate. Nadie más lo hace. ──
+  _cal: null, _calSaveT: 0,
+  cal() { if (!this._cal) { try { this._cal = JSON.parse(localStorage.getItem('liq_cal_v1') || '[]'); } catch (e) { this._cal = []; } } return this._cal; },
+  calAdd(ev) {
+    const c = this.cal();
+    c.push(ev);
+    if (c.length > 3000) c.splice(0, c.length - 3000);
+    if (Date.now() - this._calSaveT > 5000) { this._calSaveT = Date.now(); try { localStorage.setItem('liq_cal_v1', JSON.stringify(c)); } catch (e) {} }
+  },
+  calStats(sym) {
+    const cut = Date.now() - 24 * 3600e3;
+    let n = 0, hits = 0;
+    for (const e of this.cal()) { if (e.t < cut || (sym && e.sym !== sym)) continue; n++; if (e.hit) hits++; }
+    return n ? { n, pct: Math.round(hits / n * 100) } : null;
   },
   // ── sentimiento retail (L3): FXSSI proxy serverless + Dukascopy SWFX JSONP, cache 10 min ──
   _sent: null, _sentT: 0,
@@ -8831,7 +8857,10 @@ const LiqTab = {
   },
   renderLiqs(v) {
     const el = document.getElementById('liq-liqs'); if (!el) return;
-    el.innerHTML = v.liqs.map(e =>
+    const cs = this.calStats(v.instr().by), ca = this.calStats();
+    const calLine = cs || ca ? '<div class="lq-row" style="border-bottom:1px solid var(--border2);margin-bottom:2px" title="Registro auditable liq_cal_v1: cada liquidación REAL (WS Bybit completo + Binance) se evalúa contra las zonas predichas VIVAS en ese instante (±1 bin, antes de purgarlas) y se persiste. Mientras el tab observa el símbolo. Coinglass admite 30-40% de hotspots que nunca se tocan — este es NUESTRO número, verificable.">'
+      + '<span style="color:var(--teal)">🎯 calibración 24h</span><span>' + (cs ? '<b style="color:' + (cs.pct >= 55 ? 'var(--green)' : 'var(--amber)') + '">' + cs.pct + '%</b> <span style="color:var(--text3)">n=' + cs.n + '</span>' : '<span style="color:var(--text3)">sin eventos del símbolo</span>') + (ca && (!cs || ca.n !== cs.n) ? ' <span style="color:var(--text3)">· global ' + ca.pct + '% n=' + ca.n + '</span>' : '') + '</span></div>' : '';
+    el.innerHTML = calLine + v.liqs.map(e =>
       '<div class="lq-row lq-flash"><span style="color:' + (e.long ? 'var(--red)' : 'var(--green)') + '">' + (e.long ? 'LONG rekt' : 'SHORT rekt') + ' @ ' + e.px.toFixed(v.dec()) + '</span><span style="color:var(--amber)">' + lqUsd(e.usd) + ' <span style="color:var(--text3);font-size:8px">' + e.src + '</span></span></div>').join('')
       || '<span style="color:var(--text3)">sin liquidaciones aún (mercado tranquilo)</span>';
   },
