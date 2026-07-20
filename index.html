@@ -7702,6 +7702,9 @@ class LqHeatSeries {
   defaultOptions() {
     return Object.assign({}, LightweightCharts.customSeriesDefaultOptions, {
       lastValueVisible: false, priceLineVisible: false,
+      // review V5 M1: el heat NO participa del autoscale — sin esto, activar 'mapa'
+      // estiraba el eje a ±10% (pools 10x) y aplastaba las velas
+      autoscaleInfoProvider: () => null,
       cellShader: a => lqCol(Math.min(1, a), (0.25 + Math.min(1, a) * 0.5).toFixed(3)),
     });
   }
@@ -7784,7 +7787,12 @@ class LqSigma {
     for (const p of pts) {
       const x = ts.timeToCoordinate(p.t); if (x == null) continue;
       const vw = S.priceToCoordinate(p.vw); if (vw == null) continue;
-      P.push({ x: x * hpr, vw: vw * vpr, u1: S.priceToCoordinate(p.vw + p.s) * vpr, l1: S.priceToCoordinate(p.vw - p.s) * vpr, u2: S.priceToCoordinate(p.vw + 2 * p.s) * vpr, l2: S.priceToCoordinate(p.vw - 2 * p.s) * vpr });
+      // review V5 B4: si alguna banda sale del rango visible, priceToCoordinate da null
+      // (y null*vpr === 0 pegaba el borde al tope del chart) — se descarta el punto
+      const u1 = S.priceToCoordinate(p.vw + p.s), l1 = S.priceToCoordinate(p.vw - p.s);
+      const u2 = S.priceToCoordinate(p.vw + 2 * p.s), l2 = S.priceToCoordinate(p.vw - 2 * p.s);
+      if (u1 == null || l1 == null || u2 == null || l2 == null) continue;
+      P.push({ x: x * hpr, vw: vw * vpr, u1: u1 * vpr, l1: l1 * vpr, u2: u2 * vpr, l2: l2 * vpr });
     }
     if (P.length < 2) return;
     for (const [ku, kl, a] of [['u2', 'l2', 0.05], ['u1', 'l1', 0.08]]) {
@@ -7897,6 +7905,11 @@ class LiqView {
     const { createChart, CandlestickSeries } = LightweightCharts;
     const I = this.instr(), el = document.getElementById('liq-v' + this.slot + '-chart');
     if (this.chart) { try { this.chart.remove(); } catch (e) {} this.chart = null; } // sin leak al remontar
+    // review V5 M2: resetear estado del símbolo anterior — una vela WS del símbolo nuevo
+    // llegaba entre mount() y load() y se mezclaba con barsTf del viejo (header híbrido <1s)
+    this.barsTf = null; this.bars5 = []; this.last = 0; this._ud = null;
+    this.book = { bids: [], asks: [] }; this.M = null; this.act = null; this.actT = null;
+    clearTimeout(this._bT); clearTimeout(this._hT); // B7: timers del símbolo viejo no pintan modelo viejo
     el.innerHTML = '';
     this.chart = createChart(el, {
       autoSize: true,
@@ -7992,11 +8005,20 @@ class LiqView {
   async pollOI() {
     const gen = this.gen, I = this.instr();
     try {
-      const j = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=' + I.bin).then(r => r.json());
-      if (gen !== this.gen || !j || !j.openInterest) return;
-      if (+j.time <= this.oiLiveTs) return; // snapshot repetido: no meter escalones falsos
-      this.oiLiveTs = +j.time;
-      const usd = +j.openInterest * (this.last || 0); if (!(usd > 0) || !this.oi.length) return;
+      let usd = 0, ts = 0;
+      try {
+        const j = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=' + I.bin).then(r => r.json());
+        if (j && j.openInterest) { usd = +j.openInterest * (this.last || 0); ts = +j.time; }
+      } catch (e) {}
+      if (!(usd > 0)) { // review V5 B5: fallback OKX para el OI vivo (Binance puede geobloquear)
+        const q = await fetch('https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=' + I.okx + '-SWAP').then(r => r.json());
+        const d = (q.data || [])[0];
+        if (d) { usd = (+d.oiCcy || 0) * (this.last || 0); ts = +d.ts; }
+      }
+      if (gen !== this.gen || !(usd > 0)) return;
+      if (ts <= this.oiLiveTs) return; // snapshot repetido: no meter escalones falsos
+      this.oiLiveTs = ts;
+      if (!this.oi.length) return;
       const slot = Math.floor(Date.now() / 1000 / 300) * 300, lastP = this.oi[this.oi.length - 1];
       if (lastP.t === slot) lastP.usd = usd; else this.oi.push({ t: slot, usd });
       this.buildSoon();
@@ -8176,7 +8198,10 @@ class LiqView {
       // watchdog barato en vez de checksum: libro cruzado = desincronizado → resuscribir
       const bb = this.book.bids[0], ba = this.book.asks[0];
       if (bb && ba && parseFloat(bb[0]) >= parseFloat(ba[0])) {
-        LqHub.unsub('okx', 'books|' + I.okx); LqHub.sub('okx', 'books|' + I.okx, { channel: 'books', instId: I.okx });
+        // review V5 B1: resub DIRECTO al feed (con refcount>1 el unsub/sub se auto-anulaba
+        // y el libro cruzado jamás se re-sincronizaba en layout 2 con el mismo ticker)
+        const arg = { channel: 'books', instId: I.okx };
+        if (LqHub.feeds && LqHub.feeds.okx) { LqHub.feeds.okx.send({ op: 'unsubscribe', args: [arg] }); LqHub.feeds.okx.send({ op: 'subscribe', args: [arg] }); }
       }
     }
     LiqTab.bookDirty = true;
@@ -8337,7 +8362,7 @@ const LiqTab = {
     if (ll) ll.className = 'lq-live' + (s.bybit ? '' : ' stale');
   },
   renderBook() {
-    const v = this.views.a; if (!v || !v.book.bids.length) return;
+    const v = this.views.a; if (!v || !v.book.bids.length || !v.book.asks.length) return; // review V5 B2
     const el = document.getElementById('liq-book'), cv = document.getElementById('liq-curve');
     const I = v.instr(), N = 9;
     const asks = v.book.asks.slice(0, N).reverse(), bids = v.book.bids.slice(0, N);
@@ -8408,7 +8433,7 @@ const LiqTab = {
       .sort((a, b) => b.usd - a.usd).slice(0, 10).sort((a, b) => b.p - a.p);
     el.innerHTML = rows.map(r =>
       '<div class="lq-row"><span style="color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + r.p.toFixed(I.dec) + ' <span style="font-size:8px;color:var(--text3)">' + (r.d >= 0 ? '+' : '') + r.d.toFixed(2) + '%</span></span><span style="color:var(--amber)">' + lqUsd(r.usd) + '</span></div>').join('');
-    if (Date.now() - (this._barsT || 0) > 5000) { this._barsT = Date.now(); this.renderBars(); } // totales tier sin machacar clicks
+    if (Date.now() - (this._barsT || 0) > 5000) { this._barsT = Date.now(); this.renderBars(); this.renderFeeds(); } // review V5 B3: feeds repintados tras regenerar la barra
     const st = document.getElementById('liq-status');
     if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (v.oiSrc || '—') + ' 5m + OI vivo 10s) · cohortes 10x·35%/25x·35%/50x·20%/100x·10% · entries direccionales (bajista: shorts (h+o)/2 dominan 70/30) · nivel entry×(1∓1/L+0.4%) · purga al cruce + PURGA CONFIRMADA por liquidación real (WS Bybit completo; Binance capado 1/s — declarado). '
       + 'σ: muestral N−1, bandas centradas en VWAP (reversión a la media; asume normalidad — colas gruesas reales). '
