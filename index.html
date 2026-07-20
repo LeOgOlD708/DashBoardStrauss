@@ -9,6 +9,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-treemap@3.1.0/dist/chartjs-chart-treemap.min.js"></script>
 <script src="https://s3.tradingview.com/tv.js"></script>
+<script src="https://unpkg.com/lightweight-charts@5.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -2956,18 +2957,43 @@ html.auth-ok #auth-gate{display:none}
 </div>
 
 <div id="tab-liq" class="page">
-  <!-- ══ TAB 11 · LIQUIDEZ — liquidation heatmap estimado (L0: cripto) ══
-       Blueprint: wiki/sintesis/blueprint-tab-11-liquidez-2026-07 · investigación 2 rondas 6 agentes -->
+  <!-- TAB 11 · LIQUIDEZ V5 — Lightweight Charts + todo en vivo por WebSocket
+       Blueprint: wiki/sintesis/blueprint-tab-11-liquidez-2026-07 · maestros: LWC v5 + live-data -->
+  <style>
+    .lq-chip{cursor:pointer;font-size:9.5px;padding:2px 8px;border-radius:4px;border:1px solid var(--border2);background:var(--surface2);color:var(--text3);font-family:'IBM Plex Mono',monospace}
+    .lq-chip.on{border-color:var(--teal);background:rgba(45,212,191,.12);color:var(--teal)}
+    .lq-lbl{font-size:9px;color:var(--text3);letter-spacing:.06em;font-family:'IBM Plex Mono',monospace}
+    .lq-panel{border:1px solid var(--border2);border-radius:6px;padding:6px 8px;margin-bottom:8px;background:rgba(4,4,4,.5)}
+    .lq-row{display:flex;justify-content:space-between;gap:6px;font-size:9.5px;line-height:1.5}
+    #liq-book .bar{transition:width .25s ease}
+    @keyframes lq-flash{0%{background:rgba(251,191,36,.35)}100%{background:transparent}}
+    .lq-flash{animation:lq-flash .7s ease-out}
+    @keyframes lq-pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+    .lq-live{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 5px var(--teal);animation:lq-pulse-dot 1.6s infinite}
+    .lq-live.stale{background:var(--red);box-shadow:0 0 5px var(--red);animation:none}
+  </style>
   <div class="sh" style="margin-top:4px"><div class="sh-tag">Liquidez</div><div class="sh-title">Mapa de Liquidaciones — dónde está el dinero apalancado</div><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
-    <div id="liq-btns" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>
-    <div id="liq-head" class="mono" style="font-size:11.5px;color:var(--text);margin-bottom:6px">cargando…</div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div style="flex:2.6;min-width:460px;position:relative">
-        <canvas id="liq-chart" style="width:100%;height:520px;cursor:crosshair;touch-action:none"></canvas>
-        <div id="liq-tip" class="mono" style="display:none;position:absolute;pointer-events:none;z-index:5;background:rgba(10,6,8,.92);border:1px solid var(--border2);border-radius:6px;padding:6px 9px;font-size:10px;max-width:240px"></div>
+    <div id="liq-global" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px"></div>
+    <div id="liq-views">
+      <div id="liq-va-card" style="margin-bottom:10px">
+        <div id="liq-va-bar" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"></div>
+        <div id="liq-va-head" class="mono" style="font-size:11.5px;color:var(--text);margin-bottom:6px">cargando…</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div id="liq-va-chart" style="flex:2.7;min-width:460px;height:520px;position:relative"></div>
+          <div style="flex:1;min-width:235px" id="liq-side" class="mono">
+            <div class="lq-panel"><div class="lq-lbl" style="margin-bottom:4px">📖 LIBRO EN VIVO <span id="liq-book-live" class="lq-live stale"></span></div><canvas id="liq-curve" style="width:100%;height:64px"></canvas><div id="liq-book" style="font-size:9.5px"></div></div>
+            <div class="lq-panel"><div class="lq-lbl" style="margin-bottom:4px">🌊 ORDER FLOW · CVD sesión <span id="liq-tape-live" class="lq-live stale"></span></div><div id="liq-cvd" style="font-size:10px;margin-bottom:3px"></div><div id="liq-tape" style="font-size:9px;max-height:150px;overflow:hidden"></div></div>
+            <div class="lq-panel"><div class="lq-lbl" style="margin-bottom:4px">⚡ LIQUIDACIONES REALES <span id="liq-liqs-live" class="lq-live stale"></span></div><div id="liq-liqs" style="font-size:9px;max-height:120px;overflow:hidden;color:var(--text3)">esperando eventos…</div></div>
+            <div class="lq-panel"><div class="lq-lbl" style="margin-bottom:4px">🎯 TOP POOLS VIVOS</div><div id="liq-pools" style="font-size:9.5px"></div></div>
+          </div>
+        </div>
       </div>
-      <div style="flex:1;min-width:230px" id="liq-side" class="mono"></div>
+      <div id="liq-vb-card" style="display:none;margin-bottom:10px">
+        <div id="liq-vb-bar" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px"></div>
+        <div id="liq-vb-head" class="mono" style="font-size:11.5px;color:var(--text);margin-bottom:6px"></div>
+        <div id="liq-vb-chart" style="height:420px;position:relative"></div>
+      </div>
     </div>
     <div id="liq-status" class="mono" style="font-size:9px;color:var(--text3);margin-top:8px;border-top:1px solid var(--border2);padding-top:6px"></div>
   </div>
@@ -7535,164 +7561,468 @@ const Terminal = {
 window.Terminal = Terminal;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB 11 · LIQUIDEZ — liquidation heatmap ESTIMADO (L0: cripto BTC/ETH)
-// Modelo estándar de la industria (Coinglass/Hyblock/TD lo hacen igual — nadie
-// tiene posiciones reales de CEX): ΔOI>0 por slot 5m = nocional nuevo, entry =
-// precio del slot, niveles a entry×(1∓1/L+mm) por tier, purga cuando el precio
-// cruza el bin. OI: Binance fapi browser-side (Vercel está bloqueado, el browser
-// no) con fallback OKX rubik. Render: matriz 2D en offscreen 1px/celda +
-// drawImage escalado (bilineal = degradado gratis) + LUT inferno p95.
+// TAB 11 · LIQUIDEZ V5 — Lightweight Charts (TradingView OSS) + TODO EN VIVO
+// Chart profesional (velas WS, scroll/zoom/crosshair nativos, atribución TV por
+// licencia Apache-2.0) + pools como primitive (escalera TD) + heatmap 2D como
+// custom series oficial portada + VWAP±σ primitive + perfil lateral + libro OKX
+// `books` (merge incremental 100ms) + cinta trades/CVD + liquidaciones REALES
+// (Bybit allLiquidation completo + Binance forceOrder best-effort) + OI poll 10s
+// (único dato SIN WS en ningún exchange) con ΔOI intrabar. Modelo = V4 calibrado
+// contra la cuenta TD real de Angel. Maestros: teach-lightweight-charts +
+// teach-live-data (informes 2026-07-19).
 // ══════════════════════════════════════════════════════════════════════════════
-const LiqTab = {
-  _timers: [], _cfg: null, _gen: 0, _busy: false, _err: null,
-  _bars: [], _oi: [], _M: null, _act: null, _img: null, _p95: 1, _binSz: 1,
-  _view: null, _mouse: null, _drag: null, _rszFn: null, _lutC: null,
-  INSTRS: [
-    { id: 'BTC', okx: 'BTC-USDT', bin: 'BTCUSDT', dec: 0 },
-    { id: 'ETH', okx: 'ETH-USDT', bin: 'ETHUSDT', dec: 1 },
-  ],
-  TIERS: [{ lev: 10, w: .35 }, { lev: 25, w: .35 }, { lev: 50, w: .20 }, { lev: 100, w: .10 }],
-  MM: 0.004,           // maintenance margin aprox (los scripts TV usan 0 — nosotros lo declaramos)
-  SLOT: 300,           // la matriz SIEMPRE va a 5m (resolución del OI histórico de Binance)
-  // ventana → tf de velas forzado (OKX market/candles trae máx 300 por llamada)
-  WINS: { '12h': { s: 12 * 3600, tf: 5 }, '24h': { s: 24 * 3600, tf: 5 }, '3d': { s: 3 * 86400, tf: 15 } },
-  cfg() { if (!this._cfg) { try { this._cfg = JSON.parse(localStorage.getItem('liq_cfg_v1') || '{}'); } catch (e) { this._cfg = {}; } } return this._cfg; },
-  saveCfg() { try { localStorage.setItem('liq_cfg_v1', JSON.stringify(this._cfg)); } catch (e) {} },
-  instr() { return this.INSTRS.find(i => i.id === (this.cfg().instr || 'BTC')) || this.INSTRS[0]; },
-  win() { return this.WINS[this.cfg().win || '24h'] ? (this.cfg().win || '24h') : '24h'; },
-  tf() { return this.WINS[this.win()].tf; },
-  tiersOn() { const t = this.cfg().tiers || {}; const on = {}; for (const T of this.TIERS) on[T.lev] = t[T.lev] !== false; return on; },
-  // V2 look TD: 'mapa' (2D difuso estilo Coinglass) apagado por defecto — el protagonista
-  // son las BANDAS de celdas (el look de la captura de Trading Different que pidió Angel)
-  ov(k) { const o = this.cfg().ov || {}; return k in o ? o[k] !== false : k !== 'mapa'; },
-  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = !this.ov(k); this.saveCfg(); this._renderBtns(); this._render(); },
 
+// ── helpers compartidos ──
+const lqLut = (() => { // jet TD: verde → amarillo → ROJO núcleo
+  const stops = [[0, 176, 80], [110, 205, 30], [235, 225, 0], [244, 180, 0], [255, 40, 30], [232, 0, 0]];
+  const L = new Uint8Array(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const f = i / 255 * (stops.length - 1), s = Math.min(stops.length - 2, Math.floor(f)), u = f - s;
+    for (let c = 0; c < 3; c++) L[i * 3 + c] = Math.round(stops[s][c] * (1 - u) + stops[s + 1][c] * u);
+  }
+  return L;
+})();
+function lqCol(rel, a) { const i = Math.max(0, Math.min(255, Math.floor(Math.pow(rel, 0.7) * 255))); return 'rgba(' + lqLut[i * 3] + ',' + lqLut[i * 3 + 1] + ',' + lqLut[i * 3 + 2] + ',' + a + ')'; }
+function lqUsd(v) { return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e4 ? '$' + (v / 1e3).toFixed(0) + 'K' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + v.toFixed(0); }
+function lqNice(x) { const m = Math.pow(10, Math.floor(Math.log10(x || 1))); for (const k of [1, 2, 2.5, 5, 10]) if (k * m >= x) return k * m; return 10 * m; }
+const lqNY = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' });
+
+// ── FeedHub: 4 conexiones WS multiplexadas (patrón del maestro live-data) ──
+class LqFeed {
+  constructor(url, o) { Object.assign(this, { url }, o); this.ws = null; this.retry = 0; this.lastRx = 0; this.dead = false; this.connect(); }
+  connect() {
+    if (this.dead) return;
+    let ws; try { ws = new WebSocket(this.url); } catch (e) { this._again(); return; }
+    this.ws = ws;
+    ws.onopen = () => { this.retry = 0; this.lastRx = Date.now(); this._arm(); if (this.onOpen) this.onOpen(ws); };
+    ws.onmessage = e => {
+      this.lastRx = Date.now(); this._arm();
+      if (e.data === 'pong') return;
+      let m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      if (m && (m.ret_msg === 'pong' || m.op === 'pong' || m.event === 'subscribe' || m.event === 'unsubscribe' || m.success === true)) return;
+      this.onMsg(m);
+    };
+    ws.onerror = () => { try { ws.close(); } catch (e) {} };
+    ws.onclose = () => { clearTimeout(this._pt); if (this.ws === ws) this._again(); };
+  }
+  _again() { if (this.dead) return; const w = Math.min(30000, 1000 * Math.pow(2, this.retry++)) + Math.random() * 400; setTimeout(() => this.connect(), w); }
+  _arm() { // ping re-armado en CADA rx — inmune al throttle de background (gotcha #7 del maestro)
+    if (!this.pingMs) return;
+    clearTimeout(this._pt);
+    this._pt = setTimeout(() => { try { this.ws.send(this.pingPayload); } catch (e) {} this._arm(); }, this.pingMs);
+  }
+  send(o) { try { this.ws.send(typeof o === 'string' ? o : JSON.stringify(o)); } catch (e) {} }
+  fresh(ms) { return Date.now() - this.lastRx < (ms || 8000); }
+  kill() { this.dead = true; clearTimeout(this._pt); try { this.ws && this.ws.close(); } catch (e) {} }
+}
+const LqHub = {
+  feeds: null, subs: { okx: new Map(), biz: new Map(), bybit: new Map() }, handlers: {},
   init() {
-    this.destroy();
-    this._renderBtns();
-    this._bind();
-    this._load();
-    this._timers.push(setInterval(() => { if (!document.hidden && !this._busy) this._load(true); }, 120e3));
-    this._rszFn = () => { clearTimeout(this._rszT); this._rszT = setTimeout(() => { if (!document.hidden) this._render(); }, 250); };
-    window.addEventListener('resize', this._rszFn);
+    if (this.feeds) return;
+    this.feeds = {
+      okx: new LqFeed('wss://ws.okx.com:8443/ws/v5/public', { pingMs: 25000, pingPayload: 'ping', onOpen: () => this._resub('okx'), onMsg: m => this._route(m) }),
+      biz: new LqFeed('wss://ws.okx.com:8443/ws/v5/business', { pingMs: 25000, pingPayload: 'ping', onOpen: () => this._resub('biz'), onMsg: m => this._route(m) }),
+      bybit: new LqFeed('wss://stream.bybit.com/v5/public/linear', { pingMs: 20000, pingPayload: '{"op":"ping"}', onOpen: () => this._resub('bybit'), onMsg: m => this._routeBy(m) }),
+      // !forceOrder@arr = TODO el mercado (se filtra por símbolo al rutear); best-effort — puede
+      // geobloquear por IP del usuario: si muere al abrir, el chip queda stale y no se loopea
+      bin: new LqFeed('wss://fstream.binance.com/ws/!forceOrder@arr', { pingMs: 0, onMsg: m => this._routeBin(m) }),
+    };
   },
-  destroy() {
-    this._timers.forEach(clearInterval); this._timers = [];
-    this._gen++; this._busy = false;
-    this._mouse = null; this._drag = null; // review L0 BAJO-2: sin esto el crosshair fantasma reaparecía al reingresar
-    const tip = document.getElementById('liq-tip'); if (tip) tip.style.display = 'none';
-    clearTimeout(this._rszT);
-    if (this._rszFn) { window.removeEventListener('resize', this._rszFn); this._rszFn = null; }
+  killAll() { if (!this.feeds) return; Object.values(this.feeds).forEach(f => f.kill()); this.feeds = null; for (const k in this.subs) this.subs[k].clear(); this.handlers = {}; },
+  // refcount por canal — dos vistas pueden compartir símbolo sin des-suscribir de más
+  sub(ex, key, arg) {
+    const m = this.subs[ex], cur = m.get(key);
+    if (cur) { cur.n++; return; }
+    m.set(key, { n: 1, arg });
+    if (this.feeds && this.feeds[ex]) this.feeds[ex].send({ op: 'subscribe', args: [arg] });
   },
-
-  setInstr(id) { this.cfg().instr = id; this.saveCfg(); this._reset(); },
-  setWin(w) { this.cfg().win = w; this.saveCfg(); this._reset(); },
-  setTier(lev) { const c = this.cfg(); c.tiers = c.tiers || {}; c.tiers[lev] = c.tiers[lev] === false; this.saveCfg(); this._renderBtns(); this._rebuildImg(); this._render(); },
-  _reset() { this._bars = []; this._oi = []; this._M = null; this._act = null; this._img = null; this._view = null; this._renderBtns(); this._load(); },
-
-  _renderBtns() {
-    const el = document.getElementById('liq-btns'); if (!el) return;
-    const b = (lbl, on, fn, tip) => '<button class="mono" onclick="' + fn + '" title="' + escHtml(tip || '') + '" style="cursor:pointer;font-size:9.5px;padding:2px 8px;border-radius:4px;border:1px solid ' + (on ? 'var(--teal)' : 'var(--border2)') + ';background:' + (on ? 'rgba(45,212,191,.12)' : 'var(--surface2)') + ';color:' + (on ? 'var(--teal)' : 'var(--text3)') + '">' + lbl + '</button>';
-    const I = this.instr(), on = this.tiersOn();
-    el.innerHTML =
-      '<span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em">INSTRUMENTO:</span>'
-      + this.INSTRS.map(x => b(x.id, x.id === I.id, "LiqTab.setInstr('" + x.id + "')", 'Perpetuo ' + x.okx)).join('')
-      + '<span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-left:8px">VENTANA:</span>'
-      + Object.keys(this.WINS).map(w => b(w + ' · ' + this.WINS[w].tf + 'm', w === this.win(), "LiqTab.setWin('" + w + "')", 'Ventana ' + w + ' con velas de ' + this.WINS[w].tf + 'm (la matriz de liquidaciones siempre corre a 5m, la resolución del OI)')).join('')
-      + '<span class="mono" style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-left:8px">POOLS:</span>'
-      + this.TIERS.map(T => {
-        // V4 patrón TD ("25X: 12M"): el botón trae el total VIVO de su cohorte
-        let tot = 0; if (this._act && this._act[T.lev]) for (const v of this._act[T.lev].values()) tot += v;
-        return b(T.lev + 'X' + (tot > 0 ? ': ' + this._fmtUsd(tot) : ''), on[T.lev], 'LiqTab.setTier(' + T.lev + ')', 'Cohorte ' + T.lev + 'x (' + (T.w * 100).toFixed(0) + '% del ΔOI asumido) — liq a ~' + (100 / T.lev).toFixed(1) + '% del entry · total vivo sin purgar de este tier');
-      }).join('')
-      + '<span style="margin-left:8px"></span>'
-      + b('mapa', this.ov('mapa'), "LiqTab.setOv('mapa')", 'Matriz 2D tiempo×precio: dónde se FORMÓ cada pool (estilo Coinglass)')
-      + b('bandas', this.ov('bandas'), "LiqTab.setOv('bandas')", 'Bandas horizontales del remanente VIVO (pools aún no purgados) — estilo Trading Different')
-      + b('perfil', this.ov('perfil'), "LiqTab.setOv('perfil')", 'Perfil lateral: liquidez viva acumulada por nivel de precio')
-      + b('σ', this.ov('sigma'), "LiqTab.setOv('sigma')", 'Bandas de desviación estándar centradas en el VWAP (media de equilibrio): ±1σ = 68% · ±2σ = 95%. Precio fuera de ±2σ = estirado → tiende a volver a la media; pool de liquidaciones en el camino = imán + combustible')
-      + '<span class="mono" title="Este mapa es un MODELO desde Open Interest — igual que Coinglass/Hyblock/Trading Different (los exchanges no publican entry ni leverage de nadie). No es un libro real de posiciones." style="margin-left:auto;font-size:9px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:4px;padding:1px 6px">● ESTIMADO</span>'
-      + '<span id="liq-fresh" class="mono" style="font-size:9px;color:var(--text3)"></span>';
+  unsub(ex, key) {
+    const m = this.subs[ex], cur = m.get(key); if (!cur) return;
+    if (--cur.n > 0) return;
+    m.delete(key);
+    if (this.feeds && this.feeds[ex]) this.feeds[ex].send({ op: 'unsubscribe', args: [cur.arg] });
   },
+  _resub(ex) { const f = this.feeds[ex]; for (const { arg } of this.subs[ex].values()) f.send({ op: 'subscribe', args: [arg] }); },
+  on(type, fn) { (this.handlers[type] = this.handlers[type] || []).push(fn); },
+  emit(type, d) { (this.handlers[type] || []).forEach(fn => { try { fn(d); } catch (e) {} }); },
+  _route(m) {
+    const ch = m.arg && m.arg.channel; if (!ch || !m.data) return;
+    if (ch === 'books') this.emit('book', m);
+    else if (ch === 'trades') this.emit('trade', m);
+    else if (ch.startsWith('candle')) this.emit('candle', m);
+  },
+  _routeBy(m) {
+    if (!m.topic || !m.topic.startsWith('allLiquidation') || !m.data) return;
+    for (const d of m.data) // Bybit: S = lado de la POSICIÓN → Buy = LONG liquidado (¡inverso a Binance!)
+      this.emit('liq', { src: 'Bybit', sym: d.s, long: d.S === 'Buy', px: +d.p, usd: +d.v * +d.p, ts: +d.T });
+  },
+  _routeBin(m) {
+    const o = m && m.o; if (!m || m.e !== 'forceOrder' || !o) return;
+    const px = +o.ap > 0 ? +o.ap : +o.p; // Binance: S = lado de la ORDEN → SELL = LONG liquidado
+    this.emit('liq', { src: 'Binance', sym: o.s, long: o.S === 'SELL', px, usd: +o.q * px, ts: +o.T });
+  },
+  status() {
+    if (!this.feeds) return {};
+    return { book: this.feeds.okx.fresh(), candle: this.feeds.biz.fresh(15000), bybit: this.feeds.bybit.fresh(30000), bin: this.feeds.bin.fresh(120000) };
+  },
+};
 
-  // ── DATA: velas OKX (browser, CORS ok) + OI histórico Binance con fallback OKX rubik ──
-  async _load(soft) {
-    // el guard _busy SOLO gatea el refresh automático — una acción del usuario (cambiar
-    // instrumento/ventana) siempre dispara: ++_gen invalida la carga en vuelo (fix carrera
-    // cazada en verificación L0: setWin+setInstr seguidos dejaban data BTC bajo etiqueta ETH)
-    if (soft && this._busy) return; this._busy = true;
-    const gen = ++this._gen, I = this.instr(), W = this.WINS[this.win()], tfS = this.tf() * 60;
-    const el = id => document.getElementById(id);
+// ── HeatMap custom series (port a JS del plugin oficial de Lightweight Charts) ──
+function lqPosBox(p1, p2, pr) { const a = Math.round(pr * p1), b = Math.round(pr * p2); return { position: Math.min(a, b), length: Math.abs(b - a) + 1 }; }
+function lqBarW(x, half, hpr) { const l = Math.round((x - half) * hpr), r = Math.round((x + half) * hpr); return { position: l, length: r - l }; }
+class LqHeatRenderer {
+  update(data, options) { this._d = data; this._o = options; }
+  draw(target, priceToCoordinate) { target.useBitmapCoordinateSpace(s => this._draw(s, priceToCoordinate)); }
+  _draw(scope, p2c) {
+    const d = this._d, o = this._o;
+    if (!d || !d.bars.length || !d.visibleRange || !o) return;
+    for (let i = d.visibleRange.from; i < d.visibleRange.to; i++) {
+      const bar = d.bars[i], w = lqBarW(bar.x, d.barSpacing / 2, scope.horizontalPixelRatio);
+      for (const c of bar.originalData.cells) {
+        const lo = p2c(c.low), hi = p2c(c.high);
+        if (lo == null || hi == null) continue;
+        const v = lqPosBox(lo, hi, scope.verticalPixelRatio);
+        scope.context.fillStyle = o.cellShader(c.amount);
+        scope.context.fillRect(w.position, v.position, w.length, Math.max(1, v.length - 1));
+      }
+    }
+  }
+}
+class LqHeatSeries {
+  constructor() { this._r = new LqHeatRenderer(); }
+  priceValueBuilder(row) {
+    if (!row.cells || !row.cells.length) return [NaN];
+    let lo = Infinity, hi = -Infinity;
+    row.cells.forEach(c => { if (c.low < lo) lo = c.low; if (c.high > hi) hi = c.high; });
+    return [lo, hi, lo + (hi - lo) / 2];
+  }
+  isWhitespace(d) { return !d.cells || !d.cells.length; }
+  renderer() { return this._r; }
+  update(data, options) { this._r.update(data, options); }
+  defaultOptions() {
+    return Object.assign({}, LightweightCharts.customSeriesDefaultOptions, {
+      lastValueVisible: false, priceLineVisible: false,
+      cellShader: a => lqCol(Math.min(1, a), (0.25 + Math.min(1, a) * 0.5).toFixed(3)),
+    });
+  }
+}
+
+// ── Primitive: POOLS (bandas escalera TD, bajo las velas, con rejilla de celdas) ──
+class LqPools {
+  constructor(view) { this._v = view; this._rows = []; }
+  attached(p) { this._chart = p.chart; this._series = p.series; this._req = p.requestUpdate; }
+  detached() { this._chart = null; }
+  setRows(rows) { this._rows = rows; if (this._req) this._req(); }
+  updateAllViews() {}
+  autoscaleInfo() { // los pools cercanos (≤4%) entran al autoscale — el eje respira como en V4
+    const r = this._rows; if (!r.length || !this._v.last) return null;
+    let lo = Infinity, hi = -Infinity;
+    for (const x of r) { if (Math.abs(x.mid / this._v.last - 1) <= 0.04) { if (x.p1 < lo) lo = x.p1; if (x.p2 > hi) hi = x.p2; } }
+    return lo < hi ? { priceRange: { minValue: lo, maxValue: hi } } : null;
+  }
+  paneViews() {
+    const self = this;
+    return [{
+      zOrder: () => 'bottom',
+      renderer: () => ({
+        draw: () => {},
+        drawBackground: t => t.useBitmapCoordinateSpace(scope => self._bg(scope)),
+      }),
+    }];
+  }
+  _bg(scope) {
+    const ctx = scope.context, W = scope.bitmapSize.width, H = scope.bitmapSize.height;
+    const hpr = scope.horizontalPixelRatio, vpr = scope.verticalPixelRatio;
+    const ts = this._chart && this._chart.timeScale(); if (!ts || !this._rows.length) return;
+    const rects = []; // el fondo negro ya lo pone layout.background — aquí solo pools
+
+    for (const r of this._rows) {
+      const y1 = this._series.priceToCoordinate(r.p2), y2 = this._series.priceToCoordinate(r.p1);
+      if (y1 == null || y2 == null) continue;
+      let x1 = 0;
+      if (r.from != null) { const xc = ts.timeToCoordinate(r.from); if (xc != null) x1 = Math.max(0, xc * hpr); }
+      const yA = Math.min(y1, y2) * vpr, yB = Math.max(y1, y2) * vpr;
+      if (yB < 0 || yA > H) continue;
+      ctx.fillStyle = lqCol(r.rel, (0.55 + r.rel * 0.4).toFixed(3));
+      ctx.fillRect(x1, yA, W - x1, Math.max(1.5 * vpr, yB - yA));
+      rects.push([x1, yA, yB]);
+    }
+    if (!rects.length) return;
+    // rejilla de celdas TD (~90 columnas), clipeada a los pools
+    ctx.save(); ctx.beginPath();
+    for (const [x1, yA, yB] of rects) ctx.rect(x1, yA, W - x1, yB - yA);
+    ctx.clip();
+    const bs = (ts.options().barSpacing || 6) * hpr;
+    const chunk = Math.max(1, Math.round((W / Math.max(1, bs)) / 90)), step = bs * chunk;
+    ctx.strokeStyle = 'rgba(4,4,4,.85)'; ctx.lineWidth = Math.max(1, hpr * 0.8);
+    const anchor = ((W % step) + step) % step;
+    for (let x = anchor; x <= W; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (const [, yA] of rects) { ctx.beginPath(); ctx.moveTo(0, yA); ctx.lineTo(W, yA); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+
+// ── Primitive: VWAP ±1σ/±2σ (media de equilibrio, tesis reversión de Angel — V3) ──
+class LqSigma {
+  constructor() { this._pts = []; }
+  attached(p) { this._chart = p.chart; this._series = p.series; this._req = p.requestUpdate; }
+  detached() { this._chart = null; }
+  setPts(pts) { this._pts = pts; if (this._req) this._req(); }
+  updateAllViews() {}
+  paneViews() {
+    const self = this;
+    return [{
+      zOrder: () => 'bottom',
+      renderer: () => ({ draw: () => {}, drawBackground: t => t.useBitmapCoordinateSpace(s => self._bg(s)) }),
+    }];
+  }
+  _bg(scope) {
+    const pts = this._pts; if (pts.length < 2 || !this._chart) return;
+    const ctx = scope.context, hpr = scope.horizontalPixelRatio, vpr = scope.verticalPixelRatio;
+    const ts = this._chart.timeScale(), S = this._series;
+    const P = [];
+    for (const p of pts) {
+      const x = ts.timeToCoordinate(p.t); if (x == null) continue;
+      const vw = S.priceToCoordinate(p.vw); if (vw == null) continue;
+      P.push({ x: x * hpr, vw: vw * vpr, u1: S.priceToCoordinate(p.vw + p.s) * vpr, l1: S.priceToCoordinate(p.vw - p.s) * vpr, u2: S.priceToCoordinate(p.vw + 2 * p.s) * vpr, l2: S.priceToCoordinate(p.vw - 2 * p.s) * vpr });
+    }
+    if (P.length < 2) return;
+    for (const [ku, kl, a] of [['u2', 'l2', 0.05], ['u1', 'l1', 0.08]]) {
+      const reg = new Path2D();
+      reg.moveTo(P[0].x, P[0][ku]);
+      for (const p of P) reg.lineTo(p.x, p[ku]);
+      for (let i = P.length - 1; i >= 0; i--) reg.lineTo(P[i].x, P[i][kl]);
+      reg.closePath();
+      ctx.fillStyle = 'rgba(96,165,250,' + a + ')'; ctx.fill(reg);
+    }
+    ctx.strokeStyle = 'rgba(96,165,250,.85)'; ctx.lineWidth = 1.3 * hpr;
+    const ln = new Path2D(); ln.moveTo(P[0].x, P[0].vw);
+    for (const p of P) ln.lineTo(p.x, p.vw);
+    ctx.stroke(ln);
+    ctx.setLineDash([4 * hpr, 4 * hpr]); ctx.lineWidth = hpr;
+    for (const [k, aa] of [['u1', .5], ['l1', .5], ['u2', .35], ['l2', .35]]) {
+      ctx.strokeStyle = 'rgba(96,165,250,' + aa + ')';
+      const d = new Path2D(); d.moveTo(P[0].x, P[0][k]);
+      for (const p of P) d.lineTo(p.x, p[k]);
+      ctx.stroke(d);
+    }
+    ctx.setLineDash([]);
+    ctx.font = Math.round(9 * hpr) + 'px "IBM Plex Mono",monospace'; ctx.fillStyle = 'rgba(96,165,250,.9)';
+    const lastP = P[P.length - 1];
+    ctx.fillText('VWAP', P[0].x + 4 * hpr, P[0].vw - 4 * vpr);
+    ctx.fillText('±1σ 68%', P[0].x + 4 * hpr, P[0].u1 - 4 * vpr);
+    ctx.fillText('±2σ 95% · reversión', P[0].x + 4 * hpr, P[0].u2 - 4 * vpr);
+  }
+}
+
+// ── Primitive: perfil lateral (liquidez viva acumulada, anclado a la derecha) ──
+class LqProfile {
+  constructor() { this._rows = []; }
+  attached(p) { this._chart = p.chart; this._series = p.series; this._req = p.requestUpdate; }
+  detached() {}
+  setRows(rows) { this._rows = rows; if (this._req) this._req(); }
+  updateAllViews() {}
+  paneViews() {
+    const self = this;
+    return [{ zOrder: () => 'normal', renderer: () => ({ draw: t => t.useBitmapCoordinateSpace(s => self._fg(s)) }) }];
+  }
+  _fg(scope) {
+    const rows = this._rows; if (!rows.length) return;
+    const ctx = scope.context, W = scope.bitmapSize.width, vpr = scope.verticalPixelRatio;
+    let mx = 0; for (const r of rows) if (r.usd > mx) mx = r.usd;
+    if (!(mx > 0)) return;
+    const maxW = W * 0.13;
+    for (const r of rows) {
+      const y1 = this._series.priceToCoordinate(r.p2), y2 = this._series.priceToCoordinate(r.p1);
+      if (y1 == null || y2 == null) continue;
+      const w = r.usd / mx * maxW;
+      ctx.fillStyle = lqCol(r.rel, .8);
+      ctx.fillRect(W - w, Math.min(y1, y2) * vpr, w, Math.max(1.5, Math.abs(y2 - y1) * vpr));
+    }
+  }
+}
+
+// ── Primitive: pulsos de liquidaciones reales (onda que decae ~900ms) ──
+class LqPulse {
+  constructor() { this._ps = []; this._raf = 0; }
+  attached(p) { this._chart = p.chart; this._series = p.series; this._req = p.requestUpdate; }
+  detached() { cancelAnimationFrame(this._raf); }
+  fire(price, long) {
+    this._ps.push({ p: price, long, t0: performance.now() });
+    if (this._ps.length > 8) this._ps.shift();
+    if (!this._raf) this._loop();
+  }
+  _loop() {
+    this._raf = requestAnimationFrame(() => {
+      this._ps = this._ps.filter(p => performance.now() - p.t0 < 900);
+      if (this._req) this._req();
+      this._raf = this._ps.length ? (this._loop(), this._raf) : 0;
+    });
+  }
+  updateAllViews() {}
+  paneViews() {
+    const self = this;
+    return [{ zOrder: () => 'top', renderer: () => ({ draw: t => t.useBitmapCoordinateSpace(s => self._fg(s)) }) }];
+  }
+  _fg(scope) {
+    if (!this._ps.length) return;
+    const ctx = scope.context, W = scope.bitmapSize.width, vpr = scope.verticalPixelRatio;
+    for (const p of this._ps) {
+      const y = this._series.priceToCoordinate(p.p); if (y == null) continue;
+      const age = (performance.now() - p.t0) / 900, r = 4 + age * 26, a = (1 - age) * 0.8;
+      ctx.strokeStyle = p.long ? 'rgba(248,113,113,' + a.toFixed(2) + ')' : 'rgba(52,211,153,' + a.toFixed(2) + ')';
+      ctx.lineWidth = 2 * scope.horizontalPixelRatio;
+      ctx.beginPath(); ctx.arc(W - 60 * scope.horizontalPixelRatio, y * vpr, r * vpr, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+}
+
+// ── LiqView: un chart completo (modelo + LWC + vivo) — instanciable ×2 ──
+class LiqView {
+  constructor(slot) {
+    this.slot = slot; // 'a' | 'b'
+    this.gen = 0; this.bars5 = []; this.oi = []; this.oiLiveTs = 0;
+    this.M = null; this.act = null; this.actT = null; this.binSz = 1; this.last = 0;
+    this.book = { bids: [], asks: [] }; this.bookDirty = false;
+    this.cvd = 0; this.cvdDay = null; this.tape = []; this.liqs = [];
+    this.chart = null; this._subs = [];
+  }
+  cfgAll() { return LiqTab.cfg(); }
+  cfg() { const c = this.cfgAll(); c[this.slot] = c[this.slot] || {}; return c[this.slot]; }
+  instr() { return LiqTab.INSTRS.find(i => i.id === (this.cfg().instr || (this.slot === 'a' ? 'BTC' : 'ETH'))) || LiqTab.INSTRS[0]; }
+  tf() { const t = this.cfg().tf; return LiqTab.TFS.some(x => x.k === t) ? t : '5m'; }
+  tfSec() { return LiqTab.TFS.find(x => x.k === this.tf()).s; }
+
+  mount() {
+    const { createChart, CandlestickSeries } = LightweightCharts;
+    const I = this.instr(), el = document.getElementById('liq-v' + this.slot + '-chart');
+    if (this.chart) { try { this.chart.remove(); } catch (e) {} this.chart = null; } // sin leak al remontar
+    el.innerHTML = '';
+    this.chart = createChart(el, {
+      autoSize: true,
+      layout: { background: { type: 'solid', color: '#040404' }, textColor: '#9a8f84', fontSize: 10, attributionLogo: true },
+      grid: { vertLines: { color: 'rgba(125,111,99,.10)' }, horzLines: { color: 'rgba(125,111,99,.10)' } },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      rightPriceScale: { borderColor: 'rgba(125,111,99,.35)', scaleMargins: { top: 0.06, bottom: 0.06 } },
+      timeScale: {
+        borderColor: 'rgba(125,111,99,.35)', timeVisible: true, secondsVisible: false, rightOffset: 8,
+        tickMarkFormatter: t => lqNY.format(new Date(t * 1000)) + '', // horas en ET, como toda la Terminal
+      },
+      localization: { timeFormatter: t => lqNY.format(new Date(t * 1000)) + ' ET' },
+    });
+    this.candles = this.chart.addSeries(CandlestickSeries, {
+      upColor: '#34d399', downColor: '#f87171', borderVisible: false,
+      wickUpColor: 'rgba(52,211,153,.9)', wickDownColor: 'rgba(248,113,113,.9)',
+      priceFormat: { type: 'price', precision: I.dec, minMove: Math.pow(10, -I.dec) },
+    });
+    this.heat = this.chart.addCustomSeries(new LqHeatSeries(), {});
+    this.pools = new LqPools(this); this.candles.attachPrimitive(this.pools);
+    this.sigma = new LqSigma(); this.candles.attachPrimitive(this.sigma);
+    this.profile = new LqProfile(); this.candles.attachPrimitive(this.profile);
+    this.pulse = new LqPulse(); this.candles.attachPrimitive(this.pulse);
+  }
+
+  // ── suscripciones vivas del símbolo actual ──
+  subscribe() {
+    const I = this.instr(), tf = this.tf();
+    this._subs = [
+      ['okx', 'books|' + I.okx, { channel: 'books', instId: I.okx }],
+      ['okx', 'trades|' + I.okx, { channel: 'trades', instId: I.okx }],
+      ['biz', 'candle' + tf + '|' + I.okx, { channel: 'candle' + tf, instId: I.okx }],
+      ['biz', 'candle5m|' + I.okx, { channel: 'candle5m', instId: I.okx }],
+      ['bybit', 'liq|' + I.by, 'allLiquidation.' + I.by],
+    ];
+    for (const [ex, k, a] of this._subs) LqHub.sub(ex, k, a);
+  }
+  unsubscribe() { for (const [ex, k] of this._subs) LqHub.unsub(ex, k); this._subs = []; }
+
+  async load() {
+    const gen = ++this.gen, I = this.instr(), tfS = this.tfSec();
     try {
-      if (!soft && el('liq-head')) el('liq-head').innerHTML = '<span style="color:var(--text3)">cargando velas + Open Interest…</span>';
-      const nBars = Math.min(300, Math.ceil(W.s / tfS) + 2);
-      const [jC, oi] = await Promise.all([
-        fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=' + this.tf() + 'm&limit=' + nBars).then(r => r.json()),
-        this._loadOI(I, W.s),
+      const [jT, j5, oi] = await Promise.all([
+        fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=' + this.tf() + '&limit=300').then(r => r.json()),
+        this.tf() === '5m' ? null : fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=5m&limit=290').then(r => r.json()),
+        this._loadOI(I),
       ]);
-      if (gen !== this._gen) return;
-      if (jC.code !== '0' || !jC.data || !jC.data.length) throw new Error('OKX velas: ' + (jC.msg || jC.code));
-      this._bars = jC.data.map(r => ({ t: Math.floor(+r[0] / 1000), o: +r[1], h: +r[2], l: +r[3], c: +r[4], v: +r[5] })).reverse();
-      this._oi = oi.rows; this._oiSrc = oi.src; this._err = null;
-      this._build();
-      const fr = el('liq-fresh'); if (fr) fr.textContent = '· ' + new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) + ' · OI ' + oi.src + ' (' + oi.rows.length + ' pts)';
+      if (gen !== this.gen) return;
+      const mapC = rows => rows.map(r => ({ time: Math.floor(+r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], v: +r[6] || +r[5] || 0 })).reverse();
+      if (jT.code !== '0' || !jT.data || !jT.data.length) throw new Error('OKX velas ' + (jT.msg || jT.code));
+      this.barsTf = mapC(jT.data);
+      this.bars5 = j5 ? ((j5.code === '0' && j5.data) ? mapC(j5.data) : []) : this.barsTf;
+      this.oi = oi.rows; this.oiSrc = oi.src; this.err = null;
+      this.last = this.barsTf[this.barsTf.length - 1].close;
+      this.candles.setData(this.barsTf.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+      this.chart.timeScale().fitContent();
+      this.build();
+      this.renderSigma();
     } catch (e) {
-      this._err = e.message || String(e);
-      if (gen === this._gen && el('liq-head')) el('liq-head').innerHTML = '<span style="color:var(--red)">⚠ ' + escHtml(this._err) + '</span> <span style="color:var(--text3)">— reintento en 2 min</span>';
-    } finally { if (gen === this._gen) { this._busy = false; this._render(); } }
-  },
-  async _loadOI(I, winS) {
-    const end = Date.now(), start = end - (winS + 2 * this.SLOT) * 1000;
-    // 1º Binance fapi (mejor OI de BTC/ETH; browser-side esquiva el bloqueo de IP Vercel)
+      this.err = e.message || String(e);
+      const h = document.getElementById('liq-v' + this.slot + '-head');
+      if (h && gen === this.gen) h.innerHTML = '<span style="color:var(--red)">⚠ ' + escHtml(this.err) + '</span>';
+    }
+  }
+  async _loadOI(I) {
+    const end = Date.now(), start = end - 24.2 * 3600e3; // ventana del modelo: 24h a 5m
     try {
       let rows = [], cur = start;
       for (let k = 0; k < 3 && cur < end; k++) {
         const j = await fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=' + I.bin + '&period=5m&startTime=' + Math.floor(cur) + '&endTime=' + end + '&limit=500').then(r => r.json());
-        if (!Array.isArray(j)) throw new Error('binance oi: ' + JSON.stringify(j).slice(0, 60));
+        if (!Array.isArray(j)) throw new Error('binance oi');
         if (!j.length) break;
         rows = rows.concat(j.map(x => ({ t: Math.floor(+x.timestamp / 1000), usd: +x.sumOpenInterestValue })));
         if (j.length < 500) break;
         cur = +j[j.length - 1].timestamp + 1;
       }
       if (rows.length > 5) return { rows, src: 'Binance' };
-      throw new Error('binance oi vacío');
-    } catch (e) { /* cae al fallback */ }
-    // 2º fallback OKX rubik (menos OI pero mismo shape); begin/end en ms
-    const j = await fetch('https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-history?instId=' + I.okx + '-SWAP&period=5m&begin=' + Math.floor(start) + '&end=' + end + '&limit=1440').then(r => r.json());
+      throw new Error('vacío');
+    } catch (e) { /* fallback */ }
+    const j = await fetch('https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-history?instId=' + I.okx.replace('-SWAP', '') + '-SWAP&period=5m&begin=' + Math.floor(start) + '&end=' + end + '&limit=1440').then(r => r.json());
     if (j.code !== '0' || !Array.isArray(j.data) || j.data.length < 5) throw new Error('sin OI (Binance y OKX fallaron)');
-    // formato [ts, oi, oiCcy, oiUsd] — defensivo: usa oiUsd si viene, si no oiCcy×precio.
-    // review L0 MEDIO-2: _bars puede estar vacío aquí (Promise.all / _reset) → precio de
-    // referencia propio del ticker, no del estado — sin él, oiCcy×0 dejaba el mapa vacío en silencio
-    let ref = this._bars.length ? this._bars[this._bars.length - 1].c : 0;
-    if (!ref) { try { const q = await fetch('https://www.okx.com/api/v5/market/ticker?instId=' + I.okx + '-SWAP').then(r => r.json()); ref = +((q.data || [])[0] || {}).last || 0; } catch (e) {} }
-    if (!ref && j.data.some(r => r[3] == null)) throw new Error('sin OI (Binance cayó y OKX sin oiUsd ni precio ref)');
+    let ref = this.last || 0;
+    if (!ref) { try { const q = await fetch('https://www.okx.com/api/v5/market/ticker?instId=' + I.okx).then(r => r.json()); ref = +((q.data || [])[0] || {}).last || 0; } catch (e) {} }
+    if (!ref && j.data.some(r => r[3] == null)) throw new Error('sin OI (sin oiUsd ni precio ref)');
     return { rows: j.data.map(r => ({ t: Math.floor(+r[0] / 1000), usd: r[3] != null ? +r[3] : (+r[2] || 0) * ref })).reverse(), src: 'OKX' };
-  },
+  }
+  async reloadOI() { // re-sync del histórico SIN tocar velas ni zoom (el WS mantiene las velas)
+    const gen = this.gen;
+    try { const oi = await this._loadOI(this.instr()); if (gen !== this.gen) return; this.oi = oi.rows; this.oiSrc = oi.src; this.build(); } catch (e) {}
+  }
+  // OI vivo cada 10s (weight 1 vs 2400/min — 1% del límite): ΔOI intrabar sin doble conteo:
+  // el punto vivo SOBREESCRIBE el slot 5m en curso; al cerrar la barra, el histórico lo absorbe
+  async pollOI() {
+    const gen = this.gen, I = this.instr();
+    try {
+      const j = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=' + I.bin).then(r => r.json());
+      if (gen !== this.gen || !j || !j.openInterest) return;
+      if (+j.time <= this.oiLiveTs) return; // snapshot repetido: no meter escalones falsos
+      this.oiLiveTs = +j.time;
+      const usd = +j.openInterest * (this.last || 0); if (!(usd > 0) || !this.oi.length) return;
+      const slot = Math.floor(Date.now() / 1000 / 300) * 300, lastP = this.oi[this.oi.length - 1];
+      if (lastP.t === slot) lastP.usd = usd; else this.oi.push({ t: slot, usd });
+      this.buildSoon();
+      LiqTab._oiOk = Date.now();
+    } catch (e) {}
+  }
 
-  // ── MOTOR: matriz 2D por tier + remanente vivo (purga al cruce) ──
-  _build() {
-    const bars = this._bars; if (!bars.length || this._oi.length < 2) { this._M = null; this._act = null; this._img = null; return; }
-    const ref = bars[bars.length - 1].c;
-    this._binSz = this._nice(ref * 8e-4);                       // BTC ~$50 · ETH ~$2.5
-    const bi = p => Math.floor(p / this._binSz);
-    const oi = this._oi.slice().sort((a, b) => a.t - b.t);
-    const tfS = this.tf() * 60, t0 = bars[0].t, tN = bars[bars.length - 1].t + tfS;
-    // vela que contiene cada slot 5m (entry) — índice directo por tiempo
+  // ── MODELO (V4 calibrado contra TD): entries direccionales + escalera + purga ──
+  build() {
+    const bars = this.bars5; if (!bars.length || this.oi.length < 2) return;
+    const ref = this.last || bars[bars.length - 1].close;
+    this.binSz = lqNice(ref * 8e-4);
+    const bi = p => Math.floor(p / this.binSz);
+    const oi = this.oi, tfS = 300, t0 = bars[0].time, tN = bars[bars.length - 1].time + tfS;
     const barAt = ts => { const i = Math.floor((ts - t0) / tfS); return i >= 0 && i < bars.length ? bars[i] : null; };
     const M = {}, act = {}, actT = {}, evs = [];
-    for (const T of this.TIERS) { M[T.lev] = new Map(); act[T.lev] = new Map(); actT[T.lev] = new Map(); }
+    for (const T of LiqTab.TIERS) { M[T.lev] = new Map(); act[T.lev] = new Map(); actT[T.lev] = new Map(); }
     for (let i = 1; i < oi.length; i++) {
       const d = oi[i].usd - oi[i - 1].usd, ts = oi[i].t;
-      if (!(d > 0) || ts < t0 || ts >= tN) continue;             // solo ΔOI>0 = posiciones nuevas
+      if (!(d > 0) || ts < t0 || ts >= tN) continue;
       const b = barAt(ts); if (!b) continue;
-      const ci = Math.floor(ts / this.SLOT);
-      // V4 (calibración vs TD en vivo): entries DIRECCIONALES estilo victhoreb — en vela
-      // bajista los shorts nuevos entran cerca del high ((h+o)/2) y dominan el ΔOI (70/30);
-      // en alcista los longs cerca del low. Con el mid plano nuestros niveles quedaban
-      // ~$300 arriba de los pools de Trading Different; con esto la zona coincide.
-      const up = b.c >= b.o, wL = up ? 0.7 : 0.3;
-      const eL = (b.l + b.o) / 2, eS = (b.h + b.o) / 2;
-      for (const T of this.TIERS) {
-        for (const [w, p] of [[wL, eL * (1 - 1 / T.lev + this.MM)], [1 - wL, eS * (1 + 1 / T.lev - this.MM)]]) {
+      const ci = Math.floor(ts / tfS);
+      const up = b.close >= b.open, wL = up ? 0.7 : 0.3;
+      const eL = (b.low + b.open) / 2, eS = (b.high + b.open) / 2;
+      for (const T of LiqTab.TIERS) {
+        for (const [w, p] of [[wL, eL * (1 - 1 / T.lev + LiqTab.MM)], [1 - wL, eS * (1 + 1 / T.lev - LiqTab.MM)]]) {
           const usd = d * T.w * w; if (!(usd > 0)) continue;
           const k = ci + ':' + bi(p);
           M[T.lev].set(k, (M[T.lev].get(k) || 0) + usd);
@@ -7700,381 +8030,390 @@ const LiqTab = {
         }
       }
     }
-    // remanente vivo: replay cronológico — agrega el evento y purga los bins que el precio cruzó
     evs.sort((a, b) => a.ts - b.ts);
     let ei = 0;
     for (const b of bars) {
-      const bEnd = b.t + tfS;
+      const bEnd = b.time + tfS;
       while (ei < evs.length && evs[ei].ts < bEnd) {
         const e = evs[ei++];
         act[e.lev].set(e.bi, (act[e.lev].get(e.bi) || 0) + e.usd);
-        if (!actT[e.lev].has(e.bi)) actT[e.lev].set(e.bi, e.ts); // V4: nacimiento del pool (escalera TD)
+        if (!actT[e.lev].has(e.bi)) actT[e.lev].set(e.bi, e.ts);
       }
-      const loB = bi(b.l), hiB = bi(b.h);
-      for (const T of this.TIERS) for (let k = loB; k <= hiB; k++) { act[T.lev].delete(k); actT[T.lev].delete(k); } // consumidos
+      const loB = bi(b.low), hiB = bi(b.high);
+      for (const T of LiqTab.TIERS) for (let k = loB; k <= hiB; k++) { act[T.lev].delete(k); actT[T.lev].delete(k); }
     }
-    this._M = M; this._act = act; this._actT = actT;
-    this._rebuildImg();
-    this._renderBtns(); // V4: los botones de tier muestran el total vivo — refrescan con la data
-  },
-  // offscreen 1px/celda de la matriz 2D (tiers activos sumados) — se estampa escalado con bilineal
-  _rebuildImg() {
-    if (!this._M) { this._img = null; return; }
-    const on = this.tiersOn(), cells = new Map();
-    let c0 = 1e15, c1 = -1e15, b0 = 1e15, b1 = -1e15;
-    for (const T of this.TIERS) {
+    this.M = M; this.act = act; this.actT = actT;
+    this.paint();
+  }
+  buildSoon() { clearTimeout(this._bT); this._bT = setTimeout(() => { if (!document.hidden) this.build(); }, 1200); }
+
+  // vuelca modelo → primitives + custom series + paneles
+  paint() {
+    if (!this.act) return;
+    const on = LiqTab.tiersOn(), sum = new Map(), from = new Map();
+    for (const T of LiqTab.TIERS) {
       if (!on[T.lev]) continue;
-      for (const [k, v] of this._M[T.lev]) {
-        cells.set(k, (cells.get(k) || 0) + v);
-        const [ci, bIdx] = k.split(':').map(Number);
-        if (ci < c0) c0 = ci; if (ci > c1) c1 = ci; if (bIdx < b0) b0 = bIdx; if (bIdx > b1) b1 = bIdx;
+      for (const [b, usd] of this.act[T.lev]) {
+        sum.set(b, (sum.get(b) || 0) + usd);
+        const f = this.actT[T.lev].get(b);
+        if (f != null) from.set(b, Math.min(from.get(b) != null ? from.get(b) : Infinity, f));
       }
     }
-    if (!cells.size) { this._img = null; return; }
-    const vals = [...cells.values()].sort((a, b) => a - b);
-    this._p95 = vals[Math.floor(vals.length * 0.95)] || 1;
-    const W = c1 - c0 + 1, H = b1 - b0 + 1;
-    if (W < 1 || H < 1 || W * H > 4e6) { this._img = null; return; }  // sanity
-    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-    const g = cv.getContext('2d'), im = g.createImageData(W, H), L = this._lut();
-    for (const [k, v] of cells) {
-      const [ci, bIdx] = k.split(':').map(Number);
-      const x = ci - c0, y = b1 - bIdx;                          // fila 0 = precio MÁS alto
-      const idx = Math.min(255, Math.floor(255 * Math.min(1, v / this._p95)));
-      const o = (y * W + x) * 4;
-      im.data[o] = L[idx * 3]; im.data[o + 1] = L[idx * 3 + 1]; im.data[o + 2] = L[idx * 3 + 2];
-      im.data[o + 3] = 40 + Math.floor(idx * 0.75);              // alpha ∝ intensidad
+    const vals = [...sum.values()].sort((a, b) => a - b);
+    const p95 = vals.length ? (vals[Math.floor(vals.length * 0.95)] || 1) : 1;
+    const rows = [];
+    for (const [b, usd] of sum) {
+      const rel = Math.min(1, usd / p95); if (rel < 0.04) continue;
+      rows.push({ p1: b * this.binSz, p2: (b + 1) * this.binSz, mid: (b + 0.5) * this.binSz, usd, rel, from: from.get(b) != null ? from.get(b) : null });
     }
-    g.putImageData(im, 0, 0);
-    this._img = { cv, c0, c1, b0, b1 };
-  },
-  // LUT inferno (negro→morado→naranja→amarillo, el look Coinglass) — 256×RGB
-  _lut() {
-    if (this._lutC) return this._lutC;
-    const stops = [[0, 0, 4], [40, 11, 84], [101, 21, 110], [159, 42, 99], [212, 72, 66], [245, 125, 21], [250, 193, 39], [252, 255, 164]];
-    const L = new Uint8Array(256 * 3);
-    for (let i = 0; i < 256; i++) {
-      const f = i / 255 * (stops.length - 1), s = Math.min(stops.length - 2, Math.floor(f)), u = f - s;
-      for (let c = 0; c < 3; c++) L[i * 3 + c] = Math.round(stops[s][c] * (1 - u) + stops[s + 1][c] * u);
-    }
-    return this._lutC = L;
-  },
-  // LUT "jet TD" para bandas/perfil: verde borde → teal → amarillo → naranja → ROJO núcleo
-  // (el colormap de la captura de Trading Different: el rojo marca la concentración máxima)
-  _lutJ() {
-    if (this._lutJC) return this._lutJC;
-    // V4: paleta calcada de la cuenta TD de Angel — verde → amarillo → ROJO saturados
-    const stops = [[0, 176, 80], [110, 205, 30], [235, 225, 0], [244, 180, 0], [255, 40, 30], [232, 0, 0]];
-    const L = new Uint8Array(256 * 3);
-    for (let i = 0; i < 256; i++) {
-      const f = i / 255 * (stops.length - 1), s = Math.min(stops.length - 2, Math.floor(f)), u = f - s;
-      for (let c = 0; c < 3; c++) L[i * 3 + c] = Math.round(stops[s][c] * (1 - u) + stops[s + 1][c] * u);
-    }
-    return this._lutJC = L;
-  },
-  // ── V3 σ (info Angel): desviación estándar MUESTRAL de los rendimientos por vela ──
-  // ri = c/c_prev − 1 · μ = Σri/N · σ = √[Σ(ri−μ)²/(N−1)] · escalado por horizonte √h
-  // (velas/día = 1440/tf, cripto 24/7) · anualizada ×√365 sobre la σ diaria
-  _sigma() {
-    const bars = this._bars; if (bars.length < 30) return null;
-    const rs = [];
-    for (let i = 1; i < bars.length; i++) { const p = bars[i - 1].c; if (p > 0) rs.push(bars[i].c / p - 1); }
-    const N = rs.length; if (N < 20) return null;
-    const mu = rs.reduce((a, b) => a + b, 0) / N;
-    const sd = Math.sqrt(rs.reduce((a, r) => a + (r - mu) * (r - mu), 0) / (N - 1));
-    const perDay = 1440 / this.tf();
-    const sdDay = sd * Math.sqrt(perDay);
-    return { mu, sd, sdDay, sdAnual: sdDay * Math.sqrt(365), n: N };
-  },
-  _nice(x) { const m = Math.pow(10, Math.floor(Math.log10(x || 1))); for (const k of [1, 2, 2.5, 5, 10]) if (k * m >= x) return k * m; return 10 * m; },
-  _fmtUsd(v) { return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K'; },
-
-  // ── INTERACCIÓN: pan (drag) · zoom (rueda) · reset (doble clic) · crosshair ──
-  _bind() {
-    const cv = document.getElementById('liq-chart'); if (!cv || cv._liqBound) return; cv._liqBound = true;
-    cv.addEventListener('pointerdown', e => { this._drag = { x: e.clientX, off: (this._view || { off: 0 }).off }; cv.setPointerCapture(e.pointerId); });
-    cv.addEventListener('pointerup', () => { this._drag = null; });
-    cv.addEventListener('pointermove', e => {
-      const r = cv.getBoundingClientRect();
-      this._mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
-      if (this._drag) {
-        const v = this._ensureView(), pxBar = (r.width - 108) / v.n;
-        v.off = Math.max(0, Math.min(this._bars.length - v.n, this._drag.off + Math.round((e.clientX - this._drag.x) / pxBar)));
-        this._render();
-      } else this._render();
-    });
-    cv.addEventListener('pointerleave', () => { this._mouse = null; this._drag = null; this._render(); });
-    cv.addEventListener('wheel', e => {
-      e.preventDefault();
-      const v = this._ensureView(), f = e.deltaY > 0 ? 1.25 : 0.8;
-      v.n = Math.max(40, Math.min(this._bars.length, Math.round(v.n * f)));
-      v.off = Math.max(0, Math.min(this._bars.length - v.n, v.off));
-      this._render();
-    }, { passive: false });
-    cv.addEventListener('dblclick', () => { this._view = null; this._render(); });
-  },
-  _ensureView() {
-    if (!this._view) this._view = { off: 0, n: this._bars.length || 1 };
-    if (this._view.n > this._bars.length) { this._view.n = this._bars.length; this._view.off = 0; }
-    // review L0 BAJO-1: un soft-reload con menos barras dejaba off fuera de rango → chart en blanco
-    this._view.off = Math.max(0, Math.min(Math.max(0, this._bars.length - this._view.n), this._view.off));
-    return this._view;
-  },
-
-  // ── RENDER ──
-  _render() {
-    const I = this.instr(), cv = document.getElementById('liq-chart'); if (!cv) return;
-    const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight || 520;
-    if (!W) return;
-    cv.width = W * dpr; cv.height = H * dpr;
-    const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
-    const bars = this._bars; if (!bars.length) return;
-    const v = this._ensureView();
-    const i1 = bars.length - v.off, i0 = Math.max(0, i1 - v.n), vb = bars.slice(i0, i1);
-    if (!vb.length) return;
-    const ml = 8, mr = 100, mt = 8, mb = 20, iw = W - ml - mr, ih = H - mt - mb;
-    const tfS = this.tf() * 60, nB = vb.length;
-    let pMin = Math.min(...vb.map(b => b.l)), pMax = Math.max(...vb.map(b => b.h));
-    // el rango respira para que las bandas vivas cercanas (≤4% fuera) entren al eje
-    if (this._act) {
-      const on = this.tiersOn(), lim = 0.04;
-      for (const T of this.TIERS) { if (!on[T.lev]) continue; for (const [bIdx] of this._act[T.lev]) { const p = (bIdx + 0.5) * this._binSz; if (p > pMax && p < pMax * (1 + lim)) pMax = p; if (p < pMin && p > pMin * (1 - lim)) pMin = p; } }
-    }
-    const pad = (pMax - pMin) * 0.06 || 1; pMin -= pad; pMax += pad;
-    const X = i => ml + (i + 0.5) / nB * iw, Y = p => mt + (1 - (p - pMin) / (pMax - pMin)) * ih;
-    const xT = ts => ml + (ts - vb[0].t) / (tfS * nB) * iw;
-    // V2 look TD: el plot va sobre NEGRO (la captura de referencia es fondo negro puro —
-    // los pools saturados solo gritan así); el resto del tab conserva la paleta de la casa
-    g.fillStyle = '#040404'; g.fillRect(ml, mt, iw, ih);
-    // rejilla precio 1/2/2.5/5×10^k (patrón Terminal V6.9) + horas ET
-    {
-      const raw = (pMax - pMin) / 8, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
-      let st = 10 * mag; for (const m of [1, 2, 2.5, 5, 10]) if (m * mag >= raw) { st = m * mag; break; }
-      const v0 = Math.ceil(pMin / st) * st;
-      g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'bottom';
-      for (let k = 0; v0 + k * st <= pMax; k++) {
-        const gy = Y(v0 + k * st);
-        g.strokeStyle = 'rgba(125,111,99,.14)'; g.beginPath(); g.moveTo(ml, gy); g.lineTo(ml + iw, gy); g.stroke();
-        g.fillStyle = 'rgba(125,111,99,.9)'; g.fillText((v0 + k * st).toFixed(I.dec), ml + 2, gy - 1);
-      }
-      // review L0 BAJO-3: try propio — si etParts lanzara, no debe tumbar el render entero
-      // (la excepción escalaría a los handlers de puntero: cada mousemove relanzaría)
-      try {
-        g.textBaseline = 'top'; let lastTX = -1e9;
-        for (let i = 0; i < vb.length; i++) {
-          const et = Terminal.etParts(vb[i].t); if (et.m % 120 !== 0) continue;
-          const x = X(i); if (x - lastTX < 48) continue; lastTX = x;
-          g.strokeStyle = 'rgba(125,111,99,.09)'; g.beginPath(); g.moveTo(x, mt); g.lineTo(x, mt + ih); g.stroke();
-          g.fillStyle = '#7d6f63'; g.fillText(String(Math.floor(et.m / 60)).padStart(2, '0') + ':00', x - 12, mt + ih + 4);
-        }
-      } catch (e) { /* la grilla horaria jamás mata el chart */ }
-    }
-    // ① MAPA 2D — la matriz offscreen estampada con crop fraccional (bilineal del navegador)
-    if (this._img && this.ov('mapa')) {
-      const im = this._img;
-      const sx = (vb[0].t / this.SLOT) - im.c0, sw = nB * tfS / this.SLOT;
-      const sy = im.b1 - (pMax / this._binSz - 1), sh = (pMax - pMin) / this._binSz;
-      g.save(); g.beginPath(); g.rect(ml, mt, iw, ih); g.clip();
-      g.imageSmoothingEnabled = true;
-      g.drawImage(im.cv, sx, sy, sw, sh, ml, mt, iw, ih);
-      g.restore();
-    }
-    // ② BANDAS del remanente vivo (pools no purgados) — el look Trading Different
-    const actSum = new Map(), actFrom = new Map();
-    if (this._act) {
-      const on = this.tiersOn();
-      for (const T of this.TIERS) {
+    this.pools.setRows(LiqTab.ov('bandas') ? rows : []);
+    this.profile.setRows(LiqTab.ov('perfil') ? rows : []);
+    // heatmap 2D histórico (toggle 'mapa'): celdas por barra del TF del chart
+    if (LiqTab.ov('mapa') && this.barsTf) {
+      const tfS = this.tfSec(), cell = new Map(); let cp95 = [];
+      for (const T of LiqTab.TIERS) {
         if (!on[T.lev]) continue;
-        for (const [bIdx, usd] of this._act[T.lev]) {
-          actSum.set(bIdx, (actSum.get(bIdx) || 0) + usd);
-          const f = this._actT && this._actT[T.lev] ? this._actT[T.lev].get(bIdx) : null; // nacimiento
-          if (f != null) actFrom.set(bIdx, Math.min(actFrom.get(bIdx) ?? Infinity, f));
+        for (const [k, usd] of this.M[T.lev]) {
+          const [ci, b] = k.split(':').map(Number);
+          const bt = Math.floor(ci * 300 / tfS) * tfS, kk = bt + ':' + b;
+          cell.set(kk, (cell.get(kk) || 0) + usd);
         }
       }
+      cp95 = [...cell.values()].sort((a, b) => a - b);
+      const cref = cp95.length ? (cp95[Math.floor(cp95.length * 0.95)] || 1) : 1;
+      const byBar = new Map();
+      for (const [kk, usd] of cell) {
+        const [bt, b] = kk.split(':').map(Number);
+        if (!byBar.has(bt)) byBar.set(bt, []);
+        byBar.get(bt).push({ low: b * this.binSz, high: (b + 1) * this.binSz, amount: Math.min(1, usd / cref) });
+      }
+      this.heat.setData(this.barsTf.map(b => ({ time: b.time, cells: byBar.get(b.time) || [] })));
+    } else this.heat.setData([]);
+    this.renderHead(sum);
+    if (this.slot === 'a') LiqTab.renderPools(this, sum);
+  }
+
+  renderSigma() { // VWAP día ET + σ ponderada (V3) sobre las barras del TF visible
+    if (!LiqTab.ov('sigma')) { this.sigma.setPts([]); this.sx = null; return; }
+    const bars = this.barsTf; if (!bars || bars.length < 10) return;
+    const today = Terminal.etParts(bars[bars.length - 1].time).d;
+    let i0 = bars.findIndex(b => Terminal.etParts(b.time).d === today);
+    if (i0 < 0) i0 = 0;
+    if (bars.length - i0 < 12) i0 = Math.max(0, bars.length - 96);
+    let sv = 0, spv = 0, sv2 = 0; const pts = [];
+    for (let i = i0; i < bars.length; i++) {
+      const b = bars[i], tp = (b.high + b.low + b.close) / 3, w = b.v > 0 ? b.v : 1;
+      sv += w; spv += tp * w; const vw = spv / sv;
+      sv2 += w * (tp - vw) * (tp - vw);
+      pts.push({ t: b.time, vw, s: Math.sqrt(sv2 / sv) || 1e-9 });
     }
-    // review L0 MEDIO-1: el remanente vivo ACUMULA slots — su escala de color necesita su
-    // propio p95 (compararlo contra el p95 por-celda de la matriz saturaba todo a máximo)
-    const av = [...actSum.values()].sort((a, b) => a - b);
-    const actP95 = av.length ? (av[Math.floor(av.length * 0.95)] || 1) : 1;
-    if (actSum.size && this.ov('bandas')) {
-      // V4 look TD calcado de la cuenta de Angel: cada pool NACE donde se formó (borde
-      // izquierdo escalonado), celdas casi sólidas verde→amarillo→rojo, rejilla gruesa
-      const L = this._lutJ(), rects = [];
-      for (const [bIdx, usd] of actSum) {
-        const rel = Math.min(1, usd / actP95); if (rel < 0.04) continue;
-        const y1 = Math.max(mt, Y((bIdx + 1) * this._binSz)), y2 = Math.min(mt + ih, Y(bIdx * this._binSz));
-        if (y2 <= mt || y1 >= mt + ih || y2 - y1 < 0.8) continue;
-        const from = actFrom.get(bIdx);
-        let x1 = ml; // escalera: la fila arranca en su formación (clamp al borde si es más vieja que la vista)
-        if (from != null && from > vb[0].t) x1 = Math.min(ml + iw - 2, Math.max(ml, xT(from)));
-        const li = Math.floor(Math.pow(rel, 0.7) * 255);
-        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',' + (0.55 + rel * 0.4).toFixed(3) + ')';
-        g.fillRect(x1, y1, ml + iw - x1, Math.max(1.5, y2 - y1));
-        rects.push([y1, y2, x1]);
-      }
-      if (rects.length) { // rejilla TD: ~90 columnas gruesas, solo dentro de los pools
-        g.save(); g.beginPath();
-        for (const [y1, y2, x1] of rects) g.rect(x1, y1, ml + iw - x1, y2 - y1);
-        g.clip(); g.strokeStyle = 'rgba(4,4,4,.85)'; g.lineWidth = 1;
-        const chunk = Math.max(1, Math.round(nB / 90)), stepX = iw / nB * chunk;
-        for (let x = ml; x <= ml + iw; x += stepX) { g.beginPath(); g.moveTo(x, mt); g.lineTo(x, mt + ih); g.stroke(); }
-        for (const [y1] of rects) { g.beginPath(); g.moveTo(ml, y1); g.lineTo(ml + iw, y1); g.stroke(); }
-        g.restore();
-      }
-    }
-    // ③ PERFIL lateral — liquidez viva por nivel, anclado a la derecha
-    if (actSum.size && this.ov('perfil')) {
-      const maxV = Math.max(...actSum.values()), maxW = iw * 0.15, L = this._lutJ();
-      for (const [bIdx, usd] of actSum) {
-        const y1 = Y((bIdx + 1) * this._binSz), y2 = Y(bIdx * this._binSz);
-        if (y2 < mt || y1 > mt + ih) continue;
-        const w = usd / maxV * maxW, li = Math.floor(Math.pow(Math.min(1, usd / actP95), 0.65) * 255);
-        g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',.8)';
-        g.fillRect(ml + iw - w, Math.max(mt, y1), w, Math.max(1.5, Math.min(mt + ih, y2) - Math.max(mt, y1)));
-      }
-    }
-    // ④ VELAS encima (el precio se lee siempre)
-    {
-      const bw = Math.max(1.2, iw / nB * 0.62);
-      for (let i = 0; i < vb.length; i++) {
-        const b = vb[i], x = X(i), up = b.c >= b.o;
-        g.strokeStyle = up ? 'rgba(52,211,153,.9)' : 'rgba(248,113,113,.9)';
-        g.beginPath(); g.moveTo(x, Y(b.h)); g.lineTo(x, Y(b.l)); g.stroke();
-        g.fillStyle = up ? 'rgba(52,211,153,.85)' : 'rgba(248,113,113,.85)';
-        const yO = Y(b.o), yC = Y(b.c);
-        g.fillRect(x - bw / 2, Math.min(yO, yC), bw, Math.max(1, Math.abs(yC - yO)));
-      }
-      // línea de último precio
-      const last = bars[bars.length - 1].c, ly = Y(last);
-      if (ly >= mt && ly <= mt + ih) {
-        g.strokeStyle = 'rgba(240,236,228,.5)'; g.setLineDash([4, 3]); g.beginPath(); g.moveTo(ml, ly); g.lineTo(ml + iw, ly); g.stroke(); g.setLineDash([]);
-        g.fillStyle = '#f0ece4'; g.font = 'bold 9.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
-        g.fillText(last.toFixed(I.dec), ml + iw + 3, ly);
-      }
-    }
-    // ④a V3 σ (info Angel + tesis equilibrio): BANDAS σ CENTRADAS EN LA MEDIA (VWAP) —
-    // el precio tiende a volver al equilibrio: |z|≥2σ = estirado (95% de la distribución),
-    // y un pool de liquidaciones en el camino de vuelta = imán + combustible (misma lógica
-    // que la señal FADE ganadora del backtest de Tab 10). σ = muestral N−1 (fórmula Angel).
-    // Honestidad: asume distribución normal — colas gruesas reales, ±2σ es guía no garantía.
-    this._sig = this._sigma();
-    this._sx = null;
-    if (this.ov('sigma')) {
-      // VWAP del día ET (cripto 24/7: día = fecha ET) + σ ponderada por volumen de las
-      // desviaciones del precio típico vs el VWAP acumulado; fallback SMA si no hay volumen
-      const today = Terminal.etParts(bars[bars.length - 1].t).d;
-      let dayI0 = bars.findIndex(b => Terminal.etParts(b.t).d === today);
-      if (dayI0 < 0) dayI0 = 0;
-      if (bars.length - dayI0 < 12) dayI0 = Math.max(0, bars.length - 96); // día recién nacido: ventana rodante
-      let sv = 0, spv = 0, sv2 = 0; const pts = [];
-      for (let i = dayI0; i < bars.length; i++) {
-        const b = bars[i], tp = (b.h + b.l + b.c) / 3, w = b.v > 0 ? b.v : 1;
-        sv += w; spv += tp * w; const vw = spv / sv;
-        sv2 += w * (tp - vw) * (tp - vw);
-        pts.push({ i, vw, s: Math.sqrt(sv2 / sv) });
-      }
-      if (pts.length > 5) {
-        const lastP = pts[pts.length - 1], s1 = lastP.s || 1e-9, last = bars[bars.length - 1].c;
-        this._sx = { vwap: lastP.vw, s1, z: (last - lastP.vw) / s1 };
-        // bandas rellenas ±1σ/±2σ alrededor del VWAP (solo el tramo visible)
-        const vis = pts.filter(p => p.i >= i0 && p.i < i1);
-        if (vis.length > 1) {
-          for (const [k, a] of [[2, .05], [1, .08]]) {
-            g.fillStyle = 'rgba(96,165,250,' + a + ')'; g.beginPath();
-            vis.forEach((p, j) => { const x = X(p.i - i0); j ? g.lineTo(x, Y(p.vw + k * p.s)) : g.moveTo(x, Y(p.vw + k * p.s)); });
-            for (let j = vis.length - 1; j >= 0; j--) g.lineTo(X(vis[j].i - i0), Y(vis[j].vw - k * vis[j].s));
-            g.closePath(); g.fill();
-          }
-          g.strokeStyle = 'rgba(96,165,250,.85)'; g.lineWidth = 1.3; g.beginPath();
-          vis.forEach((p, j) => { const x = X(p.i - i0); j ? g.lineTo(x, Y(p.vw)) : g.moveTo(x, Y(p.vw)); });
-          g.stroke(); g.lineWidth = 1;
-          // bordes ±1σ/±2σ punteados con etiqueta 68%/95%
-          g.font = '8.5px "IBM Plex Mono",monospace'; g.textBaseline = 'middle';
-          for (const [k, dash, lbl] of [[1, [5, 4], '±1σ 68%'], [2, [2, 4], '±2σ 95% · reversión']]) {
-            for (const sgn of [1, -1]) {
-              g.strokeStyle = 'rgba(96,165,250,' + (k === 1 ? .5 : .38) + ')'; g.setLineDash(dash); g.beginPath();
-              vis.forEach((p, j) => { const x = X(p.i - i0); const yv = Y(p.vw + sgn * k * p.s); j ? g.lineTo(x, yv) : g.moveTo(x, yv); });
-              g.stroke(); g.setLineDash([]);
-            }
-            const yE = Y(lastP.vw + k * s1);
-            if (yE > mt + 8 && yE < mt + ih - 8) { g.fillStyle = 'rgba(96,165,250,.9)'; g.fillText(lbl, ml + 4, yE - 6); }
-          }
-          const yV = Y(lastP.vw);
-          if (yV > mt + 8 && yV < mt + ih - 8) { g.fillStyle = 'rgba(96,165,250,.95)'; g.fillText('VWAP · media de equilibrio', ml + 4, yV - 6); }
-        }
-      }
-    }
-    // ④b V2: barra de escala del colormap (como la de TD) — arriba a la derecha del plot
-    {
-      const L = this._lutJ(), bw3 = 110, bh3 = 7, bx = ml + iw - bw3 - 6, by = mt + 6;
-      for (let i = 0; i < bw3; i++) {
-        const li = Math.floor(i / (bw3 - 1) * 255);
-        g.fillStyle = 'rgb(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ')';
-        g.fillRect(bx + i, by, 1.2, bh3);
-      }
-      g.strokeStyle = 'rgba(125,111,99,.5)'; g.strokeRect(bx - 0.5, by - 0.5, bw3 + 1, bh3 + 1);
-      g.font = '7.5px "IBM Plex Mono",monospace'; g.fillStyle = 'rgba(200,190,180,.85)'; g.textBaseline = 'top';
-      g.fillText('poca liq', bx, by + bh3 + 2); g.fillText('MÁXIMA', bx + bw3 - 32, by + bh3 + 2);
-    }
-    // ⑤ crosshair + tooltip DOM con $ por tier del bin
-    const tip = document.getElementById('liq-tip');
-    if (this._mouse && this._mouse.x > ml && this._mouse.x < ml + iw && this._mouse.y > mt && this._mouse.y < mt + ih) {
-      const p = pMin + (1 - (this._mouse.y - mt) / ih) * (pMax - pMin), bIdx = Math.floor(p / this._binSz);
-      g.strokeStyle = 'rgba(240,236,228,.25)'; g.setLineDash([2, 3]);
-      g.beginPath(); g.moveTo(ml, this._mouse.y); g.lineTo(ml + iw, this._mouse.y); g.stroke();
-      g.beginPath(); g.moveTo(this._mouse.x, mt); g.lineTo(this._mouse.x, mt + ih); g.stroke(); g.setLineDash([]);
-      if (tip) {
-        const on = this.tiersOn(), parts = [];
-        let tot = 0;
-        for (const T of this.TIERS) { if (!on[T.lev] || !this._act) continue; const u = this._act[T.lev].get(bIdx) || 0; if (u > 0) { parts.push(T.lev + 'x: <b>' + this._fmtUsd(u) + '</b>'); tot += u; } }
-        tip.style.display = 'block';
-        tip.style.left = Math.min(this._mouse.x + 14, W - 250) + 'px';
-        tip.style.top = Math.max(4, this._mouse.y - 14) + 'px';
-        tip.innerHTML = '<b style="color:var(--text)">' + p.toFixed(I.dec) + '</b> <span style="color:var(--text3)">(' + ((p / bars[bars.length - 1].c - 1) * 100).toFixed(2) + '%'
-          + (this._sx && this._sx.s1 > 0 ? ' · z ' + (((p - this._sx.vwap) / this._sx.s1) >= 0 ? '+' : '') + ((p - this._sx.vwap) / this._sx.s1).toFixed(1) + 'σ del VWAP' : '') + ')</span><br>'
-          + (tot > 0 ? '<span style="color:var(--amber)">liquidez viva ≈ ' + this._fmtUsd(tot) + '</span><br><span style="color:var(--text2)">' + parts.join(' · ') + '</span>' : '<span style="color:var(--text3)">sin pool vivo en este nivel</span>');
-      }
-    } else if (tip) tip.style.display = 'none';
-    this._renderSide(actSum);
-    this._renderHead();
-  },
-  _renderSide(actSum) {
-    const el = document.getElementById('liq-side'); if (!el) return;
-    if (!actSum || !actSum.size || !this._bars.length) { el.innerHTML = '<span style="color:var(--text3)">sin pools vivos computados aún…</span>'; return; }
-    const I = this.instr(), last = this._bars[this._bars.length - 1].c;
-    const rows = [...actSum.entries()].map(([bIdx, usd]) => ({ p: (bIdx + 0.5) * this._binSz, usd, d: ((bIdx + 0.5) * this._binSz / last - 1) * 100 }))
-      .sort((a, b) => b.usd - a.usd).slice(0, 12).sort((a, b) => b.p - a.p);
-    el.innerHTML = '<div style="font-size:9px;color:var(--text3);letter-spacing:.06em;margin-bottom:4px">TOP POOLS VIVOS — imanes estimados</div>'
-      + '<table style="width:100%;border-collapse:collapse">' + rows.map(r =>
-        '<tr style="border-top:1px solid var(--border2)' + (Math.abs(r.d) <= 1 ? ';background:rgba(251,191,36,.05)' : '') + '">'
-        + '<td class="mono" style="padding:3px 6px;font-size:10.5px;color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + r.p.toFixed(I.dec) + '</td>'
-        + '<td class="mono" style="text-align:right;font-size:9px;color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + (r.d >= 0 ? '+' : '') + r.d.toFixed(2) + '%</td>'
-        + '<td class="mono" style="text-align:right;font-size:10px;color:var(--amber)">' + this._fmtUsd(r.usd) + '</td></tr>').join('') + '</table>'
-      + '<div style="font-size:8px;color:var(--text3);margin-top:4px">arriba del precio = shorts atrapados (imán al alza) · abajo = longs. La banda se consume cuando el precio la cruza.</div>';
-  },
-  _renderHead() {
-    const el = document.getElementById('liq-head'); if (!el || this._err) return;
-    if (!this._bars.length) { el.innerHTML = '<span style="color:var(--text3)">esperando data…</span>'; return; }
-    const I = this.instr(), last = this._bars[this._bars.length - 1].c;
+    this.sigma.setPts(pts);
+    const lp = pts[pts.length - 1];
+    this.sx = { vwap: lp.vw, s1: lp.s, z: (this.last - lp.vw) / lp.s };
+  }
+
+  renderHead(sum) {
+    const el = document.getElementById('liq-v' + this.slot + '-head'); if (!el) return;
+    const I = this.instr();
     let up = 0, dn = 0;
-    if (this._act) { const on = this.tiersOn(); for (const T of this.TIERS) { if (!on[T.lev]) continue; for (const [bIdx, usd] of this._act[T.lev]) { if ((bIdx + 0.5) * this._binSz >= last) up += usd; else dn += usd; } } }
-    el.innerHTML = '<b style="color:var(--text)">' + I.id + '/USDT</b> <b style="font-size:15px;color:var(--text)">' + last.toFixed(I.dec) + '</b>'
-      + ' · <span style="color:var(--text3)">liquidez viva estimada:</span> <b style="color:var(--red)" title="Shorts atrapados ARRIBA del precio — combustible para un squeeze al alza">↑ ' + this._fmtUsd(up) + '</b>'
-      + ' <b style="color:var(--green)" title="Longs atrapados ABAJO — combustible para un flush a la baja">↓ ' + this._fmtUsd(dn) + '</b>'
-      + (up + dn > 0 ? ' · <span style="color:var(--text2)">sesgo imán ' + (up > dn ? '⬆ ' + (up / (up + dn) * 100).toFixed(0) + '% arriba' : '⬇ ' + (dn / (up + dn) * 100).toFixed(0) + '% abajo') + '</span>' : '')
-      // V3 σ: z-score vs la media de equilibrio (VWAP) — la lectura de reversión de Angel
-      + (this._sx ? (() => {
-        const z = this._sx.z, az = Math.abs(z);
-        const col = az >= 2 ? 'var(--amber)' : az >= 1.5 ? 'var(--text2)' : 'var(--text3)';
-        const txt = az >= 2 ? 'ESTIRADO → tiende a la media' : az >= 1.5 ? 'estirándose' : 'en equilibrio';
-        return ' · <b style="color:' + col + '" title="z-score = (precio − VWAP) / σ: a cuántas desviaciones estándar está el precio de su media de equilibrio. ±1σ cubre el 68% de la distribución, ±2σ el 95% — más allá, la estadística favorece la reversión. Ojo: asume distribución normal; los mercados tienen colas gruesas.">z ' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ ' + txt + '</b>';
-      })() : '')
-      + (this._sig ? ' · <span style="color:var(--text3);font-size:10px" title="σ muestral (N−1) de los rendimientos por vela de la ventana (n=' + this._sig.n + ') · diaria = σ_vela×√(velas/día) · anualizada = σ_día×√365 (cripto opera 24/7, no 252)">σ día ' + (this._sig.sdDay * 100).toFixed(2) + '% · anual ' + (this._sig.sdAnual * 100).toFixed(0) + '%</span>' : '');
+    if (sum) { for (const [b, usd] of sum) { if ((b + 0.5) * this.binSz >= this.last) up += usd; else dn += usd; } this._ud = { up, dn }; }
+    else if (this._ud) { up = this._ud.up; dn = this._ud.dn; } // el tick de vela no pisa los totales del modelo
+    let h = '<b style="color:var(--text)">' + I.id + '/USDT</b> <b style="font-size:15px;color:var(--text)">' + this.last.toFixed(I.dec) + '</b>'
+      + ' · <span style="color:var(--text3)">liq viva:</span> <b style="color:var(--red)" title="Shorts atrapados arriba — combustible de squeeze">↑ ' + lqUsd(up) + '</b>'
+      + ' <b style="color:var(--green)" title="Longs atrapados abajo — combustible de flush">↓ ' + lqUsd(dn) + '</b>'
+      + (up + dn > 0 ? ' · <span style="color:var(--text2)">imán ' + (up > dn ? '⬆' : '⬇') + ' ' + (Math.max(up, dn) / (up + dn) * 100).toFixed(0) + '%</span>' : '');
+    if (this.sx) {
+      const z = this.sx.z, az = Math.abs(z);
+      const col = az >= 2 ? 'var(--amber)' : az >= 1.5 ? 'var(--text2)' : 'var(--text3)';
+      h += ' · <b style="color:' + col + '" title="z = (precio − VWAP)/σ — ±2σ cubre el 95%: más allá, la estadística favorece la reversión a la media (asume normalidad; colas gruesas reales)">z ' + (z >= 0 ? '+' : '') + z.toFixed(1) + 'σ' + (az >= 2 ? ' ESTIRADO → media' : az >= 1.5 ? ' estirándose' : '') + '</b>';
+    }
+    el.innerHTML = h;
+  }
+
+  // ── eventos en vivo (ruteados por LqHub, filtrados por instId) ──
+  onCandle(m) {
+    const I = this.instr(); if (m.arg.instId !== I.okx) return;
+    const tfK = m.arg.channel.replace('candle', '');
+    for (const r of m.data) {
+      const b = { time: Math.floor(+r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], v: +r[6] || +r[5] || 0 };
+      if (tfK === this.tf() && this.barsTf && this.barsTf.length) {
+        const arr = this.barsTf, lastB = arr[arr.length - 1];
+        if (b.time >= lastB.time) {
+          if (b.time === lastB.time) arr[arr.length - 1] = b; else { arr.push(b); if (arr.length > 400) arr.shift(); }
+          this.last = b.close;
+          this.candles.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
+          this.renderSigma(); this.renderHead(null); this._headSoon();
+        }
+      }
+      if (tfK === '5m' && this.bars5 && this.bars5.length && this.bars5 !== this.barsTf) {
+        const arr = this.bars5, lastB = arr[arr.length - 1];
+        if (b.time === lastB.time) arr[arr.length - 1] = b; else if (b.time > lastB.time) { arr.push(b); if (arr.length > 320) arr.shift(); }
+        if (r[8] === '1') this.buildSoon(); // vela 5m CERRADA → purga/modelo al día
+      }
+      if (tfK === '5m' && this.bars5 === this.barsTf && r[8] === '1') this.buildSoon();
+    }
+  }
+  _headSoon() { clearTimeout(this._hT); this._hT = setTimeout(() => { if (this.act) this.paint(); }, 2500); } // purga visual intrabar sin rebuild continuo
+  onTrade(m) {
+    const I = this.instr(); if (m.arg.instId !== I.okx || this.slot !== 'a') return;
+    const day = Terminal.etParts(Date.now() / 1000).d;
+    if (this.cvdDay !== day) { this.cvdDay = day; this.cvd = 0; }
+    for (const t of m.data) {
+      const usd = +t.px * +t.sz, buy = t.side === 'buy';
+      this.cvd += buy ? usd : -usd;
+      this.tape.unshift({ px: +t.px, usd, buy, ts: +t.ts });
+      if (this.tape.length > 26) this.tape.pop();
+    }
+    LiqTab.tapeDirty = true;
+  }
+  onBook(m) {
+    const I = this.instr(); if (m.arg.instId !== I.okx || this.slot !== 'a') return;
+    const d = m.data[0]; if (!d) return;
+    if (m.action === 'snapshot') { this.book = { bids: d.bids.map(x => [x[0], x[1]]), asks: d.asks.map(x => [x[0], x[1]]) }; }
+    else {
+      this._merge(this.book.bids, d.bids, true);
+      this._merge(this.book.asks, d.asks, false);
+      // watchdog barato en vez de checksum: libro cruzado = desincronizado → resuscribir
+      const bb = this.book.bids[0], ba = this.book.asks[0];
+      if (bb && ba && parseFloat(bb[0]) >= parseFloat(ba[0])) {
+        LqHub.unsub('okx', 'books|' + I.okx); LqHub.sub('okx', 'books|' + I.okx, { channel: 'books', instId: I.okx });
+      }
+    }
+    LiqTab.bookDirty = true;
+  }
+  _merge(book, ups, isBid) { // algoritmo oficial: precio como STRING para el match (gotcha #3)
+    for (const u of ups) {
+      const px = u[0], sz = u[1];
+      const i = book.findIndex(l => l[0] === px);
+      if (i >= 0) { if (sz === '0') book.splice(i, 1); else book[i][1] = sz; }
+      else if (sz !== '0') book.push([px, sz]);
+    }
+    book.sort((a, b) => isBid ? parseFloat(b[0]) - parseFloat(a[0]) : parseFloat(a[0]) - parseFloat(b[0]));
+    if (book.length > 400) book.length = 400;
+  }
+  onLiq(e) {
+    const I = this.instr(); if (e.sym !== I.by && e.sym !== I.bin) return;
+    this.liqs.unshift(e); if (this.liqs.length > 20) this.liqs.pop();
+    this.pulse.fire(e.px, e.long);
+    if (this.slot === 'a') LiqTab.renderLiqs(this);
+    // purga confirmada por flujo real: el bin donde cayó la liq se consume
+    if (this.act) { const b = Math.floor(e.px / this.binSz); for (const T of LiqTab.TIERS) { this.act[T.lev].delete(b); this.actT[T.lev].delete(b); } this._headSoon(); }
+  }
+
+  destroy() {
+    this.gen++;
+    clearTimeout(this._bT); clearTimeout(this._hT);
+    this.unsubscribe();
+    if (this.chart) { try { this.chart.remove(); } catch (e) {} this.chart = null; }
+  }
+}
+
+// ── LiqTab: controlador del tab (toolbar global, hub, vistas, paneles vivos) ──
+const LiqTab = {
+  _cfg: null, views: {}, _timers: [], _raf: 0, tapeDirty: false, bookDirty: false, _oiOk: 0,
+  INSTRS: [
+    { id: 'BTC', okx: 'BTC-USDT', bin: 'BTCUSDT', by: 'BTCUSDT', dec: 1 },
+    { id: 'ETH', okx: 'ETH-USDT', bin: 'ETHUSDT', by: 'ETHUSDT', dec: 2 },
+    { id: 'SOL', okx: 'SOL-USDT', bin: 'SOLUSDT', by: 'SOLUSDT', dec: 2 },
+    { id: 'XRP', okx: 'XRP-USDT', bin: 'XRPUSDT', by: 'XRPUSDT', dec: 4 },
+    { id: 'DOGE', okx: 'DOGE-USDT', bin: 'DOGEUSDT', by: 'DOGEUSDT', dec: 5 },
+    { id: 'BNB', okx: 'BNB-USDT', bin: 'BNBUSDT', by: 'BNBUSDT', dec: 2 },
+  ],
+  TFS: [{ k: '1m', s: 60 }, { k: '3m', s: 180 }, { k: '5m', s: 300 }, { k: '15m', s: 900 }, { k: '30m', s: 1800 }, { k: '1H', s: 3600 }],
+  TIERS: [{ lev: 10, w: .35 }, { lev: 25, w: .35 }, { lev: 50, w: .20 }, { lev: 100, w: .10 }],
+  MM: 0.004,
+  cfg() { if (!this._cfg) { try { this._cfg = JSON.parse(localStorage.getItem('liq_cfg_v2') || '{}'); } catch (e) { this._cfg = {}; } } return this._cfg; },
+  save() { try { localStorage.setItem('liq_cfg_v2', JSON.stringify(this._cfg)); } catch (e) {} },
+  tiersOn() { const t = this.cfg().tiers || {}; const on = {}; for (const T of this.TIERS) on[T.lev] = t[T.lev] !== false; return on; },
+  ov(k) { const o = this.cfg().ov || {}; return k in o ? o[k] !== false : k !== 'mapa'; },
+  setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = !this.ov(k); this.save(); this.renderBars(); this.each(v => { v.renderSigma(); v.paint(); }); },
+  setTier(lev) { const c = this.cfg(); c.tiers = c.tiers || {}; c.tiers[lev] = c.tiers[lev] === false; this.save(); this.renderBars(); this.each(v => v.paint()); },
+  layout() { return this.cfg().layout === 2 ? 2 : 1; },
+  setLayout(n) { this.cfg().layout = n; this.save(); this.applyLayout(); },
+  each(fn) { Object.values(this.views).forEach(fn); },
+
+  init() {
+    this.destroy();
+    if (!window.LightweightCharts) { // CDN aún cargando: reintento corto sin bloquear el tab
+      document.getElementById('liq-va-head').innerHTML = '<span style="color:var(--text3)">cargando librería de chart…</span>';
+      this._lwcT = setTimeout(() => this.init(), 400); return;
+    }
+    LqHub.init();
+    LqHub.on('candle', m => this.each(v => v.onCandle(m)));
+    LqHub.on('trade', m => this.each(v => v.onTrade(m)));
+    LqHub.on('book', m => this.each(v => v.onBook(m)));
+    LqHub.on('liq', e => this.each(v => v.onLiq(e)));
+    this.applyLayout();
+    // OI: poll 10s (lo único sin WS en ningún exchange; 1% del rate limit de Binance)
+    this._timers.push(setInterval(() => { if (!document.hidden) this.each(v => v.pollOI()); }, 10000));
+    // histórico OI re-sync 5 min (absorbe los puntos vivos; NO toca velas ni zoom)
+    this._timers.push(setInterval(() => { if (!document.hidden) this.each(v => v.reloadOI()); }, 300e3));
+    this._visFn = () => { if (!document.hidden) { this.each(v => { v.pollOI(); v.build(); }); } };
+    document.addEventListener('visibilitychange', this._visFn);
+    this._paintLoop();
+    this.renderStatus();
+  },
+  destroy() {
+    clearTimeout(this._lwcT);
+    this._timers.forEach(clearInterval); this._timers = [];
+    cancelAnimationFrame(this._raf); this._raf = 0;
+    if (this._visFn) { document.removeEventListener('visibilitychange', this._visFn); this._visFn = null; }
+    this.each(v => v.destroy()); this.views = {};
+    LqHub.killAll();
+  },
+
+  applyLayout() {
+    const n = this.layout();
+    document.getElementById('liq-vb-card').style.display = n === 2 ? '' : 'none';
+    for (const slot of n === 2 ? ['a', 'b'] : ['a']) {
+      if (!this.views[slot]) {
+        const v = this.views[slot] = new LiqView(slot);
+        v.mount(); v.subscribe(); v.load(); v.pollOI();
+      }
+    }
+    if (n === 1 && this.views.b) { this.views.b.destroy(); delete this.views.b; }
+    this.renderBars();
+  },
+  setInstr(slot, id) { const v = this.views[slot]; if (!v) return; v.unsubscribe(); v.cfg().instr = id; this.save(); v.mount(); v.subscribe(); v.load(); v.pollOI(); this.renderBars(); },
+  setTf(slot, k) { const v = this.views[slot]; if (!v) return; v.unsubscribe(); v.cfg().tf = k; this.save(); v.mount(); v.subscribe(); v.load(); this.renderBars(); },
+
+  renderBars() {
+    const chip = (lbl, on, fn, tip) => '<button class="lq-chip' + (on ? ' on' : '') + '" onclick="' + fn + '" title="' + escHtml(tip || '') + '">' + lbl + '</button>';
+    const g = document.getElementById('liq-global');
+    if (g) {
+      const on = this.tiersOn();
+      g.innerHTML = '<span class="lq-lbl">POOLS:</span>'
+        + this.TIERS.map(T => {
+          let tot = 0; const va = this.views.a;
+          if (va && va.act && va.act[T.lev]) for (const x of va.act[T.lev].values()) tot += x;
+          return chip(T.lev + 'X' + (tot > 0 ? ': ' + lqUsd(tot) : ''), on[T.lev], 'LiqTab.setTier(' + T.lev + ')', 'Cohorte ' + T.lev + 'x (' + (T.w * 100).toFixed(0) + '% del ΔOI) — liq a ~' + (100 / T.lev).toFixed(1) + '% del entry');
+        }).join('')
+        + '<span style="margin-left:8px"></span>'
+        + chip('bandas', this.ov('bandas'), "LiqTab.setOv('bandas')", 'Pools vivos (escalera TD): nacen donde se formaron, se consumen al cruce')
+        + chip('mapa', this.ov('mapa'), "LiqTab.setOv('mapa')", 'Heatmap 2D histórico estilo Coinglass (dónde se FORMÓ cada pool)')
+        + chip('perfil', this.ov('perfil'), "LiqTab.setOv('perfil')", 'Perfil lateral de liquidez viva')
+        + chip('σ', this.ov('sigma'), "LiqTab.setOv('sigma')", 'VWAP como media de equilibrio ±1σ(68%)/±2σ(95%) — reversión a la media')
+        + '<span style="margin-left:8px"></span><span class="lq-lbl">VISTA:</span>'
+        + chip('1 chart', this.layout() === 1, 'LiqTab.setLayout(1)', 'Un solo chart')
+        + chip('2 charts', this.layout() === 2, 'LiqTab.setLayout(2)', 'Dos tickers a la vez')
+        + '<span class="mono" title="Modelo estimado desde Open Interest — igual que Coinglass/Hyblock/Trading Different: los exchanges no publican entry ni leverage por posición" style="margin-left:auto;font-size:9px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:4px;padding:1px 6px">● ESTIMADO</span>'
+        + '<span id="liq-feeds" class="mono" style="font-size:8.5px;color:var(--text3)"></span>';
+    }
+    for (const slot of ['a', 'b']) {
+      const bar = document.getElementById('liq-v' + slot + '-bar'), v = this.views[slot];
+      if (!bar) continue;
+      if (!v) { bar.innerHTML = ''; continue; }
+      const I = v.instr();
+      bar.innerHTML = '<span class="lq-lbl">TICKER:</span>'
+        + this.INSTRS.map(x => chip(x.id, x.id === I.id, "LiqTab.setInstr('" + slot + "','" + x.id + "')", 'Perp ' + x.bin + ' · velas OKX ' + x.okx)).join('')
+        + '<span class="lq-lbl" style="margin-left:8px">TF:</span>'
+        + this.TFS.map(t => chip(t.k, t.k === v.tf(), "LiqTab.setTf('" + slot + "','" + t.k + "')", 'Velas de ' + t.k + ' (el modelo de pools corre siempre a 5m, la resolución del OI)')).join('');
+    }
+  },
+
+  // ── loop de pintura de paneles vivos (libro/curva/cinta) a ~8fps con dirty flags ──
+  _paintLoop() {
+    let lastPanels = 0, lastChips = 0;
+    const loop = t => {
+      this._raf = requestAnimationFrame(loop);
+      if (document.hidden) return;
+      if (t - lastChips > 1000) { lastChips = t; this.renderFeeds(); }
+      if (t - lastPanels > 125) {
+        lastPanels = t;
+        if (this.bookDirty) { this.bookDirty = false; this.renderBook(); }
+        if (this.tapeDirty) { this.tapeDirty = false; this.renderTape(); }
+      }
+    };
+    this._raf = requestAnimationFrame(loop);
+  },
+  renderFeeds() {
+    const el = document.getElementById('liq-feeds'); if (!el) return;
+    const s = LqHub.status();
+    const dot = (ok, lbl, tip) => '<span title="' + escHtml(tip) + '" style="margin-left:6px;color:' + (ok ? 'var(--teal)' : 'var(--red)') + '">●' + lbl + '</span>';
+    el.innerHTML = dot(s.book, 'libro', 'OKX books WS (100ms)') + dot(s.candle, 'velas', 'OKX candle WS') + dot(s.bybit, 'liqs', 'Bybit allLiquidation WS (500ms, completo)') + dot(s.bin, 'BN', 'Binance forceOrder (capado 1/s — best-effort, puede geobloquear)') + dot(Date.now() - this._oiOk < 40000, 'OI 10s', 'Open Interest: sin WS en ningún exchange — poll 10s Binance (1% del rate limit)');
+    const bl = document.getElementById('liq-book-live'), tl = document.getElementById('liq-tape-live'), ll = document.getElementById('liq-liqs-live');
+    if (bl) bl.className = 'lq-live' + (s.book ? '' : ' stale');
+    if (tl) tl.className = 'lq-live' + (s.book ? '' : ' stale');
+    if (ll) ll.className = 'lq-live' + (s.bybit ? '' : ' stale');
+  },
+  renderBook() {
+    const v = this.views.a; if (!v || !v.book.bids.length) return;
+    const el = document.getElementById('liq-book'), cv = document.getElementById('liq-curve');
+    const I = v.instr(), N = 9;
+    const asks = v.book.asks.slice(0, N).reverse(), bids = v.book.bids.slice(0, N);
+    let mx = 0;
+    for (const [p, s] of asks.concat(bids)) { const u = +p * +s; if (u > mx) mx = u; }
+    const row = (p, s, ask) => {
+      const u = +p * +s, w = Math.min(100, u / mx * 100);
+      return '<div class="lq-row" style="position:relative"><span class="bar" style="position:absolute;right:0;top:1px;bottom:1px;width:' + w.toFixed(0) + '%;background:rgba(' + (ask ? '248,113,113' : '52,211,153') + ',.14)"></span>'
+        + '<span style="color:rgba(' + (ask ? '248,113,113' : '52,211,153') + ',.95);z-index:1">' + (+p).toFixed(I.dec) + '</span><span style="color:var(--text2);z-index:1">' + lqUsd(u) + '</span></div>';
+    };
+    if (el) {
+      const bb = +v.book.bids[0][0], ba = +v.book.asks[0][0];
+      el.innerHTML = asks.map(([p, s]) => row(p, s, true)).join('')
+        + '<div class="lq-row" style="border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);margin:2px 0"><span style="color:var(--text)">spread</span><span style="color:var(--text3)">' + (ba - bb).toFixed(I.dec) + '</span></div>'
+        + bids.map(([p, s]) => row(p, s, false)).join('');
+    }
+    // curva de profundidad acumulada (las curvas verde/roja de TD): cum-sum desde el mid ±1.5%
+    if (cv && cv.clientWidth) {
+      const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = 64;
+      cv.width = W * dpr; cv.height = H * dpr;
+      const g = cv.getContext('2d'); g.scale(dpr, dpr); g.clearRect(0, 0, W, H);
+      const mid = (+v.book.bids[0][0] + +v.book.asks[0][0]) / 2, lim = 0.015;
+      const curve = (book, right) => {
+        let cum = 0; const pts = [];
+        for (const [pS, sS] of book) {
+          const p = +pS; if (Math.abs(p - mid) / mid > lim) break;
+          cum += +pS * +sS;
+          pts.push([p, cum]);
+        }
+        return pts;
+      };
+      const cb = curve(v.book.bids), ca = curve(v.book.asks);
+      const mxC = Math.max(1, cb.length ? cb[cb.length - 1][1] : 0, ca.length ? ca[ca.length - 1][1] : 0);
+      const px2x = p => (p - mid * (1 - lim)) / (2 * mid * lim) * W;
+      const drawC = (pts, col) => {
+        if (pts.length < 2) return;
+        g.beginPath(); g.moveTo(px2x(pts[0][0]), H - 2);
+        for (const [p, c] of pts) g.lineTo(px2x(p), H - 2 - c / mxC * (H - 8));
+        g.lineTo(px2x(pts[pts.length - 1][0]), H - 2); g.closePath();
+        g.fillStyle = col.replace('1)', '.15)'); g.fill();
+        g.beginPath();
+        pts.forEach(([p, c], i) => { const x = px2x(p), y = H - 2 - c / mxC * (H - 8); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+        g.strokeStyle = col; g.lineWidth = 1.4; g.stroke();
+      };
+      drawC(cb, 'rgba(52,211,153,1)'); drawC(ca, 'rgba(248,113,113,1)');
+      g.strokeStyle = 'rgba(240,236,228,.4)'; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(W / 2, 2); g.lineTo(W / 2, H - 2); g.stroke(); g.setLineDash([]);
+    }
+  },
+  renderTape() {
+    const v = this.views.a; if (!v) return;
+    const el = document.getElementById('liq-tape'), cvEl = document.getElementById('liq-cvd');
+    const I = v.instr();
+    if (cvEl) cvEl.innerHTML = 'CVD <b style="color:' + (v.cvd >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (v.cvd >= 0 ? '+' : '−') + lqUsd(Math.abs(v.cvd)) + '</b> <span style="color:var(--text3)">$ agresor acumulado (día ET)</span>';
+    if (el) el.innerHTML = v.tape.map(t =>
+      '<div class="lq-row' + (t.usd >= 1e5 ? ' lq-flash' : '') + '"><span style="color:' + (t.buy ? 'var(--green)' : 'var(--red)') + '">' + (t.buy ? '▲' : '▼') + ' ' + t.px.toFixed(I.dec) + '</span><span style="color:' + (t.usd >= 1e5 ? 'var(--amber)' : 'var(--text3)') + '">' + lqUsd(t.usd) + (t.usd >= 1e5 ? ' 🐳' : '') + '</span></div>').join('');
+  },
+  renderLiqs(v) {
+    const el = document.getElementById('liq-liqs'); if (!el) return;
+    el.innerHTML = v.liqs.map(e =>
+      '<div class="lq-row lq-flash"><span style="color:' + (e.long ? 'var(--red)' : 'var(--green)') + '">' + (e.long ? 'LONG rekt' : 'SHORT rekt') + ' @ ' + e.px.toFixed(v.instr().dec) + '</span><span style="color:var(--amber)">' + lqUsd(e.usd) + ' <span style="color:var(--text3);font-size:8px">' + e.src + '</span></span></div>').join('')
+      || '<span style="color:var(--text3)">sin liquidaciones aún (mercado tranquilo)</span>';
+  },
+  renderPools(v, sum) {
+    const el = document.getElementById('liq-pools'); if (!el || !sum) return;
+    const I = v.instr();
+    const rows = [...sum.entries()].map(([b, usd]) => ({ p: (b + 0.5) * v.binSz, usd, d: ((b + 0.5) * v.binSz / v.last - 1) * 100 }))
+      .sort((a, b) => b.usd - a.usd).slice(0, 10).sort((a, b) => b.p - a.p);
+    el.innerHTML = rows.map(r =>
+      '<div class="lq-row"><span style="color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + r.p.toFixed(I.dec) + ' <span style="font-size:8px;color:var(--text3)">' + (r.d >= 0 ? '+' : '') + r.d.toFixed(2) + '%</span></span><span style="color:var(--amber)">' + lqUsd(r.usd) + '</span></div>').join('');
+    if (Date.now() - (this._barsT || 0) > 5000) { this._barsT = Date.now(); this.renderBars(); } // totales tier sin machacar clicks
     const st = document.getElementById('liq-status');
-    if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (this._oiSrc || '—') + ', slots 5m) repartido en cohortes 10x·35% / 25x·35% / 50x·20% / 100x·10% · entries DIRECCIONALES (vela bajista: shorts (h+o)/2 dominan 70/30; alcista: longs (l+o)/2) · nivel = entry×(1∓1/L+0.4%) · purga al cruce de la vela · cada pool nace en su formación (escalera). '
-      + 'σ: muestral N−1 sobre rendimientos por vela, bandas centradas en el VWAP (equilibrio → reversión a la media); asume normalidad — las colas gruesas reales hacen de ±2σ una guía, no una garantía. '
-      + '<b style="color:var(--amber)">ESTIMADO</b> — igual que Coinglass/Hyblock/TD: los exchanges no publican entry ni leverage por posición; esto es un modelo, no un libro. '
-      + 'Roadmap: L2 liquidaciones REALES (WS Bybit completo) + score de calibración auditable · L3 forex/oro OANDA · L4 índices (stops+GEX) · L5 ground truth Hyperliquid.';
+    if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (v.oiSrc || '—') + ' 5m + OI vivo 10s) · cohortes 10x·35%/25x·35%/50x·20%/100x·10% · entries direccionales (bajista: shorts (h+o)/2 dominan 70/30) · nivel entry×(1∓1/L+0.4%) · purga al cruce + PURGA CONFIRMADA por liquidación real (WS Bybit completo; Binance capado 1/s — declarado). '
+      + 'σ: muestral N−1, bandas centradas en VWAP (reversión a la media; asume normalidad — colas gruesas reales). '
+      + '<b style="color:var(--amber)">ESTIMADO</b> — igual que Coinglass/Hyblock/TD. Chart: <a href="https://www.tradingview.com/" target="_blank" rel="noopener" style="color:var(--text3)">Lightweight Charts © TradingView</a>. '
+      + 'Sigue: L3 forex/oro OANDA · L4 índices stops+GEX · L5 Hyperliquid + backtest imán.';
   },
 };
 window.LiqTab = LiqTab;
