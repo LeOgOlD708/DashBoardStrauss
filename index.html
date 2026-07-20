@@ -2971,6 +2971,12 @@ html.auth-ok #auth-gate{display:none}
     @keyframes lq-pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
     .lq-live{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 5px var(--teal);animation:lq-pulse-dot 1.6s infinite}
     .lq-live.stale{background:var(--red);box-shadow:0 0 5px var(--red);animation:none}
+    /* QA-4: el sidebar no puede ser más alto que el chart (empujaba el chart B y dejaba un hueco negro) */
+    #liq-side{max-height:520px;overflow-y:auto;scrollbar-width:thin}
+    /* V11: slider de umbral estilo TD (gradiente de la paleta + valor numérico en contratos) */
+    input.lq-thr{-webkit-appearance:none;appearance:none;width:104px;height:7px;border-radius:4px;background:linear-gradient(90deg,#00929a,#00b050,#ebe100,#f4b400,#e80000);outline:none;cursor:pointer;vertical-align:middle}
+    input.lq-thr::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:#f0ece4;border:2px solid #040404;cursor:pointer}
+    input.lq-thr::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:#f0ece4;border:2px solid #040404;cursor:pointer}
   </style>
   <div class="sh" style="margin-top:4px"><div class="sh-tag">Liquidez</div><div class="sh-title">Mapa de Liquidaciones — dónde está el dinero apalancado</div><div class="sh-line"></div></div>
   <div class="card" style="margin-bottom:14px">
@@ -7561,20 +7567,20 @@ const Terminal = {
 window.Terminal = Terminal;
 
 // ══════════════════════════════════════════════════════════════════════════════
-// TAB 11 · LIQUIDEZ V5 — Lightweight Charts (TradingView OSS) + TODO EN VIVO
-// Chart profesional (velas WS, scroll/zoom/crosshair nativos, atribución TV por
-// licencia Apache-2.0) + pools como primitive (escalera TD) + heatmap 2D como
-// custom series oficial portada + VWAP±σ primitive + perfil lateral + libro OKX
-// `books` (merge incremental 100ms) + cinta trades/CVD + liquidaciones REALES
-// (Bybit allLiquidation completo + Binance forceOrder best-effort) + OI poll 10s
-// (único dato SIN WS en ningún exchange) con ΔOI intrabar. Modelo = V4 calibrado
-// contra la cuenta TD real de Angel. Maestros: teach-lightweight-charts +
-// teach-live-data (informes 2026-07-19).
+// TAB 11 · LIQUIDEZ V11 — motor a PARIDAD con Trading Different (reverse-eng
+// 2026-07-20, wiki/sintesis/anatomia-trading-different-2026-07). Modelo TD real:
+// matriz tiempo×precio PERSISTENTE — cada pool es un SEGMENTO discreto por
+// (tier, bin fijo) que NACE donde se formó (ΔOI>0 del slot) y MUERE donde el
+// precio lo consumió; los consumidos QUEDAN visibles como historia fría (teal).
+// 4 tiers SEPARADOS en CONTRATOS con totales K + slider de umbral + rango del
+// pool bajo el cursor. Columnas del modelo = TF del chart (el `cd` de TD).
+// Base V5-V10 intacta: Lightweight Charts + 4 WS vivos (OKX books/trades/candle,
+// Bybit allLiquidation, Binance forceOrder) + OI poll 10s + calibración liq_cal_v1.
 // ══════════════════════════════════════════════════════════════════════════════
 
 // ── helpers compartidos ──
-const lqLut = (() => { // jet TD: verde → amarillo → ROJO núcleo
-  const stops = [[0, 176, 80], [110, 205, 30], [235, 225, 0], [244, 180, 0], [255, 40, 30], [232, 0, 0]];
+const lqLut = (() => { // paleta TD completa: TEAL (pool frío/viejo) → verde → amarillo → ROJO núcleo
+  const stops = [[0, 146, 152], [0, 176, 80], [110, 205, 30], [235, 225, 0], [244, 180, 0], [255, 40, 30], [232, 0, 0]];
   const L = new Uint8Array(256 * 3);
   for (let i = 0; i < 256; i++) {
     const f = i / 255 * (stops.length - 1), s = Math.min(stops.length - 2, Math.floor(f)), u = f - s;
@@ -7585,7 +7591,10 @@ const lqLut = (() => { // jet TD: verde → amarillo → ROJO núcleo
 function lqCol(rel, a) { const i = Math.max(0, Math.min(255, Math.floor(Math.pow(rel, 0.7) * 255))); return 'rgba(' + lqLut[i * 3] + ',' + lqLut[i * 3 + 1] + ',' + lqLut[i * 3 + 2] + ',' + a + ')'; }
 function lqUsd(v) { return v >= 1e9 ? '$' + (v / 1e9).toFixed(2) + 'B' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e4 ? '$' + (v / 1e3).toFixed(0) + 'K' : v >= 1e3 ? '$' + (v / 1e3).toFixed(1) + 'K' : '$' + v.toFixed(0); }
 function lqNice(x) { const m = Math.pow(10, Math.floor(Math.log10(x || 1))); for (const k of [1, 2, 2.5, 5, 10]) if (k * m >= x) return k * m; return 10 * m; }
+// V11: contratos (unidades del activo base, como TD) — "252.5K", "3.2M", "594.4"
+function lqK(v) { return v >= 1e9 ? (v / 1e9).toFixed(1) + 'B' : v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? (v / 1e3).toFixed(1) + 'K' : v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(1) : v.toPrecision(2); }
 const lqNY = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' });
+const lqNYd = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/New_York', day: '2-digit', month: 'short' });
 
 // ── FeedHub: 4 conexiones WS multiplexadas (patrón del maestro live-data) ──
 class LqFeed {
@@ -7673,60 +7682,23 @@ const LqHub = {
   },
 };
 
-// ── HeatMap custom series (port a JS del plugin oficial de Lightweight Charts) ──
-function lqPosBox(p1, p2, pr) { const a = Math.round(pr * p1), b = Math.round(pr * p2); return { position: Math.min(a, b), length: Math.abs(b - a) + 1 }; }
-function lqBarW(x, half, hpr) { const l = Math.round((x - half) * hpr), r = Math.round((x + half) * hpr); return { position: l, length: r - l }; }
-class LqHeatRenderer {
-  update(data, options) { this._d = data; this._o = options; }
-  draw(target, priceToCoordinate) { target.useBitmapCoordinateSpace(s => this._draw(s, priceToCoordinate)); }
-  _draw(scope, p2c) {
-    const d = this._d, o = this._o;
-    if (!d || !d.bars.length || !d.visibleRange || !o) return;
-    for (let i = d.visibleRange.from; i < d.visibleRange.to; i++) {
-      const bar = d.bars[i], w = lqBarW(bar.x, d.barSpacing / 2, scope.horizontalPixelRatio);
-      for (const c of bar.originalData.cells) {
-        const lo = p2c(c.low), hi = p2c(c.high);
-        if (lo == null || hi == null) continue;
-        const v = lqPosBox(lo, hi, scope.verticalPixelRatio);
-        scope.context.fillStyle = o.cellShader(c.amount);
-        scope.context.fillRect(w.position, v.position, w.length, Math.max(1, v.length - 1));
-      }
-    }
-  }
-}
-class LqHeatSeries {
-  constructor() { this._r = new LqHeatRenderer(); }
-  priceValueBuilder(row) {
-    if (!row.cells || !row.cells.length) return [NaN];
-    let lo = Infinity, hi = -Infinity;
-    row.cells.forEach(c => { if (c.low < lo) lo = c.low; if (c.high > hi) hi = c.high; });
-    return [lo, hi, lo + (hi - lo) / 2];
-  }
-  isWhitespace(d) { return !d.cells || !d.cells.length; }
-  renderer() { return this._r; }
-  update(data, options) { this._r.update(data, options); }
-  defaultOptions() {
-    return Object.assign({}, LightweightCharts.customSeriesDefaultOptions, {
-      lastValueVisible: false, priceLineVisible: false,
-      // review V5 M1: el heat NO participa del autoscale — sin esto, activar 'mapa'
-      // estiraba el eje a ±10% (pools 10x) y aplastaba las velas
-      autoscaleInfoProvider: () => null,
-      cellShader: a => lqCol(Math.min(1, a), (0.25 + Math.min(1, a) * 0.5).toFixed(3)),
-    });
-  }
-}
-
-// ── Primitive: POOLS (bandas escalera TD, bajo las velas, con rejilla de celdas) ──
+// ── Primitive: POOLS V11 — SEGMENTOS persistentes estilo TD. Cada fila es un pool
+// discreto (tier, bin) con nacimiento t0 y muerte t1: los vivos se extienden hasta el
+// borde derecho (verde→rojo por intensidad); los CONSUMIDOS quedan como historia fría
+// (teal, alpha baja) terminando donde el precio los comió — la estructura histórica
+// que muestra TD. Rejilla de celdas ~90 columnas clipeada a los ribbons. ──
 class LqPools {
   constructor(view) { this._v = view; this._rows = []; }
   attached(p) { this._chart = p.chart; this._series = p.series; this._req = p.requestUpdate; }
   detached() { this._chart = null; }
   setRows(rows) { this._rows = rows; if (this._req) this._req(); }
   updateAllViews() {}
-  autoscaleInfo() { // los pools cercanos (≤4%) entran al autoscale — el eje respira como en V4
+  autoscaleInfo() { // solo pools VIVOS y cercanos entran al autoscale — % por clase de activo
     const r = this._rows; if (!r.length || !this._v.last) return null;
+    // QA-3: en forex el 4% de cripto metía TODOS los stops y aplastaba las velas
+    const cls = this._v.instr().cls, pct = cls === 'fx' ? 0.005 : cls === 'idx' ? 0.015 : 0.04;
     let lo = Infinity, hi = -Infinity;
-    for (const x of r) { if (Math.abs(x.mid / this._v.last - 1) <= 0.04) { if (x.p1 < lo) lo = x.p1; if (x.p2 > hi) hi = x.p2; } }
+    for (const x of r) { if (x.t1 == null && Math.abs(x.mid / this._v.last - 1) <= pct) { if (x.p1 < lo) lo = x.p1; if (x.p2 > hi) hi = x.p2; } }
     return lo < hi ? { priceRange: { minValue: lo, maxValue: hi } } : null;
   }
   paneViews() {
@@ -7743,23 +7715,37 @@ class LqPools {
     const ctx = scope.context, W = scope.bitmapSize.width, H = scope.bitmapSize.height;
     const hpr = scope.horizontalPixelRatio, vpr = scope.verticalPixelRatio;
     const ts = this._chart && this._chart.timeScale(); if (!ts || !this._rows.length) return;
-    const rects = []; // el fondo negro ya lo pone layout.background — aquí solo pools
-
-    for (const r of this._rows) {
-      const y1 = this._series.priceToCoordinate(r.p2), y2 = this._series.priceToCoordinate(r.p1);
-      if (y1 == null || y2 == null) continue;
-      let x1 = 0;
-      if (r.from != null) { const xc = ts.timeToCoordinate(r.from); if (xc != null) x1 = Math.max(0, xc * hpr); }
-      const yA = Math.min(y1, y2) * vpr, yB = Math.max(y1, y2) * vpr;
-      if (yB < 0 || yA > H) continue;
-      ctx.fillStyle = lqCol(r.rel, (0.55 + r.rel * 0.4).toFixed(3));
-      ctx.fillRect(x1, yA, W - x1, Math.max(1.5 * vpr, yB - yA));
-      rects.push([x1, yA, yB]);
-    }
+    const tfS = this._v.modelTfS || 300;
+    const vr = ts.getVisibleRange();
+    const X = t => { // coordenada de un tiempo del modelo, con caída a los bordes si está fuera
+      if (t == null) return W;
+      const c = ts.timeToCoordinate(t);
+      if (c != null) return Math.max(0, Math.min(W, c * hpr));
+      if (!vr) return 0;
+      return t <= vr.from ? 0 : W;
+    };
+    const rects = [];
+    const pass = deadPass => {
+      for (const r of this._rows) {
+        const dead = r.t1 != null;
+        if (dead !== deadPass) continue;
+        const y1 = this._series.priceToCoordinate(r.p2), y2 = this._series.priceToCoordinate(r.p1);
+        if (y1 == null || y2 == null) continue;
+        const yA = Math.min(y1, y2) * vpr, yB = Math.max(y1, y2) * vpr;
+        if (yB < 0 || yA > H) continue;
+        const x1 = X(r.t0 != null ? r.t0 : r.from), x2 = dead ? X(r.t1 + tfS) : W;
+        if (x2 - x1 < 1) continue;
+        // consumido = frío (rel amortiguada cae en la zona teal de la LUT) — historia TD
+        ctx.fillStyle = dead ? lqCol(r.rel * 0.45, 0.30) : lqCol(r.rel, (0.55 + r.rel * 0.4).toFixed(3));
+        ctx.fillRect(x1, yA, x2 - x1, Math.max(1.5 * vpr, yB - yA));
+        rects.push([x1, yA, x2, yB]);
+      }
+    };
+    pass(true); pass(false); // historia fría debajo, pools vivos encima
     if (!rects.length) return;
-    // rejilla de celdas TD (~90 columnas), clipeada a los pools
+    // rejilla de celdas TD (~90 columnas), clipeada a los ribbons
     ctx.save(); ctx.beginPath();
-    for (const [x1, yA, yB] of rects) ctx.rect(x1, yA, W - x1, yB - yA);
+    for (const [x1, yA, x2, yB] of rects) ctx.rect(x1, yA, x2 - x1, yB - yA);
     ctx.clip();
     const bs = (ts.options().barSpacing || 6) * hpr;
     const chunk = Math.max(1, Math.round((W / Math.max(1, bs)) / 90)), step = bs * chunk;
@@ -7829,9 +7815,13 @@ class LqSigma {
       ctx.font = Math.round(9 * hpr) + 'px "IBM Plex Mono",monospace'; ctx.fillStyle = 'rgba(96,165,250,.9)';
       const sRaw = pts[pts.length - 1].s;
       const fN = x => x >= 100 ? x.toFixed(0) : x >= 1 ? x.toFixed(1) : x.toPrecision(2);
-      ctx.fillText('VWAP · equilibrio', P[0].x + 4 * hpr, P[0].vw - 4 * vpr);
-      ctx.fillText('±1σ 68% (±' + fN(sRaw) + ')', P[0].x + 4 * hpr, P[0].u1 - 4 * vpr);
-      ctx.fillText('±2σ 95% (±' + fN(sRaw * 2) + ') · reversión', P[0].x + 4 * hpr, P[0].u2 - 4 * vpr);
+      // QA-1: con la banda comprimida las 3 etiquetas caían en el mismo y y se encimaban —
+      // ahora cada etiqueta se salta si queda a <11px de una ya dibujada (prioridad VWAP → 2σ → 1σ)
+      const drawn = [];
+      const put = (txt, y) => { for (const yy of drawn) if (Math.abs(yy - y) < 11 * vpr) return; drawn.push(y); ctx.fillText(txt, P[0].x + 4 * hpr, y); };
+      put('VWAP · equilibrio', P[0].vw - 4 * vpr);
+      put('±2σ 95% (±' + fN(sRaw * 2) + ') · reversión', P[0].u2 - 4 * vpr);
+      put('±1σ 68% (±' + fN(sRaw) + ')', P[0].u1 - 4 * vpr);
     }
   }
 }
@@ -7852,6 +7842,7 @@ class LqDepth {
     return [{ zOrder: () => 'normal', renderer: () => ({ draw: t => t.useBitmapCoordinateSpace(s => self._fg(s)) }) }];
   }
   _fg(scope) {
+    if (!LiqTab.ov('perfil')) return; // QA-8: el panel completo (barras + libro púrpura + curvas) respeta el toggle
     const v = this._v, ctx = scope.context, W = scope.bitmapSize.width, H = scope.bitmapSize.height;
     const vpr = scope.verticalPixelRatio, hpr = scope.horizontalPixelRatio;
     const RW = W * 0.18;
@@ -7946,7 +7937,7 @@ class LiqView {
   constructor(slot) {
     this.slot = slot; // 'a' | 'b'
     this.gen = 0; this.bars5 = []; this.oi = []; this.oiLiveTs = 0;
-    this.M = null; this.act = null; this.actT = null; this.binSz = 1; this.last = 0;
+    this.segs = null; this.alive = null; this.binSz = 1; this.last = 0; this._fixedBin = null;
     this.book = { bids: [], asks: [] }; this.bookDirty = false;
     this.cvd = 0; this.cvdDay = null; this.tape = []; this.liqs = [];
     this.chart = null; this._subs = [];
@@ -7965,7 +7956,7 @@ class LiqView {
     // review V5 M2: resetear estado del símbolo anterior — una vela WS del símbolo nuevo
     // llegaba entre mount() y load() y se mezclaba con barsTf del viejo (header híbrido <1s)
     this.barsTf = null; this.bars5 = []; this.last = 0; this._ud = null;
-    this.book = { bids: [], asks: [] }; this.M = null; this.act = null; this.actT = null;
+    this.book = { bids: [], asks: [] }; this.segs = null; this.alive = null; this._fixedBin = null; // V11: bin fijo se recalcula por símbolo
     this.oi = []; this.oiLiveTs = 0; this.stopRows = null; // sin residuos del instrumento anterior
     this.tape = []; this.cvd = 0; this.cvdDay = null; this.liqs = []; this.sx = null; // A2: cinta/CVD/liqs no cruzan símbolos
     this._nar = null; this.fr = null; this._fxInit = false; // #2/#3: narración/funding del símbolo anterior tampoco
@@ -7979,7 +7970,8 @@ class LiqView {
       rightPriceScale: { borderColor: 'rgba(125,111,99,.35)', scaleMargins: { top: 0.06, bottom: 0.06 } },
       timeScale: {
         borderColor: 'rgba(125,111,99,.35)', timeVisible: true, secondsVisible: false, rightOffset: 8,
-        tickMarkFormatter: t => lqNY.format(new Date(t * 1000)) + '', // horas en ET, como toda la Terminal
+        // QA-2: en TF≥1H el eje repetía "20:00" sin fecha — los ticks de día/mes/año muestran fecha ET
+        tickMarkFormatter: (t, type) => (type < 3 ? lqNYd : lqNY).format(new Date(t * 1000)) + '',
       },
       localization: { timeFormatter: t => lqNY.format(new Date(t * 1000)) + ' ET' },
     });
@@ -7988,13 +7980,32 @@ class LiqView {
       wickUpColor: 'rgba(52,211,153,.9)', wickDownColor: 'rgba(248,113,113,.9)',
       priceFormat: { type: 'price', precision: I.dec != null ? I.dec : 2, minMove: Math.pow(10, -(I.dec != null ? I.dec : 2)) },
     });
-    this.heat = this.chart.addCustomSeries(new LqHeatSeries(), {});
     this.pools = new LqPools(this); this.candles.attachPrimitive(this.pools);
     this.sigma = new LqSigma(); this.candles.attachPrimitive(this.sigma);
     this.profile = new LqDepth(this); this.candles.attachPrimitive(this.profile);
     this.pulse = new LqPulse(); this.candles.attachPrimitive(this.pulse);
     // scroll infinito hacia atrás: al acercarse al borde izquierdo se pagina history-candles
     this.chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r && r.from < 12) this.loadOlder(); });
+    // V11 (TD): rango del pool bajo el cursor — "67440 → 67460" + contratos vivos por tier en ese
+    // bin. El overlay se crea aquí porque el innerHTML='' de arriba limpia el contenedor al remontar.
+    const cur = document.createElement('div');
+    cur.id = 'liq-v' + this.slot + '-cur'; cur.className = 'mono';
+    cur.style.cssText = 'position:absolute;top:4px;left:6px;z-index:6;font-size:9.5px;color:var(--text2);background:rgba(4,4,4,.78);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;pointer-events:none;display:none';
+    el.appendChild(cur);
+    this.chart.subscribeCrosshairMove(p => {
+      const el = document.getElementById('liq-v' + this.slot + '-cur'); if (!el) return;
+      if (!p || !p.point || !(this.binSz > 0)) { el.style.display = 'none'; return; }
+      const pr = this.candles.coordinateToPrice(p.point.y);
+      if (pr == null) { el.style.display = 'none'; return; }
+      const b = Math.floor(pr / this.binSz), d = this.dec();
+      let t = (b * this.binSz).toFixed(d) + ' → ' + ((b + 1) * this.binSz).toFixed(d);
+      if (this.alive) {
+        const parts = [];
+        for (const T of LiqTab.TIERS) { const s = this.alive[T.lev].get(b); if (s) parts.push(T.lev + 'x ' + lqK(s.ctr)); }
+        if (parts.length) t += ' · vivo: ' + parts.join(' · ');
+      }
+      el.textContent = t; el.style.display = '';
+    });
   }
   // pedido Angel "no se puede ver más atrás": OKX history-candles (desc, 100/llamada, after=ts
   // devuelve lo ANTERIOR a ese ts) — prepend preservando el rango visible, tope ~2800 velas
@@ -8019,7 +8030,7 @@ class LiqView {
       this.barsTf = add.concat(this.barsTf);
       this.candles.setData(this.barsTf.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
       if (r0) this.chart.timeScale().setVisibleLogicalRange({ from: r0.from + add.length, to: r0.to + add.length }); // el usuario no salta de sitio
-      if (LiqTab.ov('mapa')) this.paint();
+      this.buildSoon(); // V11: el modelo corre sobre las barras del TF — extenderlas re-extiende la matriz (hasta donde llegue el OI)
       this.renderSigma();
     } catch (e) {} finally { this._older = false; }
   }
@@ -8141,9 +8152,11 @@ class LiqView {
       return;
     }
     try {
+      // V11: para TF≥5m el modelo corre sobre las barras del propio TF (el `cd` de TD) —
+      // solo 1m/3m necesitan la serie 5m aparte (resolución nativa del OI)
       const [jT, j5, oi] = await Promise.all([
         fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=' + this.tf() + '&limit=300').then(r => r.json()),
-        this.tf() === '5m' ? null : fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=5m&limit=290').then(r => r.json()),
+        this.tfSec() < 300 ? fetch('https://www.okx.com/api/v5/market/candles?instId=' + I.okx + '&bar=5m&limit=290').then(r => r.json()) : null,
         this._loadOI(I),
       ]);
       if (gen !== this.gen) return;
@@ -8166,16 +8179,21 @@ class LiqView {
     }
   }
   async _loadOI(I) {
-    const end = Date.now(), start = end - 24.2 * 3600e3; // ventana del modelo: 24h a 5m
+    // V11: la ventana del OI sigue al TF del chart (300 barras) — 5m→~25h · 30m→6.3d · 1H→cap 7d.
+    // Binance openInterestHist guarda 30d, 500 puntos/llamada (~41.6h a 5m) → hasta 5 llamadas.
+    const end = Date.now(), start = end - Math.min(7 * 86400e3, Math.max(24.2 * 3600e3, (300 * this.tfSec() + 7200) * 1000));
     try {
-      let rows = [], cur = start;
-      for (let k = 0; k < 3 && cur < end; k++) {
-        const j = await fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=' + I.bin + '&period=5m&startTime=' + Math.floor(cur) + '&endTime=' + end + '&limit=500').then(r => r.json());
+      // gotcha cazado en V11: con rango > 500 puntos Binance devuelve los ÚLTIMOS 500 del rango,
+      // no los primeros → se pagina HACIA ATRÁS moviendo endTime (el forward jamás avanzaba)
+      let rows = [], endT = end;
+      for (let k = 0; k < 6; k++) {
+        const j = await fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=' + I.bin + '&period=5m&startTime=' + Math.floor(start) + '&endTime=' + Math.floor(endT) + '&limit=500').then(r => r.json());
         if (!Array.isArray(j)) throw new Error('binance oi');
         if (!j.length) break;
-        rows = rows.concat(j.map(x => ({ t: Math.floor(+x.timestamp / 1000), usd: +x.sumOpenInterestValue })));
+        rows = j.map(x => ({ t: Math.floor(+x.timestamp / 1000), usd: +x.sumOpenInterestValue })).concat(rows);
         if (j.length < 500) break;
-        cur = +j[j.length - 1].timestamp + 1;
+        endT = +j[0].timestamp - 1;
+        if (endT <= start) break;
       }
       if (rows.length > 5) return { rows, src: 'Binance' };
       throw new Error('vacío');
@@ -8224,48 +8242,56 @@ class LiqView {
     } catch (e) {}
   }
 
-  // ── MODELO (V4 calibrado contra TD): entries direccionales + escalera + purga ──
+  // ── MODELO V11 (paridad TD, reverse-eng 2026-07-20): matriz tiempo×precio PERSISTENTE.
+  // Cada pool = SEGMENTO por (tier, bin FIJO) en CONTRATOS: nace en el slot donde el ΔOI>0
+  // lo formó (entries direccionales V4 + tilt de funding), MUERE cuando una vela lo cruza,
+  // y el muerto QUEDA como historia (lo que TD muestra en teal). Columnas = TF del chart
+  // (el `cd` del backend de TD); 1m/3m corren a 5m, la resolución nativa del OI. ──
   build() {
-    const bars = this.bars5; if (!bars.length || this.oi.length < 2) return;
+    if (this.instr().cls !== 'cx') return;
+    const tfS = Math.max(this.tfSec(), 300);
+    const bars = this.tfSec() < 300 ? this.bars5 : this.barsTf;
+    if (!bars || !bars.length || this.oi.length < 2) return;
     const ref = this.last || bars[bars.length - 1].close;
-    this.binSz = lqNice(ref * 8e-4);
+    // bin FIJO por símbolo (TD: $20 en BTC) — se congela en la 1ª build para que la matriz no "respire"
+    if (!this._fixedBin) this._fixedBin = lqNice(ref * 3e-4);
+    this.binSz = this._fixedBin;
     const bi = p => Math.floor(p / this.binSz);
-    const oi = this.oi, tfS = 300, t0 = bars[0].time, tN = bars[bars.length - 1].time + tfS;
-    const barAt = ts => { const i = Math.floor((ts - t0) / tfS); return i >= 0 && i < bars.length ? bars[i] : null; };
-    const M = {}, act = {}, actT = {}, evs = [];
-    for (const T of LiqTab.TIERS) { M[T.lev] = new Map(); act[T.lev] = new Map(); actT[T.lev] = new Map(); }
-    for (let i = 1; i < oi.length; i++) {
-      const d = oi[i].usd - oi[i - 1].usd, ts = oi[i].t;
+    const t0 = bars[0].time, tN = bars[bars.length - 1].time + tfS;
+    // ΔOI>0 de cada punto 5m, agregado al slot del TF donde cayó
+    const dBySlot = new Map();
+    for (let i = 1; i < this.oi.length; i++) {
+      const d = this.oi[i].usd - this.oi[i - 1].usd, ts = this.oi[i].t;
       if (!(d > 0) || ts < t0 || ts >= tN) continue;
-      const b = barAt(ts); if (!b) continue;
-      const ci = Math.floor(ts / tfS);
-      // #3: el funding inclina el split — funding + = longs pagan = mercado cargado de longs
-      // (más combustible de liqs ABAJO). Tilt máx ±15pp a funding ±0.05%.
-      const tilt = this.fr != null ? Math.max(-0.15, Math.min(0.15, this.fr / 0.0005 * 0.15)) : 0;
-      const up = b.close >= b.open, wL = Math.max(0.1, Math.min(0.9, (up ? 0.7 : 0.3) + tilt));
-      const eL = (b.low + b.open) / 2, eS = (b.high + b.open) / 2;
-      for (const T of LiqTab.TIERS) {
-        for (const [w, p] of [[wL, eL * (1 - 1 / T.lev + LiqTab.MM)], [1 - wL, eS * (1 + 1 / T.lev - LiqTab.MM)]]) {
-          const usd = d * T.w * w; if (!(usd > 0)) continue;
-          const k = ci + ':' + bi(p);
-          M[T.lev].set(k, (M[T.lev].get(k) || 0) + usd);
-          evs.push({ ts, lev: T.lev, bi: bi(p), usd });
+      const k = Math.floor((ts - t0) / tfS);
+      if (k >= 0 && k < bars.length) dBySlot.set(k, (dBySlot.get(k) || 0) + d);
+    }
+    // #3: el funding inclina el split — funding + = longs pagan = mercado cargado de longs
+    const tilt = this.fr != null ? Math.max(-0.15, Math.min(0.15, this.fr / 0.0005 * 0.15)) : 0;
+    const segs = [], alive = {};
+    for (const T of LiqTab.TIERS) alive[T.lev] = new Map();
+    for (let k = 0; k < bars.length; k++) {
+      const b = bars[k], d = dBySlot.get(k) || 0;
+      if (d > 0) { // nacimientos del slot: entries direccionales (V4 calibrado contra la cuenta TD)
+        const up = b.close >= b.open, wL = Math.max(0.1, Math.min(0.9, (up ? 0.7 : 0.3) + tilt));
+        const eL = (b.low + b.open) / 2, eS = (b.high + b.open) / 2;
+        for (const T of LiqTab.TIERS) {
+          for (const [w, e, p] of [[wL, eL, eL * (1 - 1 / T.lev + LiqTab.MM)], [1 - wL, eS, eS * (1 + 1 / T.lev - LiqTab.MM)]]) {
+            const usd = d * T.w * w; if (!(usd > 0)) continue;
+            const bn = bi(p), m = alive[T.lev], s = m.get(bn);
+            if (s) { s.usd += usd; s.ctr += usd / e; } // mismo bin vivo → el pool engorda
+            else { const ns = { lev: T.lev, b: bn, t0: b.time, t1: null, usd, ctr: usd / e }; m.set(bn, ns); segs.push(ns); }
+          }
         }
       }
-    }
-    evs.sort((a, b) => a.ts - b.ts);
-    let ei = 0;
-    for (const b of bars) {
-      const bEnd = b.time + tfS;
-      while (ei < evs.length && evs[ei].ts < bEnd) {
-        const e = evs[ei++];
-        act[e.lev].set(e.bi, (act[e.lev].get(e.bi) || 0) + e.usd);
-        if (!actT[e.lev].has(e.bi)) actT[e.lev].set(e.bi, e.ts);
-      }
+      // barrido de la vela: los bins cruzados MUEREN aquí (t1) y quedan como historia
       const loB = bi(b.low), hiB = bi(b.high);
-      for (const T of LiqTab.TIERS) for (let k = loB; k <= hiB; k++) { act[T.lev].delete(k); actT[T.lev].delete(k); }
+      for (const T of LiqTab.TIERS) {
+        const m = alive[T.lev];
+        for (let q = loB; q <= hiB; q++) { const s = m.get(q); if (s) { s.t1 = b.time; m.delete(q); } }
+      }
     }
-    this.M = M; this.act = act; this.actT = actT;
+    this.segs = segs; this.alive = alive; this.modelTfS = tfS;
     this.paint();
   }
   buildSoon() { clearTimeout(this._bT); this._bT = setTimeout(() => { if (!document.hidden) this.build(); }, 1200); }
@@ -8324,13 +8350,12 @@ class LiqView {
       const w = w0 * (mid < last ? skBl : skAb);
       const rel = Math.min(1, w / (p95 * Math.max(skBl, skAb, 1)));
       if (rel < 0.06) continue;
-      rows.push({ p1: k * this.binSz, p2: (k + 1) * this.binSz, mid, usd: w, rel, from: from.get(k) });
+      rows.push({ p1: k * this.binSz, p2: (k + 1) * this.binSz, mid, usd: w, rel, t0: from.get(k), t1: null });
     }
     this.stopRows = rows;
     this._nar = this._mkNar(rows, false); // #2: resumen narrado (stops)
     this.pools.setRows(LiqTab.ov('bandas') ? rows : []);
     this.profile.setRows(LiqTab.ov('perfil') ? rows : []);
-    this.heat.setData([]);
     this.renderHead(null);
     if (this.slot === 'a') LiqTab.renderPools(this, null);
   }
@@ -8376,51 +8401,47 @@ class LiqView {
     return ' · <span style="color:var(--text3);font-size:10px" title="σ muestral (N−1) de los rendimientos por vela del TF activo (n=' + N + ') — cambia con la temporalidad · día = σ_vela×√(velas/día) · anual ×√' + yDays + '">σ ' + this.tf() + ' ' + (sd * 100).toFixed(3) + '% · día ' + (sdDay * 100).toFixed(2) + '% · anual ' + (sdDay * Math.sqrt(yDays) * 100).toFixed(0) + '%</span>';
   }
 
-  // vuelca modelo → primitives + custom series + paneles
+  // vuelca modelo → primitives + paneles. V11: dos capas de filas —
+  // segRows = TODOS los segmentos (vivos + historia consumida) para el chart, filtrados
+  // por tiers activos y por el slider de umbral (contratos, percentil estilo TD);
+  // sum/aliveRows = solo lo VIVO (header, perfil lateral, top pools, narración) SIN filtrar.
   paint() {
-    if (!this.act) return;
-    const on = LiqTab.tiersOn(), sum = new Map(), from = new Map();
+    if (!this.segs) return;
+    const on = LiqTab.tiersOn();
+    const cand = this.segs.filter(s => on[s.lev]);
+    // slider de umbral TD: corte en CONTRATOS al percentil elegido
+    const thr = LiqTab.thr();
+    let cut = 0;
+    if (thr > 0 && cand.length) {
+      const cs = cand.map(s => s.ctr).sort((a, b) => a - b);
+      cut = cs[Math.min(cs.length - 1, Math.floor(cs.length * thr / 100))];
+    }
+    this.thrCut = cut;
+    const inc = cut > 0 ? cand.filter(s => s.ctr >= cut) : cand;
+    const vals = inc.map(s => s.usd).sort((a, b) => a - b);
+    const p95 = vals.length ? (vals[Math.floor(vals.length * 0.95)] || 1) : 1;
+    const segRows = inc.map(s => ({ p1: s.b * this.binSz, p2: (s.b + 1) * this.binSz, mid: (s.b + 0.5) * this.binSz, usd: s.usd, ctr: s.ctr, lev: s.lev, rel: Math.min(1, s.usd / p95), t0: s.t0, t1: s.t1 }));
+    // vivo agregado por bin (los paneles y el header hablan de lo que AÚN espera al precio)
+    const sum = new Map(), from = new Map();
     for (const T of LiqTab.TIERS) {
       if (!on[T.lev]) continue;
-      for (const [b, usd] of this.act[T.lev]) {
-        sum.set(b, (sum.get(b) || 0) + usd);
-        const f = this.actT[T.lev].get(b);
-        if (f != null) from.set(b, Math.min(from.get(b) != null ? from.get(b) : Infinity, f));
+      for (const [b, s] of this.alive[T.lev]) {
+        sum.set(b, (sum.get(b) || 0) + s.usd);
+        from.set(b, Math.min(from.get(b) != null ? from.get(b) : Infinity, s.t0));
       }
     }
-    const vals = [...sum.values()].sort((a, b) => a - b);
-    const p95 = vals.length ? (vals[Math.floor(vals.length * 0.95)] || 1) : 1;
-    const rows = [];
+    const av = [...sum.values()].sort((a, b) => a - b);
+    const ap95 = av.length ? (av[Math.floor(av.length * 0.95)] || 1) : 1;
+    const aliveRows = [];
     for (const [b, usd] of sum) {
-      const rel = Math.min(1, usd / p95); if (rel < 0.04) continue;
-      rows.push({ p1: b * this.binSz, p2: (b + 1) * this.binSz, mid: (b + 0.5) * this.binSz, usd, rel, from: from.get(b) != null ? from.get(b) : null });
+      const rel = Math.min(1, usd / ap95); if (rel < 0.04) continue;
+      aliveRows.push({ p1: b * this.binSz, p2: (b + 1) * this.binSz, mid: (b + 0.5) * this.binSz, usd, rel, from: from.get(b) });
     }
-    this._nar = this._mkNar(rows, true); // #2: resumen narrado del mapa
-    this.pools.setRows(LiqTab.ov('bandas') ? rows : []);
-    this.profile.setRows(LiqTab.ov('perfil') ? rows : []);
-    // heatmap 2D histórico (toggle 'mapa'): celdas por barra del TF del chart
-    if (LiqTab.ov('mapa') && this.barsTf) {
-      const tfS = this.tfSec(), cell = new Map(); let cp95 = [];
-      for (const T of LiqTab.TIERS) {
-        if (!on[T.lev]) continue;
-        for (const [k, usd] of this.M[T.lev]) {
-          const [ci, b] = k.split(':').map(Number);
-          const bt = Math.floor(ci * 300 / tfS) * tfS, kk = bt + ':' + b;
-          cell.set(kk, (cell.get(kk) || 0) + usd);
-        }
-      }
-      cp95 = [...cell.values()].sort((a, b) => a - b);
-      const cref = cp95.length ? (cp95[Math.floor(cp95.length * 0.95)] || 1) : 1;
-      const byBar = new Map();
-      for (const [kk, usd] of cell) {
-        const [bt, b] = kk.split(':').map(Number);
-        if (!byBar.has(bt)) byBar.set(bt, []);
-        byBar.get(bt).push({ low: b * this.binSz, high: (b + 1) * this.binSz, amount: Math.min(1, usd / cref) });
-      }
-      this.heat.setData(this.barsTf.map(b => ({ time: b.time, cells: byBar.get(b.time) || [] })));
-    } else this.heat.setData([]);
+    this._nar = this._mkNar(aliveRows, true); // #2: resumen narrado del mapa
+    this.pools.setRows(LiqTab.ov('bandas') ? segRows : []);
+    this.profile.setRows(LiqTab.ov('perfil') ? aliveRows : []);
     this.renderHead(sum);
-    if (this.slot === 'a') LiqTab.renderPools(this, sum);
+    if (this.slot === 'a') { LiqTab.renderPools(this, sum); LiqTab.renderThr(this); }
   }
 
   renderSigma() { // VWAP día ET + σ ponderada (V3) sobre las barras del TF visible
@@ -8499,7 +8520,7 @@ class LiqView {
       if (tfK === '5m' && this.bars5 === this.barsTf && r[8] === '1') this.buildSoon();
     }
   }
-  _headSoon() { clearTimeout(this._hT); this._hT = setTimeout(() => { if (this.act) this.paint(); }, 2500); } // purga visual intrabar sin rebuild continuo
+  _headSoon() { clearTimeout(this._hT); this._hT = setTimeout(() => { if (this.segs) this.paint(); }, 2500); } // purga visual intrabar sin rebuild continuo
   onTrade(m) {
     const I = this.instr(); if (m.arg.instId !== I.okx || this.slot !== 'a') return;
     const day = Terminal.etParts(Date.now() / 1000).d;
@@ -8546,13 +8567,14 @@ class LiqView {
     this.pulse.fire(e.px, e.long);
     // #1 CALIBRACIÓN: ¿la liq real cayó dentro de una zona predicha VIVA? Se evalúa ANTES
     // de la purga (con tolerancia ±1 bin) — integridad: el evento no puede validarse a sí mismo
-    if (this.act && this.binSz > 0) {
+    if (this.alive && this.binSz > 0) {
       const b = Math.floor(e.px / this.binSz);
       let hit = false;
-      for (const T of LiqTab.TIERS) { const m = this.act[T.lev]; if (m.has(b) || m.has(b - 1) || m.has(b + 1)) { hit = true; break; } }
+      for (const T of LiqTab.TIERS) { const m = this.alive[T.lev]; if (m.has(b) || m.has(b - 1) || m.has(b + 1)) { hit = true; break; } }
       LiqTab.calAdd({ t: e.ts || Date.now(), sym: e.sym, px: e.px, usd: Math.round(e.usd), hit });
-      // purga confirmada por flujo real: el bin donde cayó la liq se consume
-      for (const T of LiqTab.TIERS) { this.act[T.lev].delete(b); this.actT[T.lev].delete(b); }
+      // purga confirmada por flujo real: el pool del bin MUERE aquí (queda como historia, estilo TD)
+      const tEnd = this.barsTf && this.barsTf.length ? this.barsTf[this.barsTf.length - 1].time : Math.floor(Date.now() / 1000);
+      for (const T of LiqTab.TIERS) { const s = this.alive[T.lev].get(b); if (s) { s.t1 = tEnd; this.alive[T.lev].delete(b); } }
       this._headSoon();
     }
     if (this.slot === 'a') LiqTab.renderLiqs(this);
@@ -8668,7 +8690,11 @@ const LiqTab = {
   cfg() { if (!this._cfg) { try { this._cfg = JSON.parse(localStorage.getItem('liq_cfg_v2') || '{}'); } catch (e) { this._cfg = {}; } } return this._cfg; },
   save() { try { localStorage.setItem('liq_cfg_v2', JSON.stringify(this._cfg)); } catch (e) {} },
   tiersOn() { const t = this.cfg().tiers || {}; const on = {}; for (const T of this.TIERS) on[T.lev] = t[T.lev] !== false; return on; },
-  ov(k) { const o = this.cfg().ov || {}; return k in o ? o[k] !== false : k !== 'mapa'; },
+  ov(k) { const o = this.cfg().ov || {}; return o[k] !== false; }, // V11: sin 'mapa' — la escalera persistente ES el mapa
+  // ── V11: slider de umbral TD (percentil del tamaño en contratos; solo afecta el chart) ──
+  thr() { return this.cfg().thr || 0; },
+  setThr(v) { const c = this.cfg(); c.thr = Math.max(0, Math.min(95, +v || 0)); this.save(); this.each(x => { if (x.instr().cls === 'cx') x.paint(); }); },
+  renderThr(v) { const el = document.getElementById('liq-thr-val'); if (el) el.textContent = v.thrCut > 0 ? '≥' + lqK(v.thrCut) + ' ctr' : 'todos'; },
   setOv(k) { const c = this.cfg(); c.ov = c.ov || {}; c.ov[k] = !this.ov(k); this.save(); this.renderBars(); this.each(v => { v.renderSigma(); v.instr().cls === 'cx' ? v.paint() : v.buildStops(); }); }, // fx/idx refrescan por su motor
   setTier(lev) { const c = this.cfg(); c.tiers = c.tiers || {}; c.tiers[lev] = c.tiers[lev] === false; this.save(); this.renderBars(); this.each(v => { if (v.instr().cls === 'cx') v.paint(); }); },
   layout() { return this.cfg().layout === 2 ? 2 : 1; },
@@ -8722,7 +8748,16 @@ const LiqTab = {
     if (n === 1 && this.views.b) { this.views.b.destroy(); delete this.views.b; }
     this.renderBars();
   },
-  setInstr(slot, id) { const v = this.views[slot]; if (!v) return; v.unsubscribe(); v.cfg().instr = id; this.save(); v.mount(); v.subscribe(); v.load(); v.pollOI(); this.renderBars(); },
+  setInstr(slot, id) { const v = this.views[slot]; if (!v) return; v.unsubscribe(); v.cfg().instr = id; this.save(); v.mount(); v.subscribe(); v.load(); v.pollOI(); this.renderBars(); if (slot === 'a') this.clearSide(); },
+  // QA-5: los paneles del sidebar quedaban STALE al cambiar de instrumento (CVD de BTC bajo
+  // etiqueta PEPE, nota de NQ en cripto) — se limpian de inmediato; el símbolo nuevo los repuebla
+  clearSide() {
+    for (const [id, msg] of [['liq-book', 'cargando…'], ['liq-cvd', ''], ['liq-tape', 'cargando…'], ['liq-liqs', 'esperando eventos…'], ['liq-pools', '']]) {
+      const el = document.getElementById(id); if (el) el.innerHTML = msg ? '<span style="color:var(--text3)">' + msg + '</span>' : '';
+    }
+    const cv = document.getElementById('liq-curve');
+    if (cv) { const g = cv.getContext('2d'); if (g) g.clearRect(0, 0, cv.width, cv.height); }
+  },
   setTf(slot, k) { const v = this.views[slot]; if (!v) return; if (v.instr().cls === 'idx' && (k === '1m' || k === '3m')) k = '5m'; v.unsubscribe(); v.cfg().tf = k; this.save(); v.mount(); v.subscribe(); v.load(); this.renderBars(); },
 
   renderBars() {
@@ -8730,23 +8765,29 @@ const LiqTab = {
     const g = document.getElementById('liq-global');
     if (g) {
       const on = this.tiersOn();
+      let ctAll = 0;
       g.innerHTML = '<span class="lq-lbl">POOLS:</span>'
-        + this.TIERS.map(T => {
-          let tot = 0; const va = this.views.a;
-          if (va && va.act && va.act[T.lev]) for (const x of va.act[T.lev].values()) tot += x;
-          return chip(T.lev + 'X' + (tot > 0 ? ': ' + lqUsd(tot) : ''), on[T.lev], 'LiqTab.setTier(' + T.lev + ')', 'Cohorte ' + T.lev + 'x (' + (T.w * 100).toFixed(0) + '% del ΔOI) — liq a ~' + (100 / T.lev).toFixed(1) + '% del entry');
+        + this.TIERS.map(T => { // V11 (TD): totales VIVOS en CONTRATOS del activo base, $ en el tooltip
+          let ct = 0, usd = 0; const va = this.views.a;
+          if (va && va.alive && va.alive[T.lev]) for (const s of va.alive[T.lev].values()) { ct += s.ctr; usd += s.usd; }
+          ctAll += ct;
+          return chip(T.lev + 'X' + (ct > 0 ? ': ' + lqK(ct) : ''), on[T.lev], 'LiqTab.setTier(' + T.lev + ')', 'Cohorte ' + T.lev + 'x (' + (T.w * 100).toFixed(0) + '% del ΔOI) — liq a ~' + (100 / T.lev).toFixed(1) + '% del entry · vivo ' + lqK(ct) + ' contratos (' + lqUsd(usd) + ')');
         }).join('')
+        + (ctAll > 0 ? '<span class="lq-lbl" title="Total vivo en contratos del activo base (suma de los 4 tiers)" style="color:var(--text2)">Σ ' + lqK(ctAll) + '</span>' : '')
+        + '<span class="lq-lbl" style="margin-left:8px">UMBRAL:</span>'
+        + '<input type="range" class="lq-thr" min="0" max="95" step="5" value="' + this.thr() + '" oninput="LiqTab.setThr(this.value)" title="Filtro TD: solo se pintan pools con tamaño ≥ el percentil elegido (en contratos) — sube el umbral para ver solo los grandes">'
+        + '<span id="liq-thr-val" class="lq-lbl" style="min-width:52px;color:var(--amber)"></span>'
         + '<span style="margin-left:8px"></span>'
-        + chip('bandas', this.ov('bandas'), "LiqTab.setOv('bandas')", 'Pools vivos (escalera TD): nacen donde se formaron, se consumen al cruce')
-        + chip('mapa', this.ov('mapa'), "LiqTab.setOv('mapa')", 'Heatmap 2D histórico estilo Coinglass (dónde se FORMÓ cada pool)')
-        + chip('perfil', this.ov('perfil'), "LiqTab.setOv('perfil')", 'Perfil lateral de liquidez viva')
+        + chip('pools', this.ov('bandas'), "LiqTab.setOv('bandas')", 'Matriz persistente TD: cada pool nace donde se formó y muere donde el precio lo consumió — los consumidos quedan como historia fría (teal)')
+        + chip('perfil', this.ov('perfil'), "LiqTab.setOv('perfil')", 'Panel derecho: perfil de pools vivos por lado + libro púrpura + curvas de profundidad')
         + chip('σ', this.ov('sigma'), "LiqTab.setOv('sigma')", 'VWAP como media de equilibrio ±1σ(68%)/±2σ(95%) — reversión a la media')
         + '<span style="margin-left:8px"></span><span class="lq-lbl">VISTA:</span>'
         + chip('1 chart', this.layout() === 1, 'LiqTab.setLayout(1)', 'Un solo chart')
         + chip('2 charts', this.layout() === 2, 'LiqTab.setLayout(2)', 'Dos tickers a la vez')
-        + '<span class="lq-chip" style="margin-left:auto;cursor:help" title="CÓMO LEER EL MAPA: bandas ARRIBA del precio = shorts atrapados (si sube, se liquidan → imán/squeeze al alza). Bandas ABAJO = longs (cascada si baja). Color verde→amarillo→ROJO = intensidad. Cada pool nace donde se formó (escalera) y se consume cuando el precio lo cruza. Perfil derecho: naranja=arriba · amarillo=abajo · púrpura=libro real · curvas verde/roja=profundidad acumulada. σ: fuera de ±2σ el precio tiende a volver al VWAP. Es CONFIRMACIÓN, no señal — solo el 60-70% de los hotspots se tocan.">📖 leer</span>'
+        + '<span class="lq-chip" style="margin-left:auto;cursor:help" title="CÓMO LEER EL MAPA: ribbons ARRIBA del precio = shorts atrapados (si sube, se liquidan → imán/squeeze al alza). Ribbons ABAJO = longs (cascada si baja). Color teal=pool frío/consumido (historia) · verde→amarillo→ROJO = intensidad viva. Cada pool nace donde se formó y muere donde el precio lo comió — los huecos son liquidez YA consumida. Totales por tier en CONTRATOS del activo (como TD); umbral filtra los chicos. Cursor sobre el chart = rango exacto del bin. Perfil derecho: naranja=arriba · amarillo=abajo · púrpura=libro real · curvas verde/roja=profundidad acumulada. σ: fuera de ±2σ el precio tiende a volver al VWAP. Es CONFIRMACIÓN, no señal — solo el 60-70% de los hotspots se tocan.">📖 leer</span>'
         + '<span class="mono" title="Modelo estimado desde Open Interest — igual que Coinglass/Hyblock/Trading Different: los exchanges no publican entry ni leverage por posición" style="font-size:9px;color:var(--amber);border:1px solid rgba(251,191,36,.4);border-radius:4px;padding:1px 6px">● ESTIMADO</span>'
         + '<span id="liq-feeds" class="mono" style="font-size:8.5px;color:var(--text3)"></span>';
+      const va = this.views.a; if (va && va.thrCut != null) this.renderThr(va); // el span nace vacío en cada re-render
     }
     for (const slot of ['a', 'b']) {
       const bar = document.getElementById('liq-v' + slot + '-bar'), v = this.views[slot];
@@ -8765,7 +8806,7 @@ const LiqTab = {
             + '</select>';
         })()
         + '<span class="lq-lbl" style="margin-left:8px">TF:</span>'
-        + this.TFS.map(t => chip(t.k, t.k === v.tf(), "LiqTab.setTf('" + slot + "','" + t.k + "')", 'Velas de ' + t.k + ' (el modelo de pools corre siempre a 5m, la resolución del OI)')).join('');
+        + this.TFS.map(t => chip(t.k, t.k === v.tf(), "LiqTab.setTf('" + slot + "','" + t.k + "')", 'Velas de ' + t.k + ' — el modelo corre en columnas del TF (como TD); en 1m/3m corre a 5m, la resolución del OI. La ventana de OI crece con el TF (hasta 7 días en 30m/1H)')).join('');
     }
   },
 
@@ -8876,6 +8917,8 @@ const LiqTab = {
   renderSent(v) {
     const el = document.getElementById('liq-book'); if (!el) return;
     const s = this._sent, I = v.instr();
+    // QA-6: NQ/ES no tienen libro público gratis ni sentimiento retail — placeholder honesto
+    if (I.cls === 'idx') { el.innerHTML = '<span style="color:var(--text3)">futuros de índices: sin libro público gratis — su mapa es de STOPS estimados (◐)</span>'; return; }
     if (!s) { el.innerHTML = '<span style="color:var(--text3)">cargando sentimiento retail (FXSSI multi-broker + Dukascopy SWFX)…</span>'; return; }
     const mine = I.sw && s[I.sw] ? [[I.sw, s[I.sw]]] : [];
     const rest = this.FX.filter(x => x.sw !== I.sw).map(x => [x.sw, s[x.sw]]).filter(x => x[1]);
@@ -8905,10 +8948,10 @@ const LiqTab = {
       '<div class="lq-row"><span style="color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + r.p.toFixed(v.dec()) + ' <span style="font-size:8px;color:var(--text3)">' + (r.d >= 0 ? '+' : '') + r.d.toFixed(2) + '%</span></span><span style="color:var(--amber)">' + lqUsd(r.usd) + '</span></div>').join('');
     if (Date.now() - (this._barsT || 0) > 5000) { this._barsT = Date.now(); this.renderBars(); this.renderFeeds(); } // review V5 B3: feeds repintados tras regenerar la barra
     const st = document.getElementById('liq-status');
-    if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (v.oiSrc || '—') + ' 5m + OI vivo 10s) · cohortes 10x·35%/25x·35%/50x·20%/100x·10% · entries direccionales (bajista: shorts (h+o)/2 dominan 70/30) · nivel entry×(1∓1/L+0.4%) · purga al cruce + PURGA CONFIRMADA por liquidación real (WS Bybit completo; Binance capado 1/s — declarado). '
+    if (st) st.innerHTML = 'MODELO V11 (paridad TD, reverse-eng de su backend): matriz tiempo×precio PERSISTENTE — pools por (tier, bin fijo ' + (v.binSz ? '$' + v.binSz : '') + ') en CONTRATOS que nacen con ΔOI>0 (' + (v.oiSrc || '—') + ' 5m + OI vivo 10s, ventana hasta 7d según TF), entries direccionales (bajista: shorts (h+o)/2 dominan 70/30) ± tilt de funding, nivel entry×(1∓1/L+0.4%), MUEREN al cruce de vela o por liquidación real (WS Bybit completo; Binance capado 1/s) y quedan visibles como historia fría (teal). '
       + 'σ: muestral N−1, bandas centradas en VWAP (reversión a la media; asume normalidad — colas gruesas reales). '
       + '<b style="color:var(--amber)">ESTIMADO</b> — igual que Coinglass/Hyblock/TD. Chart: <a href="https://www.tradingview.com/" target="_blank" rel="noopener" style="color:var(--text3)">Lightweight Charts © TradingView</a>. '
-      + 'Sigue: L3 forex/oro OANDA · L4 índices stops+GEX · L5 Hyperliquid + backtest imán.';
+      + 'Sigue: Liquidation Profile 2 tonos · buscador de símbolos · modelo no-cripto TD (lowX/midX/highX/maxX).';
   },
 };
 window.LiqTab = LiqTab;
