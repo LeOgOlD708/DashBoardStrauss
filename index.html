@@ -7577,6 +7577,8 @@ const LiqTab = {
   destroy() {
     this._timers.forEach(clearInterval); this._timers = [];
     this._gen++; this._busy = false;
+    this._mouse = null; this._drag = null; // review L0 BAJO-2: sin esto el crosshair fantasma reaparecía al reingresar
+    const tip = document.getElementById('liq-tip'); if (tip) tip.style.display = 'none';
     clearTimeout(this._rszT);
     if (this._rszFn) { window.removeEventListener('resize', this._rszFn); this._rszFn = null; }
   },
@@ -7650,9 +7652,13 @@ const LiqTab = {
     // 2º fallback OKX rubik (menos OI pero mismo shape); begin/end en ms
     const j = await fetch('https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-history?instId=' + I.okx + '-SWAP&period=5m&begin=' + Math.floor(start) + '&end=' + end + '&limit=1440').then(r => r.json());
     if (j.code !== '0' || !Array.isArray(j.data) || j.data.length < 5) throw new Error('sin OI (Binance y OKX fallaron)');
-    // formato [ts, oi, oiCcy, oiUsd] — defensivo: usa oiUsd si viene, si no oiCcy×precio
-    const last = this._bars.length ? this._bars[this._bars.length - 1].c : 0;
-    return { rows: j.data.map(r => ({ t: Math.floor(+r[0] / 1000), usd: r[3] != null ? +r[3] : (+r[2] || 0) * last })).reverse(), src: 'OKX' };
+    // formato [ts, oi, oiCcy, oiUsd] — defensivo: usa oiUsd si viene, si no oiCcy×precio.
+    // review L0 MEDIO-2: _bars puede estar vacío aquí (Promise.all / _reset) → precio de
+    // referencia propio del ticker, no del estado — sin él, oiCcy×0 dejaba el mapa vacío en silencio
+    let ref = this._bars.length ? this._bars[this._bars.length - 1].c : 0;
+    if (!ref) { try { const q = await fetch('https://www.okx.com/api/v5/market/ticker?instId=' + I.okx + '-SWAP').then(r => r.json()); ref = +((q.data || [])[0] || {}).last || 0; } catch (e) {} }
+    if (!ref && j.data.some(r => r[3] == null)) throw new Error('sin OI (Binance cayó y OKX sin oiUsd ni precio ref)');
+    return { rows: j.data.map(r => ({ t: Math.floor(+r[0] / 1000), usd: r[3] != null ? +r[3] : (+r[2] || 0) * ref })).reverse(), src: 'OKX' };
   },
 
   // ── MOTOR: matriz 2D por tier + remanente vivo (purga al cruce) ──
@@ -7762,7 +7768,13 @@ const LiqTab = {
     }, { passive: false });
     cv.addEventListener('dblclick', () => { this._view = null; this._render(); });
   },
-  _ensureView() { if (!this._view) this._view = { off: 0, n: this._bars.length || 1 }; if (this._view.n > this._bars.length) { this._view.n = this._bars.length; this._view.off = 0; } return this._view; },
+  _ensureView() {
+    if (!this._view) this._view = { off: 0, n: this._bars.length || 1 };
+    if (this._view.n > this._bars.length) { this._view.n = this._bars.length; this._view.off = 0; }
+    // review L0 BAJO-1: un soft-reload con menos barras dejaba off fuera de rango → chart en blanco
+    this._view.off = Math.max(0, Math.min(Math.max(0, this._bars.length - this._view.n), this._view.off));
+    return this._view;
+  },
 
   // ── RENDER ──
   _render() {
@@ -7797,13 +7809,17 @@ const LiqTab = {
         g.strokeStyle = 'rgba(125,111,99,.14)'; g.beginPath(); g.moveTo(ml, gy); g.lineTo(ml + iw, gy); g.stroke();
         g.fillStyle = 'rgba(125,111,99,.9)'; g.fillText((v0 + k * st).toFixed(I.dec), ml + 2, gy - 1);
       }
-      g.textBaseline = 'top'; let lastTX = -1e9;
-      for (let i = 0; i < vb.length; i++) {
-        const et = Terminal.etParts(vb[i].t); if (et.m % 120 !== 0) continue;
-        const x = X(i); if (x - lastTX < 48) continue; lastTX = x;
-        g.strokeStyle = 'rgba(125,111,99,.09)'; g.beginPath(); g.moveTo(x, mt); g.lineTo(x, mt + ih); g.stroke();
-        g.fillStyle = '#7d6f63'; g.fillText(String(Math.floor(et.m / 60)).padStart(2, '0') + ':00', x - 12, mt + ih + 4);
-      }
+      // review L0 BAJO-3: try propio — si etParts lanzara, no debe tumbar el render entero
+      // (la excepción escalaría a los handlers de puntero: cada mousemove relanzaría)
+      try {
+        g.textBaseline = 'top'; let lastTX = -1e9;
+        for (let i = 0; i < vb.length; i++) {
+          const et = Terminal.etParts(vb[i].t); if (et.m % 120 !== 0) continue;
+          const x = X(i); if (x - lastTX < 48) continue; lastTX = x;
+          g.strokeStyle = 'rgba(125,111,99,.09)'; g.beginPath(); g.moveTo(x, mt); g.lineTo(x, mt + ih); g.stroke();
+          g.fillStyle = '#7d6f63'; g.fillText(String(Math.floor(et.m / 60)).padStart(2, '0') + ':00', x - 12, mt + ih + 4);
+        }
+      } catch (e) { /* la grilla horaria jamás mata el chart */ }
     }
     // ① MAPA 2D — la matriz offscreen estampada con crop fraccional (bilineal del navegador)
     if (this._img && this.ov('mapa')) {
@@ -7818,10 +7834,14 @@ const LiqTab = {
     // ② BANDAS del remanente vivo (pools no purgados) — el look Trading Different
     const actSum = new Map();
     if (this._act) { const on = this.tiersOn(); for (const T of this.TIERS) { if (!on[T.lev]) continue; for (const [bIdx, usd] of this._act[T.lev]) actSum.set(bIdx, (actSum.get(bIdx) || 0) + usd); } }
+    // review L0 MEDIO-1: el remanente vivo ACUMULA slots — su escala de color necesita su
+    // propio p95 (compararlo contra el p95 por-celda de la matriz saturaba todo a máximo)
+    const av = [...actSum.values()].sort((a, b) => a - b);
+    const actP95 = av.length ? (av[Math.floor(av.length * 0.95)] || 1) : 1;
     if (actSum.size && this.ov('bandas')) {
       const L = this._lut();
       for (const [bIdx, usd] of actSum) {
-        const rel = Math.min(1, usd / this._p95); if (rel < 0.06) continue;
+        const rel = Math.min(1, usd / actP95); if (rel < 0.06) continue;
         const y1 = Y((bIdx + 1) * this._binSz), y2 = Y(bIdx * this._binSz);
         if (y2 < mt || y1 > mt + ih) continue;
         const li = Math.floor(rel * 255);
@@ -7835,7 +7855,7 @@ const LiqTab = {
       for (const [bIdx, usd] of actSum) {
         const y1 = Y((bIdx + 1) * this._binSz), y2 = Y(bIdx * this._binSz);
         if (y2 < mt || y1 > mt + ih) continue;
-        const w = usd / maxV * maxW, li = Math.floor(Math.min(1, usd / this._p95) * 255);
+        const w = usd / maxV * maxW, li = Math.floor(Math.min(1, usd / actP95) * 255);
         g.fillStyle = 'rgba(' + L[li * 3] + ',' + L[li * 3 + 1] + ',' + L[li * 3 + 2] + ',.65)';
         g.fillRect(ml + iw - w, Math.max(mt, y1), w, Math.max(1.5, Math.min(mt + ih, y2) - Math.max(mt, y1)));
       }
