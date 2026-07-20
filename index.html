@@ -7823,29 +7823,66 @@ class LqSigma {
   }
 }
 
-// ── Primitive: perfil lateral (liquidez viva acumulada, anclado a la derecha) ──
-class LqProfile {
-  constructor() { this._rows = []; }
+// ── Primitive: PANEL DERECHO estilo TD — perfil de pools por lado (naranja arriba /
+// amarillo abajo, granate en extremos) + libro en barras PÚRPURAS por nivel + curvas
+// de profundidad acumulada verde/roja. Es el "gráfico de la derecha" de la captura de
+// Angel: liq-profile + DOM + depth curves compartiendo el eje de precio del chart. ──
+class LqDepth {
+  constructor(view) { this._v = view; this._rows = []; }
   attached(p) { this._chart = p.chart; this._series = p.series; this._req = p.requestUpdate; }
   detached() {}
   setRows(rows) { this._rows = rows; if (this._req) this._req(); }
+  poke() { if (this._req) this._req(); } // el libro vivo lo repinta a ~8fps
   updateAllViews() {}
   paneViews() {
     const self = this;
     return [{ zOrder: () => 'normal', renderer: () => ({ draw: t => t.useBitmapCoordinateSpace(s => self._fg(s)) }) }];
   }
   _fg(scope) {
-    const rows = this._rows; if (!rows.length) return;
-    const ctx = scope.context, W = scope.bitmapSize.width, vpr = scope.verticalPixelRatio;
+    const v = this._v, ctx = scope.context, W = scope.bitmapSize.width, H = scope.bitmapSize.height;
+    const vpr = scope.verticalPixelRatio, hpr = scope.horizontalPixelRatio;
+    const RW = W * 0.18;
+    ctx.fillStyle = 'rgba(255,255,255,.02)'; ctx.fillRect(W - RW, 0, RW, H);
+    // 1) perfil de pools por lado (paleta del panel derecho de TD)
+    const rows = this._rows;
     let mx = 0; for (const r of rows) if (r.usd > mx) mx = r.usd;
-    if (!(mx > 0)) return;
-    const maxW = W * 0.13;
-    for (const r of rows) {
+    if (mx > 0) for (const r of rows) {
       const y1 = this._series.priceToCoordinate(r.p2), y2 = this._series.priceToCoordinate(r.p1);
       if (y1 == null || y2 == null) continue;
-      const w = r.usd / mx * maxW;
-      ctx.fillStyle = lqCol(r.rel, .8);
+      const w = r.usd / mx * RW * 0.92;
+      const above = r.mid >= v.last, far = v.last > 0 && Math.abs(r.mid / v.last - 1) > 0.055;
+      ctx.fillStyle = above
+        ? (far ? 'rgba(122,28,28,' + (0.35 + r.rel * 0.45).toFixed(2) + ')' : 'rgba(244,140,20,' + (0.30 + r.rel * 0.5).toFixed(2) + ')')
+        : (far ? 'rgba(170,140,10,' + (0.30 + r.rel * 0.4).toFixed(2) + ')' : 'rgba(235,225,0,' + (0.25 + r.rel * 0.45).toFixed(2) + ')');
       ctx.fillRect(W - w, Math.min(y1, y2) * vpr, w, Math.max(1.5, Math.abs(y2 - y1) * vpr));
+    }
+    // 2) libro real: barras púrpuras por nivel (liquidez resting, actualiza cada 100ms)
+    const bk = v.book;
+    if (bk && bk.bids.length && bk.asks.length) {
+      let bmx = 0;
+      for (const side of [bk.bids, bk.asks]) for (let i = 0; i < side.length && i < 200; i++) { const u = +side[i][0] * +side[i][1]; if (u > bmx) bmx = u; }
+      if (bmx > 0) {
+        ctx.fillStyle = 'rgba(167,139,250,.55)';
+        for (const side of [bk.bids, bk.asks]) for (let i = 0; i < side.length && i < 200; i++) {
+          const y = this._series.priceToCoordinate(+side[i][0]); if (y == null) continue;
+          const u = +side[i][0] * +side[i][1];
+          const w = Math.pow(u / bmx, 0.6) * RW * 0.85;
+          ctx.fillRect(W - w, y * vpr - 1, w, 2);
+        }
+      }
+      // 3) curvas de profundidad acumulada (verde bids / roja asks — se abomban a la
+      // izquierda donde hay muro, como en TD)
+      const mid = (+bk.bids[0][0] + +bk.asks[0][0]) / 2;
+      const cum = arr => { let c = 0; const pts = []; for (const [pS, sS] of arr) { const p = +pS; if (Math.abs(p - mid) / mid > 0.05) break; c += +pS * +sS; const y = this._series.priceToCoordinate(p); if (y != null) pts.push([y * vpr, c]); } return pts; };
+      const cb = cum(bk.bids), ca = cum(bk.asks);
+      const cmax = Math.max(1, cb.length ? cb[cb.length - 1][1] : 0, ca.length ? ca[ca.length - 1][1] : 0);
+      const curve = (pts, col) => {
+        if (pts.length < 2) return;
+        ctx.strokeStyle = col; ctx.lineWidth = 1.6 * hpr; ctx.beginPath();
+        pts.forEach(([y, c], i) => { const x = W - (c / cmax) * RW * 0.95; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+        ctx.stroke();
+      };
+      curve(cb, 'rgba(52,211,153,.95)'); curve(ca, 'rgba(255,99,132,.95)');
     }
   }
 }
@@ -7897,7 +7934,8 @@ class LiqView {
   }
   cfgAll() { return LiqTab.cfg(); }
   cfg() { const c = this.cfgAll(); c[this.slot] = c[this.slot] || {}; return c[this.slot]; }
-  instr() { return LiqTab.INSTRS.find(i => i.id === (this.cfg().instr || (this.slot === 'a' ? 'BTC' : 'ETH'))) || LiqTab.INSTRS[0]; }
+  instr() { return LiqTab.instrById(this.cfg().instr || (this.slot === 'a' ? 'BTC' : 'ETH')); }
+  dec() { const I = this.instr(); if (I.dec != null) return I.dec; const p = this.last || 0; return p >= 1000 ? 1 : p >= 100 ? 2 : p >= 10 ? 3 : p >= 1 ? 4 : p >= 0.02 ? 5 : p >= 0.0005 ? 6 : 8; }
   tf() { const t = this.cfg().tf; return LiqTab.TFS.some(x => x.k === t) ? t : '5m'; }
   tfSec() { return LiqTab.TFS.find(x => x.k === this.tf()).s; }
 
@@ -7926,13 +7964,41 @@ class LiqView {
     this.candles = this.chart.addSeries(CandlestickSeries, {
       upColor: '#34d399', downColor: '#f87171', borderVisible: false,
       wickUpColor: 'rgba(52,211,153,.9)', wickDownColor: 'rgba(248,113,113,.9)',
-      priceFormat: { type: 'price', precision: I.dec, minMove: Math.pow(10, -I.dec) },
+      priceFormat: { type: 'price', precision: I.dec != null ? I.dec : 2, minMove: Math.pow(10, -(I.dec != null ? I.dec : 2)) },
     });
     this.heat = this.chart.addCustomSeries(new LqHeatSeries(), {});
     this.pools = new LqPools(this); this.candles.attachPrimitive(this.pools);
     this.sigma = new LqSigma(); this.candles.attachPrimitive(this.sigma);
-    this.profile = new LqProfile(); this.candles.attachPrimitive(this.profile);
+    this.profile = new LqDepth(this); this.candles.attachPrimitive(this.profile);
     this.pulse = new LqPulse(); this.candles.attachPrimitive(this.pulse);
+    // scroll infinito hacia atrás: al acercarse al borde izquierdo se pagina history-candles
+    this.chart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r && r.from < 12) this.loadOlder(); });
+  }
+  // pedido Angel "no se puede ver más atrás": OKX history-candles (desc, 100/llamada, after=ts
+  // devuelve lo ANTERIOR a ese ts) — prepend preservando el rango visible, tope ~2800 velas
+  async loadOlder() {
+    if (this._older || !this.barsTf || this.barsTf.length < 50 || this.barsTf.length > 2800) return;
+    this._older = true;
+    const gen = this.gen, I = this.instr(), tf = this.tf();
+    try {
+      let oldest = this.barsTf[0].time * 1000, add = [];
+      for (let k = 0; k < 3; k++) {
+        const j = await fetch('https://www.okx.com/api/v5/market/history-candles?instId=' + I.okx + '&bar=' + tf + '&after=' + oldest + '&limit=100').then(r => r.json());
+        if (gen !== this.gen) return;
+        if (j.code !== '0' || !j.data || !j.data.length) break;
+        add = j.data.map(r => ({ time: Math.floor(+r[0] / 1000), open: +r[1], high: +r[2], low: +r[3], close: +r[4], v: +r[6] || +r[5] || 0 })).reverse().concat(add);
+        oldest = +j.data[j.data.length - 1][0]; // OKX manda desc: el último es el más viejo
+      }
+      const cut = this.barsTf[0].time;
+      add = add.filter(b => b.time < cut);
+      if (!add.length || gen !== this.gen) return;
+      const r0 = this.chart.timeScale().getVisibleLogicalRange();
+      this.barsTf = add.concat(this.barsTf);
+      this.candles.setData(this.barsTf.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+      if (r0) this.chart.timeScale().setVisibleLogicalRange({ from: r0.from + add.length, to: r0.to + add.length }); // el usuario no salta de sitio
+      if (LiqTab.ov('mapa')) this.paint();
+      this.renderSigma();
+    } catch (e) {} finally { this._older = false; }
   }
 
   // ── suscripciones vivas del símbolo actual ──
@@ -7965,6 +8031,8 @@ class LiqView {
       this.oi = oi.rows; this.oiSrc = oi.src; this.err = null;
       this.last = this.barsTf[this.barsTf.length - 1].close;
       this.candles.setData(this.barsTf.map(b => ({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close })));
+      const dc = this.dec(); // tickers del dropdown: precisión automática por magnitud de precio
+      this.candles.applyOptions({ priceFormat: { type: 'price', precision: dc, minMove: Math.pow(10, -dc) } });
       this.chart.timeScale().fitContent();
       this.build();
       this.renderSigma();
@@ -7988,7 +8056,7 @@ class LiqView {
       }
       if (rows.length > 5) return { rows, src: 'Binance' };
       throw new Error('vacío');
-    } catch (e) { /* fallback */ }
+    } catch (e) { /* fallback (nota: rubik OKX NO es CORS-open — cazado en verificación; si Binance falla, el error de abajo es honesto) */ }
     const j = await fetch('https://www.okx.com/api/v5/rubik/stat/contracts/open-interest-history?instId=' + I.okx.replace('-SWAP', '') + '-SWAP&period=5m&begin=' + Math.floor(start) + '&end=' + end + '&limit=1440').then(r => r.json());
     if (j.code !== '0' || !Array.isArray(j.data) || j.data.length < 5) throw new Error('sin OI (Binance y OKX fallaron)');
     let ref = this.last || 0;
@@ -8008,7 +8076,7 @@ class LiqView {
       let usd = 0, ts = 0;
       try {
         const j = await fetch('https://fapi.binance.com/fapi/v1/openInterest?symbol=' + I.bin).then(r => r.json());
-        if (j && j.openInterest) { usd = +j.openInterest * (this.last || 0); ts = +j.time; }
+        if (j && j.openInterest) { usd = +j.openInterest * (this.last || 0) * (I.k1000 ? 1000 : 1); ts = +j.time; }
       } catch (e) {}
       if (!(usd > 0)) { // review V5 B5: fallback OKX para el OI vivo (Binance puede geobloquear)
         const q = await fetch('https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=' + I.okx + '-SWAP').then(r => r.json());
@@ -8140,7 +8208,7 @@ class LiqView {
     let up = 0, dn = 0;
     if (sum) { for (const [b, usd] of sum) { if ((b + 0.5) * this.binSz >= this.last) up += usd; else dn += usd; } this._ud = { up, dn }; }
     else if (this._ud) { up = this._ud.up; dn = this._ud.dn; } // el tick de vela no pisa los totales del modelo
-    let h = '<b style="color:var(--text)">' + I.id + '/USDT</b> <b style="font-size:15px;color:var(--text)">' + this.last.toFixed(I.dec) + '</b>'
+    let h = '<b style="color:var(--text)">' + I.id + '/USDT</b> <b style="font-size:15px;color:var(--text)">' + this.last.toFixed(this.dec()) + '</b>'
       + ' · <span style="color:var(--text3)">liq viva:</span> <b style="color:var(--red)" title="Shorts atrapados arriba — combustible de squeeze">↑ ' + lqUsd(up) + '</b>'
       + ' <b style="color:var(--green)" title="Longs atrapados abajo — combustible de flush">↓ ' + lqUsd(dn) + '</b>'
       + (up + dn > 0 ? ' · <span style="color:var(--text2)">imán ' + (up > dn ? '⬆' : '⬇') + ' ' + (Math.max(up, dn) / (up + dn) * 100).toFixed(0) + '%</span>' : '');
@@ -8244,6 +8312,20 @@ const LiqTab = {
     { id: 'DOGE', okx: 'DOGE-USDT', bin: 'DOGEUSDT', by: 'DOGEUSDT', dec: 5 },
     { id: 'BNB', okx: 'BNB-USDT', bin: 'BNBUSDT', by: 'BNBUSDT', dec: 2 },
   ],
+  // dropdown "más ▾": cualquier par USDT con perp en Binance/Bybit y spot en OKX (dec auto)
+  MORE: ['ADA', 'LINK', 'AVAX', 'DOT', 'LTC', 'BCH', 'UNI', 'ATOM', 'NEAR', 'APT', 'ARB', 'OP', 'SUI', 'TON', 'TRX', 'PEPE', 'SHIB', 'WIF', 'FIL', 'INJ', 'TIA', 'SEI', 'POL', 'AAVE', 'CRV', 'JUP', 'ONDO', 'ENA', 'WLD', 'ORDI'],
+  instrById(id) {
+    const base = this.INSTRS.find(i => i.id === id);
+    if (base) return base;
+    if (this.MORE.includes(id)) {
+      // gotcha cazado en verificación: los meme-perps de Binance/Bybit van con prefijo 1000
+      // (PEPEUSDT devuelve [] — el real es 1000PEPEUSDT); k1000 escala el OI vivo (contratos ×1000)
+      const k1000 = ['PEPE', 'SHIB'].includes(id);
+      const perp = (k1000 ? '1000' : '') + id + 'USDT';
+      return { id, okx: id + '-USDT', bin: perp, by: perp, k1000 };
+    }
+    return this.INSTRS[0];
+  },
   TFS: [{ k: '1m', s: 60 }, { k: '3m', s: 180 }, { k: '5m', s: 300 }, { k: '15m', s: 900 }, { k: '30m', s: 1800 }, { k: '1H', s: 3600 }],
   TIERS: [{ lev: 10, w: .35 }, { lev: 25, w: .35 }, { lev: 50, w: .20 }, { lev: 100, w: .10 }],
   MM: 0.004,
@@ -8331,6 +8413,8 @@ const LiqTab = {
       const I = v.instr();
       bar.innerHTML = '<span class="lq-lbl">TICKER:</span>'
         + this.INSTRS.map(x => chip(x.id, x.id === I.id, "LiqTab.setInstr('" + slot + "','" + x.id + "')", 'Perp ' + x.bin + ' · velas OKX ' + x.okx)).join('')
+        + '<select class="lq-chip' + (this.MORE.includes(I.id) ? ' on' : '') + '" style="max-width:92px" onchange="if(this.value)LiqTab.setInstr(\'' + slot + '\',this.value)" title="Más tickers (perps con OI en Binance)">'
+        + '<option value="">más ▾</option>' + this.MORE.map(x => '<option value="' + x + '"' + (x === I.id ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
         + '<span class="lq-lbl" style="margin-left:8px">TF:</span>'
         + this.TFS.map(t => chip(t.k, t.k === v.tf(), "LiqTab.setTf('" + slot + "','" + t.k + "')", 'Velas de ' + t.k + ' (el modelo de pools corre siempre a 5m, la resolución del OI)')).join('');
     }
@@ -8345,7 +8429,10 @@ const LiqTab = {
       if (t - lastChips > 1000) { lastChips = t; this.renderFeeds(); }
       if (t - lastPanels > 125) {
         lastPanels = t;
-        if (this.bookDirty) { this.bookDirty = false; this.renderBook(); }
+        if (this.bookDirty) {
+          this.bookDirty = false; this.renderBook();
+          const v = this.views.a; if (v && v.profile) v.profile.poke(); // panel derecho late con el libro
+        }
         if (this.tapeDirty) { this.tapeDirty = false; this.renderTape(); }
       }
     };
@@ -8364,19 +8451,19 @@ const LiqTab = {
   renderBook() {
     const v = this.views.a; if (!v || !v.book.bids.length || !v.book.asks.length) return; // review V5 B2
     const el = document.getElementById('liq-book'), cv = document.getElementById('liq-curve');
-    const I = v.instr(), N = 9;
+    const dc = v.dec(), N = 9;
     const asks = v.book.asks.slice(0, N).reverse(), bids = v.book.bids.slice(0, N);
     let mx = 0;
     for (const [p, s] of asks.concat(bids)) { const u = +p * +s; if (u > mx) mx = u; }
     const row = (p, s, ask) => {
       const u = +p * +s, w = Math.min(100, u / mx * 100);
       return '<div class="lq-row" style="position:relative"><span class="bar" style="position:absolute;right:0;top:1px;bottom:1px;width:' + w.toFixed(0) + '%;background:rgba(' + (ask ? '248,113,113' : '52,211,153') + ',.14)"></span>'
-        + '<span style="color:rgba(' + (ask ? '248,113,113' : '52,211,153') + ',.95);z-index:1">' + (+p).toFixed(I.dec) + '</span><span style="color:var(--text2);z-index:1">' + lqUsd(u) + '</span></div>';
+        + '<span style="color:rgba(' + (ask ? '248,113,113' : '52,211,153') + ',.95);z-index:1">' + (+p).toFixed(dc) + '</span><span style="color:var(--text2);z-index:1">' + lqUsd(u) + '</span></div>';
     };
     if (el) {
       const bb = +v.book.bids[0][0], ba = +v.book.asks[0][0];
       el.innerHTML = asks.map(([p, s]) => row(p, s, true)).join('')
-        + '<div class="lq-row" style="border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);margin:2px 0"><span style="color:var(--text)">spread</span><span style="color:var(--text3)">' + (ba - bb).toFixed(I.dec) + '</span></div>'
+        + '<div class="lq-row" style="border-top:1px solid var(--border2);border-bottom:1px solid var(--border2);margin:2px 0"><span style="color:var(--text)">spread</span><span style="color:var(--text3)">' + (ba - bb).toFixed(dc) + '</span></div>'
         + bids.map(([p, s]) => row(p, s, false)).join('');
     }
     // curva de profundidad acumulada (las curvas verde/roja de TD): cum-sum desde el mid ±1.5%
@@ -8418,12 +8505,12 @@ const LiqTab = {
     const I = v.instr();
     if (cvEl) cvEl.innerHTML = 'CVD <b style="color:' + (v.cvd >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (v.cvd >= 0 ? '+' : '−') + lqUsd(Math.abs(v.cvd)) + '</b> <span style="color:var(--text3)">$ agresor acumulado (día ET)</span>';
     if (el) el.innerHTML = v.tape.map(t =>
-      '<div class="lq-row' + (t.usd >= 1e5 ? ' lq-flash' : '') + '"><span style="color:' + (t.buy ? 'var(--green)' : 'var(--red)') + '">' + (t.buy ? '▲' : '▼') + ' ' + t.px.toFixed(I.dec) + '</span><span style="color:' + (t.usd >= 1e5 ? 'var(--amber)' : 'var(--text3)') + '">' + lqUsd(t.usd) + (t.usd >= 1e5 ? ' 🐳' : '') + '</span></div>').join('');
+      '<div class="lq-row' + (t.usd >= 1e5 ? ' lq-flash' : '') + '"><span style="color:' + (t.buy ? 'var(--green)' : 'var(--red)') + '">' + (t.buy ? '▲' : '▼') + ' ' + t.px.toFixed(v.dec()) + '</span><span style="color:' + (t.usd >= 1e5 ? 'var(--amber)' : 'var(--text3)') + '">' + lqUsd(t.usd) + (t.usd >= 1e5 ? ' 🐳' : '') + '</span></div>').join('');
   },
   renderLiqs(v) {
     const el = document.getElementById('liq-liqs'); if (!el) return;
     el.innerHTML = v.liqs.map(e =>
-      '<div class="lq-row lq-flash"><span style="color:' + (e.long ? 'var(--red)' : 'var(--green)') + '">' + (e.long ? 'LONG rekt' : 'SHORT rekt') + ' @ ' + e.px.toFixed(v.instr().dec) + '</span><span style="color:var(--amber)">' + lqUsd(e.usd) + ' <span style="color:var(--text3);font-size:8px">' + e.src + '</span></span></div>').join('')
+      '<div class="lq-row lq-flash"><span style="color:' + (e.long ? 'var(--red)' : 'var(--green)') + '">' + (e.long ? 'LONG rekt' : 'SHORT rekt') + ' @ ' + e.px.toFixed(v.dec()) + '</span><span style="color:var(--amber)">' + lqUsd(e.usd) + ' <span style="color:var(--text3);font-size:8px">' + e.src + '</span></span></div>').join('')
       || '<span style="color:var(--text3)">sin liquidaciones aún (mercado tranquilo)</span>';
   },
   renderPools(v, sum) {
@@ -8432,7 +8519,7 @@ const LiqTab = {
     const rows = [...sum.entries()].map(([b, usd]) => ({ p: (b + 0.5) * v.binSz, usd, d: ((b + 0.5) * v.binSz / v.last - 1) * 100 }))
       .sort((a, b) => b.usd - a.usd).slice(0, 10).sort((a, b) => b.p - a.p);
     el.innerHTML = rows.map(r =>
-      '<div class="lq-row"><span style="color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + r.p.toFixed(I.dec) + ' <span style="font-size:8px;color:var(--text3)">' + (r.d >= 0 ? '+' : '') + r.d.toFixed(2) + '%</span></span><span style="color:var(--amber)">' + lqUsd(r.usd) + '</span></div>').join('');
+      '<div class="lq-row"><span style="color:' + (r.d >= 0 ? 'var(--red)' : 'var(--green)') + '">' + r.p.toFixed(v.dec()) + ' <span style="font-size:8px;color:var(--text3)">' + (r.d >= 0 ? '+' : '') + r.d.toFixed(2) + '%</span></span><span style="color:var(--amber)">' + lqUsd(r.usd) + '</span></div>').join('');
     if (Date.now() - (this._barsT || 0) > 5000) { this._barsT = Date.now(); this.renderBars(); this.renderFeeds(); } // review V5 B3: feeds repintados tras regenerar la barra
     const st = document.getElementById('liq-status');
     if (st) st.innerHTML = 'MODELO: ΔOI>0 (' + (v.oiSrc || '—') + ' 5m + OI vivo 10s) · cohortes 10x·35%/25x·35%/50x·20%/100x·10% · entries direccionales (bajista: shorts (h+o)/2 dominan 70/30) · nivel entry×(1∓1/L+0.4%) · purga al cruce + PURGA CONFIRMADA por liquidación real (WS Bybit completo; Binance capado 1/s — declarado). '
